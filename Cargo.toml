@@ -1,0 +1,11 @@
+[package]
+name = "askme-kayzen"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+dioxus = { version = "0.7.9", features = ["web"] }
+dioxus-web = { version = "0.7.9" }
+wasm-bindgen = "0.2.126"
+web-sys = { version = "0.3.103", features = ["Window", "Document", "HtmlElement"] }
+uuid = { version = "1", features = ["v4", "js"] }
