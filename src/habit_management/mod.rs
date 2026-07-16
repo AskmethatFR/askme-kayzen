@@ -19,4 +19,10 @@ pub mod use_cases {
         #[path = "create-habit-command.rs"]
         pub mod create_habit_command;
     }
+
+    #[path = "request-habit"]
+    pub mod request_habit {
+        #[path = "request-habit.rs"]
+        pub mod request_habit;
+    }
 }
