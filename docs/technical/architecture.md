@@ -9,6 +9,7 @@ relations:
     - "adr-0001-validation-by-construction"
     - "adr-0002-habitboard-stateful-aggregate"
     - "adr-0003-two-crate-workspace"
+    - "adr-0004-routing-flat-enum"
 answers:
   - "What bounded contexts exist and how are they layered?"
   - "How is the repository laid out (workspace, crates) and who may depend on whom?"
@@ -16,23 +17,25 @@ answers:
   - "Is HabitBoard stateful? What state does it hold and who persists it?"
   - "Why is there no outbox dispatcher / main wiring / handler idempotence yet?"
   - "Why was HabitDescription renamed to HabitTitle, and why does matches() differ from PartialEq?"
+  - "How is the app shell structured (Router, route enum, views) and what platform is targeted first?"
 decided_in:
   - "LOCAL-1"
   - "LOCAL-2"
   - "LOCAL-3"
+  - "LOCAL-4"
 ---
 
 # Habit Management — Architecture Overview
 
 > **One-liner**: Two-crate Cargo workspace — pure domain lib `kayzen-core` / Dioxus shell `kayzen-app` — single bounded context `habit_management`, hexagonal layering, where habit creation goes through the **stateful `HabitBoard` aggregate** (cross-habit invariants) and is event-mediated through a transactional outbox.
-> **Links**: [[adr-0001-validation-by-construction]] (invariant model), [[adr-0002-habitboard-stateful-aggregate]] (aggregate boundary & persistence), [[adr-0003-two-crate-workspace]] (workspace split & dependency rule enforcement).
+> **Links**: [[adr-0001-validation-by-construction]] (invariant model), [[adr-0002-habitboard-stateful-aggregate]] (aggregate boundary & persistence), [[adr-0003-two-crate-workspace]] (workspace split & dependency rule enforcement), [[adr-0004-routing-flat-enum]] (app-shell routing skeleton).
 
 ## Workspace layout (since LOCAL-3 — settled in [[adr-0003-two-crate-workspace]])
 
 | Crate | Kind | Contents | Dependencies |
 |---|---|---|---|
 | `kayzen-core` (`core/`) | lib | `habit_management/` + `shared/` — the whole domain, use cases, in-memory infra | `uuid` only (`js` feature target-scoped to wasm32); **zero** dioxus/web-sys/wasm-bindgen |
-| `kayzen-app` (`app/`) | bin | Dioxus 0.7 shell: `Dioxus.toml`, `assets/`, `main.rs` (idiomatic `#[component] fn App()` + `dioxus::launch(App)` + `asset!` links) | `kayzen-core` + `dioxus`; feature-per-platform `default = ["web"]`, `web`/`desktop`/`mobile` |
+| `kayzen-app` (`app/`) | bin | Dioxus 0.7 shell: `Dioxus.toml`, `assets/`, `main.rs` (`App` hosts `Router::<Route>`; `document::Link` assets above it), `route.rs` (flat route enum, 4 tests), `views/` (7 screen stubs + `mod.rs`) | `kayzen-core` + `dioxus`; feature-per-platform `default = ["web"]`, `web`/`desktop`/`mobile` |
 
 Dependency edge is **one-way `app → core`, compiler-enforced** — core cannot reference app or any UI crate. Do not re-decide the split, crate names, or feature-per-platform shape.
 
@@ -45,7 +48,7 @@ One bounded context: **`habit_management`** (`core/src/habit_management/`), plus
 | Domain | `Habit`, `HabitBoard` (stateful aggregate), `HabitBoardEvent`, `HabitBoardError`, VOs (`HabitTitle`, `InitialDuration`, `HabitId`), ports (`HabitRepository`, `HabitBoardRepository`, `DomainEventPublisher`) | `core/src/habit_management/domain/` |
 | Application (use cases) | `RequestHabit` (command side), `CreateHabitOnRequest` (event handler) | `core/src/habit_management/use-cases/request-habit/request-habit.rs`, `core/src/habit_management/use-cases/create-habit-on-request/create-habit-on-request.rs` |
 | Infrastructure | `InMemoryOutbox`, `InMemoryHabitRepository`, `InMemoryHabitBoardRepository` | `core/src/habit_management/infrastructure/` |
-| Presentation (shell only) | Placeholder Dioxus `App` — **wires no use case yet** (unchanged human constraint) | `app/src/main.rs` |
+| Presentation (shell only) | Dioxus `App` hosting `Router::<Route>`; flat `Route` enum mirroring the designer's 6 screens + NotFound catch-all ([[adr-0004-routing-flat-enum]]); `views/` = 7 screen **stubs** (French designer titles, placeholder data) — **wires no use case yet** (unchanged human constraint). Target: **Android-first**, all dev on the web platform for speed | `app/src/main.rs`, `app/src/route.rs`, `app/src/views/` |
 
 ## Habit creation flow (board-driven; stateful since LOCAL-2)
 
@@ -88,7 +91,8 @@ CreateHabitOnRequest (application event handler)
 ## Deliberately does NOT exist yet (human constraint — manual dev resumes after these cycles)
 
 - Production outbox-draining dispatcher (`drain()` is test-only, `core/src/habit_management/infrastructure/in_memory_outbox.rs`)
-- UI wiring of the use cases — `app/src/main.rs` is an idiomatic Dioxus placeholder that calls **no** use case (LOCAL-3 normalized its shape, not its role)
+- UI wiring of the use cases — the app shell now has a Router + 7 view stubs (LOCAL-4, [[adr-0004-routing-flat-enum]]) but still calls **no** use case; views render placeholder data. The route `:id` stays `String` until this boundary is wired
+- Android `mobile-shell` concerns — hardware back-button wiring and intent-filters/App Links registration are **explicitly deferred** to a future `mobile-shell` ticket ([[adr-0004-routing-flat-enum]])
 - Idempotence in `CreateHabitOnRequest`
 - Entry **removal** from the board — the future "ancrée" (anchored) rule; `BoardEntry.id` is the reserved hook
 - Unicode handling in `HabitTitle`: NFC normalization in `matches` + grapheme-based length — both deferred, flagged by Security review as low/UX; **handle together in one future ticket**
@@ -102,6 +106,7 @@ Do not build these speculatively; each requires a new decision cycle.
 - **MUST**: keep rejection non-destructive — on `Err`, neither `save` nor `publish` runs.
 - **MUST**: respect the dependency rule — domain has no dependency on application or infrastructure; ports live in the domain.
 - **MUST**: respect the crate boundary — `kayzen-core` stays free of UI/platform dependencies; the `app → core` edge is one-way (see [[adr-0003-two-crate-workspace]], incl. its known-debt follow-ups: Cargo.lock platform closure, `cargo audit` in CI, public in-memory test doubles).
+- **MUST**: in the app shell, navigate via explicit `Link { to: Route::X }` only (never `go_back()`), keep URL paths English and stable, and convert the `:id` `String` to a typed id once at the core-wiring boundary (see [[adr-0004-routing-flat-enum]], incl. its watch items: unused `segments` prop in `not_found.rs`, stale-`done` closure bug in `today.rs` to fix at core-wiring time).
 - **MUST NOT**: reintroduce a direct-creation command use case, or trait abstractions without a second consumer.
 - **MUST NOT**: make `PartialEq` on `HabitTitle` case-insensitive — `matches` is the business comparison.
 - **Out of scope**: persistence beyond in-memory adapters; any UI.
