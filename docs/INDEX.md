@@ -24,8 +24,8 @@
 
 | ID | Title | Status | Updated | Links | Path |
 |---|---|---|---|---|---|
-| `feature-catalog` | Habit Management — features, business rules, acceptance | current | 2026-07-16 | `[[glossary]]`, `[[architecture-overview]]`, `[[adr-0001-validation-by-construction]]` | `docs/functional/feature-catalog.md` |
-| `glossary` | Ubiquitous language — Habit, Habit Board, Request, HabitRequested, Outbox | current | 2026-07-16 | `[[feature-catalog]]` | `docs/functional/glossary.md` |
+| `feature-catalog` | Habit Management — features, business rules (max 5, no duplicate), acceptance | current | 2026-07-16 | `[[glossary]]`, `[[architecture-overview]]`, `[[adr-0001-validation-by-construction]]` | `docs/functional/feature-catalog.md` |
+| `glossary` | Ubiquitous language — Habit, Habit Board, Title, Duplicate, HabitRequested, Outbox | current | 2026-07-16 | `[[feature-catalog]]` | `docs/functional/glossary.md` |
 
 ## Graph health (maintained by the owners at end of each cycle)
 
