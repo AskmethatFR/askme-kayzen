@@ -25,7 +25,10 @@ impl RequestHabit {
         description: String,
         initial_duration: u32,
     ) -> Result<HabitId, HabitBoardError> {
-        todo!("generate id, ask the board to request a habit, publish the resulting event")
+        let id = HabitId::new(self.guid_generator.generate());
+        let event = HabitBoard::new().request_habit(id.clone(), description, initial_duration)?;
+        self.publisher.publish(event);
+        Ok(id)
     }
 }
 
