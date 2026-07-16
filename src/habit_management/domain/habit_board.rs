@@ -43,10 +43,6 @@ impl Error for HabitBoardError {}
 impl HabitBoard {
     pub const MAX_HABITS: usize = 5;
 
-    pub fn new() -> HabitBoard {
-        HabitBoard::default()
-    }
-
     pub fn request_habit(
         &mut self,
         id: HabitId,
