@@ -1,36 +1,15 @@
-use dioxus::prelude::*;
+mod add_habit;
+mod anchored;
+mod habit_detail;
+mod not_found;
+mod ritual;
+mod today;
+mod week;
 
-#[component]
-pub fn Today() -> Element {
-    rsx! { "today" }
-}
-
-#[component]
-pub fn HabitDetail(id: String) -> Element {
-    rsx! { "detail {id}" }
-}
-
-#[component]
-pub fn Ritual(id: String) -> Element {
-    rsx! { "ritual {id}" }
-}
-
-#[component]
-pub fn Week() -> Element {
-    rsx! { "week" }
-}
-
-#[component]
-pub fn Anchored() -> Element {
-    rsx! { "anchored" }
-}
-
-#[component]
-pub fn AddHabit() -> Element {
-    rsx! { "add" }
-}
-
-#[component]
-pub fn NotFound(segments: Vec<String>) -> Element {
-    rsx! { "not found {segments:?}" }
-}
+pub use add_habit::AddHabit;
+pub use anchored::Anchored;
+pub use habit_detail::HabitDetail;
+pub use not_found::NotFound;
+pub use ritual::Ritual;
+pub use today::Today;
+pub use week::Week;
