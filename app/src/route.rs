@@ -6,10 +6,10 @@ use dioxus::prelude::*;
 pub enum Route {
     #[route("/")]
     Today {},
+    #[route("/habit/:id/ritual")]
+    Ritual { id: String },
     #[route("/habit/:id")]
     HabitDetail { id: String },
-    #[route("/habit/:id")]
-    Ritual { id: String },
     #[route("/week")]
     Week {},
     #[route("/anchored")]
