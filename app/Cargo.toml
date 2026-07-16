@@ -1,0 +1,14 @@
+[package]
+name = "kayzen-app"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+kayzen-core = { path = "../core" }
+dioxus = { version = "0.7.9", features = [] }
+
+[features]
+default = ["web"]
+web = ["dioxus/web"]
+desktop = ["dioxus/desktop"]
+mobile = ["dioxus/mobile"]

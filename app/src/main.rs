@@ -1,12 +1,14 @@
 use dioxus::prelude::*;
 
-mod habit_management;
-pub mod shared;
+const FAVICON: Asset = asset!("/assets/favicon.ico");
+const MAIN_CSS: Asset = asset!("/assets/main.css");
 
 fn main() {
-    launch(app);
+    dioxus::launch(App);
 }
-fn app() -> Result<VNode, dioxus::prelude::RenderError> {
+
+#[component]
+fn App() -> Element {
     let mut habits = use_signal(|| {
         vec![
             ("Lire", 4u32, false),
@@ -16,6 +18,8 @@ fn app() -> Result<VNode, dioxus::prelude::RenderError> {
     });
 
     rsx! {
+        document::Link { rel: "icon", href: FAVICON }
+        document::Link { rel: "stylesheet", href: MAIN_CSS }
         h1 { "Bonjour." }
         for (i, (name, min, done)) in habits().into_iter().enumerate() {
             div { style: "display:flex; gap:16px; padding:20px 0;",

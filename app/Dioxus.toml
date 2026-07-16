@@ -1,0 +1,5 @@
+[application]
+name = "askme-kayzen"
+
+[web.app]
+title = "Kaizen"
