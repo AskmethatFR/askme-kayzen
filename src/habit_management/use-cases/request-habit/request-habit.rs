@@ -71,20 +71,28 @@ mod tests {
 
     #[test]
     fn requesting_a_habit_publishes_exactly_one_habit_requested_event() {
-        let outbox = Rc::new(InMemoryOutbox::new());
-        let request_habit = request_habit_with(Rc::clone(&outbox));
+        let cases = vec![
+            (String::from("Read one page"), 5),
+            ("a".repeat(HabitDescription::MIN_LEN), 5),
+            ("a".repeat(HabitDescription::MAX_LEN), 5),
+        ];
 
-        let result = request_habit.execute(String::from("Read one page"), 5);
+        for (description, initial_duration) in cases {
+            let outbox = Rc::new(InMemoryOutbox::new());
+            let request_habit = request_habit_with(Rc::clone(&outbox));
 
-        assert_eq!(result, Ok(HabitId::from("fixed-guid")));
-        assert_eq!(
-            outbox.drain(),
-            vec![HabitBoardEvent::HabitRequested {
-                id: HabitId::from("fixed-guid"),
-                description: HabitDescription::new(String::from("Read one page")).unwrap(),
-                initial_duration: InitialDuration::new(5).unwrap(),
-            }]
-        );
+            let result = request_habit.execute(description.clone(), initial_duration);
+
+            assert_eq!(result, Ok(HabitId::from("fixed-guid")));
+            assert_eq!(
+                outbox.drain(),
+                vec![HabitBoardEvent::HabitRequested {
+                    id: HabitId::from("fixed-guid"),
+                    description: HabitDescription::new(description).unwrap(),
+                    initial_duration: InitialDuration::new(initial_duration).unwrap(),
+                }]
+            );
+        }
     }
 
     #[test]
