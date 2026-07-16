@@ -13,7 +13,16 @@ impl CreateHabitOnRequest {
     }
 
     pub fn handle(&self, event: HabitBoardEvent) {
-        todo!("materialize the requested Habit and persist it via the repository")
+        match event {
+            HabitBoardEvent::HabitRequested {
+                id,
+                description,
+                initial_duration,
+            } => {
+                let habit = Habit::new(id, description, initial_duration);
+                self.repository.save(&habit);
+            }
+        }
     }
 }
 
