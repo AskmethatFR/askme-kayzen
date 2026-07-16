@@ -17,8 +17,9 @@
 
 | ID | Title | Status | Updated | Links | Path |
 |---|---|---|---|---|---|
-| `adr-0001-validation-by-construction` | Validation by construction: VOs as single source of truth, events valid end-to-end | current | 2026-07-16 | `[[architecture-overview]]` | `docs/technical/adr/0001-validation-by-construction.md` |
-| `architecture-overview` | Habit Management — bounded context, layers, board-driven creation flow | current | 2026-07-16 | `[[adr-0001-validation-by-construction]]` | `docs/technical/architecture.md` |
+| `adr-0001-validation-by-construction` | Validation by construction: VOs as single source of truth, events valid end-to-end | current | 2026-07-16 | `[[architecture-overview]]`, `[[adr-0002-habitboard-stateful-aggregate]]` | `docs/technical/adr/0001-validation-by-construction.md` |
+| `adr-0002-habitboard-stateful-aggregate` | HabitBoard becomes a persisted stateful aggregate (capacity + uniqueness invariants) | current | 2026-07-16 | `[[architecture-overview]]`, `[[adr-0001-validation-by-construction]]` | `docs/technical/adr/0002-habitboard-stateful-aggregate.md` |
+| `architecture-overview` | Habit Management — bounded context, layers, board-driven creation flow (stateful board) | current | 2026-07-16 | `[[adr-0001-validation-by-construction]]`, `[[adr-0002-habitboard-stateful-aggregate]]` | `docs/technical/architecture.md` |
 
 ## Functional nodes (owner: pm)
 
