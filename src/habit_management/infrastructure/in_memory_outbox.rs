@@ -27,13 +27,15 @@ impl DomainEventPublisher for InMemoryOutbox {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::habit_management::domain::habit_description::HabitDescription;
     use crate::habit_management::domain::habit_id::HabitId;
+    use crate::habit_management::domain::initial_duration::InitialDuration;
 
     fn a_request(id: &str) -> HabitBoardEvent {
         HabitBoardEvent::HabitRequested {
             id: HabitId::from(id),
-            description: String::from("Read one page"),
-            initial_duration: 2,
+            description: HabitDescription::new(String::from("Read one page")).unwrap(),
+            initial_duration: InitialDuration::new(2).unwrap(),
         }
     }
 
