@@ -78,10 +78,7 @@ mod tests {
 
         handler.handle(a_habit_requested("id-1", "Read one page", 2));
 
-        assert_eq!(
-            repository.all(),
-            vec![a_habit("id-1", "Read one page", 2)]
-        );
+        assert_eq!(repository.all(), vec![a_habit("id-1", "Read one page", 2)]);
     }
 
     #[test]

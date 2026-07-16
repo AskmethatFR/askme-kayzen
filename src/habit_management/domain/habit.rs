@@ -36,7 +36,11 @@ impl fmt::Display for HabitError {
 impl Error for HabitError {}
 
 impl Habit {
-    pub fn new(id: HabitId, description: HabitDescription, initial_duration: InitialDuration) -> Habit {
+    pub fn new(
+        id: HabitId,
+        description: HabitDescription,
+        initial_duration: InitialDuration,
+    ) -> Habit {
         Habit {
             id,
             description,
