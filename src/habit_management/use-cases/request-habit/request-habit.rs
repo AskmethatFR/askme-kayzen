@@ -168,6 +168,8 @@ mod tests {
 
     #[test]
     fn a_sixth_habit_request_on_a_full_board_is_rejected_and_publishes_nothing() {
+        assert_eq!(HabitBoard::MAX_HABITS, 5);
+
         let (outbox, board_repository) = a_full_board();
 
         let sixth_request_habit = request_habit_with(

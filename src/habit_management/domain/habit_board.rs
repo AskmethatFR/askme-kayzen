@@ -79,3 +79,30 @@ impl HabitBoard {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display_formats_each_error_variant_with_the_expected_message() {
+        let cases = vec![
+            (
+                HabitBoardError::DuplicateHabit,
+                "a habit with this title is already on the board".to_string(),
+            ),
+            (
+                HabitBoardError::BoardFull { max: 5 },
+                "the habit board already holds the maximum of 5 habits".to_string(),
+            ),
+            (
+                HabitBoardError::InvalidHabit(HabitError::TitleLength { min: 1, max: 50 }),
+                HabitError::TitleLength { min: 1, max: 50 }.to_string(),
+            ),
+        ];
+
+        for (error, expected) in cases {
+            assert_eq!(error.to_string(), expected);
+        }
+    }
+}
