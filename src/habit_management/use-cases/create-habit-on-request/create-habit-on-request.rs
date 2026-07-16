@@ -30,9 +30,11 @@ impl CreateHabitOnRequest {
 mod tests {
     use super::*;
     use crate::habit_management::domain::domain_event_publisher::DomainEventPublisher;
+    use crate::habit_management::domain::habit_board_repository::HabitBoardRepository;
     use crate::habit_management::domain::habit_id::HabitId;
     use crate::habit_management::domain::habit_title::HabitTitle;
     use crate::habit_management::domain::initial_duration::InitialDuration;
+    use crate::habit_management::infrastructure::in_memory_habit_board_repository::InMemoryHabitBoardRepository;
     use crate::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
     use crate::habit_management::infrastructure::in_memory_outbox::InMemoryOutbox;
     use crate::habit_management::use_cases::request_habit::request_habit::RequestHabit;
@@ -78,11 +80,13 @@ mod tests {
     fn requesting_then_handling_a_habit_persists_it_end_to_end() {
         let outbox = Rc::new(InMemoryOutbox::new());
         let repository = Rc::new(InMemoryHabitRepository::new());
+        let board_repository = Rc::new(InMemoryHabitBoardRepository::new());
         let request_habit = RequestHabit::new(
             Box::new(StubGuidGenerator {
                 guid: String::from("fixed-guid"),
             }),
             Rc::clone(&outbox) as Rc<dyn DomainEventPublisher>,
+            board_repository as Rc<dyn HabitBoardRepository>,
         );
         let handler = CreateHabitOnRequest::new(Rc::clone(&repository) as Rc<dyn HabitRepository>);
 

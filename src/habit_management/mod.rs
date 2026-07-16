@@ -3,6 +3,7 @@ pub mod domain {
     pub mod habit;
     pub mod habit_board;
     pub mod habit_board_event;
+    pub mod habit_board_repository;
     pub mod habit_id;
     pub mod habit_repository;
     pub mod habit_title;
@@ -10,6 +11,7 @@ pub mod domain {
 }
 
 pub mod infrastructure {
+    pub mod in_memory_habit_board_repository;
     pub mod in_memory_habit_repository;
     pub mod in_memory_outbox;
 }

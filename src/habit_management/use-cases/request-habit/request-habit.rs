@@ -1,6 +1,6 @@
 use crate::habit_management::domain::domain_event_publisher::DomainEventPublisher;
-use crate::habit_management::domain::habit::HabitError;
-use crate::habit_management::domain::habit_board::HabitBoard;
+use crate::habit_management::domain::habit_board::HabitBoardError;
+use crate::habit_management::domain::habit_board_repository::HabitBoardRepository;
 use crate::habit_management::domain::habit_id::HabitId;
 use crate::shared::guid_generator::GuidGenerator;
 use std::rc::Rc;
@@ -8,22 +8,31 @@ use std::rc::Rc;
 pub struct RequestHabit {
     guid_generator: Box<dyn GuidGenerator>,
     publisher: Rc<dyn DomainEventPublisher>,
+    board_repository: Rc<dyn HabitBoardRepository>,
 }
 
 impl RequestHabit {
     pub fn new(
         guid_generator: Box<dyn GuidGenerator>,
         publisher: Rc<dyn DomainEventPublisher>,
+        board_repository: Rc<dyn HabitBoardRepository>,
     ) -> RequestHabit {
         RequestHabit {
             guid_generator,
             publisher,
+            board_repository,
         }
     }
 
-    pub fn execute(&self, title: String, initial_duration: u32) -> Result<HabitId, HabitError> {
+    pub fn execute(
+        &self,
+        title: String,
+        initial_duration: u32,
+    ) -> Result<HabitId, HabitBoardError> {
         let id = HabitId::new(self.guid_generator.generate());
-        let event = HabitBoard::new().request_habit(id.clone(), title, initial_duration)?;
+        let mut board = self.board_repository.load();
+        let event = board.request_habit(id.clone(), title, initial_duration)?;
+        self.board_repository.save(&board);
         self.publisher.publish(event);
         Ok(id)
     }
@@ -32,9 +41,12 @@ impl RequestHabit {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::habit_management::domain::habit::HabitError;
+    use crate::habit_management::domain::habit_board::HabitBoard;
     use crate::habit_management::domain::habit_board_event::HabitBoardEvent;
     use crate::habit_management::domain::habit_title::HabitTitle;
     use crate::habit_management::domain::initial_duration::InitialDuration;
+    use crate::habit_management::infrastructure::in_memory_habit_board_repository::InMemoryHabitBoardRepository;
     use crate::habit_management::infrastructure::in_memory_outbox::InMemoryOutbox;
 
     struct StubGuidGenerator {
@@ -47,13 +59,29 @@ mod tests {
         }
     }
 
-    fn request_habit_with(publisher: Rc<InMemoryOutbox>) -> RequestHabit {
+    fn request_habit_with(
+        guid: &str,
+        publisher: Rc<dyn DomainEventPublisher>,
+        board_repository: Rc<dyn HabitBoardRepository>,
+    ) -> RequestHabit {
         RequestHabit::new(
             Box::new(StubGuidGenerator {
-                guid: String::from("fixed-guid"),
+                guid: guid.to_string(),
             }),
             publisher,
+            board_repository,
         )
+    }
+
+    fn a_fresh_request_habit() -> (RequestHabit, Rc<InMemoryOutbox>) {
+        let outbox = Rc::new(InMemoryOutbox::new());
+        let board_repository = Rc::new(InMemoryHabitBoardRepository::new());
+        let request_habit = request_habit_with(
+            "fixed-guid",
+            Rc::clone(&outbox) as Rc<dyn DomainEventPublisher>,
+            board_repository as Rc<dyn HabitBoardRepository>,
+        );
+        (request_habit, outbox)
     }
 
     #[test]
@@ -65,8 +93,7 @@ mod tests {
         ];
 
         for (title, initial_duration) in cases {
-            let outbox = Rc::new(InMemoryOutbox::new());
-            let request_habit = request_habit_with(Rc::clone(&outbox));
+            let (request_habit, outbox) = a_fresh_request_habit();
 
             let result = request_habit.execute(title.clone(), initial_duration);
 
@@ -84,40 +111,73 @@ mod tests {
 
     #[test]
     fn requesting_an_invalid_habit_returns_an_error_and_publishes_nothing() {
-        let cases: Vec<(String, u32, HabitError)> = vec![
+        let cases: Vec<(String, u32, HabitBoardError)> = vec![
             (
                 String::from("Run a marathon"),
                 InitialDuration::MAX + 1,
-                HabitError::DurationTooLong {
+                HabitBoardError::InvalidHabit(HabitError::DurationTooLong {
                     max: InitialDuration::MAX,
-                },
+                }),
             ),
             (
                 String::new(),
                 5,
-                HabitError::TitleLength {
+                HabitBoardError::InvalidHabit(HabitError::TitleLength {
                     min: HabitTitle::MIN_LEN,
                     max: HabitTitle::MAX_LEN,
-                },
+                }),
             ),
             (
                 "a".repeat(HabitTitle::MAX_LEN + 1),
                 5,
-                HabitError::TitleLength {
+                HabitBoardError::InvalidHabit(HabitError::TitleLength {
                     min: HabitTitle::MIN_LEN,
                     max: HabitTitle::MAX_LEN,
-                },
+                }),
             ),
         ];
 
         for (title, initial_duration, expected_error) in cases {
-            let outbox = Rc::new(InMemoryOutbox::new());
-            let request_habit = request_habit_with(Rc::clone(&outbox));
+            let (request_habit, outbox) = a_fresh_request_habit();
 
             let result = request_habit.execute(title, initial_duration);
 
             assert_eq!(result, Err(expected_error));
             assert!(outbox.drain().is_empty());
         }
+    }
+
+    #[test]
+    fn a_sixth_habit_request_on_a_full_board_is_rejected_and_publishes_nothing() {
+        let outbox = Rc::new(InMemoryOutbox::new());
+        let board_repository = Rc::new(InMemoryHabitBoardRepository::new());
+
+        for n in 1..=HabitBoard::MAX_HABITS {
+            let request_habit = request_habit_with(
+                &format!("guid-{n}"),
+                Rc::clone(&outbox) as Rc<dyn DomainEventPublisher>,
+                Rc::clone(&board_repository) as Rc<dyn HabitBoardRepository>,
+            );
+
+            let result = request_habit.execute(format!("Habit number {n}"), 1);
+
+            assert!(result.is_ok());
+        }
+
+        let sixth_request_habit = request_habit_with(
+            "guid-6",
+            Rc::clone(&outbox) as Rc<dyn DomainEventPublisher>,
+            Rc::clone(&board_repository) as Rc<dyn HabitBoardRepository>,
+        );
+
+        let result = sixth_request_habit.execute(String::from("One habit too many"), 1);
+
+        assert_eq!(
+            result,
+            Err(HabitBoardError::BoardFull {
+                max: HabitBoard::MAX_HABITS
+            })
+        );
+        assert_eq!(outbox.drain().len(), HabitBoard::MAX_HABITS);
     }
 }

@@ -3,23 +3,60 @@ use crate::habit_management::domain::habit_board_event::HabitBoardEvent;
 use crate::habit_management::domain::habit_id::HabitId;
 use crate::habit_management::domain::habit_title::HabitTitle;
 use crate::habit_management::domain::initial_duration::InitialDuration;
+use std::error::Error;
+use std::fmt;
 
-#[derive(Debug, Default, PartialEq)]
-pub struct HabitBoard {}
+#[derive(Debug, Clone, PartialEq)]
+struct BoardEntry {
+    id: HabitId,
+    title: HabitTitle,
+}
+
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct HabitBoard {
+    requests: Vec<BoardEntry>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum HabitBoardError {
+    InvalidHabit(HabitError),
+    BoardFull { max: usize },
+}
+
+impl fmt::Display for HabitBoardError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            HabitBoardError::InvalidHabit(error) => write!(f, "{error}"),
+            HabitBoardError::BoardFull { max } => {
+                write!(f, "the habit board already holds the maximum of {max} habits")
+            }
+        }
+    }
+}
+
+impl Error for HabitBoardError {}
 
 impl HabitBoard {
+    pub const MAX_HABITS: usize = 5;
+
     pub fn new() -> HabitBoard {
         HabitBoard::default()
     }
 
     pub fn request_habit(
-        &self,
+        &mut self,
         id: HabitId,
         title: String,
         initial_duration: u32,
-    ) -> Result<HabitBoardEvent, HabitError> {
-        let title = HabitTitle::new(title)?;
-        let initial_duration = InitialDuration::new(initial_duration)?;
+    ) -> Result<HabitBoardEvent, HabitBoardError> {
+        let title = HabitTitle::new(title).map_err(HabitBoardError::InvalidHabit)?;
+        let initial_duration =
+            InitialDuration::new(initial_duration).map_err(HabitBoardError::InvalidHabit)?;
+
+        self.requests.push(BoardEntry {
+            id: id.clone(),
+            title: title.clone(),
+        });
 
         Ok(HabitBoardEvent::HabitRequested {
             id,
