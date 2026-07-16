@@ -26,13 +26,6 @@ impl CreateHabitOnRequest {
     }
 }
 
-// Test List — CreateHabitOnRequest::handle
-// - [T3] handling a HabitRequested event persists the corresponding Habit (same id,
-//   description, duration) via HabitRepository (AC3), fed directly (replaces
-//   create_habit_persists_it's persistence assertion).
-// - [T3] end-to-end: RequestHabit::execute -> outbox.drain() (in the test) ->
-//   handle() -> the repository contains the resulting Habit (AC3 full round trip,
-//   replaces create_habit_persists_it entirely).
 #[cfg(test)]
 mod tests {
     use super::*;

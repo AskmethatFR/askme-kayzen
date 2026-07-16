@@ -6,7 +6,6 @@ impl HabitId {
         HabitId(value)
     }
 }
-
 impl From<&str> for HabitId {
     fn from(value: &str) -> HabitId {
         HabitId(value.to_string())

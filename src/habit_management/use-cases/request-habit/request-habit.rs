@@ -33,15 +33,6 @@ impl RequestHabit {
     }
 }
 
-// Test List — RequestHabit::execute
-// - [T1] valid description + duration publishes exactly one HabitRequested carrying
-//   the generated id, description and duration (AC1). Uses duration = 5 so this same
-//   case also pins the inclusive upper boundary (replaces the old
-//   create_easy_habit_of_exactly_five_minutes case).
-// - [T2] invalid inputs return an error and publish nothing (AC2), one row per rule:
-//   duration > 5, empty description, description > 50 chars (replaces
-//   create_easy_habit_no_more_than_five_minutes, create_habit_without_description,
-//   create_habit_with_description_too_big).
 #[cfg(test)]
 mod tests {
     use super::*;
