@@ -53,6 +53,12 @@ impl HabitBoard {
         let initial_duration =
             InitialDuration::new(initial_duration).map_err(HabitBoardError::InvalidHabit)?;
 
+        if self.requests.len() >= Self::MAX_HABITS {
+            return Err(HabitBoardError::BoardFull {
+                max: Self::MAX_HABITS,
+            });
+        }
+
         self.requests.push(BoardEntry {
             id: id.clone(),
             title: title.clone(),
