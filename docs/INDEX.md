@@ -24,8 +24,8 @@
 
 | ID | Title | Status | Updated | Links | Path |
 |---|---|---|---|---|---|
-
-<!-- PM lane: no functional nodes yet. PM appends rows to the table above at end of cycle. -->
+| `feature-catalog` | Habit Management — features, business rules, acceptance | current | 2026-07-16 | `[[glossary]]`, `[[architecture-overview]]`, `[[adr-0001-validation-by-construction]]` | `docs/functional/feature-catalog.md` |
+| `glossary` | Ubiquitous language — Habit, Habit Board, Request, HabitRequested, Outbox | current | 2026-07-16 | `[[feature-catalog]]` | `docs/functional/glossary.md` |
 
 ## Graph health (maintained by the owners at end of each cycle)
 
