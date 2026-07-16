@@ -16,10 +16,10 @@ impl CreateHabitOnRequest {
         match event {
             HabitBoardEvent::HabitRequested {
                 id,
-                description,
+                title,
                 initial_duration,
             } => {
-                let habit = Habit::new(id, description, initial_duration);
+                let habit = Habit::new(id, title, initial_duration);
                 self.repository.save(&habit);
             }
         }
@@ -30,8 +30,8 @@ impl CreateHabitOnRequest {
 mod tests {
     use super::*;
     use crate::habit_management::domain::domain_event_publisher::DomainEventPublisher;
-    use crate::habit_management::domain::habit_description::HabitDescription;
     use crate::habit_management::domain::habit_id::HabitId;
+    use crate::habit_management::domain::habit_title::HabitTitle;
     use crate::habit_management::domain::initial_duration::InitialDuration;
     use crate::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
     use crate::habit_management::infrastructure::in_memory_outbox::InMemoryOutbox;
@@ -48,18 +48,18 @@ mod tests {
         }
     }
 
-    fn a_habit(id: &str, description: &str, initial_duration: u32) -> Habit {
+    fn a_habit(id: &str, title: &str, initial_duration: u32) -> Habit {
         Habit::new(
             HabitId::from(id),
-            HabitDescription::new(String::from(description)).unwrap(),
+            HabitTitle::new(String::from(title)).unwrap(),
             InitialDuration::new(initial_duration).unwrap(),
         )
     }
 
-    fn a_habit_requested(id: &str, description: &str, initial_duration: u32) -> HabitBoardEvent {
+    fn a_habit_requested(id: &str, title: &str, initial_duration: u32) -> HabitBoardEvent {
         HabitBoardEvent::HabitRequested {
             id: HabitId::from(id),
-            description: HabitDescription::new(String::from(description)).unwrap(),
+            title: HabitTitle::new(String::from(title)).unwrap(),
             initial_duration: InitialDuration::new(initial_duration).unwrap(),
         }
     }

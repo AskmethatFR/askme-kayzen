@@ -21,13 +21,9 @@ impl RequestHabit {
         }
     }
 
-    pub fn execute(
-        &self,
-        description: String,
-        initial_duration: u32,
-    ) -> Result<HabitId, HabitError> {
+    pub fn execute(&self, title: String, initial_duration: u32) -> Result<HabitId, HabitError> {
         let id = HabitId::new(self.guid_generator.generate());
-        let event = HabitBoard::new().request_habit(id.clone(), description, initial_duration)?;
+        let event = HabitBoard::new().request_habit(id.clone(), title, initial_duration)?;
         self.publisher.publish(event);
         Ok(id)
     }
@@ -37,7 +33,7 @@ impl RequestHabit {
 mod tests {
     use super::*;
     use crate::habit_management::domain::habit_board_event::HabitBoardEvent;
-    use crate::habit_management::domain::habit_description::HabitDescription;
+    use crate::habit_management::domain::habit_title::HabitTitle;
     use crate::habit_management::domain::initial_duration::InitialDuration;
     use crate::habit_management::infrastructure::in_memory_outbox::InMemoryOutbox;
 
@@ -64,22 +60,22 @@ mod tests {
     fn requesting_a_habit_publishes_exactly_one_habit_requested_event() {
         let cases = vec![
             (String::from("Read one page"), 5),
-            ("a".repeat(HabitDescription::MIN_LEN), 5),
-            ("a".repeat(HabitDescription::MAX_LEN), 5),
+            ("a".repeat(HabitTitle::MIN_LEN), 5),
+            ("a".repeat(HabitTitle::MAX_LEN), 5),
         ];
 
-        for (description, initial_duration) in cases {
+        for (title, initial_duration) in cases {
             let outbox = Rc::new(InMemoryOutbox::new());
             let request_habit = request_habit_with(Rc::clone(&outbox));
 
-            let result = request_habit.execute(description.clone(), initial_duration);
+            let result = request_habit.execute(title.clone(), initial_duration);
 
             assert_eq!(result, Ok(HabitId::from("fixed-guid")));
             assert_eq!(
                 outbox.drain(),
                 vec![HabitBoardEvent::HabitRequested {
                     id: HabitId::from("fixed-guid"),
-                    description: HabitDescription::new(description).unwrap(),
+                    title: HabitTitle::new(title).unwrap(),
                     initial_duration: InitialDuration::new(initial_duration).unwrap(),
                 }]
             );
@@ -99,26 +95,26 @@ mod tests {
             (
                 String::new(),
                 5,
-                HabitError::DescriptionLength {
-                    min: HabitDescription::MIN_LEN,
-                    max: HabitDescription::MAX_LEN,
+                HabitError::TitleLength {
+                    min: HabitTitle::MIN_LEN,
+                    max: HabitTitle::MAX_LEN,
                 },
             ),
             (
-                "a".repeat(HabitDescription::MAX_LEN + 1),
+                "a".repeat(HabitTitle::MAX_LEN + 1),
                 5,
-                HabitError::DescriptionLength {
-                    min: HabitDescription::MIN_LEN,
-                    max: HabitDescription::MAX_LEN,
+                HabitError::TitleLength {
+                    min: HabitTitle::MIN_LEN,
+                    max: HabitTitle::MAX_LEN,
                 },
             ),
         ];
 
-        for (description, initial_duration, expected_error) in cases {
+        for (title, initial_duration, expected_error) in cases {
             let outbox = Rc::new(InMemoryOutbox::new());
             let request_habit = request_habit_with(Rc::clone(&outbox));
 
-            let result = request_habit.execute(description, initial_duration);
+            let result = request_habit.execute(title, initial_duration);
 
             assert_eq!(result, Err(expected_error));
             assert!(outbox.drain().is_empty());
