@@ -180,4 +180,57 @@ mod tests {
         );
         assert_eq!(outbox.drain().len(), HabitBoard::MAX_HABITS);
     }
+
+    #[test]
+    fn requesting_a_duplicate_title_is_rejected_and_publishes_nothing() {
+        let outbox = Rc::new(InMemoryOutbox::new());
+        let board_repository = Rc::new(InMemoryHabitBoardRepository::new());
+
+        let first = request_habit_with(
+            "guid-1",
+            Rc::clone(&outbox) as Rc<dyn DomainEventPublisher>,
+            Rc::clone(&board_repository) as Rc<dyn HabitBoardRepository>,
+        );
+        let second = request_habit_with(
+            "guid-2",
+            Rc::clone(&outbox) as Rc<dyn DomainEventPublisher>,
+            Rc::clone(&board_repository) as Rc<dyn HabitBoardRepository>,
+        );
+
+        let first_result = first.execute(String::from("Lire une page"), 2);
+        let second_result = second.execute(String::from("lire une page "), 2);
+
+        assert!(first_result.is_ok());
+        assert_eq!(second_result, Err(HabitBoardError::DuplicateHabit));
+        assert_eq!(outbox.drain().len(), 1);
+    }
+
+    #[test]
+    fn a_duplicate_title_on_a_full_board_is_rejected_as_duplicate_not_full() {
+        let outbox = Rc::new(InMemoryOutbox::new());
+        let board_repository = Rc::new(InMemoryHabitBoardRepository::new());
+
+        for n in 1..=HabitBoard::MAX_HABITS {
+            let request_habit = request_habit_with(
+                &format!("guid-{n}"),
+                Rc::clone(&outbox) as Rc<dyn DomainEventPublisher>,
+                Rc::clone(&board_repository) as Rc<dyn HabitBoardRepository>,
+            );
+
+            let result = request_habit.execute(format!("Habit number {n}"), 1);
+
+            assert!(result.is_ok());
+        }
+
+        let duplicate_request_habit = request_habit_with(
+            "guid-6",
+            Rc::clone(&outbox) as Rc<dyn DomainEventPublisher>,
+            Rc::clone(&board_repository) as Rc<dyn HabitBoardRepository>,
+        );
+
+        let result = duplicate_request_habit.execute(String::from("Habit number 1"), 1);
+
+        assert_eq!(result, Err(HabitBoardError::DuplicateHabit));
+        assert_eq!(outbox.drain().len(), HabitBoard::MAX_HABITS);
+    }
 }

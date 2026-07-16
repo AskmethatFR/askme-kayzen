@@ -20,6 +20,7 @@ pub struct HabitBoard {
 #[derive(Debug, PartialEq)]
 pub enum HabitBoardError {
     InvalidHabit(HabitError),
+    DuplicateHabit,
     BoardFull { max: usize },
 }
 
@@ -27,6 +28,9 @@ impl fmt::Display for HabitBoardError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             HabitBoardError::InvalidHabit(error) => write!(f, "{error}"),
+            HabitBoardError::DuplicateHabit => {
+                write!(f, "a habit with this title is already on the board")
+            }
             HabitBoardError::BoardFull { max } => {
                 write!(f, "the habit board already holds the maximum of {max} habits")
             }
