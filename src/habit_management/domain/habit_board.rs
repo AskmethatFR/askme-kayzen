@@ -57,6 +57,10 @@ impl HabitBoard {
         let initial_duration =
             InitialDuration::new(initial_duration).map_err(HabitBoardError::InvalidHabit)?;
 
+        if self.requests.iter().any(|entry| entry.title.matches(&title)) {
+            return Err(HabitBoardError::DuplicateHabit);
+        }
+
         if self.requests.len() >= Self::MAX_HABITS {
             return Err(HabitBoardError::BoardFull {
                 max: Self::MAX_HABITS,

@@ -8,6 +8,8 @@ impl HabitTitle {
     pub const MAX_LEN: usize = 50;
 
     pub fn new(value: String) -> Result<HabitTitle, HabitError> {
+        let value = value.trim().to_string();
+
         if value.len() < Self::MIN_LEN || value.len() > Self::MAX_LEN {
             return Err(HabitError::TitleLength {
                 min: Self::MIN_LEN,
@@ -19,7 +21,7 @@ impl HabitTitle {
     }
 
     pub fn matches(&self, other: &HabitTitle) -> bool {
-        todo!()
+        self.0.to_lowercase() == other.0.to_lowercase()
     }
 }
 

@@ -147,8 +147,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn a_sixth_habit_request_on_a_full_board_is_rejected_and_publishes_nothing() {
+    fn a_full_board() -> (Rc<InMemoryOutbox>, Rc<InMemoryHabitBoardRepository>) {
         let outbox = Rc::new(InMemoryOutbox::new());
         let board_repository = Rc::new(InMemoryHabitBoardRepository::new());
 
@@ -163,6 +162,13 @@ mod tests {
 
             assert!(result.is_ok());
         }
+
+        (outbox, board_repository)
+    }
+
+    #[test]
+    fn a_sixth_habit_request_on_a_full_board_is_rejected_and_publishes_nothing() {
+        let (outbox, board_repository) = a_full_board();
 
         let sixth_request_habit = request_habit_with(
             "guid-6",
@@ -207,20 +213,7 @@ mod tests {
 
     #[test]
     fn a_duplicate_title_on_a_full_board_is_rejected_as_duplicate_not_full() {
-        let outbox = Rc::new(InMemoryOutbox::new());
-        let board_repository = Rc::new(InMemoryHabitBoardRepository::new());
-
-        for n in 1..=HabitBoard::MAX_HABITS {
-            let request_habit = request_habit_with(
-                &format!("guid-{n}"),
-                Rc::clone(&outbox) as Rc<dyn DomainEventPublisher>,
-                Rc::clone(&board_repository) as Rc<dyn HabitBoardRepository>,
-            );
-
-            let result = request_habit.execute(format!("Habit number {n}"), 1);
-
-            assert!(result.is_ok());
-        }
+        let (outbox, board_repository) = a_full_board();
 
         let duplicate_request_habit = request_habit_with(
             "guid-6",
