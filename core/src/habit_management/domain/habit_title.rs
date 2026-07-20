@@ -23,6 +23,10 @@ impl HabitTitle {
     pub fn matches(&self, other: &HabitTitle) -> bool {
         self.0.to_lowercase() == other.0.to_lowercase()
     }
+
+    pub fn value(&self) -> &str {
+        &self.0
+    }
 }
 
 #[cfg(test)]

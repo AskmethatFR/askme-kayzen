@@ -25,3 +25,9 @@ pub mod use_cases {
         pub mod create_habit_on_request;
     }
 }
+
+pub mod queries {
+    pub mod list_board_habits {
+        pub mod list_board_habits;
+    }
+}

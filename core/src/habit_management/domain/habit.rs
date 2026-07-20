@@ -24,10 +24,7 @@ impl fmt::Display for HabitError {
                 write!(f, "an easy habit must last no more than {max} minutes")
             }
             HabitError::TitleLength { min, max } => {
-                write!(
-                    f,
-                    "a title size must be between {min} and {max} characters"
-                )
+                write!(f, "a title size must be between {min} and {max} characters")
             }
         }
     }
@@ -42,5 +39,15 @@ impl Habit {
             title,
             initial_duration,
         }
+    }
+
+    pub fn id(&self) -> &HabitId {
+        &self.id
+    }
+    pub fn title(&self) -> &HabitTitle {
+        &self.title
+    }
+    pub fn current_dose(&self) -> u32 {
+        self.initial_duration.value()
     }
 }

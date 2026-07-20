@@ -13,4 +13,8 @@ impl InitialDuration {
 
         Ok(InitialDuration(value))
     }
+
+    pub fn value(&self) -> u32 {
+        self.0
+    }
 }
