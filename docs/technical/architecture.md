@@ -3,13 +3,14 @@ id: "architecture-overview"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-07-16"
+updated: "2026-07-20"
 relations:
   related:
     - "adr-0001-validation-by-construction"
     - "adr-0002-habitboard-stateful-aggregate"
     - "adr-0003-two-crate-workspace"
     - "adr-0004-routing-flat-enum"
+    - "adr-0007-habit-lifecycle-aggregate"
 answers:
   - "What bounded contexts exist and how are they layered?"
   - "How is the repository laid out (workspace, crates) and who may depend on whom?"
@@ -28,7 +29,7 @@ decided_in:
 # Habit Management — Architecture Overview
 
 > **One-liner**: Two-crate Cargo workspace — pure domain lib `kayzen-core` / Dioxus shell `kayzen-app` — single bounded context `habit_management`, hexagonal layering, where habit creation goes through the **stateful `HabitBoard` aggregate** (cross-habit invariants) and is event-mediated through a transactional outbox.
-> **Links**: [[adr-0001-validation-by-construction]] (invariant model), [[adr-0002-habitboard-stateful-aggregate]] (aggregate boundary & persistence), [[adr-0003-two-crate-workspace]] (workspace split & dependency rule enforcement), [[adr-0004-routing-flat-enum]] (app-shell routing skeleton).
+> **Links**: [[adr-0001-validation-by-construction]] (invariant model), [[adr-0002-habitboard-stateful-aggregate]] (aggregate boundary & persistence), [[adr-0003-two-crate-workspace]] (workspace split & dependency rule enforcement), [[adr-0004-routing-flat-enum]] (app-shell routing skeleton), [[adr-0007-habit-lifecycle-aggregate]] (`Habit` promoted to the lifecycle aggregate root).
 
 ## Workspace layout (since LOCAL-3 — settled in [[adr-0003-two-crate-workspace]])
 
@@ -41,11 +42,11 @@ Dependency edge is **one-way `app → core`, compiler-enforced** — core cannot
 
 ## Bounded context & layers
 
-One bounded context: **`habit_management`** (`core/src/habit_management/`), plus a small `core/src/shared/` kernel (`guid_generator.rs`).
+One bounded context: **`habit_management`** (`core/src/habit_management/`), plus a small `core/src/shared/` kernel (`guid_generator.rs`; a `Clock` port + library-free `LocalDate` VO join it as the lifecycle aggregate lands — [[adr-0007-habit-lifecycle-aggregate]]).
 
 | Layer | Contents | Anchors |
 |---|---|---|
-| Domain | `Habit`, `HabitBoard` (stateful aggregate), `HabitBoardEvent`, `HabitBoardError`, VOs (`HabitTitle`, `InitialDuration`, `HabitId`), ports (`HabitRepository`, `HabitBoardRepository`, `DomainEventPublisher`) | `core/src/habit_management/domain/` |
+| Domain | `Habit` (**promoted to the lifecycle aggregate root** — [[adr-0007-habit-lifecycle-aggregate]]), `HabitBoard` (stateful aggregate), `HabitBoardEvent`, `HabitBoardError`, VOs (`HabitTitle`, `InitialDuration`, `HabitId`; planned lifecycle VOs `CompletionHistory`, `StepHistory`, `Dose`, `LifecycleState`, `LocalDate`), ports (`HabitRepository`, `HabitBoardRepository`, `DomainEventPublisher`; planned `Clock`) | `core/src/habit_management/domain/`, `core/src/shared/` |
 | Application (use cases) | `RequestHabit` (command side), `CreateHabitOnRequest` (event handler) | `core/src/habit_management/use-cases/request-habit/request-habit.rs`, `core/src/habit_management/use-cases/create-habit-on-request/create-habit-on-request.rs` |
 | Infrastructure | `InMemoryOutbox`, `InMemoryHabitRepository`, `InMemoryHabitBoardRepository` | `core/src/habit_management/infrastructure/` |
 | Presentation (shell only) | Dioxus `App` hosting `Router::<Route>`; flat `Route` enum mirroring the designer's 6 screens + NotFound catch-all ([[adr-0004-routing-flat-enum]]); `views/` = 7 screen **stubs** (French designer titles, placeholder data) — **wires no use case yet** (unchanged human constraint). Target: **Android-first**, all dev on the web platform for speed | `app/src/main.rs`, `app/src/route.rs`, `app/src/views/` |
@@ -73,6 +74,18 @@ CreateHabitOnRequest (application event handler)
 - Per-habit invariants (title length, duration) → VOs: settled in [[adr-0001-validation-by-construction]].
 - Cross-habit invariants (max 5 in parallel, no duplicate title), the board's registry, record-at-request-time soundness, and the load → mutate → save → publish shape: settled in [[adr-0002-habitboard-stateful-aggregate]]. Do not re-decide either.
 - Check precedence inside `request_habit`: **VOs → duplicate → capacity** (duplicate wins on a full board — pinned by test).
+
+## Habit lifecycle write side (planned — settled in [[adr-0007-habit-lifecycle-aggregate]])
+
+Beyond creation, `Habit` is **promoted to the lifecycle aggregate root** (one aggregate, keyed by `HabitId`) and grows behavior vertically across slices 2/3/5/6/7 of [[lifecycle-backlog]]:
+
+- **Two dated histories inside `Habit`** — `CompletionHistory` (ordered set of `LocalDate`, one completion/day structurally, kept forever; `toggle_done(today)` insert/remove) and `StepHistory` (dated `Vec<StepChange{on, dose}>`, seeded at creation; `current_dose()` = last step, never stored separately). `grow()` / `lighten()` push steps; the **floor at 1 min** is a true aggregate invariant (`Dose` construction + `lighten() = max(1, current-1)`).
+- **`LifecycleState {Active, Paused, Anchored}`** enum (illegal combos unrepresentable); `toggle_done` never inspects it (paused/anchored habits stay markable-done). Board↔habit anchoring coordination is deferred to slice 6.
+- **Time enters through a `Clock` port** (`today() -> LocalDate`) in `shared/`; the domain owns a **library-free `LocalDate` VO** (epoch-day integer, **no `chrono` in its public API**), and `chrono` is confined to the infra `SystemClock` adapter. Aggregate methods take `today: LocalDate` as a **plain parameter** — the aggregate stays a pure function, no clock stub in domain tests.
+- **Lifecycle mutations are internal state transitions** (load → method → save), **NOT** outbox events — there is no subscriber and [[adr-0006-cqrs-light]] has no projections to feed. Only `HabitRequested` is published; `HabitBoardEvent` + outbox untouched, no `HabitEvent` enum.
+- **`HabitRepository`** gains `get(&HabitId) -> Option<Habit>` + upsert-by-id `save` (slice 2).
+
+This cycle wrote the ADR + docs only — **zero production code** (approved decision d4).
 
 ## Local decisions (non-ADR — settled here)
 
