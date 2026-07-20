@@ -7,6 +7,9 @@ edition.workspace = true
 kayzen-core = { path = "../core" }
 dioxus = { version = "0.7.9", features = ["router"] }
 
+[dev-dependencies]
+dioxus-ssr = "0.7"
+
 [features]
 default = ["web"]
 web = ["dioxus/web"]
