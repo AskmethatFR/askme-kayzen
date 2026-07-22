@@ -37,8 +37,8 @@
 
 | # | Ticket | Slice (user sees) | Size | Status |
 |---|---|---|---|---|
-| 1 | `read-habits-query` | Today screen lists *real* board habits via the final DTO shape (honest defaults) | M | next |
-| 2 | `mark-done` | Tapping the target fills the ink; toggle; calendar dots appear | M | todo |
+| 1 | `read-habits-query` | Today screen lists *real* board habits via the final DTO shape (honest defaults) | M | done |
+| 2 | `mark-done` | Tapping the target fills the ink; toggle; calendar dots appear | M | done (core + Today toggle; calendar dots deferred to stats-board) |
 | 3 | `grow-lighten` | Detail's "Ajuster" zone works: N+1 / N−1, staircase renders, floor 1 min | M | todo |
 | 4 | `growth-suggestion` | "Passer à N+1" gently highlighted when the stability policy fires | S | todo |
 | 5 | `pause-resume` | "Mettre en pause" / paused zone / one-tap resume | S | todo |

@@ -12,4 +12,9 @@
 | **Duplicate** | Two habits with the same title, ignoring case and surrounding whitespace. Forbidden on the board; reported as duplicate even when the board is also full. | `src/habit_management/domain/habit_board.rs` |
 | **Ancrée (anchored)** | *Future rule*: how a habit will eventually leave the board and free one of the 5 slots. Not implemented yet. | — |
 | **Initial duration** | How long the habit takes, in minutes. At most 5 — that is what makes the habit "easy". Self-validating value (`InitialDuration`). | `src/habit_management/domain/initial_duration.rs` |
+| **Completion (*fait*)** | A day a habit was marked done. One per local date, toggleable the same day, kept forever, no timestamp. Lives inside the `Habit` aggregate. | `core/src/habit_management/domain/completion_history.rs` |
+| **Completion history** | The set of a habit's completed days. One-completion-per-day is **structural** (an ordered set, never a runtime guard). | `core/src/habit_management/domain/completion_history.rs` |
+| **Mark done (*toggle*)** | Toggling today's completion for a habit — fills the ink if empty, clears it if already done. A lifecycle transition kept internal (no event published). | `core/src/habit_management/use_cases/mark_done/mark_done.rs` |
+| **Local date** | A calendar day in the user's timezone. Library-free by design — no `chrono` in the domain; an epoch-day integer internally. | `core/src/shared/local_date.rs` |
+| **Clock** | Port giving the domain "today" as a `LocalDate`; the real `SystemClock` (the only place `chrono` is used) sits at the infra edge. | `core/src/shared/clock.rs` |
 | **Outbox** | Where accepted facts wait to be handled. Published in the same transaction as the board's acceptance. | `src/habit_management/infrastructure/in_memory_outbox.rs` |
