@@ -18,21 +18,11 @@ pub mod infrastructure {
 }
 
 pub mod use_cases {
-    pub mod request_habit {
-        pub mod request_habit;
-    }
-
-    pub mod create_habit_on_request {
-        pub mod create_habit_on_request;
-    }
-
-    pub mod mark_done {
-        pub mod mark_done;
-    }
+    pub mod create_habit_on_request;
+    pub mod mark_done;
+    pub mod request_habit;
 }
 
 pub mod queries {
-    pub mod list_board_habits {
-        pub mod list_board_habits;
-    }
+    pub mod list_board_habits;
 }

@@ -37,7 +37,7 @@ mod tests {
     use crate::habit_management::infrastructure::in_memory_habit_board_repository::InMemoryHabitBoardRepository;
     use crate::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
     use crate::habit_management::infrastructure::in_memory_outbox::InMemoryOutbox;
-    use crate::habit_management::use_cases::request_habit::request_habit::RequestHabit;
+    use crate::habit_management::use_cases::request_habit::RequestHabit;
     use crate::shared::guid_generator::GuidGenerator;
 
     struct StubGuidGenerator {

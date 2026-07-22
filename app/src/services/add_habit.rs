@@ -5,8 +5,8 @@ use kayzen_core::habit_management::domain::habit_board::HabitBoardError;
 use kayzen_core::habit_management::domain::habit_board_repository::HabitBoardRepository;
 use kayzen_core::habit_management::domain::habit_repository::HabitRepository;
 use kayzen_core::habit_management::infrastructure::in_memory_outbox::InMemoryOutbox;
-use kayzen_core::habit_management::use_cases::create_habit_on_request::create_habit_on_request::CreateHabitOnRequest;
-use kayzen_core::habit_management::use_cases::request_habit::request_habit::RequestHabit;
+use kayzen_core::habit_management::use_cases::create_habit_on_request::CreateHabitOnRequest;
+use kayzen_core::habit_management::use_cases::request_habit::RequestHabit;
 use kayzen_core::shared::guid_generator::UuidGenerator;
 
 /// The dose every new habit starts at — Kaizen begins as small as possible.

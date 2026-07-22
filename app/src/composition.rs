@@ -5,8 +5,8 @@ use kayzen_core::habit_management::domain::habit_repository::HabitRepository;
 use kayzen_core::habit_management::infrastructure::in_memory_habit_board_repository::InMemoryHabitBoardRepository;
 use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
 use kayzen_core::habit_management::infrastructure::in_memory_outbox::InMemoryOutbox;
-use kayzen_core::habit_management::queries::list_board_habits::list_board_habits::ListBoardHabits;
-use kayzen_core::habit_management::use_cases::mark_done::mark_done::MarkDone;
+use kayzen_core::habit_management::queries::list_board_habits::ListBoardHabits;
+use kayzen_core::habit_management::use_cases::mark_done::MarkDone;
 use kayzen_core::shared::clock::{Clock, SystemClock};
 
 use crate::services::add_habit::AddHabit;
