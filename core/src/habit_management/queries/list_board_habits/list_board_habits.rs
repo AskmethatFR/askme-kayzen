@@ -1,90 +1,111 @@
-use crate::habit_management::domain::habit::Habit;
-use crate::habit_management::domain::habit_repository::HabitRepository;
 use std::rc::Rc;
+
+use crate::habit_management::domain::habit_repository::HabitRepository;
+use crate::shared::clock::Clock;
 
 #[derive(Clone)]
 pub struct ListBoardHabits {
     repository: Rc<dyn HabitRepository>,
+    clock: Rc<dyn Clock>,
 }
 
-#[derive(Debug)]
-#[derive(PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct HabitSummary {
-    pub id: String,       // depuis HabitId
-    pub title: String,    // depuis HabitTitle
-    pub minutes: u32,     // depuis current_dose()
-    pub done_today: bool, // false pour l'instant
-}
-
-impl From<&Habit> for HabitSummary {
-    fn from(habit: &Habit) -> Self {
-        HabitSummary {
-            id: habit.id().value().to_string(),
-            title: habit.title().value().to_string(),
-            minutes: habit.current_dose(),
-            done_today: false,
-        }
-    }
+    pub id: String,
+    pub title: String,
+    pub minutes: u32,
+    pub done_today: bool,
 }
 
 impl ListBoardHabits {
-    pub fn new(repository: Rc<dyn HabitRepository>) -> Self {
-        ListBoardHabits { repository }
+    pub fn new(repository: Rc<dyn HabitRepository>, clock: Rc<dyn Clock>) -> Self {
+        ListBoardHabits { repository, clock }
     }
 
     pub fn handle(&self) -> Vec<HabitSummary> {
-        self.repository.all().iter().map(HabitSummary::from).collect()
+        let today = self.clock.today();
+
+        self.repository
+            .all()
+            .iter()
+            .map(|habit| HabitSummary {
+                id: habit.id().value().to_string(),
+                title: habit.title().value().to_string(),
+                minutes: habit.current_dose(),
+                done_today: habit.is_done_on(today),
+            })
+            .collect()
     }
 }
 
 #[cfg(test)]
-pub mod tests {
+mod tests {
+    use super::{HabitSummary, ListBoardHabits};
     use crate::habit_management::domain::habit::Habit;
     use crate::habit_management::domain::habit_id::HabitId;
     use crate::habit_management::domain::habit_repository::HabitRepository;
     use crate::habit_management::domain::habit_title::HabitTitle;
     use crate::habit_management::domain::initial_duration::InitialDuration;
     use crate::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
-    use crate::habit_management::queries::list_board_habits::list_board_habits::{
-        HabitSummary, ListBoardHabits,
-    };
+    use crate::shared::clock::{Clock, FixedClock};
+    use crate::shared::local_date::LocalDate;
     use std::rc::Rc;
 
-    #[test]
-    fn read_habit_board_when_no_habits() {
-        let repository = Rc::new(InMemoryHabitRepository::new());
-
-        let query = ListBoardHabits::new(repository);
-
-        let result = query.handle();
-        let expected: Vec<HabitSummary> = Vec::new();
-
-        assert_eq!(result, expected);
-    }
-
-    #[test]
-    fn read_habit_board_when_one_habit() {
-        let repository = Rc::new(InMemoryHabitRepository::new());
-        repository.save(&a_habit());
-
-        let query = ListBoardHabits::new(repository);
-        let result = query.handle();
-        let expected = vec![HabitSummary {
-            id: "my_id".to_string(),
-            title: "my title".to_string(),
-            minutes: 3,
-            done_today: false,
-        }];
-
-        assert_eq!(result, expected);
-    }
+    const TODAY: i64 = 20_000;
 
     fn a_habit() -> Habit {
-        let id = HabitId::new("my_id".to_string());
-        let title = HabitTitle::new("my title".to_string()).unwrap();
-        let initial_duration = InitialDuration::new(3).unwrap();
+        Habit::new(
+            HabitId::from("h-1"),
+            HabitTitle::new("Read one page".to_string()).unwrap(),
+            InitialDuration::new(3).unwrap(),
+        )
+    }
 
-        let habit = Habit::new(id, title, initial_duration);
-        return habit;
+    fn list_over(repository: Rc<InMemoryHabitRepository>) -> ListBoardHabits {
+        ListBoardHabits::new(
+            repository as Rc<dyn HabitRepository>,
+            Rc::new(FixedClock::new(LocalDate::from_epoch_day(TODAY))) as Rc<dyn Clock>,
+        )
+    }
+
+    #[test]
+    fn no_habits_yields_no_summaries() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+
+        let query = list_over(repository);
+
+        assert_eq!(query.handle(), Vec::new());
+    }
+
+    #[test]
+    fn a_habit_maps_to_its_summary_with_honest_defaults() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit());
+        let query = list_over(Rc::clone(&repository));
+
+        let result = query.handle();
+
+        assert_eq!(
+            result,
+            vec![HabitSummary {
+                id: "h-1".to_string(),
+                title: "Read one page".to_string(),
+                minutes: 3,
+                done_today: false,
+            }]
+        );
+    }
+
+    #[test]
+    fn a_habit_done_today_is_reported_done() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit();
+        habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+        repository.save(&habit);
+        let query = list_over(Rc::clone(&repository));
+
+        let result = query.handle();
+
+        assert!(result[0].done_today);
     }
 }

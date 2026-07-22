@@ -1,4 +1,5 @@
 pub mod domain {
+    pub mod completion_history;
     pub mod domain_event_publisher;
     pub mod habit;
     pub mod habit_board;
@@ -23,6 +24,10 @@ pub mod use_cases {
 
     pub mod create_habit_on_request {
         pub mod create_habit_on_request;
+    }
+
+    pub mod mark_done {
+        pub mod mark_done;
     }
 }
 
