@@ -1,1 +1,227 @@
-/* Kaizen — minimal baseline styles */
+/* Kaizen — Broadsheet design system
+   Newsprint for the web: Source Serif 4 ink on paper, cyan/magenta as spot color,
+   hierarchy by serif scale and whitespace — no boxes, no rules-as-borders. */
+
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,600&display=swap');
+
+:root {
+  /* Palette */
+  --color-paper: #f3f2f2;
+  --color-ink: #201e1d;
+  --color-ink-soft: #6f6a68;
+  --color-rule: #dcd9d7;
+  --color-accent: #0088b0;      /* cyan — everything interactive */
+  --color-accent-100: #e0eff4;
+  --color-accent-700: #045f7d;
+  --color-accent-2: #d6006c;    /* magenta — anchoring / acquired, rare */
+  --color-accent-2-100: #fbe0ed;
+
+  /* Space & shape */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 24px; --space-6: 32px; --space-7: 48px;
+  --radius: 2px;
+  --shadow-sm: 0 1px 2px rgba(32, 30, 29, .06);
+  --shadow-md: 0 2px 10px rgba(32, 30, 29, .10);
+
+  --font-serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-serif);
+  font-size: 18px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ---- Screen shell ---- */
+.screen {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-5) var(--space-7);
+  animation: kzUp .3s ease both;
+}
+
+/* ---- Masthead ---- */
+.masthead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--space-2);
+  border-bottom: 2px solid var(--color-ink);
+}
+.masthead-date {
+  font-size: 13px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+
+/* ---- Headings ---- */
+.greeting {
+  font-size: clamp(44px, 12vw, 64px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: var(--space-5) 0 var(--space-3);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-rule);
+}
+.lede {
+  font-style: italic;
+  font-size: 22px;
+  color: var(--color-ink);
+  margin: 0 0 var(--space-6);
+}
+.eyebrow {
+  font-size: 13px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+  margin: 0 0 var(--space-2);
+}
+
+/* ---- Habit list ---- */
+.habit-list { list-style: none; margin: 0; padding: 0; }
+.habit-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--color-rule);
+}
+.habit-row:first-child { border-top: none; }
+.habit-body { flex: 1; min-width: 0; }
+.habit-name {
+  display: inline-block;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color-ink);
+  text-decoration: none;
+}
+.habit-name:hover { color: var(--color-accent); }
+.habit-meta {
+  font-size: 15px;
+  color: var(--color-ink-soft);
+  margin-top: 2px;
+}
+
+/* ---- Round target (mark done) ---- */
+.target {
+  position: relative;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 2px solid var(--color-rule);
+  background: var(--color-paper);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: border-color .15s ease, transform .1s ease;
+}
+.target:hover { border-color: var(--color-accent); }
+.target:active { transform: scale(.94); }
+.target:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+
+/* empty state: a small ink dot in the middle */
+.target::before {
+  content: "";
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--color-ink-soft);
+  opacity: .5;
+}
+
+/* the ink that stamps in when done */
+.target-ink {
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: var(--color-ink);
+  transform: scale(0);
+  opacity: 0;
+}
+.target.is-done { border-color: var(--color-ink); }
+.target.is-done::before { opacity: 0; }
+.target.is-done .target-ink {
+  transform: scale(1);
+  opacity: 1;
+  animation: kzStamp .35s cubic-bezier(.2, .8, .3, 1.2) both;
+}
+/* one diffusing accent ring on completion */
+.target.is-done::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 2px solid var(--color-accent);
+  animation: kzRing .5s ease-out both;
+}
+
+/* ---- Footer / links ---- */
+.tally {
+  margin: var(--space-6) 0 var(--space-4);
+  font-size: 17px;
+  color: var(--color-ink-soft);
+}
+.quiet-link {
+  display: inline-block;
+  color: var(--color-accent);
+  text-decoration: none;
+  font-size: 17px;
+}
+.quiet-link:hover { text-decoration: underline; }
+.add-cta { margin-top: var(--space-6); }
+
+/* ---- Broadsheet components (for later screens) ---- */
+.btn {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-ink);
+  background: transparent;
+  color: var(--color-ink);
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+.btn-primary { background: var(--color-accent); border-color: var(--color-accent); color: #fff; }
+.btn-primary:hover { background: var(--color-accent-700); border-color: var(--color-accent-700); }
+.btn-secondary { border-color: var(--color-rule); }
+.btn-block { display: block; width: 100%; text-align: center; }
+
+.tag {
+  font-size: 12px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding: 3px var(--space-2);
+  border-radius: var(--radius);
+  background: var(--color-accent-100);
+  color: var(--color-accent-700);
+}
+.tag-accent { background: var(--color-accent-100); color: var(--color-accent-700); }
+.tag-accent-2 { background: var(--color-accent-2-100); color: var(--color-accent-2); }
+
+.field { display: block; margin-bottom: var(--space-4); }
+.input {
+  width: 100%;
+  font-family: var(--font-serif);
+  font-size: 18px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius);
+  background: #fff;
+}
+.input:focus-visible { outline: 2px solid var(--color-accent); border-color: var(--color-accent); }
+
+/* ---- Animations ---- */
+@keyframes kzStamp   { 0% { transform: scale(.35); opacity: 0; } 55% { transform: scale(1.12); } 100% { transform: scale(1); opacity: 1; } }
+@keyframes kzRing    { 0% { transform: scale(.55); opacity: .55; } 100% { transform: scale(2); opacity: 0; } }
+@keyframes kzUp      { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes kzBreathe { 0%, 100% { transform: scale(.86); opacity: .7; } 50% { transform: scale(1.08); opacity: 1; } }

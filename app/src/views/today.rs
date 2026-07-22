@@ -10,31 +10,61 @@ pub fn Today() -> Element {
         move || services.list_board_habits.handle()
     });
 
+    let list = habits();
+    let total = list.len();
+    let done = list.iter().filter(|habit| habit.done_today).count();
+
     rsx! {
-        h1 { "Bonjour." }
-        h4 { "Un seul petit pas suffit pour aujourd'hui." }
-        for habit in habits() {
-            div { style: "display:flex; gap:16px; padding:20px 0;",
-                div { flex: "1",
-                    Link { to: Route::HabitDetail { id: habit.id.clone() }, "{habit.title}" }
-                    div { "aujourd'hui · {habit.minutes} min" }
-                }
-                button {
-                    onclick: {
-                        let services = services.clone();
-                        let id = habit.id.clone();
-                        move |_| {
-                            services.mark_done.execute(&id).ok();
-                            habits.set(services.list_board_habits.handle());
+        div { class: "screen",
+            header { class: "masthead",
+                span { class: "masthead-date", "Aujourd'hui" }
+                span { class: "tag tag-accent", "Kaizen" }
+            }
+            h1 { class: "greeting", "Bonjour." }
+            p { class: "lede", "Un seul petit pas suffit pour aujourd'hui." }
+
+            p { class: "eyebrow", "Vos petits pas" }
+            ul { class: "habit-list",
+                for habit in list {
+                    li { class: "habit-row",
+                        div { class: "habit-body",
+                            Link {
+                                class: "habit-name",
+                                to: Route::HabitDetail { id: habit.id.clone() },
+                                "{habit.title}"
+                            }
+                            div { class: "habit-meta", "chaque jour · {habit.minutes} min" }
                         }
-                    },
-                    if habit.done_today { "✓" } else { "○" }
+                        button {
+                            class: if habit.done_today { "target is-done" } else { "target" },
+                            aria_label: if habit.done_today { "Fait aujourd'hui" } else { "Marquer comme fait" },
+                            onclick: {
+                                let services = services.clone();
+                                let id = habit.id.clone();
+                                move |_| {
+                                    services.mark_done.execute(&id).ok();
+                                    habits.set(services.list_board_habits.handle());
+                                }
+                            },
+                            span { class: "target-ink" }
+                        }
+                    }
                 }
             }
-        }
 
-        div {
-            Link { to: Route::AddHabit {}, "Ajouter une toute petite habitude" }
+            p { class: "tally", "{done} sur {total} · c'est déjà quelque chose." }
+            Link {
+                class: "quiet-link",
+                to: Route::Week {},
+                "Voir comment je grandis · cette semaine"
+            }
+            div { class: "add-cta",
+                Link {
+                    class: "quiet-link",
+                    to: Route::AddHabit {},
+                    "+ Ajouter une toute petite habitude"
+                }
+            }
         }
     }
 }
@@ -109,9 +139,12 @@ mod tests {
     }
 
     #[test]
-    fn a_habit_done_today_renders_as_checked() {
+    fn a_habit_done_today_renders_as_stamped() {
         let html = render(RootWithHabitDoneToday);
 
-        assert!(html.contains('✓'), "expected a checked mark, got: {html}");
+        assert!(
+            html.contains("target is-done"),
+            "expected the done target to be stamped, got: {html}"
+        );
     }
 }
