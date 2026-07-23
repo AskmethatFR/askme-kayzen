@@ -6,6 +6,10 @@ edition.workspace = true
 [dependencies]
 kayzen-core = { path = "../core" }
 dioxus = { version = "0.7.9", features = ["router"] }
+rand = "0.8"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
 
 [dev-dependencies]
 dioxus-ssr = "0.7"

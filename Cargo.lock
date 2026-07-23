@@ -2788,7 +2788,9 @@ version = "0.1.0"
 dependencies = [
  "dioxus",
  "dioxus-ssr",
+ "getrandom 0.2.17",
  "kayzen-core",
+ "rand 0.8.7",
 ]
 
 [[package]]
