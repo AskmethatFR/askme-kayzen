@@ -3,7 +3,7 @@ id: "architecture-overview"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-07-20"
+updated: "2026-07-23"
 relations:
   related:
     - "adr-0001-validation-by-construction"
@@ -11,6 +11,7 @@ relations:
     - "adr-0003-two-crate-workspace"
     - "adr-0004-routing-flat-enum"
     - "adr-0007-habit-lifecycle-aggregate"
+    - "adr-0008-goal-based-dose-user-paced-progression"
 answers:
   - "What bounded contexts exist and how are they layered?"
   - "How is the repository laid out (workspace, crates) and who may depend on whom?"
@@ -29,7 +30,7 @@ decided_in:
 # Habit Management — Architecture Overview
 
 > **One-liner**: Two-crate Cargo workspace — pure domain lib `kayzen-core` / Dioxus shell `kayzen-app` — single bounded context `habit_management`, hexagonal layering, where habit creation goes through the **stateful `HabitBoard` aggregate** (cross-habit invariants) and is event-mediated through a transactional outbox.
-> **Links**: [[adr-0001-validation-by-construction]] (invariant model), [[adr-0002-habitboard-stateful-aggregate]] (aggregate boundary & persistence), [[adr-0003-two-crate-workspace]] (workspace split & dependency rule enforcement), [[adr-0004-routing-flat-enum]] (app-shell routing skeleton), [[adr-0007-habit-lifecycle-aggregate]] (`Habit` promoted to the lifecycle aggregate root).
+> **Links**: [[adr-0001-validation-by-construction]] (invariant model), [[adr-0002-habitboard-stateful-aggregate]] (aggregate boundary & persistence), [[adr-0003-two-crate-workspace]] (workspace split & dependency rule enforcement), [[adr-0004-routing-flat-enum]] (app-shell routing skeleton), [[adr-0007-habit-lifecycle-aggregate]] (`Habit` promoted to the lifecycle aggregate root), [[adr-0008-goal-based-dose-user-paced-progression]] (single `Goal` VO + user-paced progression, no suggestion).
 
 ## Workspace layout (since LOCAL-3 — settled in [[adr-0003-two-crate-workspace]])
 
@@ -46,7 +47,7 @@ One bounded context: **`habit_management`** (`core/src/habit_management/`), plus
 
 | Layer | Contents | Anchors |
 |---|---|---|
-| Domain | `Habit` (**promoted to the lifecycle aggregate root** — [[adr-0007-habit-lifecycle-aggregate]]), `HabitBoard` (stateful aggregate), `HabitBoardEvent`, `HabitBoardError`, VOs (`HabitTitle`, `InitialDuration`, `HabitId`; planned lifecycle VOs `CompletionHistory`, `StepHistory`, `Dose`, `LifecycleState`, `LocalDate`), ports (`HabitRepository`, `HabitBoardRepository`, `DomainEventPublisher`; planned `Clock`) | `core/src/habit_management/domain/`, `core/src/shared/` |
+| Domain | `Habit` (**promoted to the lifecycle aggregate root** — [[adr-0007-habit-lifecycle-aggregate]]), `HabitBoard` (stateful aggregate), `HabitBoardEvent`, `HabitBoardError`, VOs (`HabitTitle`, `HabitId`, and today's creation-duration VO which the lifecycle model **collapses into a single `Goal` VO** — [[adr-0008-goal-based-dose-user-paced-progression]]; planned lifecycle VOs `CompletionHistory`, `StepHistory`, `Goal`, `LifecycleState`, `LocalDate`), ports (`HabitRepository`, `HabitBoardRepository`, `DomainEventPublisher`; planned `Clock`) | `core/src/habit_management/domain/`, `core/src/shared/` |
 | Application (use cases) | `RequestHabit` (command side), `CreateHabitOnRequest` (event handler) | `core/src/habit_management/use-cases/request-habit/request-habit.rs`, `core/src/habit_management/use-cases/create-habit-on-request/create-habit-on-request.rs` |
 | Infrastructure | `InMemoryOutbox`, `InMemoryHabitRepository`, `InMemoryHabitBoardRepository` | `core/src/habit_management/infrastructure/` |
 | Presentation (shell only) | Dioxus `App` hosting `Router::<Route>`; flat `Route` enum mirroring the designer's 6 screens + NotFound catch-all ([[adr-0004-routing-flat-enum]]); `views/` = 7 screen **stubs** (French designer titles, placeholder data) — **wires no use case yet** (unchanged human constraint). Target: **Android-first**, all dev on the web platform for speed | `app/src/main.rs`, `app/src/route.rs`, `app/src/views/` |
@@ -79,7 +80,8 @@ CreateHabitOnRequest (application event handler)
 
 Beyond creation, `Habit` is **promoted to the lifecycle aggregate root** (one aggregate, keyed by `HabitId`) and grows behavior vertically across slices 2/3/5/6/7 of [[lifecycle-backlog]]:
 
-- **Two dated histories inside `Habit`** — `CompletionHistory` (ordered set of `LocalDate`, one completion/day structurally, kept forever; `toggle_done(today)` insert/remove) and `StepHistory` (dated `Vec<StepChange{on, dose}>`, seeded at creation; `current_dose()` = last step, never stored separately). `grow()` / `lighten()` push steps; the **floor at 1 min** is a true aggregate invariant (`Dose` construction + `lighten() = max(1, current-1)`).
+- **The dose is a single `Goal` VO** (default 5, floor 1, **no upper ceiling**; the ≤5-min creation guard dropped) — a **soft daily target, not a commitment**; completion stays **binary**. Progression is **user-paced**: `grow()` / `lighten()` (±1) are **always-available gestures the system NEVER suggests** — there is **no `StabilityPolicy`, no stability detection, no growth/anchor suggestion** ([[adr-0008-goal-based-dose-user-paced-progression]], superseding ADR-0005).
+- **Two dated histories inside `Habit`** — `CompletionHistory` (ordered set of `LocalDate`, one completion/day structurally, kept forever; `toggle_done(today)` insert/remove) and `StepHistory` (dated `Vec<StepChange{on, goal}>`, seeded at creation, the **self-paced staircase**; `current_goal()` = last step, never stored separately). `grow()` / `lighten()` push steps; the **floor at 1 min** is a true aggregate invariant (`Goal` construction + `lighten() = max(1, current-1)`).
 - **`LifecycleState {Active, Paused, Anchored}`** enum (illegal combos unrepresentable); `toggle_done` never inspects it (paused/anchored habits stay markable-done). Board↔habit anchoring coordination is deferred to slice 6.
 - **Time enters through a `Clock` port** (`today() -> LocalDate`) in `shared/`; the domain owns a **library-free `LocalDate` VO** (epoch-day integer, **no `chrono` in its public API**), and `chrono` is confined to the infra `SystemClock` adapter. Aggregate methods take `today: LocalDate` as a **plain parameter** — the aggregate stays a pure function, no clock stub in domain tests.
 - **Lifecycle mutations are internal state transitions** (load → method → save), **NOT** outbox events — there is no subscriber and [[adr-0006-cqrs-light]] has no projections to feed. Only `HabitRequested` is published; `HabitBoardEvent` + outbox untouched, no `HabitEvent` enum.

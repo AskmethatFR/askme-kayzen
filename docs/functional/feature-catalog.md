@@ -4,20 +4,22 @@
 
 ## F-1 — Request a habit from the board
 
-A user asks the habit board to create a new easy habit by giving a **description** and an **initial duration** in minutes. The board checks the request against the habit rules **before** accepting it; an accepted request becomes a `HabitRequested` fact that the rest of the system can rely on without re-checking.
+A user asks the habit board to create a new habit by giving a **title** and a **daily goal** in minutes. The board checks the request against the habit rules **before** accepting it; an accepted request becomes a `HabitRequested` fact that the rest of the system can rely on without re-checking.
+
+> **Amended 2026-07-23 by `[[adr-0008-goal-based-dose-user-paced-progression]]`**: the dose is now a soft **goal** (default 5 min from the Add screen), **floor 1, no upper ceiling** — the old "≤ 5 minutes" cap is dropped.
 
 **Business rules** (see [[glossary]] for terms):
-- An easy habit lasts **at most 5 minutes** (5 is accepted).
+- A habit carries a **daily goal ≥ 1 minute** (a soft target — flexible, no upper limit; a goal of 0 is rejected).
 - A title has **1 to 50 characters** after trimming surrounding whitespace (1 and 50 are accepted; a whitespace-only title is rejected).
 - The board holds **at most 5 habits in parallel** — a 6th request is rejected as board-full.
 - **No two identical habits** on the board: identical = same title, ignoring case and surrounding whitespace ("Lire une page" and "lire une page " are the same habit). A duplicate is rejected — and reported as a duplicate even when the board is also full.
 
-**Acceptance (pinned by tests in `src/habit_management/use-cases/request-habit/request-habit.rs`):**
+**Acceptance (pinned by tests in `core/src/habit_management/use_cases/request_habit.rs`):**
 
 | Given | When | Then |
 |---|---|---|
-| A valid title (1, mid, or 50 chars) and duration ≤ 5 | Requesting a habit | Exactly one `HabitRequested` is published, carrying a generated id, the title, and the duration; the caller gets the id back; the board records the request |
-| Duration 6, or empty title, or 51-char title | Requesting a habit | The request is rejected with the specific rule violation; **nothing is published** |
+| A valid title (1, mid, or 50 chars) and a goal ≥ 1 (including **above 5**) | Requesting a habit | Exactly one `HabitRequested` is published, carrying a generated id, the title, and the goal; the caller gets the id back; the board records the request |
+| Goal 0, or empty title, or 51-char title | Requesting a habit | The request is rejected with the specific rule violation; **nothing is published** |
 | A board already holding 5 habits | Requesting a 6th | Rejected as board-full; nothing published, board unchanged |
 | A title already on the board (any case, surrounding spaces ignored) | Requesting it again | Rejected as duplicate — even if the habit was requested but not yet created, and even on a full board |
 

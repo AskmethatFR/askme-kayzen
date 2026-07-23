@@ -1,8 +1,17 @@
 # Habit Progression — Evidence Study & Settled Rule
 
-> Functional node — owner: pm · status: current · updated: 2026-07-16
+> Functional node — owner: pm · status: **superseded** · updated: 2026-07-23
 > Deep-research run (46 results, adversarially verified claims) settling the progression fork:
 > automatic vs suggested vs manual difficulty increase. Decision taken by the human on 2026-07-16.
+>
+> ⚠️ **SUPERSEDED 2026-07-23 by `[[adr-0008-goal-based-dose-user-paced-progression]]`.** The
+> product owner changed the model to **user-paced progression** (a soft daily *goal*, default
+> 5 min; the user grows/lightens ±1 whenever they choose; the system no longer detects
+> stability or suggests). The rule below ("detected-stability → suggestion") is **no longer
+> in force**. This node is kept as the historical evidence record. Note: the study's own
+> autonomy finding (Singh 2024 — self-selected behaviours form stronger habits) actively
+> *supports* the new user-paced model, so this is a shift of conclusion, not a contradiction
+> of the evidence.
 
 ## The settled rule
 

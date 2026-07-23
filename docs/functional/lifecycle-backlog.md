@@ -6,17 +6,21 @@
 > belongs to the Architect's lane — see `[[architecture-overview]]` and the upcoming
 > lifecycle ADR.
 
+> ⚠️ **AMENDED 2026-07-23 by `[[adr-0008-goal-based-dose-user-paced-progression]]`** (owner
+> product decision, supersedes `[[habit-progression-study]]`). The dose is now a soft
+> **goal** (default 5 min, floor 1, no ceiling); progression is **user-paced** (grow/lighten
+> ±1 whenever the user chooses) with **no system detection or suggestion**. Consequences below:
+> the growth-suggestion model + Q2/Q5 thresholds are **void**, and slice 4 is **deleted**.
+
 ## Approved lifecycle model (functional view)
 
-- A habit's **dose** (minutes) changes **only through a user gesture** — *grandir* (+1)
-  or *alléger* (−1, floor 1 min). "Automatic difficulty increase" is interpreted as
-  **automatic detection + suggestion**, never automatic mutation (per
-  `[[design-principes-kaizen]]` rule 2 and `[[design-gestes-kaizen]]` gesture 2).
-- **Growth suggestion**: shown when the habit was done ≥ 10 of the last 14 days AND the
-  current dose was held ≥ 14 days (conservative thresholds settled by the evidence study
-  — see `[[habit-progression-study]]`; supersedes the earlier 5-of-7 + 7d starting values).
-  Anchor suggestion: done ≥ 10 of the last 14 days (designer's own threshold).
-  Suggestions are recomputed, never stored, never nag.
+- A habit's **goal** (minutes) is a **soft daily target** (default 5, floor 1, no ceiling).
+  It changes **only through a user gesture** — *grandir* (+1) or *alléger* (−1, floor 1),
+  **always available, whenever the user decides**. No automatic mutation, and **no system
+  detection or suggestion** (per `[[design-principes-kaizen]]` and `[[design-gestes-kaizen]]`
+  gesture 2, as amended by ADR-0008).
+- **~~Growth suggestion~~** — **removed.** There is no stability detection and no "Passer à
+  N+1" system prompt. Anchoring is likewise **user-initiated** (no 10-of-14 suggestion).
 - **Completion** = one local date per day, toggleable the same day. No timestamps,
   no multi-completion. Full completion history is kept forever (feeds "minutes
   gagnées depuis les débuts").
@@ -37,14 +41,15 @@
 
 | # | Ticket | Slice (user sees) | Size | Status |
 |---|---|---|---|---|
+| R1 | `goal-default-5` | New habits start on a 5-min **goal** (`Goal` VO, floor 1, no ceiling; ≤5 guard dropped; Add copy "5 min") | S–M | **done** |
 | 1 | `read-habits-query` | Today screen lists *real* board habits via the final DTO shape (honest defaults) | M | done |
 | 2 | `mark-done` | Tapping the target fills the ink; toggle; calendar dots appear | M | done (core + Today toggle; calendar dots deferred to stats-board) |
-| 3 | `grow-lighten` | Detail's "Ajuster" zone works: N+1 / N−1, staircase renders, floor 1 min | M | todo |
-| 4 | `growth-suggestion` | "Passer à N+1" gently highlighted when the stability policy fires | S | todo |
+| 3 | `adjust-goal` (was `grow-lighten`) | Detail's "Ajuster" zone: **user-paced** N+1 / N−1 on the goal, staircase renders, floor 1. **No suggestion driving it** | M | todo |
+| ~~4~~ | ~~`growth-suggestion`~~ | **DELETED** — StabilityPolicy removed (ADR-0008); progression is user-paced, nothing is suggested | — | ✂️ removed |
 | 5 | `pause-resume` | "Mettre en pause" / paused zone / one-tap resume | S | todo |
-| 6 | `anchor` | Anchor button (10-of-14 suggestion), board frees the slot, Ancrées screen counts | L | todo |
+| 6 | `anchor` | Anchor button (**user-initiated, no 10-of-14 suggestion**), board frees the slot, Ancrées screen counts | L | todo |
 | 7 | `readmit` | "La remettre dans mon quotidien" — refusable (board full / duplicate title) | M | todo |
-| 8 | `stats-board` | Statistics view per habit: days done, empty days (never "failed"), grow/lighten counts, minutes gained — plus adaptive motivational (never guilt-inducing) messages | M | todo |
+| 8 | `stats-board` | Per-habit stats: days done, empty days (never "failed"), grow/lighten counts, minutes gained (reframe wording — nominal, anti-guilt) — plus adaptive (never guilt-inducing) messages | M | todo |
 
 Order rationale: completions (2) precede progression (4); grow/lighten (3) before
 suggestion (4) so the suggestion highlights an existing affordance; anchor last
@@ -69,8 +74,8 @@ each slice grows the aggregate *vertically* by only the piece it needs.
 |---|---|
 | 1 `read-habits-query` | none on the aggregate. Read `minutes` via `current_dose()` (returns `initial_duration` until step history exists); `done_today = false`. Do NOT bake a Today-query signature that cannot later receive an injected `Clock`. |
 | 2 `mark-done` | adds `CompletionHistory` VO + `toggle_done(today)`; adds the `Clock` port (`shared/`, returns domain `LocalDate`, chrono confined to infra `SystemClock` adapter); `HabitRepository` gains `get(&HabitId)` + upsert-by-id `save`; Today query gains injected `Clock` (`done_today` source flips to `completion_history.contains(today)`). |
-| 3 `grow-lighten` | adds dated `StepHistory` VO + `Dose` VO + `grow()` / `lighten()`; floor 1 (aggregate invariant); `current_dose()` = `steps.last().dose`. **Open point (d2, deferred):** `lighten()` at the floor — provisional silent no-op, confirm when implementing. |
-| 4 `growth-suggestion` | no aggregate growth — read-side `StabilityPolicy` over the completion + step histories (recomputed, never stored). |
+| 3 `adjust-goal` | adds dated `StepHistory` VO over the `Goal` + user-paced `grow()` / `lighten()`; floor 1; `current_goal()` = `steps.last().goal`. **Open point (d2, deferred):** `lighten()` at the floor — provisional silent no-op. (Note: `Goal` VO + default 5 already landed in slice R1.) |
+| ~~4 `growth-suggestion`~~ | **removed** — no `StabilityPolicy`, no stability detection, no suggestion (ADR-0008). |
 | 5 `pause-resume` | adds `LifecycleState::{Active, Paused}` transitions (enum on `Habit`, illegal combos unrepresentable). Paused keeps the board seat (Q1). |
 | 6 `anchor` | adds `LifecycleState::Anchored`; resolves the deferred board↔habit anchoring coordination (how the board frees the slot); `HabitBoard` cap counts non-anchored. |
 | 7 `readmit` | `Anchored → Active` + board re-admission (reuse the duplicate / board-full guards). |

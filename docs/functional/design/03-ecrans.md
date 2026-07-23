@@ -38,7 +38,7 @@ Le cœur « Kaizen » : montrer qu'on grandit, jamais culpabiliser.
 - **Calendrier** en points, sans chiffres.
 - Bouton **« Faire ma minute »** (ouvre le rituel).
 - Zone **« Ajuster, à votre rythme »** : « Passer à N+1 min » (grandir) et « Alléger à N−1 min ».
-- **Ancrer** quand l'habitude est stable (≥ ~10 j sur 14) → la marque acquise, libère une place.
+- **Ancrer** — à l'initiative de l'utilisateur, quand il la sent acquise (aucune détection de stabilité, aucune suggestion) → la marque acquise, libère une place.
 - **« Mettre en pause, sans culpabilité »**.
 
 ## Rituel d'une minute (Timer)

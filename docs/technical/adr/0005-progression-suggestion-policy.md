@@ -2,9 +2,11 @@
 id: "adr-0005-progression-suggestion-policy"
 type: "technical"
 owner: "architect"
-status: "current"
-updated: "2026-07-16"
+status: "superseded"
+updated: "2026-07-23"
 relations:
+  superseded-by:
+    - "adr-0008-goal-based-dose-user-paced-progression"
   related:
     - "architecture-overview"
     - "habit-progression-study"
@@ -21,6 +23,8 @@ decided_in:
 ---
 
 # ADR 0005 — Progression modeled as a read-side stability policy (suggestion, never mutation)
+
+> **⚠️ SUPERSEDED (2026-07-23) by [[adr-0008-goal-based-dose-user-paced-progression]]** — an owner product decision. The suggestion/detection model below (the `StabilityPolicy`, stability detection, growth/anchor suggestion, and the 10-of-14 / step-held-14d thresholds) is **withdrawn**: progression is now **user-paced** (`grow`/`lighten` always available, never system-suggested), the dose is a single `Goal` VO, and no `StabilityPolicy` exists. This document is retained as a **historical record** of the prior evidence-derived decision. See ADR-0008 for the current model and the supersession provenance.
 
 > **One-liner**: Habit progression is a **stateless read-side policy** — the app automatically *detects* stability from completion history and *suggests* growth/anchoring; the dose mutates **only** through explicit aggregate methods (`grow()` / `lighten()`) invoked by a user gesture. Thresholds are tunable policy values, not invariants.
 > **Links**: [[architecture-overview]] (where this will apply), [[habit-progression-study]] (the verified evidence base — this ADR cites it, it does not duplicate it), [[adr-0002-habitboard-stateful-aggregate]] (the aggregate-mutation discipline this extends to the dose).

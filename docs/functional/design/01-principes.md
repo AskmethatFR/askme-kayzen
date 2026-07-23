@@ -3,9 +3,14 @@
 Ces règles priment sur toute fonctionnalité. En cas de doute, on choisit toujours
 l'option la plus douce.
 
-- **On démarre minuscule** — toute nouvelle habitude commence à 1 ou 2 minutes. Jamais plus.
-- **On grandit d'une minute** — l'augmentation (+1 min) est toujours *proposée*, jamais
-  imposée, et déclenchée par l'utilisateur seul.
+- **On vise un objectif doux** — toute nouvelle habitude démarre sur un objectif de **5 minutes
+  par jour**. C'est un *but souple* : faire moins, c'est déjà quelque chose ; faire plus, tant
+  mieux. *(Amende « on démarre à 1-2 min, jamais plus » — décision owner, voir
+  `[[adr-0008-goal-based-dose-user-paced-progression]]`.)*
+- **On grandit à son rythme** — l'utilisateur ajuste son objectif de **±1 min quand lui le
+  décide** (grandir / alléger), toujours disponible. **Aucune suggestion du système, aucune
+  détection de stabilité.** *(Amende « proposé jamais imposé » : c'est désormais 100 % piloté
+  par l'utilisateur.)*
 - **Aucune pression** — pas de streak, pas de rouge d'alerte, pas de notification
   culpabilisante. Les notifications éventuelles sont locales et douces.
 - **Pause sans culpabilité** — mettre en pause à tout moment, reprendre d'un geste.

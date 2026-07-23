@@ -3,14 +3,15 @@ id: "adr-0006-cqrs-light"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-07-16"
+updated: "2026-07-23"
 relations:
   related:
     - "architecture-overview"
     - "habit-progression-study"
+    - "adr-0008-goal-based-dose-user-paced-progression"
   depends-on:
     - "adr-0003-two-crate-workspace"
-    - "adr-0005-progression-suggestion-policy"
+    - "adr-0008-goal-based-dose-user-paced-progression"
 answers:
   - "How is the read side of habit_management structured — CQRS or shared use cases?"
   - "Do domain types cross the crate boundary into kayzen-app, or do queries return DTOs?"
@@ -23,14 +24,16 @@ decided_in:
 
 # ADR 0006 — CQRS-light for the read side of habit_management (query handlers + per-screen DTOs, no projections)
 
-> **One-liner**: The read side is **CQRS-light** — dedicated query use cases (one flat `snake_case` module per query under `core/src/habit_management/queries/`) returning **per-screen DTOs** that are the crate-boundary contract; queries read through the **existing domain ports** against the same store, and all derived display data (suggestions, stats, messages) is **computed on read** by stateless policies. No projections, no read store, no ReadModel port.
-> **Links**: [[architecture-overview]] (the workspace shape this applies to), [[adr-0003-two-crate-workspace]] (the compiler-enforced boundary the DTOs serve), [[adr-0005-progression-suggestion-policy]] (the recompute-never-store principle this generalizes), [[habit-progression-study]] (evidence base behind the derived-data model).
+> **One-liner**: The read side is **CQRS-light** — dedicated query use cases (one flat `snake_case` module per query under `core/src/habit_management/queries/`) returning **per-screen DTOs** that are the crate-boundary contract; queries read through the **existing domain ports** against the same store, and all derived display data (stats, minutes gained, messages) is **computed on read** by stateless policies. No projections, no read store, no ReadModel port.
+> **Links**: [[architecture-overview]] (the workspace shape this applies to), [[adr-0003-two-crate-workspace]] (the compiler-enforced boundary the DTOs serve), [[adr-0008-goal-based-dose-user-paced-progression]] (the user-paced progression model — supersedes ADR-0005; removes the suggestion DTO fields the read side once carried), [[habit-progression-study]] (evidence base behind the derived-data model).
 >
 > **Timing note — decision capture ahead of implementation**: the read query use cases are **not yet built** (the first read ticket is next). This ADR pins the shape *before* implementation so the tech spec inherits it instead of re-deciding; anchors below are planned shapes, not existing files. Human-approved 2026-07-16.
+>
+> **Amended 2026-07-23 by [[adr-0008-goal-based-dose-user-paced-progression]]**: the read side loses its progression-**suggestion** DTO fields (`growth_suggested` / `anchor_suggested`) — the `StabilityPolicy` that produced them is removed (progression is user-paced, never suggested). The CQRS-light shape is **otherwise unchanged**: query use cases + per-screen DTOs as the crate-boundary contract, reads through existing ports, all *other* derived display data (stats, minutes gained, messages) still computed on read.
 
 ## Context
 
-The lifecycle backlog ([[habit-progression-study]], `lifecycle-backlog`) requires screens that *read*: the board listing, later a habit detail, and a **per-habit statistics board** (days done, empty days — never framed "failed" —, grow/lighten counts, minutes gained, adaptive motivational non-guilt messages). ADR-0005 already fixed that suggestions are DTO fields recomputed on every read. The open fork was how to structure that read side: shared use cases (no CQRS), CQRS-light, or full CQRS with projections.
+The lifecycle backlog ([[habit-progression-study]], `lifecycle-backlog`) requires screens that *read*: the board listing, later a habit detail, and a **per-habit statistics board** (days done, empty days — never framed "failed" —, grow/lighten counts, minutes gained, adaptive motivational non-guilt messages). The open fork was how to structure that read side: shared use cases (no CQRS), CQRS-light, or full CQRS with projections. (The progression *suggestion* fields this originally also carried are withdrawn by [[adr-0008-goal-based-dose-user-paced-progression]] — progression is user-paced, so nothing is suggested on read.)
 
 ## Decision
 
@@ -38,16 +41,16 @@ The lifecycle backlog ([[habit-progression-study]], `lifecycle-backlog`) require
 |---|---|---|
 | Handler split | **Query handlers (read use cases) separate from command use cases.** Commands live under `use_cases/`, queries under a dedicated `queries/` module — one flat `snake_case` module per query: `list_board_habits.rs`, later `get_habit_detail.rs`, `get_habit_stats.rs`. Module/file names are `snake_case` per Rust RFC 430 — flat modules (no `mod.rs`-inception folders), no `#[path]` remapping. The physical `use_cases/` (commands) vs `queries/` split was adopted early rather than deferred | `core/src/habit_management/queries/list_board_habits.rs` |
 | Read models | **Per-screen DTOs owned by their query use case** (`HabitSummary`, `HabitDetail`, later `HabitStats`). Duplication across DTOs is acceptable — one screen = one read model, no god read model | planned: DTO next to its query |
-| Crate boundary | DTOs are the **crate-boundary contract** — domain types NEVER cross into `kayzen-app` (extends [[adr-0003-two-crate-workspace]]'s dependency rule to data shapes; [[adr-0005-progression-suggestion-policy]]'s DTO fields already presuppose it) | — |
+| Crate boundary | DTOs are the **crate-boundary contract** — domain types NEVER cross into `kayzen-app` (extends [[adr-0003-two-crate-workspace]]'s dependency rule to data shapes) | — |
 | Data access | Queries read through the **EXISTING domain ports** (`HabitRepository`, `HabitBoardRepository`) against the same store. **NO dedicated ReadModel port** — a single trivial implementation would be YAGNI | — |
-| Derived data | Suggestions and ALL derived display data are **computed on read** by pure stateless domain services (`StabilityPolicy` et al.) — nothing stored, per [[adr-0005-progression-suggestion-policy]] | — |
+| Derived data | ALL derived display data (stats, minutes gained, motivational messages) is **computed on read** by pure stateless domain services — nothing stored. Progression *suggestions* are **no longer among them**: the `StabilityPolicy` is removed ([[adr-0008-goal-based-dose-user-paced-progression]]) | — |
 | Statistics board | The future per-habit statistics board is **MORE QUERIES over the two dated histories** already in the aggregate (completions + step history) — days done, empty days, grow/lighten counts, minutes gained are *derivations, not projections*. The designer's own "tout le récap est dérivé" principle generalizes to every stat. Adaptive motivational messages = another stateless read-side policy | planned: `get-habit-stats/` |
 
 ## Rejected alternatives
 
 | Alternative | Why rejected |
 |---|---|
-| No CQRS (shared use cases, domain types returned to views) | Domain types would leak into Dioxus views across the crate boundary; [[adr-0005-progression-suggestion-policy]]'s DTO fields (`growth_suggested` / `anchor_suggested`) already foreclose it |
+| No CQRS (shared use cases, domain types returned to views) | Domain types would leak into Dioxus views across the crate boundary; per-screen DTOs are the required boundary contract |
 | Full CQRS (projections + separate read store) | Requires the deferred production outbox dispatcher; eventual consistency = stale screens for a single local user; volume physically cannot justify it — ~20k dates after 10 years, microsecond recompute |
 | Dedicated ReadModel port | Single trivial implementation over the same store — abstraction with no second implementation (YAGNI) |
 | Physical `commands/` / `queries/` split now | Premature structure for a handful of use cases; deferred until the folder crowds |
