@@ -1,6 +1,7 @@
 pub mod domain {
     pub mod completion_history;
     pub mod domain_event_publisher;
+    pub mod goal;
     pub mod habit;
     pub mod habit_board;
     pub mod habit_board_event;
@@ -8,7 +9,6 @@ pub mod domain {
     pub mod habit_id;
     pub mod habit_repository;
     pub mod habit_title;
-    pub mod initial_duration;
 }
 
 pub mod infrastructure {

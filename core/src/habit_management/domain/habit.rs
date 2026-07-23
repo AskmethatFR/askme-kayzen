@@ -1,7 +1,7 @@
 use crate::habit_management::domain::completion_history::CompletionHistory;
+use crate::habit_management::domain::goal::Goal;
 use crate::habit_management::domain::habit_id::HabitId;
 use crate::habit_management::domain::habit_title::HabitTitle;
-use crate::habit_management::domain::initial_duration::InitialDuration;
 use crate::shared::local_date::LocalDate;
 use std::error::Error;
 use std::fmt;
@@ -10,21 +10,21 @@ use std::fmt;
 pub struct Habit {
     id: HabitId,
     title: HabitTitle,
-    initial_duration: InitialDuration,
+    goal: Goal,
     completion_history: CompletionHistory,
 }
 
 #[derive(Debug, PartialEq)]
 pub enum HabitError {
-    DurationTooLong { max: u32 },
+    GoalTooSmall { min: u32 },
     TitleLength { min: usize, max: usize },
 }
 
 impl fmt::Display for HabitError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            HabitError::DurationTooLong { max } => {
-                write!(f, "an easy habit must last no more than {max} minutes")
+            HabitError::GoalTooSmall { min } => {
+                write!(f, "a goal must be at least {min} minute(s) per day")
             }
             HabitError::TitleLength { min, max } => {
                 write!(f, "a title size must be between {min} and {max} characters")
@@ -36,11 +36,11 @@ impl fmt::Display for HabitError {
 impl Error for HabitError {}
 
 impl Habit {
-    pub fn new(id: HabitId, title: HabitTitle, initial_duration: InitialDuration) -> Habit {
+    pub fn new(id: HabitId, title: HabitTitle, goal: Goal) -> Habit {
         Habit {
             id,
             title,
-            initial_duration,
+            goal,
             completion_history: CompletionHistory::new(),
         }
     }
@@ -51,8 +51,8 @@ impl Habit {
     pub fn title(&self) -> &HabitTitle {
         &self.title
     }
-    pub fn current_dose(&self) -> u32 {
-        self.initial_duration.value()
+    pub fn current_goal(&self) -> u32 {
+        self.goal.value()
     }
 
     pub fn toggle_done(&mut self, today: LocalDate) {
@@ -73,7 +73,7 @@ mod tests {
         Habit::new(
             HabitId::from("h-1"),
             HabitTitle::new("Read one page".to_string()).unwrap(),
-            InitialDuration::new(2).unwrap(),
+            Goal::new(2).unwrap(),
         )
     }
 

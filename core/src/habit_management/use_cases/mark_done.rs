@@ -52,8 +52,8 @@ impl MarkDone {
 mod tests {
     use super::*;
     use crate::habit_management::domain::habit::Habit;
+    use crate::habit_management::domain::goal::Goal;
     use crate::habit_management::domain::habit_title::HabitTitle;
-    use crate::habit_management::domain::initial_duration::InitialDuration;
     use crate::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
     use crate::shared::clock::FixedClock;
     use crate::shared::local_date::LocalDate;
@@ -64,7 +64,7 @@ mod tests {
         Habit::new(
             HabitId::from(id),
             HabitTitle::new("Read one page".to_string()).unwrap(),
-            InitialDuration::new(2).unwrap(),
+            Goal::new(2).unwrap(),
         )
     }
 

@@ -9,8 +9,9 @@ use kayzen_core::habit_management::use_cases::create_habit_on_request::CreateHab
 use kayzen_core::habit_management::use_cases::request_habit::RequestHabit;
 use kayzen_core::shared::guid_generator::UuidGenerator;
 
-/// The dose every new habit starts at — Kaizen begins as small as possible.
-const STARTING_MINUTES: u32 = 1;
+/// The default daily goal offered to every new habit — a flexible target,
+/// not a ceiling. Kaizen begins gently, not necessarily tiny.
+const STARTING_GOAL: u32 = 5;
 
 /// App service that adds a habit end to end: request it on the board, then drain
 /// the outbox and let the create handler persist it. This is the composition
@@ -43,7 +44,7 @@ impl AddHabit {
             Rc::clone(&self.outbox) as Rc<dyn DomainEventPublisher>,
             Rc::clone(&self.board_repository),
         );
-        request_habit.execute(title.to_string(), STARTING_MINUTES)?;
+        request_habit.execute(title.to_string(), STARTING_GOAL)?;
 
         let create_habit = CreateHabitOnRequest::new(Rc::clone(&self.habit_repository));
         for event in self.outbox.drain() {

@@ -31,7 +31,7 @@ impl ListBoardHabits {
             .map(|habit| HabitSummary {
                 id: habit.id().value().to_string(),
                 title: habit.title().value().to_string(),
-                minutes: habit.current_dose(),
+                minutes: habit.current_goal(),
                 done_today: habit.is_done_on(today),
             })
             .collect()
@@ -41,11 +41,11 @@ impl ListBoardHabits {
 #[cfg(test)]
 mod tests {
     use super::{HabitSummary, ListBoardHabits};
+    use crate::habit_management::domain::goal::Goal;
     use crate::habit_management::domain::habit::Habit;
     use crate::habit_management::domain::habit_id::HabitId;
     use crate::habit_management::domain::habit_repository::HabitRepository;
     use crate::habit_management::domain::habit_title::HabitTitle;
-    use crate::habit_management::domain::initial_duration::InitialDuration;
     use crate::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
     use crate::shared::clock::{Clock, FixedClock};
     use crate::shared::local_date::LocalDate;
@@ -57,7 +57,7 @@ mod tests {
         Habit::new(
             HabitId::from("h-1"),
             HabitTitle::new("Read one page".to_string()).unwrap(),
-            InitialDuration::new(3).unwrap(),
+            Goal::new(3).unwrap(),
         )
     }
 

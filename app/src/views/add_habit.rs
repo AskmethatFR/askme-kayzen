@@ -48,7 +48,7 @@ pub fn AddHabit() -> Element {
             }
             h1 { class: "greeting", "Une nouvelle petite habitude" }
             p { class: "lede",
-                "On commence toujours tout petit. Vous grandirez plus tard, minute par minute."
+                "Un objectif doux : 5 minutes par jour. Moins, c'est déjà quelque chose ; plus, tant mieux."
             }
 
             p { class: "eyebrow", "Quelques idées déjà prêtes" }
@@ -57,7 +57,7 @@ pub fn AddHabit() -> Element {
                     li { class: "habit-row",
                         div { class: "habit-body",
                             div { class: "idea-name", "{idea}" }
-                            div { class: "habit-meta", "on démarre à 1 min" }
+                            div { class: "habit-meta", "5 min par jour" }
                         }
                         button {
                             class: "add-target",
@@ -96,7 +96,7 @@ pub fn AddHabit() -> Element {
                         }
                     }
                 },
-                "Ajouter, à 1 min par jour"
+                "Ajouter, à 5 min par jour"
             }
         }
     }

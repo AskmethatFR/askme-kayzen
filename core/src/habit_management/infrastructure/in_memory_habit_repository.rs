@@ -40,15 +40,15 @@ impl HabitRepository for InMemoryHabitRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::habit_management::domain::goal::Goal;
     use crate::habit_management::domain::habit_title::HabitTitle;
-    use crate::habit_management::domain::initial_duration::InitialDuration;
     use crate::shared::local_date::LocalDate;
 
     fn a_habit(id: &str) -> Habit {
         Habit::new(
             HabitId::from(id),
             HabitTitle::new("Read one page".to_string()).unwrap(),
-            InitialDuration::new(2).unwrap(),
+            Goal::new(2).unwrap(),
         )
     }
 

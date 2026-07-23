@@ -77,8 +77,8 @@ mod tests {
     use kayzen_core::habit_management::domain::habit::Habit;
     use kayzen_core::habit_management::domain::habit_id::HabitId;
     use kayzen_core::habit_management::domain::habit_repository::HabitRepository;
+    use kayzen_core::habit_management::domain::goal::Goal;
     use kayzen_core::habit_management::domain::habit_title::HabitTitle;
-    use kayzen_core::habit_management::domain::initial_duration::InitialDuration;
     use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
     use kayzen_core::shared::clock::{Clock, SystemClock};
     use std::rc::Rc;
@@ -87,7 +87,7 @@ mod tests {
         Habit::new(
             HabitId::new("test-1".to_string()),
             HabitTitle::new("Read one page".to_string()).unwrap(),
-            InitialDuration::new(4).unwrap(),
+            Goal::new(4).unwrap(),
         )
     }
 

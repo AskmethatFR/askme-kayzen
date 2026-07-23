@@ -14,12 +14,8 @@ impl CreateHabitOnRequest {
 
     pub fn handle(&self, event: HabitBoardEvent) {
         match event {
-            HabitBoardEvent::HabitRequested {
-                id,
-                title,
-                initial_duration,
-            } => {
-                let habit = Habit::new(id, title, initial_duration);
+            HabitBoardEvent::HabitRequested { id, title, goal } => {
+                let habit = Habit::new(id, title, goal);
                 self.repository.save(&habit);
             }
         }
@@ -32,8 +28,8 @@ mod tests {
     use crate::habit_management::domain::domain_event_publisher::DomainEventPublisher;
     use crate::habit_management::domain::habit_board_repository::HabitBoardRepository;
     use crate::habit_management::domain::habit_id::HabitId;
+    use crate::habit_management::domain::goal::Goal;
     use crate::habit_management::domain::habit_title::HabitTitle;
-    use crate::habit_management::domain::initial_duration::InitialDuration;
     use crate::habit_management::infrastructure::in_memory_habit_board_repository::InMemoryHabitBoardRepository;
     use crate::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
     use crate::habit_management::infrastructure::in_memory_outbox::InMemoryOutbox;
@@ -50,19 +46,19 @@ mod tests {
         }
     }
 
-    fn a_habit(id: &str, title: &str, initial_duration: u32) -> Habit {
+    fn a_habit(id: &str, title: &str, goal: u32) -> Habit {
         Habit::new(
             HabitId::from(id),
             HabitTitle::new(String::from(title)).unwrap(),
-            InitialDuration::new(initial_duration).unwrap(),
+            Goal::new(goal).unwrap(),
         )
     }
 
-    fn a_habit_requested(id: &str, title: &str, initial_duration: u32) -> HabitBoardEvent {
+    fn a_habit_requested(id: &str, title: &str, goal: u32) -> HabitBoardEvent {
         HabitBoardEvent::HabitRequested {
             id: HabitId::from(id),
             title: HabitTitle::new(String::from(title)).unwrap(),
-            initial_duration: InitialDuration::new(initial_duration).unwrap(),
+            goal: Goal::new(goal).unwrap(),
         }
     }
 

@@ -24,14 +24,10 @@ impl RequestHabit {
         }
     }
 
-    pub fn execute(
-        &self,
-        title: String,
-        initial_duration: u32,
-    ) -> Result<HabitId, HabitBoardError> {
+    pub fn execute(&self, title: String, goal: u32) -> Result<HabitId, HabitBoardError> {
         let id = HabitId::new(self.guid_generator.generate());
         let mut board = self.board_repository.load();
-        let event = board.request_habit(id.clone(), title, initial_duration)?;
+        let event = board.request_habit(id.clone(), title, goal)?;
         self.board_repository.save(&board);
         self.publisher.publish(event);
         Ok(id)
@@ -44,8 +40,8 @@ mod tests {
     use crate::habit_management::domain::habit::HabitError;
     use crate::habit_management::domain::habit_board::HabitBoard;
     use crate::habit_management::domain::habit_board_event::HabitBoardEvent;
+    use crate::habit_management::domain::goal::Goal;
     use crate::habit_management::domain::habit_title::HabitTitle;
-    use crate::habit_management::domain::initial_duration::InitialDuration;
     use crate::habit_management::infrastructure::in_memory_habit_board_repository::InMemoryHabitBoardRepository;
     use crate::habit_management::infrastructure::in_memory_outbox::InMemoryOutbox;
 
@@ -92,10 +88,10 @@ mod tests {
             ("a".repeat(HabitTitle::MAX_LEN), 5),
         ];
 
-        for (title, initial_duration) in cases {
+        for (title, goal) in cases {
             let (request_habit, outbox) = a_fresh_request_habit();
 
-            let result = request_habit.execute(title.clone(), initial_duration);
+            let result = request_habit.execute(title.clone(), goal);
 
             assert_eq!(result, Ok(HabitId::from("fixed-guid")));
             assert_eq!(
@@ -103,21 +99,29 @@ mod tests {
                 vec![HabitBoardEvent::HabitRequested {
                     id: HabitId::from("fixed-guid"),
                     title: HabitTitle::new(title).unwrap(),
-                    initial_duration: InitialDuration::new(initial_duration).unwrap(),
+                    goal: Goal::new(goal).unwrap(),
                 }]
             );
         }
     }
 
     #[test]
+    fn a_goal_above_the_old_five_minute_ceiling_is_accepted() {
+        let (request_habit, outbox) = a_fresh_request_habit();
+
+        let result = request_habit.execute(String::from("Run a marathon"), 6);
+
+        assert!(result.is_ok());
+        assert_eq!(outbox.drain().len(), 1);
+    }
+
+    #[test]
     fn requesting_an_invalid_habit_returns_an_error_and_publishes_nothing() {
         let cases: Vec<(String, u32, HabitBoardError)> = vec![
             (
-                String::from("Run a marathon"),
-                InitialDuration::MAX + 1,
-                HabitBoardError::InvalidHabit(HabitError::DurationTooLong {
-                    max: InitialDuration::MAX,
-                }),
+                String::from("Tiny"),
+                0,
+                HabitBoardError::InvalidHabit(HabitError::GoalTooSmall { min: 1 }),
             ),
             (
                 String::new(),
@@ -137,10 +141,10 @@ mod tests {
             ),
         ];
 
-        for (title, initial_duration, expected_error) in cases {
+        for (title, goal, expected_error) in cases {
             let (request_habit, outbox) = a_fresh_request_habit();
 
-            let result = request_habit.execute(title, initial_duration);
+            let result = request_habit.execute(title, goal);
 
             assert_eq!(result, Err(expected_error));
             assert!(outbox.drain().is_empty());
