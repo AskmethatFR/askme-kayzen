@@ -1,7 +1,27 @@
 # cargo-mutants configuration. Driven by scripts/mutation-gate.sh, which scopes
-# the run to the current diff.
-
-# The Dioxus entry point only launches the app; it holds no behavior and no test
-# could kill a mutant there. Everything else in the app crate stays in — its
-# views, its route parsing and its wiring services do carry tests.
-exclude_globs = ["app/src/main.rs"]
+# the run to the committed diff.
+#
+# The gate measures where decisions live: the domain, the command use cases and
+# the read queries. Everything else is an implementation of a port or a
+# rendering surface, and a mutant surviving there is not answered by testing
+# that implementation — it is answered in the use case that should have covered
+# the concern. Testing an adapter directly proves the adapter matches itself.
+#
+# Deliberately OUT of scope, and why:
+#   app/src/views/**   Dioxus rsx!. A view returning an `Element` cannot be
+#                      replaced by `Default::default()`, so the whole rendering
+#                      layer reports "unviable" and measures nothing anyway.
+#   app/src/**         The shell: entry point, router, composition root and the
+#                      wiring services. Plumbing between the core and Dioxus.
+#   infrastructure/**  Port implementations (the in-memory stores).
+#   shared/clock.rs    `SystemClock` delegates to chrono.
+#   shared/guid_...rs  `UuidGenerator` delegates to the uuid crate.
+#
+# `local_date.rs` is the exception in shared/: it is a pure domain value object
+# (library-free by design, see adr-0007), not an adapter, so it is measured.
+examine_globs = [
+    "core/src/habit_management/domain/**",
+    "core/src/habit_management/use_cases/**",
+    "core/src/habit_management/queries/**",
+    "core/src/shared/local_date.rs",
+]

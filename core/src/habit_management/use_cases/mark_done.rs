@@ -75,6 +75,14 @@ mod tests {
         )
     }
 
+    #[test]
+    fn display_formats_the_error_with_the_expected_message() {
+        assert_eq!(
+            MarkDoneError::HabitNotFound.to_string(),
+            "no habit with this id is on the board"
+        );
+    }
+
     // @scenario: mark-done/S1
     #[test]
     fn marking_a_habit_records_todays_completion() {

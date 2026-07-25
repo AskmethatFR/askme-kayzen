@@ -44,6 +44,7 @@ mod tests {
     use crate::habit_management::domain::habit_title::HabitTitle;
     use crate::habit_management::infrastructure::in_memory_habit_board_repository::InMemoryHabitBoardRepository;
     use crate::habit_management::infrastructure::in_memory_outbox::InMemoryOutbox;
+    use std::cell::Cell;
 
     struct StubGuidGenerator {
         guid: String,
@@ -52,6 +53,20 @@ mod tests {
     impl GuidGenerator for StubGuidGenerator {
         fn generate(&self) -> String {
             self.guid.clone()
+        }
+    }
+
+    /// Hands out a different guid on every call, so a use case that asked for
+    /// one id and reused it would be caught.
+    struct CountingGuidGenerator {
+        calls: Cell<u32>,
+    }
+
+    impl GuidGenerator for CountingGuidGenerator {
+        fn generate(&self) -> String {
+            let next = self.calls.get() + 1;
+            self.calls.set(next);
+            format!("guid-{next}")
         }
     }
 
@@ -104,6 +119,35 @@ mod tests {
                 }]
             );
         }
+    }
+
+    #[test]
+    fn every_accepted_request_gets_its_own_freshly_generated_id() {
+        let outbox = Rc::new(InMemoryOutbox::new());
+        let request_habit = RequestHabit::new(
+            Box::new(CountingGuidGenerator {
+                calls: Cell::new(0),
+            }),
+            Rc::clone(&outbox) as Rc<dyn DomainEventPublisher>,
+            Rc::new(InMemoryHabitBoardRepository::new()) as Rc<dyn HabitBoardRepository>,
+        );
+
+        let first = request_habit.execute(String::from("Read one page"), 5);
+        let second = request_habit.execute(String::from("Move a little"), 5);
+
+        assert_eq!(first, Ok(HabitId::from("guid-1")));
+        assert_eq!(second, Ok(HabitId::from("guid-2")));
+        let published: Vec<HabitId> = outbox
+            .drain()
+            .into_iter()
+            .map(|event| match event {
+                HabitBoardEvent::HabitRequested { id, .. } => id,
+            })
+            .collect();
+        assert_eq!(
+            published,
+            vec![HabitId::from("guid-1"), HabitId::from("guid-2")]
+        );
     }
 
     // @scenario: request-habit/S2

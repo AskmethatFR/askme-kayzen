@@ -10,8 +10,4 @@ impl LocalDate {
     pub fn from_epoch_day(day: i64) -> LocalDate {
         LocalDate(day)
     }
-
-    pub fn epoch_day(&self) -> i64 {
-        self.0
-    }
 }
