@@ -104,7 +104,7 @@ pub fn AddHabit() -> Element {
 
 #[cfg(test)]
 mod tests {
-    use super::{two_random_ideas, IDEAS};
+    use super::{IDEAS, two_random_ideas};
     use crate::composition::Services;
     use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
     use std::rc::Rc;

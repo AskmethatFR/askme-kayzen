@@ -28,8 +28,18 @@ mod tests {
     fn named_routes() -> Vec<(Route, &'static str)> {
         vec![
             (Route::Today {}, "/"),
-            (Route::HabitDetail { id: "abc".to_string() }, "/habit/abc"),
-            (Route::Ritual { id: "abc".to_string() }, "/habit/abc/ritual"),
+            (
+                Route::HabitDetail {
+                    id: "abc".to_string(),
+                },
+                "/habit/abc",
+            ),
+            (
+                Route::Ritual {
+                    id: "abc".to_string(),
+                },
+                "/habit/abc/ritual",
+            ),
             (Route::Week {}, "/week"),
             (Route::Anchored {}, "/anchored"),
             (Route::AddHabit {}, "/add"),
@@ -53,7 +63,12 @@ mod tests {
     #[test]
     fn precedence_ritual_over_habit_detail() {
         let route = Route::from_str("/habit/xyz/ritual").unwrap();
-        assert_eq!(route, Route::Ritual { id: "xyz".to_string() });
+        assert_eq!(
+            route,
+            Route::Ritual {
+                id: "xyz".to_string()
+            }
+        );
     }
 
     #[test]

@@ -32,7 +32,10 @@ impl fmt::Display for HabitBoardError {
                 write!(f, "a habit with this title is already on the board")
             }
             HabitBoardError::BoardFull { max } => {
-                write!(f, "the habit board already holds the maximum of {max} habits")
+                write!(
+                    f,
+                    "the habit board already holds the maximum of {max} habits"
+                )
             }
         }
     }
@@ -52,7 +55,11 @@ impl HabitBoard {
         let title = HabitTitle::new(title).map_err(HabitBoardError::InvalidHabit)?;
         let goal = Goal::new(goal).map_err(HabitBoardError::InvalidHabit)?;
 
-        if self.requests.iter().any(|entry| entry.title.matches(&title)) {
+        if self
+            .requests
+            .iter()
+            .any(|entry| entry.title.matches(&title))
+        {
             return Err(HabitBoardError::DuplicateHabit);
         }
 

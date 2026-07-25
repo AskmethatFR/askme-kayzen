@@ -37,10 +37,10 @@ impl RequestHabit {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::habit_management::domain::goal::Goal;
     use crate::habit_management::domain::habit::HabitError;
     use crate::habit_management::domain::habit_board::HabitBoard;
     use crate::habit_management::domain::habit_board_event::HabitBoardEvent;
-    use crate::habit_management::domain::goal::Goal;
     use crate::habit_management::domain::habit_title::HabitTitle;
     use crate::habit_management::infrastructure::in_memory_habit_board_repository::InMemoryHabitBoardRepository;
     use crate::habit_management::infrastructure::in_memory_outbox::InMemoryOutbox;

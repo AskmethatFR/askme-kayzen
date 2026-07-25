@@ -51,8 +51,8 @@ impl MarkDone {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::habit_management::domain::habit::Habit;
     use crate::habit_management::domain::goal::Goal;
+    use crate::habit_management::domain::habit::Habit;
     use crate::habit_management::domain::habit_title::HabitTitle;
     use crate::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
     use crate::shared::clock::FixedClock;

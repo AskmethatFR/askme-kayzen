@@ -26,9 +26,9 @@ impl CreateHabitOnRequest {
 mod tests {
     use super::*;
     use crate::habit_management::domain::domain_event_publisher::DomainEventPublisher;
+    use crate::habit_management::domain::goal::Goal;
     use crate::habit_management::domain::habit_board_repository::HabitBoardRepository;
     use crate::habit_management::domain::habit_id::HabitId;
-    use crate::habit_management::domain::goal::Goal;
     use crate::habit_management::domain::habit_title::HabitTitle;
     use crate::habit_management::infrastructure::in_memory_habit_board_repository::InMemoryHabitBoardRepository;
     use crate::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;

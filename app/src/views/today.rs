@@ -74,10 +74,10 @@ mod tests {
     use crate::composition::Services;
     use crate::route::Route;
     use dioxus::prelude::*;
+    use kayzen_core::habit_management::domain::goal::Goal;
     use kayzen_core::habit_management::domain::habit::Habit;
     use kayzen_core::habit_management::domain::habit_id::HabitId;
     use kayzen_core::habit_management::domain::habit_repository::HabitRepository;
-    use kayzen_core::habit_management::domain::goal::Goal;
     use kayzen_core::habit_management::domain::habit_title::HabitTitle;
     use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
     use kayzen_core::shared::clock::{Clock, SystemClock};
