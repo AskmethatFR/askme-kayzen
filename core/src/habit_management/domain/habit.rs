@@ -78,6 +78,24 @@ mod tests {
     }
 
     #[test]
+    fn display_formats_each_error_variant_with_the_expected_message() {
+        let cases = vec![
+            (
+                HabitError::GoalTooSmall { min: 1 },
+                "a goal must be at least 1 minute(s) per day",
+            ),
+            (
+                HabitError::TitleLength { min: 1, max: 50 },
+                "a title size must be between 1 and 50 characters",
+            ),
+        ];
+
+        for (error, expected) in cases {
+            assert_eq!(error.to_string(), expected);
+        }
+    }
+
+    #[test]
     fn a_new_habit_is_not_done_on_any_day() {
         let habit = a_habit();
 
