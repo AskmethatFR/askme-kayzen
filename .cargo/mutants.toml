@@ -1,0 +1,7 @@
+# cargo-mutants configuration. Driven by scripts/mutation-gate.sh, which scopes
+# the run to the current diff.
+
+# The app crate is the Dioxus shell: rsx! views and the composition root, no
+# behavior of its own and no tests. Mutants there would all survive and say
+# nothing about the domain's tests.
+exclude_globs = ["app/**"]

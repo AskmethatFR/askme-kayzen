@@ -1,3 +1,6 @@
 /target
 /.idea
 .DS_Store
+/mutants.out
+/mutants.out.old
+/.mutation-gate
