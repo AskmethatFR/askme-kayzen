@@ -75,6 +75,7 @@ mod tests {
         )
     }
 
+    // @scenario: mark-done/S1
     #[test]
     fn marking_a_habit_records_todays_completion() {
         let repository = Rc::new(InMemoryHabitRepository::new());
@@ -88,6 +89,7 @@ mod tests {
         assert!(habit.is_done_on(LocalDate::from_epoch_day(TODAY)));
     }
 
+    // @scenario: mark-done/S2
     #[test]
     fn marking_the_same_habit_twice_clears_todays_completion() {
         let repository = Rc::new(InMemoryHabitRepository::new());
@@ -101,6 +103,7 @@ mod tests {
         assert!(!habit.is_done_on(LocalDate::from_epoch_day(TODAY)));
     }
 
+    // @scenario: mark-done/S3
     #[test]
     fn marking_an_unknown_habit_is_rejected() {
         let repository = Rc::new(InMemoryHabitRepository::new());

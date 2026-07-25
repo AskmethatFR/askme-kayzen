@@ -68,6 +68,7 @@ mod tests {
         )
     }
 
+    // @scenario: today-habit-list/S1
     #[test]
     fn no_habits_yields_no_summaries() {
         let repository = Rc::new(InMemoryHabitRepository::new());
@@ -77,6 +78,7 @@ mod tests {
         assert_eq!(query.handle(), Vec::new());
     }
 
+    // @scenario: today-habit-list/S2
     #[test]
     fn a_habit_maps_to_its_summary_with_honest_defaults() {
         let repository = Rc::new(InMemoryHabitRepository::new());
@@ -96,6 +98,7 @@ mod tests {
         );
     }
 
+    // @scenario: today-habit-list/S3
     #[test]
     fn a_habit_done_today_is_reported_done() {
         let repository = Rc::new(InMemoryHabitRepository::new());

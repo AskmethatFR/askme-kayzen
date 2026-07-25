@@ -64,6 +64,23 @@ pattern as the stability policy), stateless, anti-guilt wording only.
 lifecycle-aggregate ADR (`[[adr-0007-habit-lifecycle-aggregate]]`) pins the shape;
 each slice grows the aggregate *vertically* by only the piece it needs.
 
+## Gherkin per slice (spec-only, see `docs/functional/features/habit-management/`)
+
+Each remaining slice is specified as scenarios before it is built; every scenario
+is `@wip` until a test carries its `// @scenario: <feature-id>/<Sn>` anchor. The
+Developer's first failing test of a slice is the scenario, and dropping the
+`@wip` tag is part of that slice's Definition of Done.
+
+| Slice | Feature file | Scenarios |
+|---|---|---|
+| 1 `read-habits-query` | `[[today-habit-list]]` | S1–S3, covered |
+| 2 `mark-done` | `[[mark-done]]` | S1–S3, covered |
+| 3 `adjust-goal` | `[[adjust-goal]]` | S1–S4, `@wip` (S3 = the deferred floor no-op, d2) |
+| 5 `pause-resume` | `[[pause-resume]]` | S1–S3, `@wip` (S3 pins Q1 — a paused habit keeps its seat) |
+| 6 `anchor` | `[[anchor-habit]]` | S1–S4, `@wip` (S3 pins Q3, S4 pins "no suggestion") |
+| 7 `readmit` | `[[readmit-habit]]` | S1–S3, `@wip` |
+| 8 `stats-board` | `[[habit-stats]]` | S1–S4, `@wip` |
+
 ## Per-slice aggregate growth (so nothing is forgotten — technical shape in `[[adr-0007-habit-lifecycle-aggregate]]`)
 
 > `Habit` is promoted to the lifecycle aggregate root; it stops being anemic at slice 2.

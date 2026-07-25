@@ -80,6 +80,7 @@ mod tests {
         (request_habit, outbox)
     }
 
+    // @scenario: request-habit/S1
     #[test]
     fn requesting_a_habit_publishes_exactly_one_habit_requested_event() {
         let cases = vec![
@@ -105,6 +106,7 @@ mod tests {
         }
     }
 
+    // @scenario: request-habit/S2
     #[test]
     fn a_goal_above_the_old_five_minute_ceiling_is_accepted() {
         let (request_habit, outbox) = a_fresh_request_habit();
@@ -115,6 +117,7 @@ mod tests {
         assert_eq!(outbox.drain().len(), 1);
     }
 
+    // @scenario: request-habit/S3
     #[test]
     fn requesting_an_invalid_habit_returns_an_error_and_publishes_nothing() {
         let cases: Vec<(String, u32, HabitBoardError)> = vec![
@@ -170,6 +173,7 @@ mod tests {
         (outbox, board_repository)
     }
 
+    // @scenario: request-habit/S4
     #[test]
     fn a_sixth_habit_request_on_a_full_board_is_rejected_and_publishes_nothing() {
         assert_eq!(HabitBoard::MAX_HABITS, 5);
@@ -193,6 +197,7 @@ mod tests {
         assert_eq!(outbox.drain().len(), HabitBoard::MAX_HABITS);
     }
 
+    // @scenario: request-habit/S5
     #[test]
     fn requesting_a_duplicate_title_is_rejected_and_publishes_nothing() {
         let outbox = Rc::new(InMemoryOutbox::new());
@@ -217,6 +222,7 @@ mod tests {
         assert_eq!(outbox.drain().len(), 1);
     }
 
+    // @scenario: request-habit/S6
     #[test]
     fn a_duplicate_title_on_a_full_board_is_rejected_as_duplicate_not_full() {
         let (outbox, board_repository) = a_full_board();

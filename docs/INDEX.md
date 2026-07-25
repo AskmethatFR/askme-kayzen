@@ -43,6 +43,22 @@
 | `design-gestes-kaizen` | Kaizen design — the seven Kaizen gestures + the loop (gesture 2 user-paced) | current | 2026-07-23 | `[[design-overview]]`, `[[design-ecrans]]`, `[[adr-0008-goal-based-dose-user-paced-progression]]` | `docs/functional/design/04-gestes-kaizen.md` |
 | `design-style-graphique` | Kaizen design — colors, typography, icons, components + screen captures | current | 2026-07-16 | `[[design-overview]]` | `docs/functional/design/05-style-graphique.md` |
 
+### Gherkin feature files (spec-only — parsed by `scenario_audit.py`, never executed)
+
+> Each scenario is materialized by a real test carrying a `// @scenario: <feature-id>/<Sn>` anchor. A scenario tagged `@wip` is specified but not yet implemented — waived from the coverage direction of the gate only.
+
+| ID | Title | Status | Updated | Links | Path |
+|---|---|---|---|---|---|
+| `request-habit` | Request a habit from the board — 6 scenarios, all covered | current | 2026-07-25 | `[[feature-catalog]]`, `[[glossary]]`, `[[adr-0001-validation-by-construction]]`, `[[adr-0002-habitboard-stateful-aggregate]]`, `[[adr-0008-goal-based-dose-user-paced-progression]]` | `docs/functional/features/habit-management/request-habit.feature` |
+| `create-habit-on-request` | Create the habit from an accepted request — 2 scenarios, all covered | current | 2026-07-25 | `[[feature-catalog]]`, `[[adr-0001-validation-by-construction]]` | `docs/functional/features/habit-management/create-habit-on-request.feature` |
+| `today-habit-list` | List the board habits for today — 3 scenarios, all covered | current | 2026-07-25 | `[[lifecycle-backlog]]`, `[[adr-0006-cqrs-light]]` | `docs/functional/features/habit-management/today-habit-list.feature` |
+| `mark-done` | Mark a habit done today — 3 scenarios, all covered | current | 2026-07-25 | `[[lifecycle-backlog]]`, `[[glossary]]`, `[[adr-0007-habit-lifecycle-aggregate]]` | `docs/functional/features/habit-management/mark-done.feature` |
+| `adjust-goal` | Adjust a habit's goal at the user's own pace — slice 3, 4 scenarios `@wip` | draft | 2026-07-25 | `[[lifecycle-backlog]]`, `[[adr-0008-goal-based-dose-user-paced-progression]]`, `[[design-gestes-kaizen]]` | `docs/functional/features/habit-management/adjust-goal.feature` |
+| `pause-resume` | Pause a habit and resume it — slice 5, 3 scenarios `@wip` | draft | 2026-07-25 | `[[lifecycle-backlog]]`, `[[adr-0007-habit-lifecycle-aggregate]]`, `[[design-principes-kaizen]]` | `docs/functional/features/habit-management/pause-resume.feature` |
+| `anchor-habit` | Anchor a habit that has become natural — slice 6, 4 scenarios `@wip` | draft | 2026-07-25 | `[[lifecycle-backlog]]`, `[[adr-0002-habitboard-stateful-aggregate]]`, `[[adr-0007-habit-lifecycle-aggregate]]` | `docs/functional/features/habit-management/anchor-habit.feature` |
+| `readmit-habit` | Put an anchored habit back into the daily life — slice 7, 3 scenarios `@wip` | draft | 2026-07-25 | `[[lifecycle-backlog]]`, `[[anchor-habit]]`, `[[adr-0002-habitboard-stateful-aggregate]]` | `docs/functional/features/habit-management/readmit-habit.feature` |
+| `habit-stats` | Read a habit's story — slice 8, 4 scenarios `@wip` | draft | 2026-07-25 | `[[lifecycle-backlog]]`, `[[adr-0006-cqrs-light]]`, `[[design-principes-kaizen]]` | `docs/functional/features/habit-management/habit-stats.feature` |
+
 ## Graph health (maintained by the owners at end of each cycle)
 
 - [x] Every node file has a row here; every row points to an existing file.

@@ -62,6 +62,7 @@ mod tests {
         }
     }
 
+    // @scenario: create-habit-on-request/S1
     #[test]
     fn handling_a_habit_requested_event_persists_the_habit() {
         let repository = Rc::new(InMemoryHabitRepository::new());
@@ -72,6 +73,7 @@ mod tests {
         assert_eq!(repository.all(), vec![a_habit("id-1", "Read one page", 2)]);
     }
 
+    // @scenario: create-habit-on-request/S2
     #[test]
     fn requesting_then_handling_a_habit_persists_it_end_to_end() {
         let outbox = Rc::new(InMemoryOutbox::new());
