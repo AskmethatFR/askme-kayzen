@@ -48,7 +48,7 @@ One bounded context: **`habit_management`** (`core/src/habit_management/`), plus
 | Layer | Contents | Anchors |
 |---|---|---|
 | Domain | `Habit` (**promoted to the lifecycle aggregate root** — [[adr-0007-habit-lifecycle-aggregate]]), `HabitBoard` (stateful aggregate), `HabitBoardEvent`, `HabitBoardError`, VOs (`HabitTitle`, `HabitId`, and today's creation-duration VO which the lifecycle model **collapses into a single `Goal` VO** — [[adr-0008-goal-based-dose-user-paced-progression]]; planned lifecycle VOs `CompletionHistory`, `StepHistory`, `Goal`, `LifecycleState`, `LocalDate`), ports (`HabitRepository`, `HabitBoardRepository`, `DomainEventPublisher`; planned `Clock`) | `core/src/habit_management/domain/`, `core/src/shared/` |
-| Application (use cases) | `RequestHabit` (command side), `CreateHabitOnRequest` (event handler) | `core/src/habit_management/use-cases/request-habit/request-habit.rs`, `core/src/habit_management/use-cases/create-habit-on-request/create-habit-on-request.rs` |
+| Application (use cases) | `RequestHabit` (command side), `CreateHabitOnRequest` (event handler) | `core/src/habit_management/use_cases/request_habit.rs`, `core/src/habit_management/use_cases/create_habit_on_request.rs` |
 | Infrastructure | `InMemoryOutbox`, `InMemoryHabitRepository`, `InMemoryHabitBoardRepository` | `core/src/habit_management/infrastructure/` |
 | Presentation (shell only) | Dioxus `App` hosting `Router::<Route>`; flat `Route` enum mirroring the designer's 6 screens + NotFound catch-all ([[adr-0004-routing-flat-enum]]); `views/` = 7 screen **stubs** (French designer titles, placeholder data) — **wires no use case yet** (unchanged human constraint). Target: **Android-first**, all dev on the web platform for speed | `app/src/main.rs`, `app/src/route.rs`, `app/src/views/` |
 
@@ -101,12 +101,12 @@ This cycle wrote the ADR + docs only — **zero production code** (approved deci
 | Duplicate matching via explicit `HabitTitle::matches` (trim + case-insensitive); `PartialEq` stays strict | Equality remains value equality; business-rule matching is an explicit, named domain operation | Overloading `PartialEq` with case-insensitive semantics (silently changes set/map behavior) |
 | `HabitBoardRepository` is mono-board (`load() -> HabitBoard`, `save(&HabitBoard)`) | Exactly one board exists today; no identity parameter until a second board is a requirement | `load(BoardId)` speculative API |
 | `BoardEntry.id` stored but not yet read | Reserved for the future "ancrée" (anchored) rule that removes an entry from the board. Deliberate, human-validated | Dropping the field and re-adding it later (would churn the persisted shape) |
-| Outbox **without** production dispatcher | Transactional boundary proven by one end-to-end test draining the outbox inside the test; reversal is additive, so no ADR | Building a minimal production dispatcher now |
+| Outbox drained by a **synchronous in-process dispatcher** | `AddHabit` (app service) requests on the board, then drains the outbox and hands each event to `CreateHabitOnRequest` in the same call. The dispatcher lives at the composition root, not in the domain, so making it asynchronous later stays additive | A background/async dispatcher before anything needs one |
 
 ## Deliberately does NOT exist yet (human constraint — manual dev resumes after these cycles)
 
-- Production outbox-draining dispatcher (`drain()` is test-only, `core/src/habit_management/infrastructure/in_memory_outbox.rs`)
-- UI wiring of the use cases — the app shell now has a Router + 7 view stubs (LOCAL-4, [[adr-0004-routing-flat-enum]]) but still calls **no** use case; views render placeholder data. The route `:id` stays `String` until this boundary is wired
+- Any **persistence**: every store is in-memory, so nothing survives a restart, and `Services::new` seeds three demo habits at startup
+- UI wiring **beyond Today and Add** — those two screens call `ListBoardHabits`, `MarkDone` and `AddHabit` through the `Services` registry provided at the app root; Detail, Ritual, Week and Ancrées stay stubs, and the route `:id` stays `String` until Detail is wired
 - Android `mobile-shell` concerns — hardware back-button wiring and intent-filters/App Links registration are **explicitly deferred** to a future `mobile-shell` ticket ([[adr-0004-routing-flat-enum]])
 - Idempotence in `CreateHabitOnRequest`
 - Entry **removal** from the board — the future "ancrée" (anchored) rule; `BoardEntry.id` is the reserved hook

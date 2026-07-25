@@ -30,13 +30,18 @@ The board-driven creation flow (LOCAL-1) splits habit creation into an emitting 
 
 ## Decision
 
+> **Anchor note (2026-07-25)**: the second VO was named `InitialDuration` when this
+> decision was taken; `[[adr-0008-goal-based-dose-user-paced-progression]]` replaced it
+> with `Goal`. The decision below is unchanged — only the VO's name and file moved,
+> and the anchors point at the current file.
+
 | Facet | Decision | Anchor |
 |---|---|---|
-| Single source of truth | The two business rules live ONLY in the VO constructors (`HabitTitle`, `InitialDuration`), moved out of `Habit::new` | `src/habit_management/domain/habit_title.rs`, `src/habit_management/domain/initial_duration.rs` |
-| Validate before emission | `HabitBoard::request_habit` builds the VOs and returns `Result<HabitBoardEvent, HabitBoardError>` — an event cannot exist unless validation passed | `src/habit_management/domain/habit_board.rs` |
-| Events carry VOs | `HabitBoardEvent::HabitRequested` holds the VOs, not primitives — validity is enforced by the type system end-to-end | `src/habit_management/domain/habit_board_event.rs` |
-| Parse, don't validate | `Habit::new(HabitId, HabitTitle, InitialDuration) -> Habit` is infallible; the domain speaks `HabitId`, never raw `String` | `src/habit_management/domain/habit.rs` |
-| Event is a fact | `CreateHabitOnRequest` is an **application** event handler (not a domain service): it consumes the event without re-validation and calls `HabitRepository::save` | `src/habit_management/use-cases/create-habit-on-request/create-habit-on-request.rs` |
+| Single source of truth | The two business rules live ONLY in the VO constructors (`HabitTitle`, `InitialDuration`), moved out of `Habit::new` | `core/src/habit_management/domain/habit_title.rs`, `core/src/habit_management/domain/goal.rs` |
+| Validate before emission | `HabitBoard::request_habit` builds the VOs and returns `Result<HabitBoardEvent, HabitBoardError>` — an event cannot exist unless validation passed | `core/src/habit_management/domain/habit_board.rs` |
+| Events carry VOs | `HabitBoardEvent::HabitRequested` holds the VOs, not primitives — validity is enforced by the type system end-to-end | `core/src/habit_management/domain/habit_board_event.rs` |
+| Parse, don't validate | `Habit::new(HabitId, HabitTitle, InitialDuration) -> Habit` is infallible; the domain speaks `HabitId`, never raw `String` | `core/src/habit_management/domain/habit.rs` |
+| Event is a fact | `CreateHabitOnRequest` is an **application** event handler (not a domain service): it consumes the event without re-validation and calls `HabitRepository::save` | `core/src/habit_management/use_cases/create_habit_on_request.rs` |
 
 ## Rejected alternatives
 

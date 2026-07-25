@@ -32,10 +32,10 @@
 | # | Question | Decision |
 |---|---|---|
 | Q1 | Does pausing free one of the 5 slots? | **No** — a paused habit keeps its seat, so resume can never fail (anti-guilt). Amends the designer's literal `active = !paused && !anchored` cap formula: the cap counts non-anchored habits. |
-| Q2 | Growth-suggestion thresholds | 10-of-last-14 days + current step held ≥ 14 days (conservative, per `[[habit-progression-study]]`; tunable policy numbers). |
+| ~~Q2~~ | ~~Growth-suggestion thresholds~~ | **VOID** — there is no growth suggestion to threshold (ADR-0008). The 10-of-14 rule survives nowhere, not even as a tunable. |
 | Q3 | Can an anchored habit still be marked done? | **Yes** — Ancrées dots stay alive; no domain guard on paused either (UI simply doesn't offer the target). |
 | Q4 | Completion granularity | One per day, local date only, toggleable. |
-| Q5 | Remember a dismissed growth suggestion? | **No** — soft visual emphasis, recomputed daily, zero consequence. |
+| ~~Q5~~ | ~~Remember a dismissed growth suggestion?~~ | **VOID** — nothing is ever suggested, so there is nothing to dismiss (ADR-0008). |
 
 ## Slice backlog (approved order — each slice user-observable)
 

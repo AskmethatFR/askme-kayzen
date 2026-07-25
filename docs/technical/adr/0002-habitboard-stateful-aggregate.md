@@ -31,11 +31,11 @@ LOCAL-2 introduced two rules that no single habit can enforce: **max 5 habits in
 
 | Facet | Decision | Anchor |
 |---|---|---|
-| Aggregate boundary | `HabitBoard` owns the cross-habit invariants; it is a stateful aggregate with a **private registry** `Vec<BoardEntry { id, title }>` | `src/habit_management/domain/habit_board.rs` |
-| Record at request time | `request_habit(&mut self)` checks VOs → duplicate → capacity, **records the entry**, then emits. Soundness: a 2nd identical request sees the 1st **before any `Habit` exists** (habit creation is deferred to the event handler) | `src/habit_management/domain/habit_board.rs` |
+| Aggregate boundary | `HabitBoard` owns the cross-habit invariants; it is a stateful aggregate with a **private registry** `Vec<BoardEntry { id, title }>` | `core/src/habit_management/domain/habit_board.rs` |
+| Record at request time | `request_habit(&mut self)` checks VOs → duplicate → capacity, **records the entry**, then emits. Soundness: a 2nd identical request sees the 1st **before any `Habit` exists** (habit creation is deferred to the event handler) | `core/src/habit_management/domain/habit_board.rs` |
 | Registry = source of truth | The count and duplicate check read ONLY the registry — never re-seeded or re-derived from `HabitRepository` | — |
-| Persistence port | `HabitBoardRepository { load() -> HabitBoard, save(&HabitBoard) }`, mono-board | `src/habit_management/domain/habit_board_repository.rs`, `src/habit_management/infrastructure/in_memory_habit_board_repository.rs` |
-| Use case shape | `RequestHabit::execute` = **load → mutate → save → publish**; the `?` on `request_habit` short-circuits before save/publish — rejection is structurally non-destructive | `src/habit_management/use-cases/request-habit/request-habit.rs` |
+| Persistence port | `HabitBoardRepository { load() -> HabitBoard, save(&HabitBoard) }`, mono-board | `core/src/habit_management/domain/habit_board_repository.rs`, `core/src/habit_management/infrastructure/in_memory_habit_board_repository.rs` |
+| Use case shape | `RequestHabit::execute` = **load → mutate → save → publish**; the `?` on `request_habit` short-circuits before save/publish — rejection is structurally non-destructive | `core/src/habit_management/use_cases/request_habit.rs` |
 | Check precedence | VOs → duplicate → capacity; **duplicate wins on a full board** (pinned by test) | tests in `habit_board.rs` |
 
 ## Rejected alternatives
