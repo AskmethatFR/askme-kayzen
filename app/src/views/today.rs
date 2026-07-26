@@ -80,9 +80,17 @@ mod tests {
     use kayzen_core::habit_management::domain::habit_repository::HabitRepository;
     use kayzen_core::habit_management::domain::habit_title::HabitTitle;
     use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
-    use kayzen_core::shared::clock::{Clock, SystemClock};
+    use kayzen_core::shared::clock::Clock;
     use kayzen_core::shared::local_date::LocalDate;
     use std::rc::Rc;
+
+    struct FixedClock(LocalDate);
+
+    impl Clock for FixedClock {
+        fn today(&self) -> LocalDate {
+            self.0
+        }
+    }
 
     fn a_habit() -> Habit {
         Habit::new(
@@ -100,11 +108,12 @@ mod tests {
     }
 
     fn services_with_one_habit_done_today() -> Services {
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock(LocalDate::from_epoch_day(20_005)));
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
         let mut habit = a_habit();
-        habit.toggle_done(SystemClock.today());
+        habit.toggle_done(clock.today());
         repository.save(&habit);
-        Services::with_repository(repository)
+        Services::with_repository_and_clock(repository, clock)
     }
 
     #[component]
