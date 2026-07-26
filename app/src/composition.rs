@@ -39,13 +39,25 @@ impl Services {
     }
 
     /// Wires every service over a caller-provided habit store (the board store and
-    /// outbox are created fresh alongside it). Testability seam: tests inject a
-    /// habit store seeded with known data and assert what the screens render.
+    /// outbox are created fresh alongside it), resolving "today" from the real
+    /// system clock. Testability seam: tests inject a habit store seeded with
+    /// known data and assert what the screens render.
     pub fn with_repository(habit_repository: Rc<dyn HabitRepository>) -> Self {
+        Self::with_repository_and_clock(habit_repository, Rc::new(SystemClock))
+    }
+
+    /// Same wiring as `with_repository`, but with the clock also injected. This
+    /// is the seam a test needs when it stamps a habit as done "today" itself:
+    /// injecting the same clock on both sides makes the two reads agree by
+    /// construction instead of by luck between two independent `SystemClock`
+    /// reads.
+    pub fn with_repository_and_clock(
+        habit_repository: Rc<dyn HabitRepository>,
+        clock: Rc<dyn Clock>,
+    ) -> Self {
         let board_repository: Rc<dyn HabitBoardRepository> =
             Rc::new(InMemoryHabitBoardRepository::new());
         let outbox = Rc::new(InMemoryOutbox::new());
-        let clock: Rc<dyn Clock> = Rc::new(SystemClock);
 
         Services {
             list_board_habits: ListBoardHabits::new(
