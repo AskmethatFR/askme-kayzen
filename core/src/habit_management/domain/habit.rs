@@ -19,6 +19,7 @@ pub struct Habit {
 pub enum HabitError {
     GoalTooSmall { min: u32 },
     TitleLength { min: usize, max: usize },
+    IdLength { min: usize, max: usize },
 }
 
 impl fmt::Display for HabitError {
@@ -29,6 +30,9 @@ impl fmt::Display for HabitError {
             }
             HabitError::TitleLength { min, max } => {
                 write!(f, "a title size must be between {min} and {max} characters")
+            }
+            HabitError::IdLength { min, max } => {
+                write!(f, "an id size must be between {min} and {max} characters")
             }
         }
     }
@@ -118,6 +122,10 @@ mod tests {
             (
                 HabitError::TitleLength { min: 1, max: 50 },
                 "a title size must be between 1 and 50 characters",
+            ),
+            (
+                HabitError::IdLength { min: 1, max: 64 },
+                "an id size must be between 1 and 64 characters",
             ),
         ];
 

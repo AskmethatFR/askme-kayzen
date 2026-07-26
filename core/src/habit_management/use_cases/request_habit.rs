@@ -25,7 +25,8 @@ impl RequestHabit {
     }
 
     pub fn execute(&self, title: String, goal: u32) -> Result<HabitId, HabitBoardError> {
-        let id = HabitId::new(self.guid_generator.generate());
+        let id =
+            HabitId::new(&self.guid_generator.generate()).map_err(HabitBoardError::InvalidHabit)?;
         let mut board = self.board_repository.load();
         let event = board.request_habit(id.clone(), title, goal)?;
         self.board_repository.save(&board);

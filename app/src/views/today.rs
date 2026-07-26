@@ -94,7 +94,7 @@ mod tests {
 
     fn a_habit() -> Habit {
         Habit::new(
-            HabitId::new("test-1".to_string()),
+            HabitId::new("test-1").unwrap(),
             HabitTitle::new("Read one page".to_string()).unwrap(),
             Goal::new(4).unwrap(),
             LocalDate::from_epoch_day(20_000),
