@@ -54,7 +54,7 @@ mod tests {
 
     fn a_habit(id: &str, title: &str, goal: u32) -> Habit {
         Habit::new(
-            HabitId::from(id),
+            HabitId::new(id).unwrap(),
             HabitTitle::new(String::from(title)).unwrap(),
             Goal::new(goal).unwrap(),
             LocalDate::from_epoch_day(CREATED_ON),
@@ -63,7 +63,7 @@ mod tests {
 
     fn a_habit_requested(id: &str, title: &str, goal: u32) -> HabitBoardEvent {
         HabitBoardEvent::HabitRequested {
-            id: HabitId::from(id),
+            id: HabitId::new(id).unwrap(),
             title: HabitTitle::new(String::from(title)).unwrap(),
             goal: Goal::new(goal).unwrap(),
         }
@@ -99,7 +99,7 @@ mod tests {
 
         handler.handle(a_habit_requested("id-1", "Read one page", 2));
 
-        let habit = repository.get(&HabitId::from("id-1")).unwrap();
+        let habit = repository.get(&HabitId::new("id-1").unwrap()).unwrap();
         let dates: Vec<LocalDate> = habit
             .step_history()
             .changes()

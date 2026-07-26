@@ -36,9 +36,10 @@ impl MarkDone {
     }
 
     pub fn execute(&self, habit_id: &str) -> Result<(), MarkDoneError> {
+        let id = HabitId::new(habit_id).map_err(|_| MarkDoneError::HabitNotFound)?;
         let mut habit = self
             .repository
-            .get(&HabitId::from(habit_id))
+            .get(&id)
             .ok_or(MarkDoneError::HabitNotFound)?;
 
         habit.toggle_done(self.clock.today());
@@ -62,7 +63,7 @@ mod tests {
 
     fn a_habit(id: &str) -> Habit {
         Habit::new(
-            HabitId::from(id),
+            HabitId::new(id).unwrap(),
             HabitTitle::new("Read one page".to_string()).unwrap(),
             Goal::new(2).unwrap(),
             LocalDate::from_epoch_day(TODAY),
@@ -94,7 +95,7 @@ mod tests {
         let result = mark_done.execute("h-1");
 
         assert_eq!(result, Ok(()));
-        let habit = repository.get(&HabitId::from("h-1")).unwrap();
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
         assert!(habit.is_done_on(LocalDate::from_epoch_day(TODAY)));
     }
 
@@ -108,7 +109,7 @@ mod tests {
         mark_done.execute("h-1").unwrap();
         mark_done.execute("h-1").unwrap();
 
-        let habit = repository.get(&HabitId::from("h-1")).unwrap();
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
         assert!(!habit.is_done_on(LocalDate::from_epoch_day(TODAY)));
     }
 
@@ -119,6 +120,20 @@ mod tests {
         let mark_done = mark_done_over(repository);
 
         let result = mark_done.execute("missing");
+
+        assert_eq!(result, Err(MarkDoneError::HabitNotFound));
+    }
+
+    // No Gherkin scenario names this path yet either (invalid-id refusal,
+    // T1 conformance with adr-0001) — flagged under "Open questions".
+    #[test]
+    fn marking_an_id_longer_than_the_bound_is_rejected_even_when_a_habit_exists() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit("h-1"));
+        let mark_done = mark_done_over(repository);
+        let too_long = "h".repeat(HabitId::MAX_LEN + 1);
+
+        let result = mark_done.execute(&too_long);
 
         assert_eq!(result, Err(MarkDoneError::HabitNotFound));
     }

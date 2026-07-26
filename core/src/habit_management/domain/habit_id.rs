@@ -8,6 +8,13 @@ impl HabitId {
     pub const MAX_LEN: usize = 64;
 
     pub fn new(value: &str) -> Result<HabitId, HabitError> {
+        if value.len() < Self::MIN_LEN || value.len() > Self::MAX_LEN {
+            return Err(HabitError::IdLength {
+                min: Self::MIN_LEN,
+                max: Self::MAX_LEN,
+            });
+        }
+
         Ok(HabitId(value.to_string()))
     }
 
@@ -15,12 +22,6 @@ impl HabitId {
         &self.0
     }
 }
-impl From<&str> for HabitId {
-    fn from(value: &str) -> HabitId {
-        HabitId(value.to_string())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

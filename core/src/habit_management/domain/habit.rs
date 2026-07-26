@@ -81,7 +81,7 @@ mod tests {
 
     fn a_habit() -> Habit {
         Habit::new(
-            HabitId::from("h-1"),
+            HabitId::new("h-1").unwrap(),
             HabitTitle::new("Read one page".to_string()).unwrap(),
             Goal::new(2).unwrap(),
             LocalDate::from_epoch_day(CREATED_ON),

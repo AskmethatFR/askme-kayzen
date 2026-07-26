@@ -110,11 +110,11 @@ mod tests {
 
             let result = request_habit.execute(title.clone(), goal);
 
-            assert_eq!(result, Ok(HabitId::from("fixed-guid")));
+            assert_eq!(result, Ok(HabitId::new("fixed-guid").unwrap()));
             assert_eq!(
                 outbox.drain(),
                 vec![HabitBoardEvent::HabitRequested {
-                    id: HabitId::from("fixed-guid"),
+                    id: HabitId::new("fixed-guid").unwrap(),
                     title: HabitTitle::new(title).unwrap(),
                     goal: Goal::new(goal).unwrap(),
                 }]
@@ -136,8 +136,8 @@ mod tests {
         let first = request_habit.execute(String::from("Read one page"), 5);
         let second = request_habit.execute(String::from("Move a little"), 5);
 
-        assert_eq!(first, Ok(HabitId::from("guid-1")));
-        assert_eq!(second, Ok(HabitId::from("guid-2")));
+        assert_eq!(first, Ok(HabitId::new("guid-1").unwrap()));
+        assert_eq!(second, Ok(HabitId::new("guid-2").unwrap()));
         let published: Vec<HabitId> = outbox
             .drain()
             .into_iter()
@@ -147,7 +147,10 @@ mod tests {
             .collect();
         assert_eq!(
             published,
-            vec![HabitId::from("guid-1"), HabitId::from("guid-2")]
+            vec![
+                HabitId::new("guid-1").unwrap(),
+                HabitId::new("guid-2").unwrap()
+            ]
         );
     }
 

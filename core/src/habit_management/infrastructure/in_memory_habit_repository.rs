@@ -46,7 +46,7 @@ mod tests {
 
     fn a_habit(id: &str) -> Habit {
         Habit::new(
-            HabitId::from(id),
+            HabitId::new(id).unwrap(),
             HabitTitle::new("Read one page".to_string()).unwrap(),
             Goal::new(2).unwrap(),
             LocalDate::from_epoch_day(20_000),
@@ -57,7 +57,7 @@ mod tests {
     fn get_returns_none_for_an_unknown_id() {
         let repository = InMemoryHabitRepository::new();
 
-        assert_eq!(repository.get(&HabitId::from("missing")), None);
+        assert_eq!(repository.get(&HabitId::new("missing").unwrap()), None);
     }
 
     #[test]
@@ -70,6 +70,6 @@ mod tests {
         repository.save(&habit);
 
         assert_eq!(repository.all().len(), 1);
-        assert_eq!(repository.get(&HabitId::from("h-1")), Some(habit));
+        assert_eq!(repository.get(&HabitId::new("h-1").unwrap()), Some(habit));
     }
 }

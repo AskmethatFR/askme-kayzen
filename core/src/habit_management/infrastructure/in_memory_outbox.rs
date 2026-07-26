@@ -33,7 +33,7 @@ mod tests {
 
     fn a_request(id: &str) -> HabitBoardEvent {
         HabitBoardEvent::HabitRequested {
-            id: HabitId::from(id),
+            id: HabitId::new(id).unwrap(),
             title: HabitTitle::new(String::from("Read one page")).unwrap(),
             goal: Goal::new(2).unwrap(),
         }

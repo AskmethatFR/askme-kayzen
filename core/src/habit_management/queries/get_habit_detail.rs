@@ -22,7 +22,8 @@ impl GetHabitDetail {
     }
 
     pub fn handle(&self, habit_id: &str) -> Option<HabitDetail> {
-        let habit = self.repository.get(&HabitId::from(habit_id))?;
+        let id = HabitId::new(habit_id).ok()?;
+        let habit = self.repository.get(&id)?;
 
         Some(HabitDetail {
             id: habit.id().value().to_string(),
@@ -54,7 +55,7 @@ mod tests {
 
     fn a_habit() -> Habit {
         Habit::new(
-            HabitId::from("h-1"),
+            HabitId::new("h-1").unwrap(),
             HabitTitle::new("Read one page".to_string()).unwrap(),
             Goal::new(5).unwrap(),
             LocalDate::from_epoch_day(CREATED_ON),
@@ -96,5 +97,17 @@ mod tests {
         let query = get_habit_detail_over(repository);
 
         assert_eq!(query.handle("missing"), None);
+    }
+
+    // No Gherkin scenario names this path yet either (invalid-id refusal,
+    // T1 conformance with adr-0001) — flagged under "Open questions".
+    #[test]
+    fn an_id_longer_than_the_bound_returns_none_even_when_a_habit_exists() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit());
+        let query = get_habit_detail_over(repository);
+        let too_long = "h".repeat(HabitId::MAX_LEN + 1);
+
+        assert_eq!(query.handle(&too_long), None);
     }
 }
