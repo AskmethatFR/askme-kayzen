@@ -10,7 +10,6 @@ pub fn HabitDetail(id: String) -> Element {
 
     match detail {
         Some(habit) => {
-            let step_count = habit.steps.len();
             rsx! {
                 div { class: "screen",
                     header { class: "masthead",
@@ -22,9 +21,9 @@ pub fn HabitDetail(id: String) -> Element {
                     div {
                         class: "staircase",
                         "aria-label": "Escalier de progression, objectif actuel {habit.current_goal} minutes",
-                        for (index , minutes) in habit.steps.iter().enumerate() {
+                        for minutes in habit.steps.iter() {
                             span {
-                                class: if index + 1 == step_count { "step-bar is-current" } else { "step-bar" },
+                                class: "step-bar is-current",
                                 style: "--step-minutes: {minutes}",
                             }
                         }
@@ -32,7 +31,7 @@ pub fn HabitDetail(id: String) -> Element {
 
                     Link {
                         class: "btn btn-primary btn-block",
-                        to: Route::Ritual { id: id.clone() },
+                        to: Route::Ritual { id: habit.id.clone() },
                         "Faire ma minute"
                     }
                 }
