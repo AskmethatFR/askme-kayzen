@@ -3,12 +3,13 @@ id: "adr-0006-cqrs-light"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-07-23"
+updated: "2026-07-26"
 relations:
   related:
     - "architecture-overview"
     - "habit-progression-study"
     - "adr-0008-goal-based-dose-user-paced-progression"
+    - "adr-0010-crate-boundary-trust-boundary"
   depends-on:
     - "adr-0003-two-crate-workspace"
     - "adr-0008-goal-based-dose-user-paced-progression"
@@ -62,6 +63,7 @@ A MEASURED read-latency problem on device once real persistence + years of histo
 ## Consequences / Constraints
 
 - **MUST**: every screen reads through a query use case returning its own DTO; `kayzen-app` never imports a domain type.
+  - **The stakes of that MUST changed on 2026-07-26.** [[adr-0010-crate-boundary-trust-boundary]] makes this rule the reason the **crate boundary is the system's trust boundary**: because the app crate cannot fabricate a domain type, a query's entry point (primitives in, DTO out) is structurally the anticorruption layer, and parsing belongs there rather than in the view. Violating this MUST is therefore no longer only an architectural regression — it opens a second, unaudited door into the domain.
 - **MUST**: query use cases consume the existing ports (`HabitRepository`, `HabitBoardRepository`) — no new port for reads.
 - **MUST NOT**: store any derived value (suggestion, stat, message) — recompute on read.
 - **MAY**: duplicate fields across per-screen DTOs; introduce the physical `commands/`/`queries/` folder split when the use-case folder crowds (no new ADR needed).

@@ -3,16 +3,21 @@ id: "architecture-overview"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-07-23"
+updated: "2026-07-26"
 relations:
   related:
     - "adr-0001-validation-by-construction"
     - "adr-0002-habitboard-stateful-aggregate"
     - "adr-0003-two-crate-workspace"
     - "adr-0004-routing-flat-enum"
+    - "adr-0006-cqrs-light"
     - "adr-0007-habit-lifecycle-aggregate"
     - "adr-0008-goal-based-dose-user-paced-progression"
+    - "adr-0009-quality-gates"
+    - "adr-0010-crate-boundary-trust-boundary"
 answers:
+  - "Where is the trust boundary, and where does a raw URL segment become a domain type?"
+  - "Which screens are wired to a use case today, and which are still stubs?"
   - "What bounded contexts exist and how are they layered?"
   - "How is the repository laid out (workspace, crates) and who may depend on whom?"
   - "How does habit creation flow through the system (board-driven, event-mediated)?"
@@ -30,7 +35,7 @@ decided_in:
 # Habit Management — Architecture Overview
 
 > **One-liner**: Two-crate Cargo workspace — pure domain lib `kayzen-core` / Dioxus shell `kayzen-app` — single bounded context `habit_management`, hexagonal layering, where habit creation goes through the **stateful `HabitBoard` aggregate** (cross-habit invariants) and is event-mediated through a transactional outbox.
-> **Links**: [[adr-0001-validation-by-construction]] (invariant model), [[adr-0002-habitboard-stateful-aggregate]] (aggregate boundary & persistence), [[adr-0003-two-crate-workspace]] (workspace split & dependency rule enforcement), [[adr-0004-routing-flat-enum]] (app-shell routing skeleton), [[adr-0007-habit-lifecycle-aggregate]] (`Habit` promoted to the lifecycle aggregate root), [[adr-0008-goal-based-dose-user-paced-progression]] (single `Goal` VO + user-paced progression, no suggestion).
+> **Links**: [[adr-0001-validation-by-construction]] (invariant model), [[adr-0002-habitboard-stateful-aggregate]] (aggregate boundary & persistence), [[adr-0003-two-crate-workspace]] (workspace split & dependency rule enforcement), [[adr-0004-routing-flat-enum]] (app-shell routing skeleton), [[adr-0007-habit-lifecycle-aggregate]] (`Habit` promoted to the lifecycle aggregate root), [[adr-0008-goal-based-dose-user-paced-progression]] (single `Goal` VO + user-paced progression, no suggestion), [[adr-0010-crate-boundary-trust-boundary]] (the crate boundary is the trust boundary — where a primitive becomes a domain type), [[adr-0009-quality-gates]] (what the two gates prove, and the `fn new` blind spot that limits them).
 
 ## Workspace layout (since LOCAL-3 — settled in [[adr-0003-two-crate-workspace]])
 
@@ -48,9 +53,32 @@ One bounded context: **`habit_management`** (`core/src/habit_management/`), plus
 | Layer | Contents | Anchors |
 |---|---|---|
 | Domain | `Habit` (**promoted to the lifecycle aggregate root** — [[adr-0007-habit-lifecycle-aggregate]]), `HabitBoard` (stateful aggregate), `HabitBoardEvent`, `HabitBoardError`, VOs (`HabitTitle`, `HabitId`, and today's creation-duration VO which the lifecycle model **collapses into a single `Goal` VO** — [[adr-0008-goal-based-dose-user-paced-progression]]; planned lifecycle VOs `CompletionHistory`, `StepHistory`, `Goal`, `LifecycleState`, `LocalDate`), ports (`HabitRepository`, `HabitBoardRepository`, `DomainEventPublisher`; planned `Clock`) | `core/src/habit_management/domain/`, `core/src/shared/` |
-| Application (use cases) | `RequestHabit` (command side), `CreateHabitOnRequest` (event handler) | `core/src/habit_management/use_cases/request_habit.rs`, `core/src/habit_management/use_cases/create_habit_on_request.rs` |
+| Application — commands | `RequestHabit`, `MarkDone`, `CreateHabitOnRequest` (event handler). **Each takes primitives and parses them** — this is the trust boundary (see below) | `core/src/habit_management/use_cases/request_habit.rs`, `core/src/habit_management/use_cases/mark_done.rs`, `core/src/habit_management/use_cases/create_habit_on_request.rs` |
+| Application — queries | `ListBoardHabits`, `GetHabitDetail` — flat `snake_case` modules under `queries/`, returning per-screen DTOs ([[adr-0006-cqrs-light]]) | `core/src/habit_management/queries/list_board_habits.rs`, `core/src/habit_management/queries/get_habit_detail.rs` |
 | Infrastructure | `InMemoryOutbox`, `InMemoryHabitRepository`, `InMemoryHabitBoardRepository` | `core/src/habit_management/infrastructure/` |
-| Presentation (shell only) | Dioxus `App` hosting `Router::<Route>`; flat `Route` enum mirroring the designer's 6 screens + NotFound catch-all ([[adr-0004-routing-flat-enum]]); `views/` = 7 screen **stubs** (French designer titles, placeholder data) — **wires no use case yet** (unchanged human constraint). Target: **Android-first**, all dev on the web platform for speed | `app/src/main.rs`, `app/src/route.rs`, `app/src/views/` |
+| Presentation (shell + wired screens) | Dioxus `App` hosting `Router::<Route>`; flat `Route` enum mirroring the designer's 6 screens + NotFound catch-all ([[adr-0004-routing-flat-enum]]); composition root = `Services`, a pure DI registry provided once at the app root. **Today, Add and Detail are wired** to their use cases/queries; Ritual, Week and Ancrées remain stubs. Target: **Android-first**, all dev on the web platform for speed | `app/src/main.rs`, `app/src/route.rs`, `app/src/composition.rs`, `app/src/views/`, `app/src/services/add_habit.rs` |
+
+## Trust boundary (settled 2026-07-26 in [[adr-0010-crate-boundary-trust-boundary]])
+
+The system's **anticorruption layer is the `kayzen-core` crate boundary** — not the Dioxus view. Because [[adr-0006-cqrs-light]] forbids `kayzen-app` from importing a domain type and [[adr-0003-two-crate-workspace]] makes that edge compiler-enforced, every use case's and query's entry point (**primitives in, DTO or domain error out**) is *structurally* the only place a primitive can become a domain type.
+
+```
+URL /habit/:id                                    ← untrusted
+  → app view forwards the raw String              ← never parses, cannot: it may not import HabitId
+  ‖ ══════════════ crate boundary = trust boundary ══════════════
+  → GetHabitDetail::handle(&str) / MarkDone::execute(&str) / RequestHabit::execute(String, u32)
+      → HabitId::new(&str) -> Result<HabitId, HabitError>   ← THE single door (1..=64, no trim)
+  → domain, where nothing re-validates
+```
+
+| Rule | Where |
+|---|---|
+| One door per VO: no `From`, no `Deserialize`, no public field bypassing the validating constructor | `core/src/habit_management/domain/habit_id.rs` |
+| Parse at the entry point, never deeper, never in `kayzen-app` | `core/src/habit_management/queries/get_habit_detail.rs`, `core/src/habit_management/use_cases/mark_done.rs`, `core/src/habit_management/use_cases/request_habit.rs` |
+| Refusal rides each site's existing failure path — no public signature changed | idem |
+| **Not covered**: the `Ritual` route never crosses into the core (its view re-injects the raw parameter into a `Link`) | `app/src/views/ritual.rs` |
+
+Seven escalation triggers reopen this decision — persistence, multi-user, id length, **SSR in production deps**, id-as-sink-key, `Deserialize` on `HabitId`, user-supplied ids. They are listed verbatim in [[adr-0010-crate-boundary-trust-boundary]]; do not re-derive them.
 
 ## Habit creation flow (board-driven; stateful since LOCAL-2)
 
@@ -106,7 +134,7 @@ This cycle wrote the ADR + docs only — **zero production code** (approved deci
 ## Deliberately does NOT exist yet (human constraint — manual dev resumes after these cycles)
 
 - Any **persistence**: every store is in-memory, so nothing survives a restart, and `Services::new` seeds three demo habits at startup
-- UI wiring **beyond Today and Add** — those two screens call `ListBoardHabits`, `MarkDone` and `AddHabit` through the `Services` registry provided at the app root; Detail, Ritual, Week and Ancrées stay stubs, and the route `:id` stays `String` until Detail is wired
+- UI wiring **beyond Today, Add and Detail** — those three screens call `ListBoardHabits`, `MarkDone`, `AddHabit` and `GetHabitDetail` through the `Services` registry provided at the app root (`app/src/composition.rs`); **Ritual, Week and Ancrées stay stubs**. The route `:id` stays a `String` — deliberately, and now permanently: it is parsed once at the core's entry point, never in the view ([[adr-0010-crate-boundary-trust-boundary]])
 - Android `mobile-shell` concerns — hardware back-button wiring and intent-filters/App Links registration are **explicitly deferred** to a future `mobile-shell` ticket ([[adr-0004-routing-flat-enum]])
 - Idempotence in `CreateHabitOnRequest`
 - Entry **removal** from the board — the future "ancrée" (anchored) rule; `BoardEntry.id` is the reserved hook
@@ -121,7 +149,8 @@ Do not build these speculatively; each requires a new decision cycle.
 - **MUST**: keep rejection non-destructive — on `Err`, neither `save` nor `publish` runs.
 - **MUST**: respect the dependency rule — domain has no dependency on application or infrastructure; ports live in the domain.
 - **MUST**: respect the crate boundary — `kayzen-core` stays free of UI/platform dependencies; the `app → core` edge is one-way (see [[adr-0003-two-crate-workspace]], incl. its known-debt follow-ups: Cargo.lock platform closure, `cargo audit` in CI, public in-memory test doubles).
-- **MUST**: in the app shell, navigate via explicit `Link { to: Route::X }` only (never `go_back()`), keep URL paths English and stable, and convert the `:id` `String` to a typed id once at the core-wiring boundary (see [[adr-0004-routing-flat-enum]], incl. its watch items: unused `segments` prop in `not_found.rs`, stale-`done` closure bug in `today.rs` to fix at core-wiring time).
+- **MUST**: in the app shell, navigate via explicit `Link { to: Route::X }` only (never `go_back()`), keep URL paths English and stable, and convert the `:id` `String` to a typed id **once, inside the core, at the use-case/query entry point** — [[adr-0004-routing-flat-enum]] said "once at the core-wiring boundary"; [[adr-0010-crate-boundary-trust-boundary]] settles *where* that once is, and it is **not** the view. (adr-0004's watch items still stand: unused `segments` prop in `not_found.rs`, stale-`done` closure bug in `today.rs`.)
+- **MUST**: obtain every domain type through its single validating constructor; no `From`/`Deserialize`/public-field bypass ([[adr-0001-validation-by-construction]], [[adr-0010-crate-boundary-trust-boundary]]).
 - **MUST NOT**: reintroduce a direct-creation command use case, or trait abstractions without a second consumer.
 - **MUST NOT**: make `PartialEq` on `HabitTitle` case-insensitive — `matches` is the business comparison.
 - **Out of scope**: persistence beyond in-memory adapters; any UI.
