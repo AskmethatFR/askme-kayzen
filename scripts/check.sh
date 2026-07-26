@@ -1,10 +1,18 @@
 #!/usr/bin/env bash
 # Every gate this repo commits to, in one run.
 #
-# Usage: scripts/check.sh [work-class]
+# Usage: scripts/check.sh [work-class] [base-ref]
 #   no argument : formatting, lints, tests, the scenario gate, the doc anchors
 #   work-class  : quick-change | fix-bug | new-feature — also runs the mutation
 #                 gate (scripts/mutation-gate.sh), which reads the COMMITTED diff
+#   base-ref    : MANDATORY whenever work-class is given — the commit
+#                 immediately before this slice's first RED commit. Passed
+#                 through as a CLI argument, never defaulted or guessed here:
+#                 it is a per-slice value (it moves every time you start a
+#                 new TDD slice), so a fixed env-var default would go stale
+#                 as often as it helped. Omitting it is not a silent skip —
+#                 scripts/mutation-gate.sh itself refuses to run without a
+#                 base-ref and reports "mutation" as failed below.
 #
 # Every gate runs even after an earlier one failed: one run tells you everything
 # that is broken, not just the first thing. Exit 1 as soon as any gate failed.
@@ -23,6 +31,7 @@ CLAUDE_HOME="${CLAUDE_HOME:-$HOME/.claude}"
 SCENARIO_AUDIT="$CLAUDE_HOME/lib/scenario_audit.py"
 
 WORK_CLASS="${1:-}"
+BASE_REF="${2:-}"
 FAILED=()
 
 run_gate() {
@@ -71,7 +80,7 @@ run_gate "scenarios" scenario_gate
 run_gate "doc anchors" doc_anchors
 
 if [ -n "$WORK_CLASS" ]; then
-    run_gate "mutation" "$ROOT/scripts/mutation-gate.sh" "$WORK_CLASS"
+    run_gate "mutation" "$ROOT/scripts/mutation-gate.sh" "$WORK_CLASS" "$BASE_REF"
 else
     printf '\n=== mutation ===\nskipped: pass a work-class to run it\n'
 fi
