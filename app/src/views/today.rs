@@ -81,6 +81,7 @@ mod tests {
     use kayzen_core::habit_management::domain::habit_title::HabitTitle;
     use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
     use kayzen_core::shared::clock::{Clock, SystemClock};
+    use kayzen_core::shared::local_date::LocalDate;
     use std::rc::Rc;
 
     fn a_habit() -> Habit {
@@ -88,7 +89,7 @@ mod tests {
             HabitId::new("test-1".to_string()),
             HabitTitle::new("Read one page".to_string()).unwrap(),
             Goal::new(4).unwrap(),
-            SystemClock.today(),
+            LocalDate::from_epoch_day(20_000),
         )
     }
 

@@ -57,7 +57,7 @@ mod tests {
     use kayzen_core::habit_management::domain::habit_repository::HabitRepository;
     use kayzen_core::habit_management::domain::habit_title::HabitTitle;
     use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
-    use kayzen_core::shared::clock::{Clock, SystemClock};
+    use kayzen_core::shared::local_date::LocalDate;
     use std::rc::Rc;
 
     fn a_habit() -> Habit {
@@ -65,7 +65,7 @@ mod tests {
             HabitId::new("h-1".to_string()),
             HabitTitle::new("Lire une page".to_string()).unwrap(),
             Goal::new(5).unwrap(),
-            SystemClock.today(),
+            LocalDate::from_epoch_day(20_000),
         )
     }
 
@@ -120,8 +120,13 @@ mod tests {
             "expected the dose, got: {html}"
         );
         assert!(
-            html.contains("step-bar"),
-            "expected the staircase bars, got: {html}"
+            html.contains("step-bar is-current"),
+            "expected the current-step accent on the staircase, got: {html}"
+        );
+        assert_eq!(
+            html.matches("step-bar").count(),
+            1,
+            "expected exactly one staircase bar for a one-step habit, got: {html}"
         );
     }
 
@@ -132,6 +137,10 @@ mod tests {
         assert!(
             !html.contains("step-bar"),
             "expected no staircase for a missing habit, got: {html}"
+        );
+        assert!(
+            html.contains("Cette habitude") && html.contains("plus sur votre liste"),
+            "expected the quiet not-found copy, got: {html}"
         );
         assert!(
             html.contains("Aujourd") && html.contains("quiet-link"),

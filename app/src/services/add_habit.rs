@@ -65,14 +65,22 @@ mod tests {
     use super::*;
     use kayzen_core::habit_management::infrastructure::in_memory_habit_board_repository::InMemoryHabitBoardRepository;
     use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
-    use kayzen_core::shared::clock::SystemClock;
+    use kayzen_core::shared::local_date::LocalDate;
+
+    struct FixedClock(LocalDate);
+
+    impl Clock for FixedClock {
+        fn today(&self) -> LocalDate {
+            self.0
+        }
+    }
 
     fn an_add_habit(habit_repository: Rc<dyn HabitRepository>) -> AddHabit {
         AddHabit::new(
             habit_repository,
             Rc::new(InMemoryHabitBoardRepository::new()),
             Rc::new(InMemoryOutbox::new()),
-            Rc::new(SystemClock),
+            Rc::new(FixedClock(LocalDate::from_epoch_day(20_000))),
         )
     }
 
