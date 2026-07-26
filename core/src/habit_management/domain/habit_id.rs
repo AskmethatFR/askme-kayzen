@@ -37,7 +37,11 @@ mod tests {
         let cases = vec!["h".repeat(HabitId::MIN_LEN), "h".repeat(HabitId::MAX_LEN)];
 
         for value in cases {
-            assert!(HabitId::new(&value).is_ok());
+            assert!(
+                HabitId::new(&value).is_ok(),
+                "expected {value:?} (len {}) to be accepted",
+                value.len()
+            );
         }
     }
 
@@ -51,7 +55,9 @@ mod tests {
                 Err(HabitError::IdLength {
                     min: HabitId::MIN_LEN,
                     max: HabitId::MAX_LEN,
-                })
+                }),
+                "expected {value:?} (len {}) to be rejected",
+                value.len()
             );
         }
     }

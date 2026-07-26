@@ -127,7 +127,7 @@ mod tests {
     // No Gherkin scenario names this path yet either (invalid-id refusal,
     // T1 conformance with adr-0001) — flagged under "Open questions".
     #[test]
-    fn marking_an_id_longer_than_the_bound_is_rejected_even_when_a_habit_exists() {
+    fn marking_an_id_outside_the_bound_is_refused_without_panicking() {
         let repository = Rc::new(InMemoryHabitRepository::new());
         repository.save(&a_habit("h-1"));
         let mark_done = mark_done_over(repository);

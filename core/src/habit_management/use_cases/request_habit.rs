@@ -71,6 +71,17 @@ mod tests {
         }
     }
 
+    /// Hands out an id longer than HabitId::MAX_LEN, so the use case's own
+    /// refusal path (not the adapter's id-generation logic) is what gets
+    /// exercised.
+    struct OutOfBoundGuidGenerator;
+
+    impl GuidGenerator for OutOfBoundGuidGenerator {
+        fn generate(&self) -> String {
+            "h".repeat(HabitId::MAX_LEN + 1)
+        }
+    }
+
     fn request_habit_with(
         guid: &str,
         publisher: Rc<dyn DomainEventPublisher>,
@@ -200,6 +211,30 @@ mod tests {
             assert_eq!(result, Err(expected_error));
             assert!(outbox.drain().is_empty());
         }
+    }
+
+    // No Gherkin scenario names this path yet either (invalid-generated-id
+    // refusal, T1 conformance with adr-0001) — flagged under "Open questions",
+    // matching the same gap already noted in get_habit_detail.rs / mark_done.rs.
+    #[test]
+    fn a_generated_id_outside_the_bound_is_refused_and_publishes_nothing() {
+        let outbox = Rc::new(InMemoryOutbox::new());
+        let request_habit = RequestHabit::new(
+            Box::new(OutOfBoundGuidGenerator),
+            Rc::clone(&outbox) as Rc<dyn DomainEventPublisher>,
+            Rc::new(InMemoryHabitBoardRepository::new()) as Rc<dyn HabitBoardRepository>,
+        );
+
+        let result = request_habit.execute(String::from("Read one page"), 5);
+
+        assert_eq!(
+            result,
+            Err(HabitBoardError::InvalidHabit(HabitError::IdLength {
+                min: HabitId::MIN_LEN,
+                max: HabitId::MAX_LEN,
+            }))
+        );
+        assert!(outbox.drain().is_empty());
     }
 
     fn a_full_board() -> (Rc<InMemoryOutbox>, Rc<InMemoryHabitBoardRepository>) {
