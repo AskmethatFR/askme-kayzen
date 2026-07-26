@@ -101,26 +101,43 @@ scenario_gate() {
 # check's scope. ADVISORY ONLY: this never appends to FAILED and never
 # affects the exit code.
 #
-# Heuristic, not a parser: a single-line `pub fn new(...) -> Type {` grep
-# across every core/src/**/domain/**/*.rs, excluding a bare `-> Self` return
-# (a trivial passthrough constructor computes/validates nothing, so it loses
-# nothing by being skipped). This WILL miss a `new` whose signature wraps
-# onto multiple lines and cannot see through a type alias — read the domain
-# files directly for anything this shape doesn't fit. Honest-heuristic over
-# false-parser is a deliberate choice, not an oversight.
+# Heuristic, not a parser: a single-line `fn new(...) -> Type {` grep across
+# every core/src/**/*.rs, filtered down to paths containing `/domain/`,
+# excluding a bare `-> Self` return (a trivial passthrough constructor
+# computes/validates nothing, so it loses nothing by being skipped). The
+# pattern is visibility-agnostic — matching cargo-mutants' own skip, which
+# doesn't check visibility either — so a private `fn new` is caught too.
+# This WILL miss a `new` whose signature wraps onto multiple lines and
+# cannot see through a type alias — read the domain files directly for
+# anything this shape doesn't fit. Honest-heuristic over false-parser is a
+# deliberate choice, not an oversight.
 new_constructor_advisory() {
     local domain_dirs
     domain_dirs="$(find core/src -type d -name domain 2>/dev/null)"
-    printf 'constructors invisible to mutation testing (cargo-mutants hard-skips any fn literally named "new"):\n'
+    printf 'domain constructors invisible to mutation testing (cargo-mutants hard-skips any fn literally named "new"):\n'
     if [ -z "$domain_dirs" ]; then
         printf '  no domain/ directory found under core/src\n'
         return 0
     fi
-    local hits
-    # shellcheck disable=SC2086 # deliberate word-splitting: domain_dirs is a
-    # newline-separated list of directories, one grep argument each.
-    hits="$(grep -rnE 'pub fn new\([^)]*\)[[:space:]]*->[[:space:]]*[A-Za-z_][A-Za-z0-9_:<, >]*[[:space:]]*\{' \
-        $domain_dirs --include='*.rs' 2>/dev/null | grep -vE '\->[[:space:]]*Self[[:space:]]*\{')"
+    # Belt-and-braces, checked explicitly rather than inferred from
+    # domain_dirs above: BSD grep (macOS) silently exits 1 — the same code
+    # as "no matches" — when `-r --include` targets a directory that does
+    # not exist, with nothing on stderr either. That is exactly the failure
+    # this function must never mistake for a clean result, so the
+    # precondition is tested directly instead of trusted to grep's exit code.
+    if [ ! -d core/src ]; then
+        printf '  search FAILED: core/src does not exist — cannot report "none found" from an unscanned target\n'
+        return 1
+    fi
+    local raw_hits grep_status hits
+    raw_hits="$(grep -rnE '(pub )?fn new\([^)]*\)[[:space:]]*->[[:space:]]*[A-Za-z_][A-Za-z0-9_:<, >]*[[:space:]]*\{' \
+        core/src --include='*.rs' 2>/dev/null)"
+    grep_status=$?
+    if [ "$grep_status" -gt 1 ]; then
+        printf '  search FAILED (grep exit %d scanning core/src) — this is "could not look", not "none found"; the list below is NOT reliable\n' "$grep_status"
+        return 1
+    fi
+    hits="$(printf '%s\n' "$raw_hits" | grep -E '/domain/' | grep -vE '\->[[:space:]]*Self[[:space:]]*\{')"
     if [ -z "$hits" ]; then
         printf '  none found\n'
     else
