@@ -73,11 +73,53 @@ scenario_gate() {
         --tests-root core/src --tests-root app/src
 }
 
+# TN-1b — cargo-mutants 27.1.0 hard-skips any function literally named `new`
+# (its src/visit.rs excludes `i.sig.ident == "new"` before mutants are even
+# generated — no CLI flag or config key overrides it). Every domain invariant
+# in this repo lives in exactly such a constructor, so a regression in any
+# one of them would still pass the mutation gate as a clean zero-survivor
+# "pass" — this lists the blind spot so it stays visible until the rename
+# (to e.g. `parse`) is decided, which is a public-API change out of this
+# check's scope. ADVISORY ONLY: this never appends to FAILED and never
+# affects the exit code.
+#
+# Heuristic, not a parser: a single-line `pub fn new(...) -> Type {` grep
+# across every core/src/**/domain/**/*.rs, excluding a bare `-> Self` return
+# (a trivial passthrough constructor computes/validates nothing, so it loses
+# nothing by being skipped). This WILL miss a `new` whose signature wraps
+# onto multiple lines and cannot see through a type alias — read the domain
+# files directly for anything this shape doesn't fit. Honest-heuristic over
+# false-parser is a deliberate choice, not an oversight.
+new_constructor_advisory() {
+    local domain_dirs
+    domain_dirs="$(find core/src -type d -name domain 2>/dev/null)"
+    printf 'constructors invisible to mutation testing (cargo-mutants hard-skips any fn literally named "new"):\n'
+    if [ -z "$domain_dirs" ]; then
+        printf '  no domain/ directory found under core/src\n'
+        return 0
+    fi
+    local hits
+    # shellcheck disable=SC2086 # deliberate word-splitting: domain_dirs is a
+    # newline-separated list of directories, one grep argument each.
+    hits="$(grep -rnE 'pub fn new\([^)]*\)[[:space:]]*->[[:space:]]*[A-Za-z_][A-Za-z0-9_:<, >]*[[:space:]]*\{' \
+        $domain_dirs --include='*.rs' 2>/dev/null | grep -vE '\->[[:space:]]*Self[[:space:]]*\{')"
+    if [ -z "$hits" ]; then
+        printf '  none found\n'
+    else
+        printf '%s\n' "$hits" | sed 's/^/  /'
+    fi
+    printf '  (heuristic grep, single-line signatures only — verify by reading the file if in doubt)\n'
+    return 0
+}
+
 run_gate "formatting" cargo fmt --check
 run_gate "lints" cargo clippy --all-targets --quiet -- -D warnings
 run_gate "tests" cargo test --quiet
 run_gate "scenarios" scenario_gate
 run_gate "doc anchors" doc_anchors
+
+printf '\n=== new-constructor blind spot (advisory) ===\n'
+new_constructor_advisory
 
 if [ -n "$WORK_CLASS" ]; then
     run_gate "mutation" "$ROOT/scripts/mutation-gate.sh" "$WORK_CLASS" "$BASE_REF"
