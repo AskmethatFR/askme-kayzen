@@ -88,6 +88,7 @@ mod tests {
             HabitId::new("test-1".to_string()),
             HabitTitle::new("Read one page".to_string()).unwrap(),
             Goal::new(4).unwrap(),
+            SystemClock.today(),
         )
     }
 

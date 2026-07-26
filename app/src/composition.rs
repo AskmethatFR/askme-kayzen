@@ -5,6 +5,7 @@ use kayzen_core::habit_management::domain::habit_repository::HabitRepository;
 use kayzen_core::habit_management::infrastructure::in_memory_habit_board_repository::InMemoryHabitBoardRepository;
 use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
 use kayzen_core::habit_management::infrastructure::in_memory_outbox::InMemoryOutbox;
+use kayzen_core::habit_management::queries::get_habit_detail::GetHabitDetail;
 use kayzen_core::habit_management::queries::list_board_habits::ListBoardHabits;
 use kayzen_core::habit_management::use_cases::mark_done::MarkDone;
 use kayzen_core::shared::clock::{Clock, SystemClock};
@@ -21,6 +22,7 @@ pub struct Services {
     pub list_board_habits: ListBoardHabits,
     pub mark_done: MarkDone,
     pub add_habit: AddHabit,
+    pub get_habit_detail: GetHabitDetail,
 }
 
 impl Services {
@@ -50,8 +52,14 @@ impl Services {
                 Rc::clone(&habit_repository),
                 Rc::clone(&clock),
             ),
-            mark_done: MarkDone::new(Rc::clone(&habit_repository), clock),
-            add_habit: AddHabit::new(habit_repository, board_repository, outbox),
+            mark_done: MarkDone::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
+            get_habit_detail: GetHabitDetail::new(Rc::clone(&habit_repository)),
+            add_habit: AddHabit::new(
+                Rc::clone(&habit_repository),
+                board_repository,
+                outbox,
+                clock,
+            ),
         }
     }
 }

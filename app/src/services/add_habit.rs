@@ -7,6 +7,7 @@ use kayzen_core::habit_management::domain::habit_repository::HabitRepository;
 use kayzen_core::habit_management::infrastructure::in_memory_outbox::InMemoryOutbox;
 use kayzen_core::habit_management::use_cases::create_habit_on_request::CreateHabitOnRequest;
 use kayzen_core::habit_management::use_cases::request_habit::RequestHabit;
+use kayzen_core::shared::clock::Clock;
 use kayzen_core::shared::guid_generator::UuidGenerator;
 
 /// The default daily goal offered to every new habit — a flexible target,
@@ -23,6 +24,7 @@ pub struct AddHabit {
     habit_repository: Rc<dyn HabitRepository>,
     board_repository: Rc<dyn HabitBoardRepository>,
     outbox: Rc<InMemoryOutbox>,
+    clock: Rc<dyn Clock>,
 }
 
 impl AddHabit {
@@ -30,11 +32,13 @@ impl AddHabit {
         habit_repository: Rc<dyn HabitRepository>,
         board_repository: Rc<dyn HabitBoardRepository>,
         outbox: Rc<InMemoryOutbox>,
+        clock: Rc<dyn Clock>,
     ) -> AddHabit {
         AddHabit {
             habit_repository,
             board_repository,
             outbox,
+            clock,
         }
     }
 
@@ -46,7 +50,8 @@ impl AddHabit {
         );
         request_habit.execute(title.to_string(), STARTING_GOAL)?;
 
-        let create_habit = CreateHabitOnRequest::new(Rc::clone(&self.habit_repository));
+        let create_habit =
+            CreateHabitOnRequest::new(Rc::clone(&self.habit_repository), Rc::clone(&self.clock));
         for event in self.outbox.drain() {
             create_habit.handle(event);
         }
@@ -60,12 +65,14 @@ mod tests {
     use super::*;
     use kayzen_core::habit_management::infrastructure::in_memory_habit_board_repository::InMemoryHabitBoardRepository;
     use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
+    use kayzen_core::shared::clock::SystemClock;
 
     fn an_add_habit(habit_repository: Rc<dyn HabitRepository>) -> AddHabit {
         AddHabit::new(
             habit_repository,
             Rc::new(InMemoryHabitBoardRepository::new()),
             Rc::new(InMemoryOutbox::new()),
+            Rc::new(SystemClock),
         )
     }
 
