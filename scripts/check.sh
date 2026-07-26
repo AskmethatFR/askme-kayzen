@@ -32,6 +32,24 @@ SCENARIO_AUDIT="$CLAUDE_HOME/lib/scenario_audit.py"
 
 WORK_CLASS="${1:-}"
 BASE_REF="${2:-}"
+
+# A work-class with no base-ref is a malformed invocation, not a measurement
+# to report — fail fast here, before any gate runs, instead of burning two to
+# four minutes only to hand back scripts/mutation-gate.sh's own usage message
+# at an unrelated absolute path. This does not contradict the no-`set -e`,
+# run-every-gate design above: that design is about *gates* each reporting
+# their own result so one run shows the full picture. A CLI argument error
+# means there is nothing yet to measure, so failing fast and running every
+# gate to completion are complementary, not in tension. `check.sh` with no
+# arguments at all is unaffected — that is the pre-existing, deliberate
+# mutation-skip path below, not an error.
+if [ -n "$WORK_CLASS" ] && [ -z "$BASE_REF" ]; then
+    echo "usage: scripts/check.sh [work-class] [base-ref]" >&2
+    echo "base-ref is mandatory with a work-class: the commit immediately" >&2
+    echo "before this slice's first RED commit (e.g. \$(git rev-parse <red-commit>^))." >&2
+    exit 2
+fi
+
 FAILED=()
 
 run_gate() {
