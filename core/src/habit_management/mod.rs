@@ -9,6 +9,7 @@ pub mod domain {
     pub mod habit_id;
     pub mod habit_repository;
     pub mod habit_title;
+    pub mod step_history;
 }
 
 pub mod infrastructure {
@@ -24,5 +25,6 @@ pub mod use_cases {
 }
 
 pub mod queries {
+    pub mod get_habit_detail;
     pub mod list_board_habits;
 }

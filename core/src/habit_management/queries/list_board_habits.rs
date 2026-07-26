@@ -58,6 +58,7 @@ mod tests {
             HabitId::from("h-1"),
             HabitTitle::new("Read one page".to_string()).unwrap(),
             Goal::new(3).unwrap(),
+            LocalDate::from_epoch_day(TODAY),
         )
     }
 
