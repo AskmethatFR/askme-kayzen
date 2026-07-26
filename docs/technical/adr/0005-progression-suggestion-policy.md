@@ -5,8 +5,9 @@ owner: "architect"
 status: "superseded"
 updated: "2026-07-23"
 relations:
-  superseded-by:
-    - "adr-0008-goal-based-dose-user-paced-progression"
+  # No hand-written `superseded-by` here: it is an INVERSE edge, derived at
+  # query time from adr-0008's own `supersedes`. Authoring it by hand made the
+  # indexer store an unknown edge type verbatim and warn on every run.
   related:
     - "architecture-overview"
     - "habit-progression-study"
