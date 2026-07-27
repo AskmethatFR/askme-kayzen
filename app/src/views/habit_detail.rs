@@ -1,15 +1,19 @@
 use crate::composition::Services;
 use crate::route::Route;
 use dioxus::prelude::*;
-use kayzen_core::habit_management::queries::get_habit_detail::HabitDetail as HabitDetailData;
 
 #[component]
 pub fn HabitDetail(id: String) -> Element {
     let services = use_context::<Services>();
-    let detail: Option<HabitDetailData> = services.get_habit_detail.handle(&id);
+    let mut detail = use_signal({
+        let services = services.clone();
+        let id = id.clone();
+        move || services.get_habit_detail.handle(&id)
+    });
 
-    match detail {
+    match detail() {
         Some(habit) => {
+            let step_count = habit.steps.len();
             rsx! {
                 div { class: "screen",
                     header { class: "masthead",
@@ -21,12 +25,26 @@ pub fn HabitDetail(id: String) -> Element {
                     div {
                         class: "staircase",
                         "aria-label": "Escalier de progression, objectif actuel {habit.current_goal} minutes",
-                        for minutes in habit.steps.iter() {
+                        for (index , minutes) in habit.steps.iter().enumerate() {
                             span {
-                                class: "step-bar is-current",
+                                class: if index + 1 == step_count { "step-bar is-current" } else { "step-bar" },
                                 style: "--step-minutes: {minutes}",
                             }
                         }
+                    }
+
+                    p { class: "eyebrow", "Ajuster, à votre rythme" }
+                    button {
+                        class: "btn btn-block",
+                        onclick: {
+                            let services = services.clone();
+                            let id = id.clone();
+                            move |_| {
+                                services.grow_goal.execute(&id).ok();
+                                detail.set(services.get_habit_detail.handle(&id));
+                            }
+                        },
+                        "Passer à {habit.next_goal_up} min"
                     }
 
                     Link {
