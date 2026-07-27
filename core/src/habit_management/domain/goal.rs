@@ -21,6 +21,10 @@ impl Goal {
     pub fn grown(&self) -> Goal {
         Goal(self.0.saturating_add(1))
     }
+
+    pub fn lightened(&self) -> Goal {
+        Goal(self.0.saturating_sub(1).max(Self::MIN))
+    }
 }
 
 #[cfg(test)]

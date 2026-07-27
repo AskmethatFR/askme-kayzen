@@ -39,11 +39,12 @@ impl LightenGoal {
 
     pub fn execute(&self, habit_id: &str) -> Result<(), LightenGoalError> {
         let id = HabitId::new(habit_id).map_err(|_| LightenGoalError::HabitNotFound)?;
-        let habit = self
+        let mut habit = self
             .repository
             .get(&id)
             .ok_or(LightenGoalError::HabitNotFound)?;
 
+        habit.lighten(self.clock.today());
         self.repository.save(&habit);
 
         Ok(())

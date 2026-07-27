@@ -71,6 +71,15 @@ impl Habit {
         self.steps.record(today, self.steps.current().grown());
     }
 
+    pub fn lighten(&mut self, today: LocalDate) {
+        let lightened = self.steps.current().lightened();
+        let already_at_the_floor = lightened == *self.steps.current();
+        if already_at_the_floor {
+            return;
+        }
+        self.steps.record(today, lightened);
+    }
+
     pub fn is_done_on(&self, day: LocalDate) -> bool {
         self.completion_history.contains(day)
     }
