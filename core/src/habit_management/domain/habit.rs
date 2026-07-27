@@ -68,7 +68,12 @@ impl Habit {
     }
 
     pub fn grow(&mut self, today: LocalDate) {
-        self.steps.record(today, self.steps.current().grown());
+        let grown = self.steps.current().grown();
+        let already_at_the_ceiling = grown == *self.steps.current();
+        if already_at_the_ceiling {
+            return;
+        }
+        self.steps.record(today, grown);
     }
 
     pub fn lighten(&mut self, today: LocalDate) {
