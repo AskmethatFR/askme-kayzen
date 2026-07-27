@@ -38,7 +38,7 @@ impl GetHabitDetail {
                 .map(|step| step.goal().value())
                 .collect(),
             next_goal_up: habit.step_history().current().grown().value(),
-            next_goal_down: habit.current_goal(),
+            next_goal_down: habit.step_history().current().lightened().value(),
         })
     }
 }
