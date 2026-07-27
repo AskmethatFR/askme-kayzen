@@ -23,9 +23,7 @@ impl Error for LightenGoalError {}
 
 /// Command use case: lowers a habit's goal by one minute ("alléger", adr-0008).
 /// Loads the right habit, applies the domain method with the clock's "today",
-/// saves the mutated aggregate. Deliberately NOT sharing code with GrowGoal —
-/// see adjust-goal slice 3, T2 tech spec: the duplication is the accepted cost
-/// of each use case exposing exactly one public method.
+/// saves the mutated aggregate.
 #[derive(Clone)]
 pub struct LightenGoal {
     repository: Rc<dyn HabitRepository>,
