@@ -74,8 +74,17 @@ mod tests {
     use kayzen_core::habit_management::domain::habit_repository::HabitRepository;
     use kayzen_core::habit_management::domain::habit_title::HabitTitle;
     use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
+    use kayzen_core::shared::clock::Clock;
     use kayzen_core::shared::local_date::LocalDate;
     use std::rc::Rc;
+
+    struct FixedClock(LocalDate);
+
+    impl Clock for FixedClock {
+        fn today(&self) -> LocalDate {
+            self.0
+        }
+    }
 
     fn a_habit() -> Habit {
         Habit::new(
@@ -100,6 +109,20 @@ mod tests {
         let services = services_with_one_habit();
         services.grow_goal.execute("h-1").ok();
         services
+    }
+
+    fn services_with_a_floor_habit_done_today() -> Services {
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock(LocalDate::from_epoch_day(20_005)));
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Lire une page".to_string()).unwrap(),
+            Goal::new(1).unwrap(),
+            LocalDate::from_epoch_day(20_000),
+        );
+        habit.toggle_done(clock.today());
+        repository.save(&habit);
+        Services::with_repository_and_clock(repository, clock)
     }
 
     #[component]
@@ -130,6 +153,17 @@ mod tests {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
         });
         use_context_provider(services_with_one_habit_grown_once);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootAtFloorHabitDoneToday() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_a_floor_habit_done_today);
         rsx! {
             Router::<Route> {}
         }
@@ -187,6 +221,25 @@ mod tests {
         assert!(
             current > last_bar,
             "expected is-current on the LAST bar specifically (not merely one bar out of two), got: {html}"
+        );
+    }
+
+    // @scenario: adjust-goal/S4
+    #[test]
+    fn both_gestures_stay_offered_whatever_the_habits_history() {
+        let html = render(RootAtFloorHabitDoneToday);
+
+        assert!(
+            html.contains("Passer à 2 min"),
+            "expected the grow-goal button even at the floor, got: {html}"
+        );
+        assert!(
+            html.contains("Alléger à 1 min"),
+            "expected the lighten-goal button even at the floor, got: {html}"
+        );
+        assert!(
+            !html.contains("disabled"),
+            "expected neither gesture to carry a disabled attribute, got: {html}"
         );
     }
 
