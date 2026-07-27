@@ -45,6 +45,7 @@
 | 1 | `read-habits-query` | Today screen lists *real* board habits via the final DTO shape (honest defaults) | M | done |
 | 2 | `mark-done` | Tapping the target fills the ink; toggle; calendar dots appear | M | done (core + Today toggle; calendar dots deferred to stats-board) |
 | 3 | `adjust-goal` (was `grow-lighten`) | Detail's "Ajuster" zone: **user-paced** N+1 / N−1 on the goal, staircase renders, floor 1. **No suggestion driving it** | M | **done** (both gestures, floor silent no-op, staircase fixed so only the last step is current) |
+| 3b | `practice-staircase` | The detail's staircase is **redrawn on practice, not on intent**: one bar per calendar day, full when the day was done, faint when it was not. Owner correction 2026-07-27 — see below | M | **todo (next)** |
 | ~~4~~ | ~~`growth-suggestion`~~ | **DELETED** — StabilityPolicy removed (ADR-0008); progression is user-paced, nothing is suggested | — | ✂️ removed |
 | 5 | `pause-resume` | "Mettre en pause" / paused zone / one-tap resume | S | todo |
 | 6 | `anchor` | Anchor button (**user-initiated, no 10-of-14 suggestion**), board frees the slot, Ancrées screen counts | L | todo |
@@ -59,6 +60,71 @@ derived from the completion and step histories (CQRS-light queries, no stored
 stats), per the designer's own "tout le récap est dérivé" principle and
 `[[adr-0006-cqrs-light]]`. Adaptive messages are a read-side policy (same
 pattern as the stability policy), stateless, anti-guilt wording only.
+
+## Slice 3b `practice-staircase` — owner correction, 2026-07-27
+
+> Raised by the owner on reviewing the delivered slice 3: *« le graph grandit à
+> l'ajout d'une minute alors qu'elle devrait ajouter dans le graph quand un jour
+> est complété »*. This is a **functional** correction, not a bug in slice 3's code.
+
+**What the staircase is for.** Two questions, one drawing:
+
+1. **Am I keeping it up?** — read in the run of bars.
+2. **Across those days, am I raising, easing, or holding my effort?** — read in
+   their profile.
+
+**How it draws.** One bar per **calendar day**, not per goal change.
+
+| The day was | The bar |
+|---|---|
+| done | full, height = the goal that was active that day |
+| not done | **the same bar at low opacity** — present, quiet, never a hole and never red |
+
+The owner chose the faint bar over both alternatives offered: hiding the missed
+day (loses the regularity signal) and breaking the drawing into a streak (would
+contradict a non-negotiable). *« au lieu de ne pas le voir, on fait une opacité,
+moins culpabilisant. »* Nothing counts, nothing accuses — `[[design-principes-kaizen]]`
+holds unamended, and there is still **no streak**.
+
+**Why it was wrong before.** Slice 3 draws one bar per `StepChange`, per
+`[[design-ecrans]]` (« une barre par étape de `steps` »). So tapping *grandir*
+five times without practising once drew five bars — the app credited the
+intention. Meanwhile « minutes gagnées » was already specified **per completed
+day**. Two readings of the same screen counted different things; the owner's
+correction settles both on practice.
+
+**Shape (functional, the Architect owns the technical form).** Nothing new is
+stored. The drawing is a **projection of the two histories already kept**:
+completion history × step history, the goal active on day D being the last dated
+step ≤ D. `[[adr-0006-cqrs-light]]` already requires everything derived on read.
+
+**Welcome side effect.** The oscillation concern recorded as FUT-1 in
+`[[adr-0007-habit-lifecycle-aggregate]]` stops reaching the screen: tapping
+grandir/alléger twenty times without practising adds no bar at all.
+
+**Open points to settle when this is refined (do not decide them here):**
+
+- **The window.** All days since creation, the last 21, the last 7? The detail
+  screen already specifies « Calendrier en points, sans chiffres » and Today
+  carries 21-day dots and a 7-day rhythm.
+- **Redundancy with the calendar dots.** Once the staircase carries one mark per
+  day with done/not-done encoded, it overlaps the detail's own dot calendar.
+  Merge them, or keep two drawings that answer different questions?
+- **What becomes of the decisions staircase.** The step history remains the
+  record of the user's own goal changes. Is that worth drawing anywhere, or does
+  it retire as a screen concept and survive only as data feeding « minutes
+  gagnées »?
+- **Ownership.** This may fold into slice 8 `stats-board` rather than standing
+  alone — 8 already owns the per-habit derived views.
+
+**Gherkin debt this exposes.** `[[adjust-goal]]` S1 and S2 both assert *« the
+change is recorded in the step history with today's local date »* — that is the
+technical model leaking into a functional spec; `StepHistory` is a code name, not
+a word the domain speaks. And **no scenario describes the staircase at all**,
+which is why the drawing could be wrong while every gate stayed green. Both the
+Architect and the reviewing Developer flagged the missing staircase scenarios
+during slice 3; the gap was recorded and not acted on. Rewrite S1/S2 in the
+user's language and add the staircase scenarios when 3b is refined.
 
 **8-slice order holds — no reorder, no inserted foundation slice.** The
 lifecycle-aggregate ADR (`[[adr-0007-habit-lifecycle-aggregate]]`) pins the shape;
