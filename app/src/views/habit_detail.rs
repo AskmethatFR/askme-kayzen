@@ -46,6 +46,18 @@ pub fn HabitDetail(id: String) -> Element {
                         },
                         "Passer à {habit.next_goal_up} min"
                     }
+                    button {
+                        class: "btn btn-block",
+                        onclick: {
+                            let services = services.clone();
+                            let id = id.clone();
+                            move |_| {
+                                services.lighten_goal.execute(&id).ok();
+                                detail.set(services.get_habit_detail.handle(&id));
+                            }
+                        },
+                        "Alléger à {habit.next_goal_down} min"
+                    }
 
                     Link {
                         class: "btn btn-primary btn-block",
