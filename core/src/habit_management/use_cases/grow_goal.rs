@@ -62,11 +62,11 @@ mod tests {
     const CREATED_ON: i64 = 19_990;
     const TODAY: i64 = 20_000;
 
-    fn a_habit(id: &str) -> Habit {
+    fn a_habit(id: &str, goal: u32) -> Habit {
         Habit::new(
             HabitId::new(id).unwrap(),
             HabitTitle::new("Read one page".to_string()).unwrap(),
-            Goal::new(5).unwrap(),
+            Goal::new(goal).unwrap(),
             LocalDate::from_epoch_day(CREATED_ON),
         )
     }
@@ -99,7 +99,7 @@ mod tests {
     #[test]
     fn growing_a_habit_raises_its_goal_and_records_todays_step() {
         let repository = Rc::new(InMemoryHabitRepository::new());
-        repository.save(&a_habit("h-1"));
+        repository.save(&a_habit("h-1", 5));
         let grow_goal = grow_goal_over(Rc::clone(&repository));
 
         let result = grow_goal.execute("h-1");
@@ -123,7 +123,7 @@ mod tests {
     #[test]
     fn growing_twice_on_the_same_day_appends_two_distinct_steps() {
         let repository = Rc::new(InMemoryHabitRepository::new());
-        repository.save(&a_habit("h-1"));
+        repository.save(&a_habit("h-1", 5));
         let grow_goal = grow_goal_over(Rc::clone(&repository));
 
         grow_goal.execute("h-1").unwrap();
@@ -157,12 +157,37 @@ mod tests {
     #[test]
     fn growing_an_id_outside_the_bound_is_refused_without_panicking() {
         let repository = Rc::new(InMemoryHabitRepository::new());
-        repository.save(&a_habit("h-1"));
+        repository.save(&a_habit("h-1", 5));
         let grow_goal = grow_goal_over(repository);
         let too_long = "h".repeat(HabitId::MAX_LEN + 1);
 
         let result = grow_goal.execute(&too_long);
 
         assert_eq!(result, Err(GrowGoalError::HabitNotFound));
+    }
+
+    // No Gherkin scenario names this path yet (ceiling saturation) — flagged
+    // under "Open questions". Unlike `lighten`, `grow` has no early-return
+    // guard for a no-op change, so growing at the ceiling still records a
+    // step — same goal value, new date — rather than leaving the history
+    // untouched the way lightening at the floor does.
+    #[test]
+    fn growing_a_habit_already_at_the_ceiling_saturates_the_goal_but_still_records_a_step() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit("h-1", u32::MAX));
+        let grow_goal = grow_goal_over(Rc::clone(&repository));
+
+        let result = grow_goal.execute("h-1");
+
+        assert_eq!(result, Ok(()));
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+        assert_eq!(habit.current_goal(), u32::MAX);
+        assert_eq!(
+            dated_steps(&habit),
+            vec![
+                (LocalDate::from_epoch_day(CREATED_ON), u32::MAX),
+                (LocalDate::from_epoch_day(TODAY), u32::MAX),
+            ]
+        );
     }
 }
