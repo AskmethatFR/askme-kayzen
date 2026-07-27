@@ -44,4 +44,9 @@ mod tests {
             assert_eq!(result, Ok(value));
         }
     }
+
+    #[test]
+    fn grown_saturates_instead_of_overflowing_at_the_ceiling() {
+        assert_eq!(Goal::new(u32::MAX).unwrap().grown().value(), u32::MAX);
+    }
 }
