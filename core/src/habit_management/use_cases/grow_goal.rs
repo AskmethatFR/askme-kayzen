@@ -59,6 +59,7 @@ mod tests {
     use crate::shared::clock::FixedClock;
     use crate::shared::local_date::LocalDate;
 
+    const CREATED_ON: i64 = 19_990;
     const TODAY: i64 = 20_000;
 
     fn a_habit(id: &str) -> Habit {
@@ -66,8 +67,17 @@ mod tests {
             HabitId::new(id).unwrap(),
             HabitTitle::new("Read one page".to_string()).unwrap(),
             Goal::new(5).unwrap(),
-            LocalDate::from_epoch_day(TODAY),
+            LocalDate::from_epoch_day(CREATED_ON),
         )
+    }
+
+    fn dated_steps(habit: &Habit) -> Vec<(LocalDate, u32)> {
+        habit
+            .step_history()
+            .changes()
+            .into_iter()
+            .map(|step| (step.on(), step.goal().value()))
+            .collect()
     }
 
     fn grow_goal_over(repository: Rc<InMemoryHabitRepository>) -> GrowGoal {
@@ -97,14 +107,37 @@ mod tests {
         assert_eq!(result, Ok(()));
         let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
         assert_eq!(habit.current_goal(), 6);
-        let dates: Vec<LocalDate> = habit
-            .step_history()
-            .changes()
-            .into_iter()
-            .map(|step| step.on())
-            .collect();
-        assert_eq!(dates.len(), 2);
-        assert_eq!(dates[1], LocalDate::from_epoch_day(TODAY));
+        assert_eq!(
+            dated_steps(&habit),
+            vec![
+                (LocalDate::from_epoch_day(CREATED_ON), 5),
+                (LocalDate::from_epoch_day(TODAY), 6),
+            ]
+        );
+    }
+
+    // Pins two decisions the S1 test alone cannot discriminate (d3, human
+    // arbitration on Dev-B's cross-review): growing twice on the same day
+    // APPENDS a distinct step each time — it never overwrites the previous one
+    // and never merges same-day steps into one.
+    #[test]
+    fn growing_twice_on_the_same_day_appends_two_distinct_steps() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit("h-1"));
+        let grow_goal = grow_goal_over(Rc::clone(&repository));
+
+        grow_goal.execute("h-1").unwrap();
+        grow_goal.execute("h-1").unwrap();
+
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+        assert_eq!(
+            dated_steps(&habit),
+            vec![
+                (LocalDate::from_epoch_day(CREATED_ON), 5),
+                (LocalDate::from_epoch_day(TODAY), 6),
+                (LocalDate::from_epoch_day(TODAY), 7),
+            ]
+        );
     }
 
     // No Gherkin scenario names this path yet (unknown-habit refusal, mirrors

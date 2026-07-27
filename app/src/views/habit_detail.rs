@@ -182,6 +182,12 @@ mod tests {
             1,
             "expected exactly one bar carrying is-current, got: {html}"
         );
+        let last_bar = html.rfind("step-bar").expect("at least one staircase bar");
+        let current = html.find("is-current").expect("one bar carries is-current");
+        assert!(
+            current > last_bar,
+            "expected is-current on the LAST bar specifically (not merely one bar out of two), got: {html}"
+        );
     }
 
     #[test]
