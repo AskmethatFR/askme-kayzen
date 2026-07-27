@@ -3,7 +3,7 @@ id: "adr-0008-goal-based-dose-user-paced-progression"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-07-23"
+updated: "2026-07-27"
 relations:
   supersedes:
     - "adr-0005-progression-suggestion-policy"
@@ -11,10 +11,16 @@ relations:
     - "architecture-overview"
     - "habit-progression-study"
     - "adr-0006-cqrs-light"
+    - "adr-0001-validation-by-construction"
+    - "adr-0009-quality-gates"
+    - "adr-0011-one-public-method-per-use-case"
   depends-on:
     - "adr-0007-habit-lifecycle-aggregate"
     - "adr-0002-habitboard-stateful-aggregate"
 answers:
+  - "Why is the floor of 1 minute a business rule rather than a display clamp?"
+  - "Where is next_goal_up / next_goal_down computed, and why not in the view?"
+  - "What is the intended exit for a user who wants less than one minute?"
   - "Is there one dose concept or two (InitialDuration + Dose)?"
   - "What are the Goal's bounds — default, floor, ceiling — and is the ≤5-min creation guard kept?"
   - "Is a Goal a commitment or a soft target, and does it change completion semantics?"
@@ -24,6 +30,7 @@ answers:
   - "Why does this override the ADR-0005 / habit-progression-study evidence conclusion?"
 decided_in:
   - "LOCAL-goal-based-dose"
+  - "2026-07-27 slice 3 adjust-goal cycle (floor = business rule, lighten-at-floor settled)"
 ---
 
 # ADR 0008 — Goal-based dose, user-paced progression (single `Goal` VO, no stability detection, no suggestion)
@@ -75,5 +82,48 @@ The owner has since decided to **simplify the mental model**: there is no "initi
 - **MUST NOT**: implement any `StabilityPolicy`, stability detection, growth/anchor suggestion, threshold (10-of-14 / step-held-14d), or `growth_suggested`/`anchor_suggested` DTO field.
 - **MUST NOT**: reintroduce a separate `InitialDuration` VO, the ≤5-min creation guard, or any upper ceiling on the Goal.
 - **MUST NOT**: drop or undate `StepHistory` — the dated staircase is required for "minutes gagnées" and is a product artifact.
-- **MAY**: choose the `lighten()`-at-floor behavior (silent no-op vs. error vs. UI "already-at-floor" signal) at implementation time — still open per [[adr-0007-habit-lifecycle-aggregate]] d2.
-- **Out of scope**: any production code (the aggregate still grows vertically inside the lifecycle slices); the `lighten()`-at-floor resolution; the board↔habit anchoring coordination; all functional/UI wording (PM lane).
+- ~~**MAY**: choose the `lighten()`-at-floor behavior (silent no-op vs. error vs. UI "already-at-floor" signal) at implementation time — still open per [[adr-0007-habit-lifecycle-aggregate]] d2.~~ **SETTLED 2026-07-27 — silent no-op**; see the amendment below and [[adr-0007-habit-lifecycle-aggregate]]'s d2 amendment.
+- **Out of scope**: any production code (the aggregate still grows vertically inside the lifecycle slices); ~~the `lighten()`-at-floor resolution~~ **(settled 2026-07-27)**; the board↔habit anchoring coordination; all functional/UI wording (PM lane).
+
+---
+
+## Amendment — 2026-07-27, slice 3 `adjust-goal` (the goal facets are now built)
+
+Slice 3 implements the progression gestures this ADR specified. Three points are settled
+or sharpened; the ADR's substance is unchanged.
+
+### The `lighten()`-at-floor behavior is a **silent no-op**
+
+The `MAY` above is spent. `Habit::lighten` at a goal of 1 appends nothing and returns;
+`LightenGoal::execute` returns `Ok(())`. Both alternatives were rejected on this ADR's own
+grounds: an error contradicts *« alléger n'est pas reculer, c'est enlever ce qui freine »*,
+and a UI signal contradicts the "always available, no precondition" rule stated in the
+Decision table above. The full reasoning is recorded once, in
+[[adr-0007-habit-lifecycle-aggregate]]'s d2 amendment — not duplicated here.
+
+### The floor of 1 is a **business rule**, not a display convenience
+
+Human ruling: *« oui règle business forcément 1 minutes sinon on doit la supprimer »*.
+Below one minute there is no shorter habit — **there is no habit**, and the only legitimate
+exit is deleting it. The floor is therefore a domain invariant with a product meaning, not
+a clamp applied for rendering.
+
+**Consequence on placement**: `next_goal_down` is computed in the query
+(`core/src/habit_management/queries/get_habit_detail.rs`), **not** in the Dioxus view. A
+rule of that nature must not live in a crate excluded from the mutation gate's perimeter
+([[adr-0009-quality-gates]]) — the view can render the number, it may not decide it. The
+same holds for `next_goal_up`.
+
+**Implied future affordance — named, not designed**: the floor's rationale points at
+**habit deletion** as the real exit below one minute. This slice does not build it and does
+not specify it. It is named here so the next cycle that meets "the user wants less than one
+minute" finds the answer already framed, rather than inventing a sub-minute goal.
+
+### `grown()` / `lightened()` are derivations, not construction paths
+
+`Goal::grown()` = `Goal(self.0.saturating_add(1))` and
+`Goal::lightened()` = `Goal(self.0.saturating_sub(1).max(Self::MIN))` are pure derivations
+built **inside `core/src/habit_management/domain/goal.rs`**, deliberately not routed through
+the fallible `new`. That they do not bypass [[adr-0001-validation-by-construction]] is a
+non-obvious property with its own proof — recorded in that ADR's 2026-07-27 amendment, where
+the invariant lives.

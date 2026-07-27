@@ -3,13 +3,14 @@ id: "adr-0006-cqrs-light"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-07-26"
+updated: "2026-07-27"
 relations:
   related:
     - "architecture-overview"
     - "habit-progression-study"
     - "adr-0008-goal-based-dose-user-paced-progression"
     - "adr-0010-crate-boundary-trust-boundary"
+    - "adr-0011-one-public-method-per-use-case"
   depends-on:
     - "adr-0003-two-crate-workspace"
     - "adr-0008-goal-based-dose-user-paced-progression"
@@ -19,8 +20,11 @@ answers:
   - "Do queries get their own ReadModel port, projections, or a separate read store?"
   - "Where will the future per-habit statistics board get its data from?"
   - "What would justify escalating from CQRS-light to full CQRS with projections?"
+  - "May a Dioxus view name the DTO its query returns?"
+  - "Why does app/src/services/add_habit.rs import a domain error type?"
 decided_in:
   - "LOCAL-6"
+  - "2026-07-27 slice 3 adjust-goal cycle (DTO-naming scope, HabitBoardError tension recorded)"
 ---
 
 # ADR 0006 — CQRS-light for the read side of habit_management (query handlers + per-screen DTOs, no projections)
@@ -64,6 +68,8 @@ A MEASURED read-latency problem on device once real persistence + years of histo
 
 - **MUST**: every screen reads through a query use case returning its own DTO; `kayzen-app` never imports a domain type.
   - **The stakes of that MUST changed on 2026-07-26.** [[adr-0010-crate-boundary-trust-boundary]] makes this rule the reason the **crate boundary is the system's trust boundary**: because the app crate cannot fabricate a domain type, a query's entry point (primitives in, DTO out) is structurally the anticorruption layer, and parsing belongs there rather than in the view. Violating this MUST is therefore no longer only an architectural regression — it opens a second, unaudited door into the domain.
+  - **Scope clarified 2026-07-27**: the MUST is about **domain types**. A view **naming** its query's output DTO (`HabitDetail` in `app/src/views/habit_detail.rs`) is the *prescribed* shape of this ADR, not an exception to it — DTOs exist precisely so the app needs no domain type. The boundary holds on what the core **accepts as input**, and no core entry point accepts a DTO. Full reasoning and the one-question test: [[adr-0010-crate-boundary-trust-boundary]]'s 2026-07-27 amendment.
+- **Known tension, pre-existing and undecided (recorded 2026-07-27)**: `app/src/services/add_habit.rs` imports `HabitBoardError`, a **domain error type**, in production code — a literal tension with the MUST above. It predates the `adjust-goal` slice and was untouched by it; the slice's reviewers surfaced it rather than fixing it out of scope. **Neither a defect of that slice nor a settled exception** — the two candidate resolutions (a DTO-side error contract for the app service, or an explicit carve-out for error types crossing the boundary) both need a decision. Recorded here so it is not rediscovered as a fresh finding on every subsequent review.
 - **MUST**: query use cases consume the existing ports (`HabitRepository`, `HabitBoardRepository`) — no new port for reads.
 - **MUST NOT**: store any derived value (suggestion, stat, message) — recompute on read.
 - **MAY**: duplicate fields across per-screen DTOs; introduce the physical `commands/`/`queries/` folder split when the use-case folder crowds (no new ADR needed).

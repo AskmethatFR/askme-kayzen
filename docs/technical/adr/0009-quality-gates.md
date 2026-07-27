@@ -3,7 +3,7 @@ id: "adr-0009-quality-gates"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-07-26"
+updated: "2026-07-27"
 relations:
   related:
     - "architecture-overview"
@@ -11,9 +11,12 @@ relations:
     - "feature-catalog"
     - "adr-0001-validation-by-construction"
     - "adr-0010-crate-boundary-trust-boundary"
+    - "adr-0008-goal-based-dose-user-paced-progression"
   depends-on:
     - "adr-0003-two-crate-workspace"
 answers:
+  - "Why will slice 5 silently delete slice 3's view coverage, and what would close it?"
+  - "Which lines does a `survived: 0` campaign say nothing about?"
   - "What proves a slice is done here, beyond a green test run?"
   - "Where do the Gherkin scenarios live and what executes them?"
   - "How does a scenario connect to the test that materializes it?"
@@ -29,6 +32,7 @@ decided_in:
   - "2026-07-25 gates cycle"
   - "2026-07-26 architect ratification (slice 3 adjust-goal cycle)"
   - "2026-07-26 base-ref + new()-blind-spot cycle (amendment below)"
+  - "2026-07-27 slice 3 adjust-goal cycle (three further perimeter limits — amendment below)"
 ---
 
 # ADR 0009 — Quality gates: spec-only Gherkin, diff-scoped mutation testing, one runner
@@ -121,3 +125,60 @@ executable statement of intent, and `Display for HabitError` could be replaced b
 - **Open, deferred, and owned by the human**: renaming the domain's `new` constructors to `parse`. Not decided here; the option and its measured payoff are recorded so the decision can be taken with evidence rather than rediscovered.
 - The gates need the operator's toolbox on the machine (`CLAUDE_HOME`, default `~/.claude`). A fresh clone without it gets two red gates and a path in the message, not a false green.
 - A scenario may be pinned from either crate, so a slice's user-observable half is provable: "both gestures are offered" is an assertion about a rendered screen, and it counts.
+
+---
+
+## Amendment — 2026-07-27, slice 3 `adjust-goal`: three more named limits of the perimeter
+
+The `fn new` blind spot recorded above is not the only place where a green run means less
+than it reads. Slice 3 surfaced three more, each measured rather than suspected. They are
+recorded here, beside `fn new`, because the failure mode is identical: **`survived: 0` that
+is honest but vacuous over the lines in question**.
+
+### L1 — the view mutants are held by a lint that **slice 5 will silence** (the one that matters)
+
+Four mutants in `app/src/views/habit_detail.rs` — either button wired to the *other*
+button's helper, either `onclick` body emptied — are caught by **nothing in the test suite**.
+The only thing that turns them red is `clippy -D warnings` reporting
+`field grow_goal / lighten_goal is never read` on `Services`.
+
+That lint fires **only because each use case has exactly one caller in the whole `app` crate**.
+Slice 5 (`pause-resume`) and slice 6 (`anchor-habit`) both land on this screen's family. **The
+moment a second caller appears, the field stays read, `dead_code` goes quiet, and all four
+mutants become live survivors — with nothing behind them, and no way for the author to know.**
+The gate will not announce the change; the coverage simply evaporates.
+
+| Considered | Why it does not close L1 |
+|---|---|
+| `#[must_use]` on the two view helpers (added this slice, F1) | Reaches the *discarded-result* class only. In a **swap**, the return value **is** used — from the wrong helper. `#[must_use]` is silent on it |
+| A test asserting the rendered HTML | Already present, and already insufficient: both buttons render identically whichever helper the `onclick` closes over. The defect is behavioral, not structural |
+| Real click dispatch through the `VirtualDom` | **The actual fix.** This repo has **no precedent** for it — no test drives an event through a mounted component. Building that capability is a cycle of its own, and it is the prerequisite any future attempt starts from |
+
+**Carry this forward into the slices 5 and 6 specs.** It is not a defect of this slice; it is
+a scheduled expiry of this slice's coverage.
+
+### L2 — cargo-mutants generates only an `Unviable` mutant for `Goal::grown` / `Goal::lightened`
+
+For both methods the tool's only candidate is `Default::default()`, which does not compile
+against the `Goal` return type and is discarded as `Unviable` before running. **Zero viable
+mutants, therefore zero discrimination measured**, on two methods carrying the floor and
+ceiling arithmetic ([[adr-0001-validation-by-construction]]'s 2026-07-27 amendment). The
+hand-run mutants Security and Dev-B performed by hand were the only evidence either method
+is tested at all.
+
+### L3 — cargo-mutants does not mutate struct-literal fields
+
+`next_goal_down` and `next_goal_up` are populated in a struct literal in
+`core/src/habit_management/queries/get_habit_detail.rs`. The tool generates **no mutant for a
+field's initializing expression**, so swapping `grown()` for `lightened()` there would go
+unmeasured. The field is covered by an ordinary assertion test; it is **not** covered by the
+gate, and the gate's `survived: 0` says nothing about it.
+
+### The reading rule these three share
+
+`survived: 0` means *"nothing survived among the mutants the tool agreed to generate"*. On
+`fn new`, on `Goal::grown`/`lightened`, on struct-literal fields, and (from slice 5) on the
+four view mutants, the set of generated-and-viable mutants is **empty or lint-held**, so the
+figure is vacuous over exactly those lines. **A clean campaign is a claim about reach, never
+about correctness.** Where the instrument cannot look, the countermeasure stays what it was
+for `fn new`: tests written deliberately to the boundary, and a reviewer told where to look.

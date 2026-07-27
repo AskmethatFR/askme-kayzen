@@ -44,7 +44,7 @@
 | R1 | `goal-default-5` | New habits start on a 5-min **goal** (`Goal` VO, floor 1, no ceiling; ≤5 guard dropped; Add copy "5 min") | S–M | **done** |
 | 1 | `read-habits-query` | Today screen lists *real* board habits via the final DTO shape (honest defaults) | M | done |
 | 2 | `mark-done` | Tapping the target fills the ink; toggle; calendar dots appear | M | done (core + Today toggle; calendar dots deferred to stats-board) |
-| 3 | `adjust-goal` (was `grow-lighten`) | Detail's "Ajuster" zone: **user-paced** N+1 / N−1 on the goal, staircase renders, floor 1. **No suggestion driving it** | M | todo |
+| 3 | `adjust-goal` (was `grow-lighten`) | Detail's "Ajuster" zone: **user-paced** N+1 / N−1 on the goal, staircase renders, floor 1. **No suggestion driving it** | M | **done** (both gestures, floor silent no-op, staircase fixed so only the last step is current) |
 | ~~4~~ | ~~`growth-suggestion`~~ | **DELETED** — StabilityPolicy removed (ADR-0008); progression is user-paced, nothing is suggested | — | ✂️ removed |
 | 5 | `pause-resume` | "Mettre en pause" / paused zone / one-tap resume | S | todo |
 | 6 | `anchor` | Anchor button (**user-initiated, no 10-of-14 suggestion**), board frees the slot, Ancrées screen counts | L | todo |
@@ -75,7 +75,7 @@ Developer's first failing test of a slice is the scenario, and dropping the
 |---|---|---|
 | 1 `read-habits-query` | `[[today-habit-list]]` | S1–S3, covered |
 | 2 `mark-done` | `[[mark-done]]` | S1–S3, covered |
-| 3 `adjust-goal` | `[[adjust-goal]]` | S1–S4, `@wip` (S3 = the deferred floor no-op, d2) |
+| 3 `adjust-goal` | `[[adjust-goal]]` | S1–S4, covered (S3 pins the floor no-op — d2 now settled) |
 | 5 `pause-resume` | `[[pause-resume]]` | S1–S3, `@wip` (S3 pins Q1 — a paused habit keeps its seat) |
 | 6 `anchor` | `[[anchor-habit]]` | S1–S4, `@wip` (S3 pins Q3, S4 pins "no suggestion") |
 | 7 `readmit` | `[[readmit-habit]]` | S1–S3, `@wip` |
@@ -91,7 +91,7 @@ Developer's first failing test of a slice is the scenario, and dropping the
 |---|---|
 | 1 `read-habits-query` | none on the aggregate. Read `minutes` via `current_dose()` (returns `initial_duration` until step history exists); `done_today = false`. Do NOT bake a Today-query signature that cannot later receive an injected `Clock`. |
 | 2 `mark-done` | adds `CompletionHistory` VO + `toggle_done(today)`; adds the `Clock` port (`shared/`, returns domain `LocalDate`, chrono confined to infra `SystemClock` adapter); `HabitRepository` gains `get(&HabitId)` + upsert-by-id `save`; Today query gains injected `Clock` (`done_today` source flips to `completion_history.contains(today)`). |
-| 3 `adjust-goal` | adds dated `StepHistory` VO over the `Goal` + user-paced `grow()` / `lighten()`; floor 1; `current_goal()` = `steps.last().goal`. **Open point (d2, deferred):** `lighten()` at the floor — provisional silent no-op. (Note: `Goal` VO + default 5 already landed in slice R1.) |
+| 3 `adjust-goal` | **done.** `StepHistory` grew to a dated, **append-only** staircase (`{first, rest}` — non-emptiness structural, no `unwrap`); `Goal::grown()` / `lightened()` carry the ±1 and the floor; `Habit::grow()` / `lighten()` append a dated step. **d2 SETTLED — silent no-op at the floor**: nothing appended, `Ok(())` returned, nothing signalled to the screen (an error would contradict *« alléger n'est pas reculer »*; a UI signal would contradict S4). Two use cases, `GrowGoal` and `LightenGoal`, one public method each — see `[[adr-0011-one-public-method-per-use-case]]`. |
 | ~~4 `growth-suggestion`~~ | **removed** — no `StabilityPolicy`, no stability detection, no suggestion (ADR-0008). |
 | 5 `pause-resume` | adds `LifecycleState::{Active, Paused}` transitions (enum on `Habit`, illegal combos unrepresentable). Paused keeps the board seat (Q1). |
 | 6 `anchor` | adds `LifecycleState::Anchored`; resolves the deferred board↔habit anchoring coordination (how the board frees the slot); `HabitBoard` cap counts non-anchored. |
@@ -104,11 +104,20 @@ Lifecycle mutations are **internal state transitions** (load aggregate → metho
 
 ## Glossary impact
 
-New terms to add to `[[glossary]]` as their slices land: Completion (*fait*),
-Dose (*dose du jour* — the **running** dose, distinct from *Durée initiale* /
-`InitialDuration` which is the creation-time ≤ 5 min value), Step history
-(*croissance en escalier* — dated), Grow/Lighten (*grandir/alléger*), Growth
-suggestion (*proposition de grandir — proposée, jamais imposée*), Anchor/Readmit
-(*ancrer / remettre dans le quotidien*), Pause/Resume, État du cycle
-(*Active / En pause / Ancrée* — `LifecycleState`), LocalDate (*date locale du
-domaine* — library-free, chrono confined to the infra `Clock` adapter).
+Landed with slice 3 (now in `[[glossary]]`): Step (*marche*), Step history
+(*croissance en escalier* — dated, append-only), Grandir (*grow*), Alléger
+(*lighten*), Goal floor (the business rule — below one minute there is no habit,
+only deletion, which is **not built yet**).
+
+Already landed in earlier slices: Completion (*fait*), Completion history,
+Mark done, Local date, Clock, Goal.
+
+~~Dose~~ / ~~Durée initiale~~ (`InitialDuration`) and ~~Growth suggestion~~ are
+**void** — collapsed into the single `Goal` VO and removed outright by
+`[[adr-0008-goal-based-dose-user-paced-progression]]`. They are named here only so
+nobody re-adds them from an older reading.
+
+Still to add as their slices land: Pause/Resume (slice 5), Anchor/Readmit
+(*ancrer / remettre dans le quotidien* — slices 6-7), État du cycle
+(*Active / En pause / Ancrée* — `LifecycleState`, slice 5), Minutes gagnées
+(slice 8).
