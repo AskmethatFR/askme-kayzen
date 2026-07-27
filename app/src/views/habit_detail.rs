@@ -1,6 +1,7 @@
 use crate::composition::Services;
 use crate::route::Route;
 use dioxus::prelude::*;
+use kayzen_core::habit_management::queries::get_habit_detail::HabitDetail as HabitDetailData;
 
 #[component]
 pub fn HabitDetail(id: String) -> Element {
@@ -39,10 +40,7 @@ pub fn HabitDetail(id: String) -> Element {
                         onclick: {
                             let services = services.clone();
                             let id = id.clone();
-                            move |_| {
-                                services.grow_goal.execute(&id).ok();
-                                detail.set(services.get_habit_detail.handle(&id));
-                            }
+                            move |_| detail.set(grow_and_reload(&services, &id))
                         },
                         "Passer à {habit.next_goal_up} min"
                     }
@@ -51,10 +49,7 @@ pub fn HabitDetail(id: String) -> Element {
                         onclick: {
                             let services = services.clone();
                             let id = id.clone();
-                            move |_| {
-                                services.lighten_goal.execute(&id).ok();
-                                detail.set(services.get_habit_detail.handle(&id));
-                            }
+                            move |_| detail.set(lighten_and_reload(&services, &id))
                         },
                         "Alléger à {habit.next_goal_down} min"
                     }
@@ -74,6 +69,14 @@ pub fn HabitDetail(id: String) -> Element {
             }
         },
     }
+}
+
+fn grow_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
+    services.get_habit_detail.handle(id)
+}
+
+fn lighten_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
+    services.get_habit_detail.handle(id)
 }
 
 #[cfg(test)]
@@ -189,6 +192,32 @@ mod tests {
         let mut vdom = VirtualDom::new(root);
         vdom.rebuild_in_place();
         dioxus_ssr::render(&vdom)
+    }
+
+    #[test]
+    fn grow_and_reload_raises_the_goal_and_returns_the_refreshed_detail() {
+        let services = services_with_one_habit();
+
+        let detail = grow_and_reload(&services, "h-1");
+
+        assert_eq!(
+            detail.map(|d| (d.current_goal, d.next_goal_up)),
+            Some((6, 7)),
+            "expected the gesture to have run before the screen re-reads the habit"
+        );
+    }
+
+    #[test]
+    fn lighten_and_reload_lowers_the_goal_and_returns_the_refreshed_detail() {
+        let services = services_with_one_habit();
+
+        let detail = lighten_and_reload(&services, "h-1");
+
+        assert_eq!(
+            detail.map(|d| (d.current_goal, d.next_goal_down)),
+            Some((4, 3)),
+            "expected the gesture to have run before the screen re-reads the habit"
+        );
     }
 
     #[test]
