@@ -2,6 +2,8 @@
 name = "kayzen-app"
 version.workspace = true
 edition.workspace = true
+license-file.workspace = true
+publish.workspace = true
 
 [dependencies]
 kayzen-core = { path = "../core" }
