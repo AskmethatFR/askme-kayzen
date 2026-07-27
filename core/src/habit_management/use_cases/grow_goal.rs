@@ -166,13 +166,9 @@ mod tests {
         assert_eq!(result, Err(GrowGoalError::HabitNotFound));
     }
 
-    // No Gherkin scenario names this path yet (ceiling saturation) — flagged
-    // under "Open questions". Unlike `lighten`, `grow` has no early-return
-    // guard for a no-op change, so growing at the ceiling still records a
-    // step — same goal value, new date — rather than leaving the history
-    // untouched the way lightening at the floor does.
+    // @scenario: adjust-goal/S5
     #[test]
-    fn growing_a_habit_already_at_the_ceiling_saturates_the_goal_but_still_records_a_step() {
+    fn growing_a_habit_already_at_the_maximum_changes_nothing() {
         let repository = Rc::new(InMemoryHabitRepository::new());
         repository.save(&a_habit("h-1", u32::MAX));
         let grow_goal = grow_goal_over(Rc::clone(&repository));
@@ -184,10 +180,7 @@ mod tests {
         assert_eq!(habit.current_goal(), u32::MAX);
         assert_eq!(
             dated_steps(&habit),
-            vec![
-                (LocalDate::from_epoch_day(CREATED_ON), u32::MAX),
-                (LocalDate::from_epoch_day(TODAY), u32::MAX),
-            ]
+            vec![(LocalDate::from_epoch_day(CREATED_ON), u32::MAX)]
         );
     }
 }

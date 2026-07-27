@@ -74,6 +74,7 @@ mod tests {
     // scenario gap noted under "Open questions"):
     // - a known habit id returns its detail: title, current goal, one-step staircase.
     // - an unknown habit id returns None (stale URL / deleted habit, d2).
+    // @scenario: adjust-goal/S6
     #[test]
     fn a_known_habit_returns_its_title_goal_and_staircase() {
         let repository = Rc::new(InMemoryHabitRepository::new());
@@ -95,8 +96,7 @@ mod tests {
         );
     }
 
-    // No Gherkin scenario names this path yet (next_goal_down at the floor) —
-    // flagged under "Open questions".
+    // @scenario: adjust-goal/S7
     #[test]
     fn a_habit_at_the_floor_offers_lightening_toward_the_same_floor() {
         let repository = Rc::new(InMemoryHabitRepository::new());
