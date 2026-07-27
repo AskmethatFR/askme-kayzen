@@ -71,11 +71,13 @@ pub fn HabitDetail(id: String) -> Element {
     }
 }
 
+#[must_use]
 fn grow_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
     services.grow_goal.execute(id).ok();
     services.get_habit_detail.handle(id)
 }
 
+#[must_use]
 fn lighten_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
     services.lighten_goal.execute(id).ok();
     services.get_habit_detail.handle(id)
