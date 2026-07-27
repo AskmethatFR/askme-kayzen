@@ -15,6 +15,7 @@ pub struct HabitDetail {
     pub current_goal: u32,
     pub steps: Vec<u32>,
     pub next_goal_up: u32,
+    pub next_goal_down: u32,
 }
 
 impl GetHabitDetail {
@@ -37,6 +38,7 @@ impl GetHabitDetail {
                 .map(|step| step.goal().value())
                 .collect(),
             next_goal_up: habit.step_history().current().grown().value(),
+            next_goal_down: habit.current_goal(),
         })
     }
 }
@@ -88,8 +90,27 @@ mod tests {
                 current_goal: 5,
                 steps: vec![5],
                 next_goal_up: 6,
+                next_goal_down: 4,
             })
         );
+    }
+
+    // No Gherkin scenario names this path yet (next_goal_down at the floor) —
+    // flagged under "Open questions".
+    #[test]
+    fn a_habit_at_the_floor_offers_lightening_toward_the_same_floor() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Read one page".to_string()).unwrap(),
+            Goal::new(1).unwrap(),
+            LocalDate::from_epoch_day(CREATED_ON),
+        ));
+        let query = get_habit_detail_over(Rc::clone(&repository));
+
+        let result = query.handle("h-1");
+
+        assert_eq!(result.map(|detail| detail.next_goal_down), Some(1));
     }
 
     // No Gherkin scenario names this path yet (d2, stale URL / deleted habit) —
