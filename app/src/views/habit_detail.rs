@@ -78,6 +78,12 @@ mod tests {
         Services::with_repository(Rc::new(InMemoryHabitRepository::new()))
     }
 
+    fn services_with_one_habit_grown_once() -> Services {
+        let services = services_with_one_habit();
+        services.grow_goal.execute("h-1").ok();
+        services
+    }
+
     #[component]
     fn RootAtKnownHabit() -> Element {
         use_hook(|| {
@@ -95,6 +101,17 @@ mod tests {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/missing")));
         });
         use_context_provider(services_with_no_habits);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootAtGrownHabit() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_one_habit_grown_once);
         rsx! {
             Router::<Route> {}
         }
@@ -126,6 +143,26 @@ mod tests {
             html.matches("step-bar").count(),
             1,
             "expected exactly one staircase bar for a one-step habit, got: {html}"
+        );
+        assert!(
+            html.contains("Passer à 6 min"),
+            "expected the grow-goal button offering the next step up, got: {html}"
+        );
+    }
+
+    #[test]
+    fn a_habit_grown_once_renders_two_bars_with_only_the_last_current() {
+        let html = render(RootAtGrownHabit);
+
+        assert_eq!(
+            html.matches("step-bar").count(),
+            2,
+            "expected two staircase bars for a twice-stepped habit, got: {html}"
+        );
+        assert_eq!(
+            html.matches("step-bar is-current").count(),
+            1,
+            "expected exactly one bar carrying is-current, got: {html}"
         );
     }
 
