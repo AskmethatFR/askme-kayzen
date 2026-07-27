@@ -19,7 +19,7 @@ impl Goal {
     }
 
     pub fn grown(&self) -> Goal {
-        Goal(self.0 + 1)
+        Goal(self.0.saturating_add(1))
     }
 }
 
