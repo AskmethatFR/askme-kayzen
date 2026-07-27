@@ -102,20 +102,22 @@ step ≤ D. `[[adr-0006-cqrs-light]]` already requires everything derived on rea
 `[[adr-0007-habit-lifecycle-aggregate]]` stops reaching the screen: tapping
 grandir/alléger twenty times without practising adds no bar at all.
 
-**Open points to settle when this is refined (do not decide them here):**
+**Settled by the owner, 2026-07-27:**
 
-- **The window.** All days since creation, the last 21, the last 7? The detail
-  screen already specifies « Calendrier en points, sans chiffres » and Today
-  carries 21-day dots and a 7-day rhythm.
-- **Redundancy with the calendar dots.** Once the staircase carries one mark per
-  day with done/not-done encoded, it overlaps the detail's own dot calendar.
-  Merge them, or keep two drawings that answer different questions?
-- **What becomes of the decisions staircase.** The step history remains the
-  record of the user's own goal changes. Is that worth drawing anywhere, or does
-  it retire as a screen concept and survive only as data feeding « minutes
-  gagnées »?
-- **Ownership.** This may fold into slice 8 `stats-board` rather than standing
-  alone — 8 already owns the per-habit derived views.
+| Point | Decision |
+|---|---|
+| Window | **The last 7 days.** Aligned with the week recap's own rhythm. Accepted trade-off: seven bars show the effort trend more faintly than a longer window would — legibility won. |
+| The detail's dot calendar | **Removed.** The staircase already carries done / not-done per day, plus the effort height the dots never had. Two drawings of one fact contradict the screen's sobriety. Amends `[[design-ecrans]]`. |
+| The decisions staircase (one bar per goal change) | **Off the screen.** The step history stays as *data* — it gives each bar its height and feeds « minutes gagnées » — but stops being a drawing. One staircase on the detail: practice. |
+
+**Still open:** whether 3b stands alone or folds into slice 8 `stats-board`, which
+already owns the per-habit derived views. Decide at spec time; it changes
+sequencing, not shape.
+
+**Specified as** `[[practice-staircase]]` — 6 scenarios, `@wip`. S3 is the one
+that pins the correction itself: adjusting the goal draws nothing until a day is
+done. S6 pins that a brand-new habit already shows seven faint bars — *an empty
+start is still a start*, per `[[design-principes-kaizen]]`.
 
 **Gherkin debt this exposes.** `[[adjust-goal]]` S1 and S2 both assert *« the
 change is recorded in the step history with today's local date »* — that is the
