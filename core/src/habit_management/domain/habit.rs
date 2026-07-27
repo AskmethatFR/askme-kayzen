@@ -67,6 +67,10 @@ impl Habit {
         self.completion_history.toggle(today);
     }
 
+    pub fn grow(&mut self, today: LocalDate) {
+        self.steps.record(today, self.steps.current().grown());
+    }
+
     pub fn is_done_on(&self, day: LocalDate) -> bool {
         self.completion_history.contains(day)
     }

@@ -17,6 +17,10 @@ impl Goal {
     pub fn value(&self) -> u32 {
         self.0
     }
+
+    pub fn grown(&self) -> Goal {
+        Goal(self.0 + 1)
+    }
 }
 
 #[cfg(test)]

@@ -37,11 +37,12 @@ impl GrowGoal {
 
     pub fn execute(&self, habit_id: &str) -> Result<(), GrowGoalError> {
         let id = HabitId::new(habit_id).map_err(|_| GrowGoalError::HabitNotFound)?;
-        let habit = self
+        let mut habit = self
             .repository
             .get(&id)
             .ok_or(GrowGoalError::HabitNotFound)?;
 
+        habit.grow(self.clock.today());
         self.repository.save(&habit);
 
         Ok(())
