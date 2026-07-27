@@ -14,6 +14,7 @@ pub struct HabitDetail {
     pub title: String,
     pub current_goal: u32,
     pub steps: Vec<u32>,
+    pub next_goal_up: u32,
 }
 
 impl GetHabitDetail {
@@ -35,6 +36,7 @@ impl GetHabitDetail {
                 .into_iter()
                 .map(|step| step.goal().value())
                 .collect(),
+            next_goal_up: habit.current_goal(),
         })
     }
 }
@@ -85,6 +87,7 @@ mod tests {
                 title: "Read one page".to_string(),
                 current_goal: 5,
                 steps: vec![5],
+                next_goal_up: 6,
             })
         );
     }
