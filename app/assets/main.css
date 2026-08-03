@@ -216,6 +216,7 @@ body {
 .btn-primary:hover { background: var(--color-accent-700); border-color: var(--color-accent-700); }
 .btn-secondary { border-color: var(--color-rule); }
 .btn-block { display: block; width: 100%; text-align: center; }
+.btn-block + .btn-block { margin-top: var(--space-4); }
 
 .tag {
   font-size: 12px;

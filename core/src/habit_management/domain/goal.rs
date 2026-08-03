@@ -17,27 +17,12 @@ impl Goal {
     pub fn value(&self) -> u32 {
         self.0
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn new_rejects_a_value_below_the_floor() {
-        let result = Goal::new(0);
-
-        assert_eq!(result, Err(HabitError::GoalTooSmall { min: Goal::MIN }));
+    pub fn grown(&self) -> Goal {
+        Goal(self.0.saturating_add(1))
     }
 
-    #[test]
-    fn new_accepts_the_floor_and_values_with_no_upper_ceiling() {
-        let cases = vec![1, 5, 6, 100];
-
-        for value in cases {
-            let result = Goal::new(value).map(|goal| goal.value());
-
-            assert_eq!(result, Ok(value));
-        }
+    pub fn lightened(&self) -> Goal {
+        Goal(self.0.saturating_sub(1).max(Self::MIN))
     }
 }

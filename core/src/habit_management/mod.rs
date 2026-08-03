@@ -20,6 +20,8 @@ pub mod infrastructure {
 
 pub mod use_cases {
     pub mod create_habit_on_request;
+    pub mod grow_goal;
+    pub mod lighten_goal;
     pub mod mark_done;
     pub mod request_habit;
 }

@@ -3,12 +3,13 @@ id: "adr-0007-habit-lifecycle-aggregate"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-07-23"
+updated: "2026-07-27"
 relations:
   related:
     - "architecture-overview"
     - "lifecycle-backlog"
     - "adr-0008-goal-based-dose-user-paced-progression"
+    - "adr-0011-one-public-method-per-use-case"
   depends-on:
     - "adr-0002-habitboard-stateful-aggregate"
     - "adr-0008-goal-based-dose-user-paced-progression"
@@ -20,11 +21,18 @@ answers:
   - "How does the domain get 'today' without depending on chrono/NaiveDate?"
   - "Are lifecycle changes (mark done, grow/lighten, pause/anchor) published as domain events?"
   - "How is pause vs anchor modeled, and can a paused/anchored habit still be marked done?"
+  - "What happens when the user lightens a habit whose goal is already at the floor?"
+  - "Can StepHistory be empty, and why does current() need no Option or unwrap?"
+  - "Do two goal changes on the same day merge into one step?"
+  - "Can StepHistory grow without bound, and where does that become a problem?"
 decided_in:
   - "LOCAL-lifecycle-aggregate"
+  - "2026-07-27 slice 3 adjust-goal cycle (d2 settled, StepHistory append-only)"
 ---
 
 # ADR 0007 — Habit promoted to the lifecycle aggregate root (dated histories, library-free LocalDate, internal transitions)
+
+> **⚠️ Open point d2 SETTLED (2026-07-27, slice 3 `adjust-goal`)**: `lighten()` at the floor is a **silent no-op** — see the amendment block at the end of this node. `StepHistory` is now built and **append-only**; `Habit::grow` / `Habit::lighten` exist. The "planned" anchors below have landed for the goal facets; every other planned shape (pause/anchor, board coordination) still is.
 
 > **⚠️ Dose facets AMENDED (2026-07-23) by [[adr-0008-goal-based-dose-user-paced-progression]]**: the two-VO dose model below (`InitialDuration` with its ≤5-min creation guard + a running `Dose`) is **collapsed into a single `Goal` VO** (default 5, floor 1, **no upper ceiling**, guard dropped), the `StabilityPolicy` dependency is **withdrawn** (progression is user-paced, never suggested), and `StepHistory` now records dated **Goal** changes. **Every other facet of this ADR stands** (aggregate root, `CompletionHistory`, `LocalDate`/`Clock`, `LifecycleState`, internal transitions, repo `get`+upsert). This document is amended in place below; ADR-0008 is the source of truth for the dose/progression facets.
 
@@ -53,7 +61,7 @@ The lifecycle backlog ([[lifecycle-backlog]]) requires `Habit` to gain behavior:
 | Repository (d5) | `HabitRepository` gains `get(&HabitId) -> Option<Habit>` and **upsert-by-id `save`** semantics (save an existing id overwrites). Introduced in **slice 2** | planned: `domain/habit_repository.rs` |
 | Read-side compatibility | Slice-1 reads stay stable: `id`/`title` unchanged; minutes read via a `current_goal()` accessor **now** (returns the initial Goal until step history lands → zero rework in slice 3). `done_today` source changes from the `false` default to `completion_history.contains(clock.today())` in slice 2 — the Today query must accept an **injected `Clock`** in slice 2 | — |
 
-**Open implementation point (d2 — deferred to slice 3, NOT final)**: `lighten()` at the floor (current dose already = 1). The **provisional default** is a **silent no-op** (push nothing / stay at 1, no error). This is revisable when slice 3 is implemented — the human has no opinion yet, so it is not locked. Alternatives to weigh at slice 3: reject with an error vs. return an "already-at-floor" signal for the UI.
+**~~Open implementation point (d2 — deferred to slice 3, NOT final)~~ — SETTLED 2026-07-27**: `lighten()` at the floor is a **silent no-op**. The provisional default became the decision; the two alternatives listed here (an error, a UI "already-at-floor" signal) were both rejected. Reasoning, rejections and the shape actually built are in the **amendment block below** — that block, not this paragraph, is the source of truth.
 
 ## Rejected alternatives
 
@@ -81,4 +89,74 @@ The lifecycle backlog ([[lifecycle-backlog]]) requires `Habit` to gain behavior:
 - **MUST NOT**: publish any lifecycle event, introduce a `HabitEvent` enum, or touch `HabitBoardEvent` / the outbox — only `HabitRequested` is published (d3).
 - **MUST NOT**: create a second aggregate for the lifecycle, or reintroduce a separate `InitialDuration`/`Dose` split — the dose is the single `Goal` VO ([[adr-0008-goal-based-dose-user-paced-progression]]).
 - **MAY**: introduce `HabitRepository::get(&HabitId)` + upsert-by-id `save` in slice 2 (d5); add the epoch-day arithmetic `LocalDate` needs incrementally as slices require it.
-- **Out of scope (this cycle — d4)**: any production code; the aggregate grows vertically inside slices 2/3/5/6/7 of [[lifecycle-backlog]]. Also out of scope: the `lighten()`-at-floor resolution (d2, slice 3); the board↔habit anchoring coordination (slice 6). The `StabilityPolicy` read-side computation is **removed entirely** ([[adr-0008-goal-based-dose-user-paced-progression]]) — no detection, no suggestion.
+- **Out of scope (this cycle — d4)**: any production code; the aggregate grows vertically inside slices 2/3/5/6/7 of [[lifecycle-backlog]]. Also out of scope: ~~the `lighten()`-at-floor resolution (d2, slice 3)~~ **— settled 2026-07-27, see below**; the board↔habit anchoring coordination (slice 6). The `StabilityPolicy` read-side computation is **removed entirely** ([[adr-0008-goal-based-dose-user-paced-progression]]) — no detection, no suggestion.
+
+---
+
+## Amendment — 2026-07-27, slice 3 `adjust-goal` (d2 settled; `StepHistory` built and append-only)
+
+Slice 3 is the first cycle to write production code against this ADR. Three facets
+move from *planned* to *settled*, and one future constraint is recorded. Amended in
+place rather than superseded: all four are facets of the same settled question this
+node owns — how the lifecycle aggregate stores its dated histories and mutates them.
+
+### d2 — `lighten()` at the floor is a **silent no-op** (human decision)
+
+`Habit::lighten(today)` at a goal of 1 appends nothing and returns; `LightenGoal::execute`
+returns `Ok(())`. Nothing is signalled, nothing fails.
+
+| Rejected | Why |
+|---|---|
+| An `AlreadyAtFloor` error variant | Contradicts the product's register — *« alléger n'est pas reculer, c'est enlever ce qui freine »*. An error turns a permitted gesture into a reproach |
+| Any UI signal (disabled button, toast, badge) | Contradicts [[adr-0008-goal-based-dose-user-paced-progression]]'s "always available, no precondition" and the `adjust-goal` S4 scenario; and a signal returned from a command would breach [[adr-0006-cqrs-light]]'s commands-return-`()` shape |
+
+**Feedback is by state, not by reproach.** Nothing tells the user "you cannot"; the
+re-queried screen simply keeps reading « chaque jour · 1 min » while the button reads
+« Alléger à 1 min ». The user sees where they are, not what they are refused.
+
+**Where the floor lives.** `Habit::lighten` infers the floor from the domain rather than
+restating it: it computes `lightened()` and compares it to the current goal —
+`lightened() == *current()` means the floor was reached. The constant `Goal::MIN` stays
+owned by `Goal` alone; the aggregate duplicates no knowledge of its value.
+
+### d6 — `StepHistory` is **append-only**, with no same-day fusion (human decision)
+
+Human ruling: *« oui on empile et depile on laisse la liberté sans fusion plus simple »* —
+where *« dépiler »* means the **staircase may go back down**, not that a step is removed.
+
+| Facet | Decision | Anchor |
+|---|---|---|
+| Shape | `StepHistory { first: StepChange, rest: Vec<StepChange> }`. Non-emptiness stays **structural**: `seeded` is the only constructor, so `current()` is **total** — `rest.last()` falling back to `first`. **No `Option`, no `unwrap`, no panic path** | `core/src/habit_management/domain/step_history.rs` |
+| Mutation | `record(&mut self, on, goal)` **appends only**. No removal, no pop, no undo | idem |
+| No same-day fusion | Three taps of « grandir » in one day yield **three dated steps**, not one merged step | idem |
+
+**Why append-only wins.** Appending preserves information; fusing destroys it
+irreversibly. A noisy staircase is a **rendering** question — solvable read-side, later,
+without loss — while a fused history can never be un-fused. Deferring the question costs
+storage; deciding it early costs the data.
+
+### FUT-1 — the oscillation path, and the constraint it places on the persistence slice
+
+Above the floor, alternating grow / lighten returns the goal to its starting value while
+adding **2 `StepChange` per round trip**, indefinitely — precisely because d6 forbids
+same-day fusion. It is not merely a doubled append rate: it is an **unbounded history
+with zero net effect**, reachable by a user tapping two buttons.
+
+Harmless today — the store is in-memory, local, single-user, and the history dies on
+reload. **It stops being harmless at the persistence slice**, where the history survives
+reloads and unbounded growth becomes unbounded storage.
+
+**Constraint carried forward**: the persistence slice's spec MUST weigh bounding or
+compacting `StepHistory`, explicitly in the knowledge of d6. Compaction is a *storage*
+decision and must not be smuggled in as a domain-level fusion — that would silently
+reverse d6.
+
+### What is now built (was "planned")
+
+`domain/step_history.rs`, `domain/goal.rs`, and `Habit::grow` / `Habit::lighten` exist —
+`core/src/habit_management/domain/step_history.rs`, `core/src/habit_management/domain/goal.rs`,
+`core/src/habit_management/domain/habit.rs`. The two gestures are driven by **two separate
+use cases**, one public method each, per [[adr-0011-one-public-method-per-use-case]].
+`CompletionHistory`, `LocalDate`, the `Clock` port and the repository `get`+upsert landed
+in slice 2. Still planned: `LifecycleState` and the board↔habit anchoring coordination
+(slices 5/6).

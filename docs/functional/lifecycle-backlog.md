@@ -44,7 +44,8 @@
 | R1 | `goal-default-5` | New habits start on a 5-min **goal** (`Goal` VO, floor 1, no ceiling; ≤5 guard dropped; Add copy "5 min") | S–M | **done** |
 | 1 | `read-habits-query` | Today screen lists *real* board habits via the final DTO shape (honest defaults) | M | done |
 | 2 | `mark-done` | Tapping the target fills the ink; toggle; calendar dots appear | M | done (core + Today toggle; calendar dots deferred to stats-board) |
-| 3 | `adjust-goal` (was `grow-lighten`) | Detail's "Ajuster" zone: **user-paced** N+1 / N−1 on the goal, staircase renders, floor 1. **No suggestion driving it** | M | todo |
+| 3 | `adjust-goal` (was `grow-lighten`) | Detail's "Ajuster" zone: **user-paced** N+1 / N−1 on the goal, staircase renders, floor 1. **No suggestion driving it** | M | **done** (both gestures, floor silent no-op, staircase fixed so only the last step is current) |
+| 3b | `practice-staircase` | The detail's staircase is **redrawn on practice, not on intent**: one bar per calendar day, full when the day was done, faint when it was not. Owner correction 2026-07-27 — see below | M | **todo (next)** |
 | ~~4~~ | ~~`growth-suggestion`~~ | **DELETED** — StabilityPolicy removed (ADR-0008); progression is user-paced, nothing is suggested | — | ✂️ removed |
 | 5 | `pause-resume` | "Mettre en pause" / paused zone / one-tap resume | S | todo |
 | 6 | `anchor` | Anchor button (**user-initiated, no 10-of-14 suggestion**), board frees the slot, Ancrées screen counts | L | todo |
@@ -59,6 +60,73 @@ derived from the completion and step histories (CQRS-light queries, no stored
 stats), per the designer's own "tout le récap est dérivé" principle and
 `[[adr-0006-cqrs-light]]`. Adaptive messages are a read-side policy (same
 pattern as the stability policy), stateless, anti-guilt wording only.
+
+## Slice 3b `practice-staircase` — owner correction, 2026-07-27
+
+> Raised by the owner on reviewing the delivered slice 3: *« le graph grandit à
+> l'ajout d'une minute alors qu'elle devrait ajouter dans le graph quand un jour
+> est complété »*. This is a **functional** correction, not a bug in slice 3's code.
+
+**What the staircase is for.** Two questions, one drawing:
+
+1. **Am I keeping it up?** — read in the run of bars.
+2. **Across those days, am I raising, easing, or holding my effort?** — read in
+   their profile.
+
+**How it draws.** One bar per **calendar day**, not per goal change.
+
+| The day was | The bar |
+|---|---|
+| done | full, height = the goal that was active that day |
+| not done | **the same bar at low opacity** — present, quiet, never a hole and never red |
+
+The owner chose the faint bar over both alternatives offered: hiding the missed
+day (loses the regularity signal) and breaking the drawing into a streak (would
+contradict a non-negotiable). *« au lieu de ne pas le voir, on fait une opacité,
+moins culpabilisant. »* Nothing counts, nothing accuses — `[[design-principes-kaizen]]`
+holds unamended, and there is still **no streak**.
+
+**Why it was wrong before.** Slice 3 draws one bar per `StepChange`, per
+`[[design-ecrans]]` (« une barre par étape de `steps` »). So tapping *grandir*
+five times without practising once drew five bars — the app credited the
+intention. Meanwhile « minutes gagnées » was already specified **per completed
+day**. Two readings of the same screen counted different things; the owner's
+correction settles both on practice.
+
+**Shape (functional, the Architect owns the technical form).** Nothing new is
+stored. The drawing is a **projection of the two histories already kept**:
+completion history × step history, the goal active on day D being the last dated
+step ≤ D. `[[adr-0006-cqrs-light]]` already requires everything derived on read.
+
+**Welcome side effect.** The oscillation concern recorded as FUT-1 in
+`[[adr-0007-habit-lifecycle-aggregate]]` stops reaching the screen: tapping
+grandir/alléger twenty times without practising adds no bar at all.
+
+**Settled by the owner, 2026-07-27:**
+
+| Point | Decision |
+|---|---|
+| Window | **The last 7 days.** Aligned with the week recap's own rhythm. Accepted trade-off: seven bars show the effort trend more faintly than a longer window would — legibility won. |
+| The detail's dot calendar | **Removed.** The staircase already carries done / not-done per day, plus the effort height the dots never had. Two drawings of one fact contradict the screen's sobriety. Amends `[[design-ecrans]]`. |
+| The decisions staircase (one bar per goal change) | **Off the screen.** The step history stays as *data* — it gives each bar its height and feeds « minutes gagnées » — but stops being a drawing. One staircase on the detail: practice. |
+
+**Still open:** whether 3b stands alone or folds into slice 8 `stats-board`, which
+already owns the per-habit derived views. Decide at spec time; it changes
+sequencing, not shape.
+
+**Specified as** `[[practice-staircase]]` — 6 scenarios, `@wip`. S3 is the one
+that pins the correction itself: adjusting the goal draws nothing until a day is
+done. S6 pins that a brand-new habit already shows seven faint bars — *an empty
+start is still a start*, per `[[design-principes-kaizen]]`.
+
+**Gherkin debt this exposes.** `[[adjust-goal]]` S1 and S2 both assert *« the
+change is recorded in the step history with today's local date »* — that is the
+technical model leaking into a functional spec; `StepHistory` is a code name, not
+a word the domain speaks. And **no scenario describes the staircase at all**,
+which is why the drawing could be wrong while every gate stayed green. Both the
+Architect and the reviewing Developer flagged the missing staircase scenarios
+during slice 3; the gap was recorded and not acted on. Rewrite S1/S2 in the
+user's language and add the staircase scenarios when 3b is refined.
 
 **8-slice order holds — no reorder, no inserted foundation slice.** The
 lifecycle-aggregate ADR (`[[adr-0007-habit-lifecycle-aggregate]]`) pins the shape;
@@ -75,7 +143,7 @@ Developer's first failing test of a slice is the scenario, and dropping the
 |---|---|---|
 | 1 `read-habits-query` | `[[today-habit-list]]` | S1–S3, covered |
 | 2 `mark-done` | `[[mark-done]]` | S1–S3, covered |
-| 3 `adjust-goal` | `[[adjust-goal]]` | S1–S4, `@wip` (S3 = the deferred floor no-op, d2) |
+| 3 `adjust-goal` | `[[adjust-goal]]` | S1–S4, covered (S3 pins the floor no-op — d2 now settled) |
 | 5 `pause-resume` | `[[pause-resume]]` | S1–S3, `@wip` (S3 pins Q1 — a paused habit keeps its seat) |
 | 6 `anchor` | `[[anchor-habit]]` | S1–S4, `@wip` (S3 pins Q3, S4 pins "no suggestion") |
 | 7 `readmit` | `[[readmit-habit]]` | S1–S3, `@wip` |
@@ -91,7 +159,7 @@ Developer's first failing test of a slice is the scenario, and dropping the
 |---|---|
 | 1 `read-habits-query` | none on the aggregate. Read `minutes` via `current_dose()` (returns `initial_duration` until step history exists); `done_today = false`. Do NOT bake a Today-query signature that cannot later receive an injected `Clock`. |
 | 2 `mark-done` | adds `CompletionHistory` VO + `toggle_done(today)`; adds the `Clock` port (`shared/`, returns domain `LocalDate`, chrono confined to infra `SystemClock` adapter); `HabitRepository` gains `get(&HabitId)` + upsert-by-id `save`; Today query gains injected `Clock` (`done_today` source flips to `completion_history.contains(today)`). |
-| 3 `adjust-goal` | adds dated `StepHistory` VO over the `Goal` + user-paced `grow()` / `lighten()`; floor 1; `current_goal()` = `steps.last().goal`. **Open point (d2, deferred):** `lighten()` at the floor — provisional silent no-op. (Note: `Goal` VO + default 5 already landed in slice R1.) |
+| 3 `adjust-goal` | **done.** `StepHistory` grew to a dated, **append-only** staircase (`{first, rest}` — non-emptiness structural, no `unwrap`); `Goal::grown()` / `lightened()` carry the ±1 and the floor; `Habit::grow()` / `lighten()` append a dated step. **d2 SETTLED — silent no-op at the floor**: nothing appended, `Ok(())` returned, nothing signalled to the screen (an error would contradict *« alléger n'est pas reculer »*; a UI signal would contradict S4). Two use cases, `GrowGoal` and `LightenGoal`, one public method each — see `[[adr-0011-one-public-method-per-use-case]]`. |
 | ~~4 `growth-suggestion`~~ | **removed** — no `StabilityPolicy`, no stability detection, no suggestion (ADR-0008). |
 | 5 `pause-resume` | adds `LifecycleState::{Active, Paused}` transitions (enum on `Habit`, illegal combos unrepresentable). Paused keeps the board seat (Q1). |
 | 6 `anchor` | adds `LifecycleState::Anchored`; resolves the deferred board↔habit anchoring coordination (how the board frees the slot); `HabitBoard` cap counts non-anchored. |
@@ -104,11 +172,20 @@ Lifecycle mutations are **internal state transitions** (load aggregate → metho
 
 ## Glossary impact
 
-New terms to add to `[[glossary]]` as their slices land: Completion (*fait*),
-Dose (*dose du jour* — the **running** dose, distinct from *Durée initiale* /
-`InitialDuration` which is the creation-time ≤ 5 min value), Step history
-(*croissance en escalier* — dated), Grow/Lighten (*grandir/alléger*), Growth
-suggestion (*proposition de grandir — proposée, jamais imposée*), Anchor/Readmit
-(*ancrer / remettre dans le quotidien*), Pause/Resume, État du cycle
-(*Active / En pause / Ancrée* — `LifecycleState`), LocalDate (*date locale du
-domaine* — library-free, chrono confined to the infra `Clock` adapter).
+Landed with slice 3 (now in `[[glossary]]`): Step (*marche*), Step history
+(*croissance en escalier* — dated, append-only), Grandir (*grow*), Alléger
+(*lighten*), Goal floor (the business rule — below one minute there is no habit,
+only deletion, which is **not built yet**).
+
+Already landed in earlier slices: Completion (*fait*), Completion history,
+Mark done, Local date, Clock, Goal.
+
+~~Dose~~ / ~~Durée initiale~~ (`InitialDuration`) and ~~Growth suggestion~~ are
+**void** — collapsed into the single `Goal` VO and removed outright by
+`[[adr-0008-goal-based-dose-user-paced-progression]]`. They are named here only so
+nobody re-adds them from an older reading.
+
+Still to add as their slices land: Pause/Resume (slice 5), Anchor/Readmit
+(*ancrer / remettre dans le quotidien* — slices 6-7), État du cycle
+(*Active / En pause / Ancrée* — `LifecycleState`, slice 5), Minutes gagnées
+(slice 8).

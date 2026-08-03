@@ -7,6 +7,8 @@ use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::I
 use kayzen_core::habit_management::infrastructure::in_memory_outbox::InMemoryOutbox;
 use kayzen_core::habit_management::queries::get_habit_detail::GetHabitDetail;
 use kayzen_core::habit_management::queries::list_board_habits::ListBoardHabits;
+use kayzen_core::habit_management::use_cases::grow_goal::GrowGoal;
+use kayzen_core::habit_management::use_cases::lighten_goal::LightenGoal;
 use kayzen_core::habit_management::use_cases::mark_done::MarkDone;
 use kayzen_core::shared::clock::{Clock, SystemClock};
 
@@ -23,6 +25,8 @@ pub struct Services {
     pub mark_done: MarkDone,
     pub add_habit: AddHabit,
     pub get_habit_detail: GetHabitDetail,
+    pub grow_goal: GrowGoal,
+    pub lighten_goal: LightenGoal,
 }
 
 impl Services {
@@ -66,6 +70,8 @@ impl Services {
             ),
             mark_done: MarkDone::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
             get_habit_detail: GetHabitDetail::new(Rc::clone(&habit_repository)),
+            grow_goal: GrowGoal::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
+            lighten_goal: LightenGoal::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
             add_habit: AddHabit::new(
                 Rc::clone(&habit_repository),
                 board_repository,

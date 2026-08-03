@@ -26,26 +26,38 @@ impl StepChange {
 
 /// The dated history of a habit's goal. Task 1 seeds exactly one step at
 /// creation (adr-0007/adr-0008 AD-1) — `seeded` is the only constructor, so
-/// reading the current step never needs `Option` or a panic. Appending
-/// further steps (`grow`/`lighten`) is Task 2's behavior, added together
-/// with the use case that calls it.
+/// non-emptiness stays structural and reading the current step never needs
+/// `Option` or a panic. Further steps are appended one at a time through
+/// `record`, called by the use case that grows or lightens the goal
+/// (adjust-goal slice 3); the history never removes, pops, or merges steps.
 #[derive(Debug, Clone, PartialEq)]
 pub struct StepHistory {
     first: StepChange,
+    rest: Vec<StepChange>,
 }
 
 impl StepHistory {
     pub fn seeded(on: LocalDate, goal: Goal) -> StepHistory {
         StepHistory {
             first: StepChange::new(on, goal),
+            rest: Vec::new(),
         }
     }
 
     pub fn current(&self) -> &Goal {
-        self.first.goal()
+        self.rest
+            .last()
+            .map(StepChange::goal)
+            .unwrap_or_else(|| self.first.goal())
     }
 
     pub fn changes(&self) -> Vec<&StepChange> {
-        vec![&self.first]
+        let mut changes = vec![&self.first];
+        changes.extend(self.rest.iter());
+        changes
+    }
+
+    pub fn record(&mut self, on: LocalDate, goal: Goal) {
+        self.rest.push(StepChange::new(on, goal));
     }
 }

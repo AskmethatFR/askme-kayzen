@@ -34,8 +34,15 @@ Le cœur « Kaizen » : montrer qu'on grandit, jamais culpabiliser.
 
 - Titre + résumé (« passée de 2 à 4 min, tout doucement »).
 - **Déclencheur** : champ texte libre + chips « après une habitude ancrée » (habit stacking).
-- **Croissance en escalier** (une barre par étape de `steps`, la dernière en cyan plein).
-- **Calendrier** en points, sans chiffres.
+- **Escalier de pratique** — une barre par jour sur les **7 derniers jours**. Le jour fait
+  est plein, à la hauteur de l'objectif actif ce jour-là ; le jour non fait est **la même
+  barre en opacité faible** — jamais un trou, jamais du rouge. On y lit deux choses à la
+  fois : si on continue (la suite des barres) et si l'effort monte, descend ou tient (leur
+  profil). *(Amendé 2026-07-27 par l'owner — voir `[[lifecycle-backlog]]` slice 3b. Remplace
+  « une barre par étape de `steps` » : l'escalier dessine la pratique, pas l'intention.)*
+- ~~**Calendrier** en points, sans chiffres.~~ **Supprimé du détail** (2026-07-27) — l'escalier
+  de pratique porte déjà fait/pas-fait par jour, plus la hauteur d'effort que les points
+  n'avaient pas. Deux dessins pour la même information contredisent la sobriété de l'écran.
 - Bouton **« Faire ma minute »** (ouvre le rituel).
 - Zone **« Ajuster, à votre rythme »** : « Passer à N+1 min » (grandir) et « Alléger à N−1 min ».
 - **Ancrer** — à l'initiative de l'utilisateur, quand il la sent acquise (aucune détection de stabilité, aucune suggestion) → la marque acquise, libère une place.

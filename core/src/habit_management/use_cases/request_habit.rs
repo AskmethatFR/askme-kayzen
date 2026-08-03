@@ -176,6 +176,32 @@ mod tests {
         assert_eq!(outbox.drain().len(), 1);
     }
 
+    // Moved up from a HabitError unit test on PR #1 review: only use-case and
+    // service tests may pin a domain principle. Reading the reasons through
+    // HabitBoardError also pins that InvalidHabit renders its inner reason
+    // rather than a wrapper message of its own.
+    #[test]
+    fn an_invalid_habit_states_its_reason_in_the_expected_words() {
+        let cases = vec![
+            (
+                HabitError::GoalTooSmall { min: 1 },
+                "a goal must be at least 1 minute(s) per day",
+            ),
+            (
+                HabitError::TitleLength { min: 1, max: 50 },
+                "a title size must be between 1 and 50 characters",
+            ),
+            (
+                HabitError::IdLength { min: 1, max: 64 },
+                "an id size must be between 1 and 64 characters",
+            ),
+        ];
+
+        for (reason, expected) in cases {
+            assert_eq!(HabitBoardError::InvalidHabit(reason).to_string(), expected);
+        }
+    }
+
     // @scenario: request-habit/S3
     #[test]
     fn requesting_an_invalid_habit_returns_an_error_and_publishes_nothing() {

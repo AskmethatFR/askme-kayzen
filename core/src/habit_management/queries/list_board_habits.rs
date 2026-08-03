@@ -112,4 +112,21 @@ mod tests {
 
         assert!(result[0].done_today);
     }
+
+    // No Gherkin scenario names this path yet (a completion belongs to its own
+    // day only) — flagged under "Open questions". Moved up from a Habit unit
+    // test on PR #1 review: only use-case and service tests may pin a domain
+    // principle.
+    #[test]
+    fn a_habit_done_on_another_day_is_not_reported_done_today() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit();
+        habit.toggle_done(LocalDate::from_epoch_day(TODAY - 1));
+        repository.save(&habit);
+        let query = list_over(Rc::clone(&repository));
+
+        let result = query.handle();
+
+        assert!(!result[0].done_today);
+    }
 }

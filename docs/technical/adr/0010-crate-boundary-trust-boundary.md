@@ -3,7 +3,7 @@ id: "adr-0010-crate-boundary-trust-boundary"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-07-26"
+updated: "2026-07-27"
 relations:
   related:
     - "architecture-overview"
@@ -21,8 +21,11 @@ answers:
   - "Why is there no charset restriction on a habit id, and what forces one to be added?"
   - "Why do a malformed id and an unknown id produce the same result?"
   - "Which routes are NOT covered by the id length bound, and why is that accepted?"
+  - "The app names a core DTO in production code — is that a boundary breach?"
+  - "What is the one question that decides whether a core type in kayzen-app is safe?"
 decided_in:
   - "2026-07-26 HabitId parse-at-the-boundary cycle (GATE 1.5 human approval)"
+  - "2026-07-27 slice 3 adjust-goal cycle (Security T2 reformulation — amendment below)"
 ---
 
 # ADR 0010 — The crate boundary is the trust boundary: `HabitId` parsed once, at the core's entry points
@@ -87,4 +90,47 @@ Three were recorded by the Architect; Security confirmed them and added four. Al
 - **MUST NOT**: surface a distinct error for "malformed id" versus "unknown id".
 - **Accepted consequence — the `Ritual` route is not covered.** `/habit/:id/ritual` never reaches the core: its view re-injects the raw route parameter into a `Link` and nothing parses it. Harmless in the current client-side WASM deployment, where the only author of a URL is the user themself; **trigger 4 changes that** — `app/src/views/ritual.rs`.
 - **Known limitation**: `HabitId::new` is a constructor literally named `new`, so the mutation gate **cannot see it** — its `MIN_LEN`/`MAX_LEN` comparisons generate zero mutants. The boundary tests in `core/src/habit_management/domain/habit_id.rs` were written to the exact boundary anyway, because the instrument will not catch a regression here. See [[adr-0009-quality-gates]].
+
+---
+
+## Amendment — 2026-07-27, slice 3 `adjust-goal`: boundary integrity rests on what the core **accepts**, not on what the app can **name**
+
+Slice 3's view names the per-screen query DTO `HabitDetail` in production code
+(`app/src/views/habit_detail.rs`). The type already crossed the boundary before this slice —
+it was inferred through a `use_signal` closure since the T1 cycle; the retry only made it
+*nameable*. Security re-examined the boundary on that occasion and produced the formulation
+this node was missing.
+
+### The load-bearing statement
+
+> **The trust boundary holds because of what `kayzen-core` ACCEPTS as input, never because of
+> what `kayzen-app` is able to NAME.**
+
+Security verified **mechanically** that no `kayzen-core` function takes a DTO as a parameter:
+DTOs are **output-only**, produced by queries and consumed by views. A DTO fabricated inside
+the app crate can therefore only be *rendered*. It cannot mutate, cannot persist, and cannot
+bypass `HabitId::new` — because there is no core entry point that would receive it.
+
+### Why this is a clarification, not a loosening
+
+Read the two MUSTs literally and they were never breached:
+
+| Node | Its MUST | Scope |
+|---|---|---|
+| [[adr-0006-cqrs-light]] | "`kayzen-app` never imports a **domain type**" | Domain types. A per-screen DTO is the *contract* that exists so the app does not need one |
+| This node | Obtain every `HabitId` through `HabitId::new`; never **construct** a domain type in `kayzen-app` | Constructing. Naming an output DTO constructs nothing |
+
+Naming a query's output DTO is **the prescribed shape of [[adr-0006-cqrs-light]]**, not a
+tolerated exception to it. A reviewer who reads "the app named a core type" as a boundary
+breach is applying the wrong test.
+
+### The test to apply instead
+
+When a future change makes a core type visible in `kayzen-app`, ask **one** question:
+**does any `kayzen-core` entry point accept this type as a parameter?**
+
+- **No** → it is output-only; the boundary is intact whatever the app names or fabricates.
+- **Yes** → the app can now hand the core a value the core did not build. That is a real
+  second door, and it reopens this ADR — treat it as escalation-trigger class, alongside the
+  seven listed above.
 - **Verification**: the delivered change was approved by Dev-B (review), QA, and Security — the latter after explicitly re-testing its own rejected proposal against the code and retracting it.
