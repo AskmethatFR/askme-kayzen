@@ -196,4 +196,28 @@ mod tests {
             }]
         );
     }
+
+    // @scenario: pause-resume/S2
+    #[test]
+    fn a_resumed_habit_reappears_in_active_and_leaves_paused() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit();
+        habit.pause();
+        habit.resume();
+        repository.save(&habit);
+        let query = list_over(Rc::clone(&repository));
+
+        let result = query.handle();
+
+        assert_eq!(
+            result.active,
+            vec![HabitSummary {
+                id: "h-1".to_string(),
+                title: "Read one page".to_string(),
+                minutes: 3,
+                done_today: false,
+            }]
+        );
+        assert_eq!(result.paused, Vec::new());
+    }
 }
