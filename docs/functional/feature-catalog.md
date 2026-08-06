@@ -2,7 +2,7 @@
 
 > Functional node (owner: pm). What the product does today, in business terms, with the acceptance that pins each behavior. Technical rationale lives in [[architecture-overview]] and [[adr-0001-validation-by-construction]].
 
-> The acceptance tables below are mirrored as spec-only Gherkin in `docs/functional/features/habit-management/`: F-1 → [[request-habit]], F-2 → [[create-habit-on-request]]. Delivered since: [[today-habit-list]] and [[mark-done]]. Every scenario there resolves to a test through its `// @scenario:` anchor (`scenario_audit.py`).
+> The acceptance tables below are mirrored as spec-only Gherkin in `docs/functional/features/habit-management/`: F-1 → [[request-habit]], F-2 → [[create-habit-on-request]]. Delivered since: [[today-habit-list]], [[mark-done]], [[adjust-goal]] and [[practice-staircase]]. Every scenario there resolves to a test through its `// @scenario:` anchor (`scenario_audit.py`).
 
 ## F-1 — Request a habit from the board
 
@@ -60,10 +60,32 @@ Tapping a habit's target records today as done; tapping it again clears it. One 
 | A habit already done today | Marking it done again | Today's completion is removed |
 | An id matching no habit | Marking it done | Rejected; nothing is recorded |
 
+## F-5 — Read a habit's recent practice as a staircase
+
+The detail screen draws one bar per calendar day over the **last seven days**. A day that was practised is a full bar standing at the goal active that day; a day that was not keeps the same bar at low opacity — present, never a gap and never a warning. The drawing credits **practice, never intent**: adjusting the goal adds no bar.
+
+> Replaces the decisions staircase slice 3 shipped (one bar per goal change), on the owner's correction of 2026-07-27: *« le graph grandit à l'ajout d'une minute alors qu'elle devrait ajouter dans le graph quand un jour est complété »*. The step history stays as data — it gives each bar its height — but stopped being a drawing.
+
+**Business rules** (see [[glossary]]):
+- The window is **always seven days**, whatever the habit's age or activity — never one bar per completion, never one per goal change, never a variable span.
+- A bar's height is the goal **active on its own day**: the last step dated on or before it. Growing today raises today and the days after, never the days already lived.
+- A day older than the habit itself stands at the goal the habit **started on** — an empty start is still a start.
+
+**Acceptance (pinned by tests in `core/src/habit_management/queries/get_habit_detail.rs` and `app/src/views/habit_detail.rs`, mirrored as [[practice-staircase]]):**
+
+| Given | When | Then |
+|---|---|---|
+| A habit whose goal is 5 minutes | Marking it done today | Today's bar is full, standing at 5 minutes |
+| A habit not marked done yesterday | Opening its detail | Yesterday's bar is still drawn, faint — neither a gap nor a warning |
+| A habit not marked done today | Choosing *grandir* | No bar is added and no day becomes lived; the days already lived keep their height |
+| Done at 5, grown to 6, done again the next day | Opening its detail | The earlier bar stands at 5, the later at 6 |
+| A habit created three weeks ago | Opening its detail | Seven bars, one per day of the window |
+| A habit created today and not yet done | Opening its detail | Seven faint bars, standing at the goal it started on |
+
 ## Not available yet (deliberate — manual development resumes from here)
 
 - **Nothing survives a restart**: every store is in-memory (`InMemoryHabitRepository`, `InMemoryHabitBoardRepository`), and the Today screen is seeded with three demo habits at startup. No persistence adapter exists yet.
-- Only two of the six screens act: **Today** (list + mark done) and **Add**. Detail, Ritual, Week and Ancrées are routed stubs.
+- Three of the six screens act: **Today** (list + mark done), **Add**, and **Detail** (adjust the goal, read the practice staircase). Ritual, Week and Ancrées are routed stubs.
 - No way yet for a habit to leave the board: the **"ancrée"** (anchored) rule will free a slot (slice 6); until then the board can fill to 5 and stay full. Pause/resume (slice 5), goal adjustment (slice 3) and the recap (slice 8) are specified but not built — see [[lifecycle-backlog]].
 - Direct habit creation (the old `CreateHabit` command) was **removed**: the board request is the only entry point.
 

@@ -45,7 +45,7 @@
 | 1 | `read-habits-query` | Today screen lists *real* board habits via the final DTO shape (honest defaults) | M | done |
 | 2 | `mark-done` | Tapping the target fills the ink; toggle; calendar dots appear | M | done (core + Today toggle; calendar dots deferred to stats-board) |
 | 3 | `adjust-goal` (was `grow-lighten`) | Detail's "Ajuster" zone: **user-paced** N+1 / N−1 on the goal, staircase renders, floor 1. **No suggestion driving it** | M | **done** (both gestures, floor silent no-op, staircase fixed so only the last step is current) |
-| 3b | `practice-staircase` | The detail's staircase is **redrawn on practice, not on intent**: one bar per calendar day, full when the day was done, faint when it was not. Owner correction 2026-07-27 — see below | M | **todo (next)** |
+| 3b | `practice-staircase` | The detail's staircase is **redrawn on practice, not on intent**: one bar per calendar day, full when the day was done, faint when it was not. Owner correction 2026-07-27 — see below | M | **done** (7-day window, faint missed days, per-day heights, `steps` off the contract) |
 | ~~4~~ | ~~`growth-suggestion`~~ | **DELETED** — StabilityPolicy removed (ADR-0008); progression is user-paced, nothing is suggested | — | ✂️ removed |
 | 5 | `pause-resume` | "Mettre en pause" / paused zone / one-tap resume | S | todo |
 | 6 | `anchor` | Anchor button (**user-initiated, no 10-of-14 suggestion**), board frees the slot, Ancrées screen counts | L | todo |
@@ -110,9 +110,24 @@ grandir/alléger twenty times without practising adds no bar at all.
 | The detail's dot calendar | **Removed.** The staircase already carries done / not-done per day, plus the effort height the dots never had. Two drawings of one fact contradict the screen's sobriety. Amends `[[design-ecrans]]`. |
 | The decisions staircase (one bar per goal change) | **Off the screen.** The step history stays as *data* — it gives each bar its height and feeds « minutes gagnées » — but stops being a drawing. One staircase on the detail: practice. |
 
-**Still open:** whether 3b stands alone or folds into slice 8 `stats-board`, which
-already owns the per-habit derived views. Decide at spec time; it changes
-sequencing, not shape.
+**Settled at spec time:** 3b **stands alone**. It ships the detail's one drawing;
+slice 8 `stats-board` keeps the per-habit numbers it always owned.
+
+**Settled during delivery, 2026-08-06** — the backlog was silent on the days that
+precede a habit's own creation (S6 needs seven bars, and those days have no step
+at or before them). They stand at **the goal the habit started on**. The bar is
+faint there anyway, and a zero-height bar would punch exactly the hole the faint
+bar exists to avoid.
+
+**Raised for the owner, not settled:** S3's prose says *« no bar changes »*, while
+the mechanism this node specifies — *« the goal active on day D being the last
+dated step ≤ D »* — makes **today's own bar rise when the goal is grown today**.
+It stays faint (an unpractised day is never filled by deciding) and no bar is
+added, so the correction itself holds; but the height of the current, unlived day
+does follow the new goal. The delivered tests assert the days already lived are
+untouched and stop short of today. Both readings are defensible — today's faint
+bar at the new goal reads as *« today I aim at 6, not done yet »* — so the choice
+is the owner's.
 
 **Specified as** `[[practice-staircase]]` — 6 scenarios, `@wip`. S3 is the one
 that pins the correction itself: adjusting the goal draws nothing until a day is
