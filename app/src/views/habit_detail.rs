@@ -82,6 +82,11 @@ fn lighten_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> 
     services.get_habit_detail.handle(id)
 }
 
+#[must_use]
+fn pause_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
+    todo!()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -92,6 +97,7 @@ mod tests {
     use kayzen_core::habit_management::domain::habit_repository::HabitRepository;
     use kayzen_core::habit_management::domain::habit_title::HabitTitle;
     use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
+    use kayzen_core::habit_management::queries::get_habit_detail::HabitState;
     use kayzen_core::shared::clock::Clock;
     use kayzen_core::shared::local_date::LocalDate;
     use std::rc::Rc;
@@ -202,6 +208,19 @@ mod tests {
         assert_eq!(
             detail.map(|d| (d.current_goal, d.next_goal_down)),
             Some((4, 3)),
+            "expected the gesture to have run before the screen re-reads the habit"
+        );
+    }
+
+    #[test]
+    fn pause_and_reload_pauses_the_habit_and_returns_the_refreshed_detail() {
+        let services = services_with_one_habit();
+
+        let detail = pause_and_reload(&services, "h-1");
+
+        assert_eq!(
+            detail.map(|d| d.state),
+            Some(HabitState::Paused),
             "expected the gesture to have run before the screen re-reads the habit"
         );
     }

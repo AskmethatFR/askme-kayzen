@@ -10,9 +10,13 @@ pub fn Today() -> Element {
         move || services.list_board_habits.handle()
     });
 
-    let list = habits();
-    let total = list.len();
-    let done = list.iter().filter(|habit| habit.done_today).count();
+    let today_habits = habits();
+    let total = today_habits.active.len();
+    let done = today_habits
+        .active
+        .iter()
+        .filter(|habit| habit.done_today)
+        .count();
 
     rsx! {
         div { class: "screen",
@@ -25,7 +29,7 @@ pub fn Today() -> Element {
 
             p { class: "eyebrow", "Vos petits pas" }
             ul { class: "habit-list",
-                for habit in list {
+                for habit in today_habits.active {
                     li { class: "habit-row",
                         div { class: "habit-body",
                             Link {
