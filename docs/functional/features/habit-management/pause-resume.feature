@@ -22,3 +22,10 @@ Feature: Pause a habit and resume it
     Given a board holding 5 habits, one of them paused
     When a new habit is requested
     Then the request is rejected as board-full, because a paused habit keeps its seat so resuming can never fail
+
+  @wip @scenario:S4
+  Scenario: The detail of a paused habit offers only its return
+    Given a paused habit
+    When the user opens its detail
+    Then the screen offers to resume it and shows its practice staircase
+    And it offers neither the ritual, nor growing, nor lightening, because a pause is real rest
