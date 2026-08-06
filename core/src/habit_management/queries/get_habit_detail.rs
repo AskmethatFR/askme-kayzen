@@ -1,8 +1,10 @@
 use std::rc::Rc;
 
+use crate::habit_management::domain::habit::Habit;
 use crate::habit_management::domain::habit_id::HabitId;
 use crate::habit_management::domain::habit_repository::HabitRepository;
 use crate::shared::clock::Clock;
+use crate::shared::local_date::LocalDate;
 
 #[derive(Clone)]
 pub struct GetHabitDetail {
@@ -62,11 +64,32 @@ impl GetHabitDetail {
                 .map(|days_back| today.minus_days(days_back))
                 .map(|day| PracticeDay {
                     done: habit.is_done_on(day),
-                    goal: habit.current_goal(),
+                    goal: goal_active_on(&habit, day),
                 })
                 .collect(),
         })
     }
+}
+
+/// The goal a habit was aiming at on `day`: the last step dated on or before it.
+///
+/// A day older than the habit itself falls back to the goal it started on. The
+/// bar is faint there anyway, and standing it at zero would punch exactly the
+/// hole the faint bar exists to avoid — an empty start is still a start
+/// (practice-staircase/S6).
+///
+/// Indexing the first step cannot panic: `StepHistory::seeded` is its only
+/// constructor, so a history always holds at least the step it was seeded with.
+fn goal_active_on(habit: &Habit, day: LocalDate) -> u32 {
+    let steps = habit.step_history().changes();
+
+    steps
+        .iter()
+        .rev()
+        .find(|step| step.on() <= day)
+        .unwrap_or(&steps[0])
+        .goal()
+        .value()
 }
 
 #[cfg(test)]
