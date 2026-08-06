@@ -84,7 +84,8 @@ fn lighten_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> 
 
 #[must_use]
 fn pause_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
-    todo!()
+    services.pause_habit.execute(id).ok();
+    services.get_habit_detail.handle(id)
 }
 
 #[cfg(test)]
