@@ -10,4 +10,11 @@ impl LocalDate {
     pub fn from_epoch_day(day: i64) -> LocalDate {
         LocalDate(day)
     }
+
+    /// The day `days` before this one. Kept inside the type rather than exposed
+    /// as an epoch-day accessor: a window is calendar arithmetic, and handing
+    /// callers the raw integer invites them to do that arithmetic themselves.
+    pub fn minus_days(self, days: i64) -> LocalDate {
+        LocalDate(self.0 - days)
+    }
 }
