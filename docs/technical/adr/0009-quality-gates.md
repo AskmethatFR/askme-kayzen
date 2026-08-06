@@ -3,7 +3,7 @@ id: "adr-0009-quality-gates"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-07-27"
+updated: "2026-08-06"
 relations:
   related:
     - "architecture-overview"
@@ -12,10 +12,15 @@ relations:
     - "adr-0001-validation-by-construction"
     - "adr-0010-crate-boundary-trust-boundary"
     - "adr-0008-goal-based-dose-user-paced-progression"
+    - "adr-0006-cqrs-light"
+    - "adr-0007-habit-lifecycle-aggregate"
   depends-on:
     - "adr-0003-two-crate-workspace"
 answers:
-  - "Why will slice 5 silently delete slice 3's view coverage, and what would close it?"
+  - "~~Why will slice 5 silently delete slice 3's view coverage?~~ CORRECTED 2026-08-06 — the gate never covered the views at all (L1-bis)"
+  - "Does the mutation gate ever generate a mutant for a Dioxus view?"
+  - "Why is logic written inline in an onclick untestable here, and what is the fix?"
+  - "Does cargo-mutants measure a `match`-based partition?"
   - "Which lines does a `survived: 0` campaign say nothing about?"
   - "What proves a slice is done here, beyond a green test run?"
   - "Where do the Gherkin scenarios live and what executes them?"
@@ -33,6 +38,7 @@ decided_in:
   - "2026-07-26 architect ratification (slice 3 adjust-goal cycle)"
   - "2026-07-26 base-ref + new()-blind-spot cycle (amendment below)"
   - "2026-07-27 slice 3 adjust-goal cycle (three further perimeter limits — amendment below)"
+  - "2026-08-06 slice 5 pause-resume cycle (L1 corrected, exploit demonstrated, L4 added)"
 ---
 
 # ADR 0009 — Quality gates: spec-only Gherkin, diff-scoped mutation testing, one runner
@@ -137,6 +143,13 @@ is honest but vacuous over the lines in question**.
 
 ### L1 — the view mutants are held by a lint that **slice 5 will silence** (the one that matters)
 
+> **⚠️ CORRECTED 2026-08-06 — this section's premise was wrong, and the blind spot is worse
+> than it describes.** The four mutants below came from an **unscoped** campaign; the
+> diff-scoped gate never generates a view mutant at all, because `.cargo/mutants.toml`
+> excludes `app/src/**` by design. Read the L1-bis correction at the end of this node
+> before relying on anything in this section — including the sentence "the coverage simply
+> evaporates", which understates it: **there was no gate coverage to evaporate.**
+
 Four mutants in `app/src/views/habit_detail.rs` — either button wired to the *other*
 button's helper, either `onclick` body emptied — are caught by **nothing in the test suite**.
 The only thing that turns them red is `clippy -D warnings` reporting
@@ -182,3 +195,111 @@ four view mutants, the set of generated-and-viable mutants is **empty or lint-he
 figure is vacuous over exactly those lines. **A clean campaign is a claim about reach, never
 about correctness.** Where the instrument cannot look, the countermeasure stays what it was
 for `fn new`: tests written deliberately to the boundary, and a reviewer told where to look.
+
+---
+
+## Amendment — 2026-08-06, slice 5 `pause-resume`: L1 corrected, the blind spot exploited, L4 added
+
+Slice 5 was the cycle L1 predicted would silence the `dead_code` lint. It arrived, and it
+disproved L1's premise while confirming — by demonstration, three times — the exposure L1
+was pointing at. Two corrections of fact and one new limit.
+
+### L1-bis — the diff-scoped gate never generated a view mutant in the first place
+
+L1 states that four `app/src/views/habit_detail.rs` mutants are "held by a `dead_code`
+lint" that slice 5 would silence. The mutants are real; the framing is not.
+
+`.cargo/mutants.toml` scopes `examine_globs` to `core/src/**` — `app/src/**` is
+**excluded by design**, with the reasoning written in the file itself (a Dioxus view
+returning an `Element` cannot be replaced by `Default::default()`, so the layer reports
+`unviable` and measures nothing). **The four L1 mutants came from an unscoped, exploratory
+campaign, not from the gate.** The gate has never generated a single view mutant and never
+will while that scoping stands.
+
+The correction makes the situation **worse, not better**:
+
+| L1 said | Actually |
+|---|---|
+| Four view mutants are caught by a lint | The gate produces zero view mutants; the lint was the *only* thing that ever caught them |
+| Slice 5 will silence the lint and the mutants "become live survivors" | They were never gate mutants, so they cannot become survivors. They simply pass out of every instrument's view, silently, with no red line anywhere |
+
+**The only live protection on view wiring is the clippy `dead_code` lint plus whatever SSR
+render tests exist** — and both are structurally unable to see a *behavioral* defect (a
+button wired to the wrong use case renders identically to a correct one).
+
+### The blind spot is not theoretical — it was exploited three times, in this cycle's review
+
+Dev-B mutated the delivered code by hand and ran the full suite:
+
+| # | Mutation | Result |
+|---|---|---|
+| a | Today's « Reprendre » `onclick` calls `pause_habit.execute` instead of `resume_habit.execute` | **89 tests green** |
+| b | The detail's entire « Mettre en pause » button block deleted | **89 tests green** |
+| c | The paused zone's guard `if !paused.is_empty()` replaced by `if true` | **89 tests green** |
+
+Three defects a user would hit on first contact — a resume button that pauses, a missing
+button, a permanent empty heading contradicting the product's first non-negotiable — and
+the suite was **entirely silent** on all three. This is the sharpest evidence this repo has
+produced that "all tests green" is a statement about reach.
+
+All three were closed in a retry, and the orchestrator independently re-ran each mutation
+afterwards and observed the named test fail.
+
+### The mitigation pattern: extract the gesture into a free function
+
+**Logic written inline inside an `onclick` closure is unreachable by every gate this repo
+owns.** There is no click dispatch in the test suite (L1 already recorded that this repo
+has no `VirtualDom` event-driving precedent), the mutation gate does not look at
+`app/src/**`, and a render assertion cannot tell two identically-rendered buttons apart.
+
+Extracted into a **`#[must_use]` free function** taking `&Services` and the id and
+returning the refreshed read model, the same logic becomes **plain Rust**: callable from a
+test with no click infrastructure at all, and mutable-and-caught like any other function.
+
+```
+onclick: move |_| { ...gesture... }        →  unreachable by every gate
+fn pause_and_reload(&Services, &str) -> T  →  ordinary, testable Rust
+```
+
+Delivered shape: `pause_and_reload` / `resume_and_reload` in
+`app/src/views/habit_detail.rs`, `resume_and_relist` / `mark_done_and_relist` in
+`app/src/views/today.rs`. The `onclick` is reduced to a call plus a signal assignment —
+the residue too thin to hide a defect. Mutation (a) is now caught by the function's own
+test; (b) and (c) by the render assertions pinning the button's presence per state and the
+zone's absence when empty.
+
+**This pattern is the standing answer until a click-dispatch harness lands.** It is not a
+workaround for a missing tool — it is the recognition that a gesture is application logic
+that happens to be triggered by a click, and it belongs somewhere a test can call it.
+Treat inline `onclick` logic as an untested-by-construction site in every review.
+
+### L4 — cargo-mutants does not mutate `match` arms
+
+The fourth named limit, and the one that hit this slice's logical heart.
+
+`ListBoardHabits::handle` partitions habits on an exhaustive `match habit.state()`. The
+tool generated **one** mutant for the whole function — replacing the body with
+`Default::default()` — which is `unviable` because `TodayHabits` derives no `Default`.
+**Net: zero viable mutants over the active/paused partition**, the rule this entire slice
+exists to deliver. The same holds for the `LifecycleState → HabitState` mapping in
+`GetHabitDetail`.
+
+cargo-mutants mutates function bodies wholesale and a fixed catalogue of operators; it
+does **not** swap, delete, or reorder `match` arms. A partition expressed as a `match` is
+therefore invisible to it — and a `match` is exactly how this codebase is instructed to
+express state-driven branching ([[adr-0007-habit-lifecycle-aggregate]] AD-2), precisely so
+the compiler catches a missing variant.
+
+The two instruments are complementary and neither covers the other: the **compiler**
+guarantees the match is exhaustive; **nothing but a deliberate test** guarantees each arm
+does the right thing. Both sites are covered by one test each, written for that reason.
+
+**Reading rule extended**: moving a rule inside `examine_globs` puts it where the
+instrument is *allowed* to look — it does not put it where the instrument *can* see. A
+`match`-shaped rule inside the perimeter is as unmeasured as a rule outside it.
+
+### Final campaign for the slice
+
+**10 mutants generated for a 1290-line diff, 7 killed, 3 unviable, 0 survived.** Read with
+L4 in mind: ten mutants for a diff that size is itself the finding. The verdict is honest
+and it is thin.
