@@ -69,7 +69,7 @@ impl Services {
                 Rc::clone(&clock),
             ),
             mark_done: MarkDone::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
-            get_habit_detail: GetHabitDetail::new(Rc::clone(&habit_repository)),
+            get_habit_detail: GetHabitDetail::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
             grow_goal: GrowGoal::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
             lighten_goal: LightenGoal::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
             add_habit: AddHabit::new(

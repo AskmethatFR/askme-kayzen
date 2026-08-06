@@ -2,10 +2,12 @@ use std::rc::Rc;
 
 use crate::habit_management::domain::habit_id::HabitId;
 use crate::habit_management::domain::habit_repository::HabitRepository;
+use crate::shared::clock::Clock;
 
 #[derive(Clone)]
 pub struct GetHabitDetail {
     repository: Rc<dyn HabitRepository>,
+    clock: Rc<dyn Clock>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -28,13 +30,14 @@ pub struct PracticeDay {
 }
 
 impl GetHabitDetail {
-    pub fn new(repository: Rc<dyn HabitRepository>) -> GetHabitDetail {
-        GetHabitDetail { repository }
+    pub fn new(repository: Rc<dyn HabitRepository>, clock: Rc<dyn Clock>) -> GetHabitDetail {
+        GetHabitDetail { repository, clock }
     }
 
     pub fn handle(&self, habit_id: &str) -> Option<HabitDetail> {
         let id = HabitId::new(habit_id).ok()?;
         let habit = self.repository.get(&id)?;
+        let today = self.clock.today();
 
         Some(HabitDetail {
             id: habit.id().value().to_string(),
@@ -48,24 +51,31 @@ impl GetHabitDetail {
                 .collect(),
             next_goal_up: habit.step_history().current().grown().value(),
             next_goal_down: habit.step_history().current().lightened().value(),
-            days: vec![],
+            days: (0..7)
+                .map(|_| PracticeDay {
+                    done: habit.is_done_on(today),
+                    goal: habit.current_goal(),
+                })
+                .collect(),
         })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{GetHabitDetail, HabitDetail};
+    use super::{GetHabitDetail, HabitDetail, PracticeDay};
     use crate::habit_management::domain::goal::Goal;
     use crate::habit_management::domain::habit::Habit;
     use crate::habit_management::domain::habit_id::HabitId;
     use crate::habit_management::domain::habit_repository::HabitRepository;
     use crate::habit_management::domain::habit_title::HabitTitle;
     use crate::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
+    use crate::shared::clock::{Clock, FixedClock};
     use crate::shared::local_date::LocalDate;
     use std::rc::Rc;
 
-    const CREATED_ON: i64 = 20_000;
+    const CREATED_ON: i64 = 19_990;
+    const TODAY: i64 = 20_000;
 
     fn a_habit() -> Habit {
         Habit::new(
@@ -76,8 +86,15 @@ mod tests {
         )
     }
 
+    fn seven_days(done: bool, goal: u32) -> Vec<PracticeDay> {
+        vec![PracticeDay { done, goal }; 7]
+    }
+
     fn get_habit_detail_over(repository: Rc<InMemoryHabitRepository>) -> GetHabitDetail {
-        GetHabitDetail::new(repository as Rc<dyn HabitRepository>)
+        GetHabitDetail::new(
+            repository as Rc<dyn HabitRepository>,
+            Rc::new(FixedClock::new(LocalDate::from_epoch_day(TODAY))) as Rc<dyn Clock>,
+        )
     }
 
     // Test List — GetHabitDetail (@feature:adjust-goal, staircase display — the
@@ -102,7 +119,7 @@ mod tests {
                 steps: vec![5],
                 next_goal_up: 6,
                 next_goal_down: 4,
-                days: vec![],
+                days: seven_days(false, 5),
             })
         );
     }
