@@ -56,6 +56,23 @@ pub fn Today() -> Element {
                 }
             }
 
+            if !today_habits.paused.is_empty() {
+                p { class: "eyebrow", "En pause · aucune pression" }
+                ul { class: "habit-list",
+                    for habit in today_habits.paused {
+                        li { class: "habit-row is-paused",
+                            div { class: "habit-body",
+                                Link {
+                                    class: "habit-name",
+                                    to: Route::HabitDetail { id: habit.id.clone() },
+                                    "{habit.title}"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             p { class: "tally", "{done} sur {total} · c'est déjà quelque chose." }
             Link {
                 class: "quiet-link",

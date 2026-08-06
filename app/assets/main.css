@@ -114,6 +114,9 @@ body {
   margin-top: 2px;
 }
 
+/* ---- Paused zone (Today screen) ---- */
+.habit-row.is-paused .habit-name { color: var(--color-ink-soft); }
+
 /* ---- Round target (mark done) ---- */
 .target {
   position: relative;
