@@ -182,7 +182,9 @@ body {
 .quiet-link:hover { text-decoration: underline; }
 .add-cta { margin-top: var(--space-6); }
 
-/* ---- Growth staircase (Detail screen) ---- */
+/* ---- Practice staircase (Detail screen) ----
+   One bar per calendar day over the last seven. A day without practice keeps
+   its bar at low opacity: present, never a gap and never a warning. */
 .staircase {
   display: flex;
   align-items: flex-end;
@@ -190,14 +192,18 @@ body {
   height: 64px;
   margin: var(--space-5) 0 var(--space-6);
 }
-.step-bar {
+.day-bar {
   width: 14px;
   min-height: 8px;
-  height: calc(var(--step-minutes, 1) * 6px + 8px);
+  height: calc(var(--day-minutes, 1) * 6px + 8px);
   background: var(--color-rule);
   border-radius: var(--radius) var(--radius) 0 0;
+  opacity: 0.35;
 }
-.step-bar.is-current { background: var(--color-accent); }
+.day-bar.is-done {
+  background: var(--color-accent);
+  opacity: 1;
+}
 
 /* ---- Broadsheet components (for later screens) ---- */
 .btn {

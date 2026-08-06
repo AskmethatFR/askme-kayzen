@@ -14,7 +14,6 @@ pub fn HabitDetail(id: String) -> Element {
 
     match detail() {
         Some(habit) => {
-            let step_count = habit.steps.len();
             rsx! {
                 div { class: "screen",
                     header { class: "masthead",
@@ -25,11 +24,11 @@ pub fn HabitDetail(id: String) -> Element {
 
                     div {
                         class: "staircase",
-                        "aria-label": "Escalier de progression, objectif actuel {habit.current_goal} minutes",
-                        for (index , minutes) in habit.steps.iter().enumerate() {
+                        "aria-label": "Vos sept derniers jours, objectif actuel {habit.current_goal} minutes",
+                        for day in habit.days.iter() {
                             span {
-                                class: if index + 1 == step_count { "step-bar is-current" } else { "step-bar" },
-                                style: "--step-minutes: {minutes}",
+                                class: if day.done { "day-bar is-done" } else { "day-bar" },
+                                style: "--day-minutes: {day.goal}",
                             }
                         }
                     }
@@ -124,12 +123,6 @@ mod tests {
         Services::with_repository(Rc::new(InMemoryHabitRepository::new()))
     }
 
-    fn services_with_one_habit_grown_once() -> Services {
-        let services = services_with_one_habit();
-        services.grow_goal.execute("h-1").ok();
-        services
-    }
-
     // Mirrors S4's Given verbatim ("whatever its completions and its current
     // goal"): today's completion stays inert until HabitDetail carries it, so
     // no mutation here can currently make it matter — kept deliberately for
@@ -165,17 +158,6 @@ mod tests {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/missing")));
         });
         use_context_provider(services_with_no_habits);
-        rsx! {
-            Router::<Route> {}
-        }
-    }
-
-    #[component]
-    fn RootAtGrownHabit() -> Element {
-        use_hook(|| {
-            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
-        });
-        use_context_provider(services_with_one_habit_grown_once);
         rsx! {
             Router::<Route> {}
         }
@@ -225,7 +207,7 @@ mod tests {
     }
 
     #[test]
-    fn a_known_habit_renders_its_title_goal_and_staircase() {
+    fn a_known_habit_renders_its_title_and_goal() {
         let html = render(RootAtKnownHabit);
 
         assert!(
@@ -237,39 +219,8 @@ mod tests {
             "expected the dose, got: {html}"
         );
         assert!(
-            html.contains("step-bar is-current"),
-            "expected the current-step accent on the staircase, got: {html}"
-        );
-        assert_eq!(
-            html.matches("step-bar").count(),
-            1,
-            "expected exactly one staircase bar for a one-step habit, got: {html}"
-        );
-        assert!(
             html.contains("Passer à 6 min"),
             "expected the grow-goal button offering the next step up, got: {html}"
-        );
-    }
-
-    #[test]
-    fn a_habit_grown_once_renders_two_bars_with_only_the_last_current() {
-        let html = render(RootAtGrownHabit);
-
-        assert_eq!(
-            html.matches("step-bar").count(),
-            2,
-            "expected two staircase bars for a twice-stepped habit, got: {html}"
-        );
-        assert_eq!(
-            html.matches("step-bar is-current").count(),
-            1,
-            "expected exactly one bar carrying is-current, got: {html}"
-        );
-        let last_bar = html.rfind("step-bar").expect("at least one staircase bar");
-        let current = html.find("is-current").expect("one bar carries is-current");
-        assert!(
-            current > last_bar,
-            "expected is-current on the LAST bar specifically (not merely one bar out of two), got: {html}"
         );
     }
 
@@ -326,7 +277,7 @@ mod tests {
         let html = render(RootAtUnknownHabit);
 
         assert!(
-            !html.contains("step-bar"),
+            !html.contains("day-bar"),
             "expected no staircase for a missing habit, got: {html}"
         );
         assert!(
