@@ -78,7 +78,7 @@ impl Habit {
     }
 
     pub fn resume(&mut self) {
-        todo!()
+        self.state = LifecycleState::Active;
     }
 
     pub fn grow(&mut self, today: LocalDate) {

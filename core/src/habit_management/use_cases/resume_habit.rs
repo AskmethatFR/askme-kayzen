@@ -13,7 +13,7 @@ pub enum ResumeHabitError {
 impl fmt::Display for ResumeHabitError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ResumeHabitError::HabitNotFound => unimplemented!(),
+            ResumeHabitError::HabitNotFound => write!(f, "no habit with this id is on the board"),
         }
     }
 }
@@ -34,7 +34,14 @@ impl ResumeHabit {
     }
 
     pub fn execute(&self, habit_id: &str) -> Result<(), ResumeHabitError> {
-        todo!()
+        let id = HabitId::new(habit_id).map_err(|_| ResumeHabitError::HabitNotFound)?;
+        let mut habit = self
+            .repository
+            .get(&id)
+            .ok_or(ResumeHabitError::HabitNotFound)?;
+        habit.resume();
+        self.repository.save(&habit);
+        Ok(())
     }
 }
 
