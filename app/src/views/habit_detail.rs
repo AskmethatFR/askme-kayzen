@@ -292,6 +292,35 @@ mod tests {
         );
     }
 
+    // @scenario: practice-staircase/S5
+    #[test]
+    fn the_staircase_draws_one_bar_for_each_day_of_the_window() {
+        let html = render(RootAtKnownHabit);
+
+        assert_eq!(
+            html.matches("day-bar").count(),
+            7,
+            "expected one bar per calendar day of the window, got: {html}"
+        );
+    }
+
+    // @scenario: practice-staircase/S2
+    #[test]
+    fn only_the_practised_days_are_filled_and_the_rest_stay_faint() {
+        let html = render(RootAtFloorHabitDoneToday);
+
+        assert_eq!(
+            html.matches("day-bar").count(),
+            7,
+            "expected the missed days to keep their bar rather than leave a gap, got: {html}"
+        );
+        assert_eq!(
+            html.matches("is-done").count(),
+            1,
+            "expected only the one practised day filled, got: {html}"
+        );
+    }
+
     #[test]
     fn an_unknown_habit_shows_a_quiet_fallback_with_a_link_back() {
         let html = render(RootAtUnknownHabit);
