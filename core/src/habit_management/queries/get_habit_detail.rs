@@ -17,7 +17,6 @@ pub struct HabitDetail {
     pub id: String,
     pub title: String,
     pub current_goal: u32,
-    pub steps: Vec<u32>,
     pub next_goal_up: u32,
     pub next_goal_down: u32,
     pub days: Vec<PracticeDay>,
@@ -51,12 +50,6 @@ impl GetHabitDetail {
             id: habit.id().value().to_string(),
             title: habit.title().value().to_string(),
             current_goal: habit.current_goal(),
-            steps: habit
-                .step_history()
-                .changes()
-                .into_iter()
-                .map(|step| step.goal().value())
-                .collect(),
             next_goal_up: habit.step_history().current().grown().value(),
             next_goal_down: habit.step_history().current().lightened().value(),
             days: (0..WINDOW_DAYS)
@@ -147,7 +140,6 @@ mod tests {
                 id: "h-1".to_string(),
                 title: "Read one page".to_string(),
                 current_goal: 5,
-                steps: vec![5],
                 next_goal_up: 6,
                 next_goal_down: 4,
                 days: seven_days(false, 5),
