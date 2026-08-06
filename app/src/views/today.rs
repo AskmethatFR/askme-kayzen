@@ -248,6 +248,16 @@ mod tests {
         );
     }
 
+    #[test]
+    fn the_paused_zone_is_absent_when_nothing_is_paused() {
+        let html = render(RootWithUndoneHabit);
+
+        assert!(
+            !html.contains("En pause"),
+            "expected no paused-zone eyebrow when nothing is paused, got: {html}"
+        );
+    }
+
     // @scenario: pause-resume/S2
     #[test]
     fn resume_and_relist_resumes_the_habit_and_returns_the_refreshed_board() {
