@@ -105,7 +105,8 @@ fn resume_and_relist(services: &Services, id: &str) -> TodayHabits {
 
 #[must_use]
 fn mark_done_and_relist(services: &Services, id: &str) -> TodayHabits {
-    todo!()
+    services.mark_done.execute(id).ok();
+    services.list_board_habits.handle()
 }
 
 #[cfg(test)]
