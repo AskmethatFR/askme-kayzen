@@ -16,6 +16,15 @@ pub struct HabitDetail {
     pub steps: Vec<u32>,
     pub next_goal_up: u32,
     pub next_goal_down: u32,
+    pub days: Vec<PracticeDay>,
+}
+
+/// One calendar day of the practice staircase: whether the habit was done that
+/// day, and the goal that was active on it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PracticeDay {
+    pub done: bool,
+    pub goal: u32,
 }
 
 impl GetHabitDetail {
@@ -39,6 +48,7 @@ impl GetHabitDetail {
                 .collect(),
             next_goal_up: habit.step_history().current().grown().value(),
             next_goal_down: habit.step_history().current().lightened().value(),
+            days: vec![],
         })
     }
 }
@@ -92,6 +102,7 @@ mod tests {
                 steps: vec![5],
                 next_goal_up: 6,
                 next_goal_down: 4,
+                days: vec![],
             })
         );
     }
@@ -133,5 +144,24 @@ mod tests {
         let too_long = "h".repeat(HabitId::MAX_LEN + 1);
 
         assert_eq!(query.handle(&too_long), None);
+    }
+
+    // Test List — the practice staircase (@feature:practice-staircase). One bar
+    // per calendar day, never one per goal change: the drawing credits practice,
+    // not intent (lifecycle-backlog, slice 3b).
+    // - the window is always seven days, whatever the habit's age or activity.
+    // - a day that was done draws a full bar at that day's goal.
+    // - a day that was not done draws the same bar, faintly.
+    // - adjusting the goal draws nothing on its own.
+    // @scenario: practice-staircase/S5
+    #[test]
+    fn a_habit_shows_one_bar_for_each_of_the_last_seven_days() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit());
+        let query = get_habit_detail_over(Rc::clone(&repository));
+
+        let result = query.handle("h-1");
+
+        assert_eq!(result.unwrap().days.len(), 7);
     }
 }
