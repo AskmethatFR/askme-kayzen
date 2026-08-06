@@ -26,6 +26,7 @@ pub mod use_cases {
     pub mod mark_done;
     pub mod pause_habit;
     pub mod request_habit;
+    pub mod resume_habit;
 }
 
 pub mod queries {
