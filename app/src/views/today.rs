@@ -46,10 +46,7 @@ pub fn Today() -> Element {
                             onclick: {
                                 let services = services.clone();
                                 let id = habit.id.clone();
-                                move |_| {
-                                    services.mark_done.execute(&id).ok();
-                                    habits.set(services.list_board_habits.handle());
-                                }
+                                move |_| habits.set(mark_done_and_relist(&services, &id))
                             },
                             span { class: "target-ink" }
                         }
@@ -104,6 +101,11 @@ pub fn Today() -> Element {
 fn resume_and_relist(services: &Services, id: &str) -> TodayHabits {
     services.resume_habit.execute(id).ok();
     services.list_board_habits.handle()
+}
+
+#[must_use]
+fn mark_done_and_relist(services: &Services, id: &str) -> TodayHabits {
+    todo!()
 }
 
 #[cfg(test)]
@@ -272,6 +274,21 @@ mod tests {
         assert!(
             !board.paused.iter().any(|habit| habit.id == "test-2"),
             "expected the resumed habit to leave the paused zone, got: {board:?}"
+        );
+    }
+
+    #[test]
+    fn mark_done_and_relist_marks_the_habit_done_and_returns_the_refreshed_board() {
+        let services = services_with_one_undone_habit();
+
+        let board = super::mark_done_and_relist(&services, "test-1");
+
+        assert!(
+            board
+                .active
+                .iter()
+                .any(|habit| habit.id == "test-1" && habit.done_today),
+            "expected the habit to be marked done in the refreshed board, got: {board:?}"
         );
     }
 }
