@@ -21,6 +21,12 @@ pub struct HabitDetail {
     pub days: Vec<PracticeDay>,
 }
 
+/// How many calendar days the practice staircase covers. Seven, aligned with
+/// the week recap's own rhythm — the owner took the trade-off knowingly: a
+/// longer window would show the effort trend more strongly, legibility won
+/// (lifecycle-backlog, slice 3b).
+const WINDOW_DAYS: i64 = 7;
+
 /// One calendar day of the practice staircase: whether the habit was done that
 /// day, and the goal that was active on it.
 #[derive(Debug, Clone, PartialEq)]
@@ -51,9 +57,11 @@ impl GetHabitDetail {
                 .collect(),
             next_goal_up: habit.step_history().current().grown().value(),
             next_goal_down: habit.step_history().current().lightened().value(),
-            days: (0..7)
-                .map(|_| PracticeDay {
-                    done: habit.is_done_on(today),
+            days: (0..WINDOW_DAYS)
+                .rev()
+                .map(|days_back| today.minus_days(days_back))
+                .map(|day| PracticeDay {
+                    done: habit.is_done_on(day),
                     goal: habit.current_goal(),
                 })
                 .collect(),
