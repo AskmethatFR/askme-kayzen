@@ -102,7 +102,8 @@ pub fn Today() -> Element {
 
 #[must_use]
 fn resume_and_relist(services: &Services, id: &str) -> TodayHabits {
-    todo!()
+    services.resume_habit.execute(id).ok();
+    services.list_board_habits.handle()
 }
 
 #[cfg(test)]
