@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use crate::habit_management::domain::habit_repository::HabitRepository;
+use crate::habit_management::domain::lifecycle_state::LifecycleState;
 use crate::shared::clock::Clock;
 
 #[derive(Clone)]
@@ -42,7 +43,26 @@ impl ListBoardHabits {
     }
 
     pub fn handle(&self) -> TodayHabits {
-        todo!()
+        let today = self.clock.today();
+        let mut active = Vec::new();
+        let mut paused = Vec::new();
+
+        for habit in self.repository.all() {
+            match habit.state() {
+                LifecycleState::Active => active.push(HabitSummary {
+                    id: habit.id().value().to_string(),
+                    title: habit.title().value().to_string(),
+                    minutes: habit.current_goal(),
+                    done_today: habit.is_done_on(today),
+                }),
+                LifecycleState::Paused => paused.push(PausedHabit {
+                    id: habit.id().value().to_string(),
+                    title: habit.title().value().to_string(),
+                }),
+            }
+        }
+
+        TodayHabits { active, paused }
     }
 }
 
