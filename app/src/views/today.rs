@@ -1,6 +1,7 @@
 use crate::composition::Services;
 use crate::route::Route;
 use dioxus::prelude::*;
+use kayzen_core::habit_management::queries::list_board_habits::TodayHabits;
 
 #[component]
 pub fn Today() -> Element {
@@ -73,10 +74,7 @@ pub fn Today() -> Element {
                                 onclick: {
                                     let services = services.clone();
                                     let id = habit.id.clone();
-                                    move |_| {
-                                        services.resume_habit.execute(&id).ok();
-                                        habits.set(services.list_board_habits.handle());
-                                    }
+                                    move |_| habits.set(resume_and_relist(&services, &id))
                                 },
                                 "Reprendre"
                             }
@@ -100,6 +98,11 @@ pub fn Today() -> Element {
             }
         }
     }
+}
+
+#[must_use]
+fn resume_and_relist(services: &Services, id: &str) -> TodayHabits {
+    todo!()
 }
 
 #[cfg(test)]
@@ -241,6 +244,23 @@ mod tests {
         assert!(
             html.contains("Reprendre"),
             "expected the paused row to offer a one-tap resume gesture, got: {html}"
+        );
+    }
+
+    // @scenario: pause-resume/S2
+    #[test]
+    fn resume_and_relist_resumes_the_habit_and_returns_the_refreshed_board() {
+        let services = services_with_one_active_and_one_paused_habit();
+
+        let board = super::resume_and_relist(&services, "test-2");
+
+        assert!(
+            board.active.iter().any(|habit| habit.id == "test-2"),
+            "expected the resumed habit to reappear in active, got: {board:?}"
+        );
+        assert!(
+            !board.paused.iter().any(|habit| habit.id == "test-2"),
+            "expected the resumed habit to leave the paused zone, got: {board:?}"
         );
     }
 }
