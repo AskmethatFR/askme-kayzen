@@ -220,4 +220,15 @@ mod tests {
             "expected the tally's total to count the active habit only, not the paused one, got: {html}"
         );
     }
+
+    // @scenario: pause-resume/S2
+    #[test]
+    fn a_paused_row_carries_its_resume_affordance() {
+        let html = render(RootWithActiveAndPausedHabit);
+
+        assert!(
+            html.contains("Reprendre"),
+            "expected the paused row to offer a one-tap resume gesture, got: {html}"
+        );
+    }
 }
