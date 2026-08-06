@@ -47,7 +47,7 @@
 | 3 | `adjust-goal` (was `grow-lighten`) | Detail's "Ajuster" zone: **user-paced** N+1 / N−1 on the goal, staircase renders, floor 1. **No suggestion driving it** | M | **done** (both gestures, floor silent no-op, staircase fixed so only the last step is current) |
 | 3b | `practice-staircase` | The detail's staircase is **redrawn on practice, not on intent**: one bar per calendar day, full when the day was done, faint when it was not. Owner correction 2026-07-27 — see below | M | **done** (7-day window, faint missed days, per-day heights, `steps` off the contract) |
 | ~~4~~ | ~~`growth-suggestion`~~ | **DELETED** — StabilityPolicy removed (ADR-0008); progression is user-paced, nothing is suggested | — | ✂️ removed |
-| 5 | `pause-resume` | "Mettre en pause" / paused zone / one-tap resume | S | todo |
+| 5 | `pause-resume` | "Mettre en pause" / paused zone / one-tap resume | S | **done** (4 scenarios; paused detail is a rest screen — resume + staircase only; seat kept) |
 | 6 | `anchor` | Anchor button (**user-initiated, no 10-of-14 suggestion**), board frees the slot, Ancrées screen counts | L | todo |
 | 7 | `readmit` | "La remettre dans mon quotidien" — refusable (board full / duplicate title) | M | todo |
 | 8 | `stats-board` | Per-habit stats: days done, empty days (never "failed"), grow/lighten counts, minutes gained (reframe wording — nominal, anti-guilt) — plus adaptive (never guilt-inducing) messages | M | todo |
@@ -159,7 +159,7 @@ Developer's first failing test of a slice is the scenario, and dropping the
 | 1 `read-habits-query` | `[[today-habit-list]]` | S1–S3, covered |
 | 2 `mark-done` | `[[mark-done]]` | S1–S3, covered |
 | 3 `adjust-goal` | `[[adjust-goal]]` | S1–S4, covered (S3 pins the floor no-op — d2 now settled) |
-| 5 `pause-resume` | `[[pause-resume]]` | S1–S3, `@wip` (S3 pins Q1 — a paused habit keeps its seat) |
+| 5 `pause-resume` | `[[pause-resume]]` | S1–S4, covered (S3 pins Q1 — a paused habit keeps its seat; S4 pins the rest screen, added this cycle) |
 | 6 `anchor` | `[[anchor-habit]]` | S1–S4, `@wip` (S3 pins Q3, S4 pins "no suggestion") |
 | 7 `readmit` | `[[readmit-habit]]` | S1–S3, `@wip` |
 | 8 `stats-board` | `[[habit-stats]]` | S1–S4, `@wip` |
@@ -176,7 +176,7 @@ Developer's first failing test of a slice is the scenario, and dropping the
 | 2 `mark-done` | adds `CompletionHistory` VO + `toggle_done(today)`; adds the `Clock` port (`shared/`, returns domain `LocalDate`, chrono confined to infra `SystemClock` adapter); `HabitRepository` gains `get(&HabitId)` + upsert-by-id `save`; Today query gains injected `Clock` (`done_today` source flips to `completion_history.contains(today)`). |
 | 3 `adjust-goal` | **done.** `StepHistory` grew to a dated, **append-only** staircase (`{first, rest}` — non-emptiness structural, no `unwrap`); `Goal::grown()` / `lightened()` carry the ±1 and the floor; `Habit::grow()` / `lighten()` append a dated step. **d2 SETTLED — silent no-op at the floor**: nothing appended, `Ok(())` returned, nothing signalled to the screen (an error would contradict *« alléger n'est pas reculer »*; a UI signal would contradict S4). Two use cases, `GrowGoal` and `LightenGoal`, one public method each — see `[[adr-0011-one-public-method-per-use-case]]`. |
 | ~~4 `growth-suggestion`~~ | **removed** — no `StabilityPolicy`, no stability detection, no suggestion (ADR-0008). |
-| 5 `pause-resume` | adds `LifecycleState::{Active, Paused}` transitions (enum on `Habit`, illegal combos unrepresentable). Paused keeps the board seat (Q1). |
+| 5 `pause-resume` | **done.** `LifecycleState::{Active, Paused}` landed as an enum on `Habit` (illegal combos unrepresentable; `Anchored` deliberately absent until its use case exists). Two use cases, `PauseHabit` and `ResumeHabit`, one public method each, **neither taking a `Clock`** — nothing dates these transitions. `HabitBoard` untouched: paused keeps the board seat (Q1), pinned by a wired test rather than a comment. Read side reshaped: `ListBoardHabits` now returns the per-screen DTO `TodayHabits {active, paused}`, so "a paused habit leaves the day's list" is a rule in the core, not in a view. |
 | 6 `anchor` | adds `LifecycleState::Anchored`; resolves the deferred board↔habit anchoring coordination (how the board frees the slot); `HabitBoard` cap counts non-anchored. |
 | 7 `readmit` | `Anchored → Active` + board re-admission (reuse the duplicate / board-full guards). |
 | 8 `stats-board` | no aggregate growth — more CQRS-light queries over the two dated histories. |
@@ -200,7 +200,27 @@ Mark done, Local date, Clock, Goal.
 `[[adr-0008-goal-based-dose-user-paced-progression]]`. They are named here only so
 nobody re-adds them from an older reading.
 
-Still to add as their slices land: Pause/Resume (slice 5), Anchor/Readmit
-(*ancrer / remettre dans le quotidien* — slices 6-7), État du cycle
-(*Active / En pause / Ancrée* — `LifecycleState`, slice 5), Minutes gagnées
-(slice 8).
+Landed with slice 5 (now in `[[glossary]]`): Mettre en pause (*pause*), La reprendre
+(*resume*), État du cycle (*Active / En pause* — `LifecycleState`; *Ancrée* joins in
+slice 6), Zone « En pause · aucune pression ».
+
+Still to add as their slices land: Anchor/Readmit (*ancrer / remettre dans le
+quotidien* — slices 6-7), Minutes gagnées (slice 8).
+
+## Slice 5 `pause-resume` — settled during delivery, 2026-08-06
+
+| Point | Decision |
+|---|---|
+| The detail of a **paused** habit | A **rest screen**: its practice staircase, and « La reprendre ». Nothing else — no ritual, no *grandir*, no *alléger*. *« Une pause est un vrai repos : rien à pratiquer, rien à ajuster. »* The domain still forbids nothing (Q3 holds unamended); the screen stops offering, the rule never starts refusing. Specified as `[[pause-resume]]` S4, promoted before implementation so the decision could not ship unspecified |
+| Where pausing lands you | **On the detail**, which re-reads itself into the rest screen. Amends the designer's `pause(id) → screen = Today` (`[[design-ecrans]]`): that line predates the rest screen, and returning to Aujourd'hui would hide the screen just drawn and move the user away from their undo. Also the testable shape — programmatic navigation has no precedent here and would bury the gesture's only logic in an untested handler |
+| The day's tally « X sur Y » | Counts **active habits only** — a habit at rest is not a habit missed. Structural, not a discipline: the query hands the screen two separate lists |
+| The paused zone when nothing is paused | **Not rendered.** A heading over an empty region, in a product whose first principle is the absence of guilt, is a silent reproach |
+
+**Left to the owner, not settled:** when *every* habit is paused, Aujourd'hui reads
+« 0 sur 0 · c'est déjà quelque chose. » above an empty list. Deliberately putting
+everything to rest is not the same as a day gone by unlived, and the copy does not
+yet tell them apart. No scenario names this state.
+
+**Gherkin debt from slice 3b, still open**: `[[adjust-goal]]` S1 and S2 assert *« the
+change is recorded in the step history »* — `StepHistory` is a code name, not a word
+the domain speaks. To rewrite in the user's language; independent of any slice.

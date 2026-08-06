@@ -78,7 +78,7 @@ open(id)        → screen = Detail(id)
 back()          → screen = Today
 increase(id)    → steps.push(current + 1)
 lighten(id)     → steps.push(max(1, current - 1))   // muda : enlever la friction
-pause(id)       → habit.paused = true ;  screen = Today
+pause(id)       → habit.paused = true ;  screen = Détail (AMENDÉ — voir ci-dessous)
 resume(id)      → habit.paused = false
 add(name, icon) → habits.push(Habit { steps: vec![1], .. }) ; screen = Today
 week()          → screen = Week   // tout le récap est calculé, jamais stocké
@@ -90,7 +90,39 @@ set_trigger(id, texte) → habit.trigger = Some(texte)
 
 ## Règles de parallélisme
 
-- Au plus **5 habitudes actives** (`active = !paused && !anchored`).
+- Au plus **5 habitudes actives** — ~~`active = !paused && !anchored`~~ **AMENDÉ, voir ci-dessous** :
+  le plafond compte les habitudes **non ancrées**. Une habitude en pause garde sa place.
 - L'écran *Ajouter* se bloque au-delà et invite à en ancrer une.
 - La liste du jour est **triée par déclencheur** : sans notification, `trigger` sert
   d'*intention* qui épouse la journée plutôt que de rappel push.
+
+## Amendements — pause et reprise, livrés en slice 5 (2026-08-06)
+
+Ce nœud est le dessin d'origine du designer. Deux de ses lignes ont été tranchées
+autrement depuis, et le code suit les décisions ci-dessous, pas la lettre au-dessus.
+
+**Le plafond compte les non-ancrées, pas les non-pausées.** La formule
+`active = !paused && !anchored` était la lecture littérale ; Q1 du
+`[[lifecycle-backlog]]` l'a amendée dès l'approbation du modèle de cycle de vie :
+**une habitude en pause garde son siège**. Sans quoi reprendre pourrait échouer — on
+mettrait une habitude au repos et on découvrirait, en voulant la reprendre, que la
+place a été donnée à une autre. Un produit *sans culpabilité* ne pose pas ce piège.
+La sixième demande reste donc refusée tant qu'une habitude en pause occupe une place.
+Épinglé par `[[pause-resume]]` S3.
+
+**Mettre en pause ne renvoie pas à Aujourd'hui.** Le dessin d'origine disait
+`pause(id) → screen = Today`. Il précède la décision du propriétaire de faire du
+détail d'une habitude en pause un **écran de repos** à part entière : son escalier de
+pratique, et « La reprendre ». Renvoyer à Aujourd'hui cacherait l'écran qu'on vient
+de dessiner et éloignerait l'utilisateur de son geste d'annulation. L'écran se relit
+donc sur place. Épinglé par `[[pause-resume]]` S4.
+
+**Ce que le détail d'une habitude en pause n'offre plus.** Ni « Faire ma minute », ni
+« Passer à N+1 min », ni « Alléger à N−1 min ». Une pause est un vrai repos : rien à
+pratiquer, rien à ajuster. Le domaine, lui, n'interdit rien — c'est l'écran qui cesse
+de proposer, jamais la règle qui se met à refuser (même logique que Q3 pour *marquer
+comme fait*).
+
+**L'icône `ph-pause`** (`[[design-style-graphique]]`) n'est pas honorée : l'application
+n'embarque aucune police d'icônes, et en câbler une pour un seul bouton serait une
+dépendance hors sujet. Le bouton porte son texte, comme « Passer à N min ».
