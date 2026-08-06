@@ -120,6 +120,20 @@ mod tests {
         Services::with_repository_and_clock(repository, clock)
     }
 
+    fn services_with_one_active_and_one_paused_habit() -> Services {
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit());
+        let mut paused = Habit::new(
+            HabitId::new("test-2").unwrap(),
+            HabitTitle::new("Move a little".to_string()).unwrap(),
+            Goal::new(2).unwrap(),
+            LocalDate::from_epoch_day(20_000),
+        );
+        paused.pause();
+        repository.save(&paused);
+        Services::with_repository(repository)
+    }
+
     #[component]
     fn RootWithUndoneHabit() -> Element {
         use_context_provider(services_with_one_undone_habit);
@@ -131,6 +145,14 @@ mod tests {
     #[component]
     fn RootWithHabitDoneToday() -> Element {
         use_context_provider(services_with_one_habit_done_today);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootWithActiveAndPausedHabit() -> Element {
+        use_context_provider(services_with_one_active_and_one_paused_habit);
         rsx! {
             Router::<Route> {}
         }
@@ -160,6 +182,25 @@ mod tests {
         assert!(
             html.contains("target is-done"),
             "expected the done target to be stamped, got: {html}"
+        );
+    }
+
+    // @scenario: pause-resume/S1
+    #[test]
+    fn a_paused_habit_renders_under_the_paused_eyebrow_and_the_tally_counts_only_active() {
+        let html = render(RootWithActiveAndPausedHabit);
+
+        assert!(
+            html.contains("En pause") && html.contains("aucune pression"),
+            "expected the paused-zone eyebrow, got: {html}"
+        );
+        assert!(
+            html.contains("Move a little"),
+            "expected the paused habit's title to render, got: {html}"
+        );
+        assert!(
+            html.contains("sur 1 ·"),
+            "expected the tally's total to count the active habit only, not the paused one, got: {html}"
         );
     }
 }
