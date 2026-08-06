@@ -13,7 +13,7 @@ pub enum PauseHabitError {
 impl fmt::Display for PauseHabitError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            PauseHabitError::HabitNotFound => unimplemented!(),
+            PauseHabitError::HabitNotFound => write!(f, "no habit with this id is on the board"),
         }
     }
 }
@@ -33,7 +33,14 @@ impl PauseHabit {
     }
 
     pub fn execute(&self, habit_id: &str) -> Result<(), PauseHabitError> {
-        todo!()
+        let id = HabitId::new(habit_id).map_err(|_| PauseHabitError::HabitNotFound)?;
+        let mut habit = self
+            .repository
+            .get(&id)
+            .ok_or(PauseHabitError::HabitNotFound)?;
+        habit.pause();
+        self.repository.save(&habit);
+        Ok(())
     }
 }
 

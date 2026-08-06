@@ -73,6 +73,10 @@ impl Habit {
         self.completion_history.toggle(today);
     }
 
+    pub fn pause(&mut self) {
+        self.state = LifecycleState::Paused;
+    }
+
     pub fn grow(&mut self, today: LocalDate) {
         let grown = self.steps.current().grown();
         let already_at_the_ceiling = grown == *self.steps.current();
