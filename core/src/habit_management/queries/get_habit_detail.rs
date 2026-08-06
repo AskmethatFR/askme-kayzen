@@ -181,4 +181,23 @@ mod tests {
 
         assert_eq!(result.unwrap().days.len(), 7);
     }
+
+    // @scenario: practice-staircase/S2
+    #[test]
+    fn a_day_without_practice_still_draws_its_bar() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit();
+        habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+        repository.save(&habit);
+        let query = get_habit_detail_over(Rc::clone(&repository));
+
+        let days = query.handle("h-1").unwrap().days;
+
+        assert!(days[6].done, "today was practised");
+        assert!(
+            !days[5].done,
+            "yesterday was not — its bar is still drawn, only faint: a day \
+             without practice is never a gap and never a warning"
+        );
+    }
 }
