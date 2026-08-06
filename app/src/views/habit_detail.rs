@@ -116,6 +116,11 @@ fn pause_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
     services.get_habit_detail.handle(id)
 }
 
+#[must_use]
+fn resume_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
+    todo!()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -269,6 +274,19 @@ mod tests {
         assert_eq!(
             detail.map(|d| d.state),
             Some(HabitState::Paused),
+            "expected the gesture to have run before the screen re-reads the habit"
+        );
+    }
+
+    #[test]
+    fn resume_and_reload_resumes_the_habit_and_returns_the_refreshed_detail() {
+        let services = services_with_one_paused_habit();
+
+        let detail = resume_and_reload(&services, "h-1");
+
+        assert_eq!(
+            detail.map(|d| d.state),
+            Some(HabitState::Active),
             "expected the gesture to have run before the screen re-reads the habit"
         );
     }
