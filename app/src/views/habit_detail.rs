@@ -85,6 +85,16 @@ pub fn HabitDetail(id: String) -> Element {
                         p { class: "lede", "en pause · {habit.current_goal} min" }
 
                         {staircase}
+
+                        button {
+                            class: "btn btn-primary btn-block",
+                            onclick: {
+                                let services = services.clone();
+                                let id = id.clone();
+                                move |_| detail.set(resume_and_reload(&services, &id))
+                            },
+                            "La reprendre"
+                        }
                     }
                 },
             }
@@ -358,11 +368,20 @@ mod tests {
         );
     }
 
-    // @scenario: pause-resume/S1
+    // Retagged from a Task 1 mistag: this test's Given ("a paused habit")
+    // and Then (offers only the return, plus the staircase, neither ritual,
+    // growing, nor lightening) are S4's verbatim, not S1's (S1 is about the
+    // Today screen leaving the daily list, anchored separately in
+    // list_board_habits.rs and today.rs).
+    // @scenario: pause-resume/S4
     #[test]
-    fn a_paused_habits_detail_offers_only_its_title_lede_and_staircase() {
+    fn a_paused_habits_detail_offers_only_its_return_and_staircase() {
         let html = render(RootAtPausedHabit);
 
+        assert!(
+            html.contains("La reprendre"),
+            "expected the resume gesture to be offered, got: {html}"
+        );
         assert_eq!(
             html.matches("day-bar").count(),
             7,
