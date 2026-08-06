@@ -68,6 +68,18 @@ pub fn Today() -> Element {
                                     "{habit.title}"
                                 }
                             }
+                            button {
+                                class: "resume-link",
+                                onclick: {
+                                    let services = services.clone();
+                                    let id = habit.id.clone();
+                                    move |_| {
+                                        services.resume_habit.execute(&id).ok();
+                                        habits.set(services.list_board_habits.handle());
+                                    }
+                                },
+                                "Reprendre"
+                            }
                         }
                     }
                 }
