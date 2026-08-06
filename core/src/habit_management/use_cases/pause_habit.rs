@@ -141,8 +141,10 @@ mod tests {
         let board_repository = Rc::new(InMemoryHabitBoardRepository::new());
         let habit_repository = Rc::new(InMemoryHabitRepository::new());
         let clock: Rc<dyn Clock> = Rc::new(FixedClock::new(LocalDate::from_epoch_day(CREATED_ON)));
-        let create_habit_on_request =
-            CreateHabitOnRequest::new(Rc::clone(&habit_repository) as Rc<dyn HabitRepository>, clock);
+        let create_habit_on_request = CreateHabitOnRequest::new(
+            Rc::clone(&habit_repository) as Rc<dyn HabitRepository>,
+            clock,
+        );
 
         for n in 1..=HabitBoard::MAX_HABITS {
             let request_habit = RequestHabit::new(
