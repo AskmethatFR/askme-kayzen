@@ -254,6 +254,64 @@ mod tests {
         );
     }
 
+    // @scenario: practice-staircase/S6
+    #[test]
+    fn a_brand_new_habit_already_shows_a_full_window_of_faint_bars() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Read one page".to_string()).unwrap(),
+            Goal::new(5).unwrap(),
+            LocalDate::from_epoch_day(TODAY),
+        ));
+        let query = get_habit_detail_over(Rc::clone(&repository));
+
+        let days = query.handle("h-1").unwrap().days;
+
+        assert_eq!(
+            days,
+            seven_days(false, 5),
+            "the days older than the habit stand at the goal it started on — \
+             an empty start is still a start, and a zero-height bar would be \
+             the hole the faint bar exists to avoid"
+        );
+    }
+
+    // @scenario: practice-staircase/S3
+    #[test]
+    fn adjusting_the_goal_draws_no_new_bar_and_relives_no_day() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit();
+        habit.toggle_done(LocalDate::from_epoch_day(TODAY - 2));
+        repository.save(&habit);
+        let query = get_habit_detail_over(Rc::clone(&repository));
+        let before = query.handle("h-1").unwrap().days;
+
+        habit.grow(LocalDate::from_epoch_day(TODAY));
+        habit.grow(LocalDate::from_epoch_day(TODAY));
+        habit.grow(LocalDate::from_epoch_day(TODAY));
+        repository.save(&habit);
+
+        let after = query.handle("h-1").unwrap().days;
+
+        assert_eq!(
+            after.len(),
+            before.len(),
+            "three taps on grandir add no bar: the staircase draws practice, \
+             not intent"
+        );
+        assert_eq!(
+            after.iter().map(|day| day.done).collect::<Vec<_>>(),
+            before.iter().map(|day| day.done).collect::<Vec<_>>(),
+            "and no day becomes lived by deciding"
+        );
+        assert_eq!(
+            after[..6],
+            before[..6],
+            "the days already lived keep the height they were lived at"
+        );
+    }
+
     // @scenario: practice-staircase/S2
     #[test]
     fn a_day_without_practice_still_draws_its_bar() {
