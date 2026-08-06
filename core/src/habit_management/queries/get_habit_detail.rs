@@ -190,6 +190,47 @@ mod tests {
         assert_eq!(result.unwrap().days.len(), 7);
     }
 
+    // @scenario: practice-staircase/S1
+    #[test]
+    fn a_day_that_was_done_draws_a_full_bar_at_that_days_goal() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit();
+        habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+        repository.save(&habit);
+        let query = get_habit_detail_over(Rc::clone(&repository));
+
+        let days = query.handle("h-1").unwrap().days;
+
+        assert_eq!(
+            days[6],
+            PracticeDay {
+                done: true,
+                goal: 5
+            }
+        );
+    }
+
+    // @scenario: practice-staircase/S4
+    #[test]
+    fn each_bar_stands_at_the_goal_that_was_active_that_day() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit();
+        habit.toggle_done(LocalDate::from_epoch_day(TODAY - 1));
+        habit.grow(LocalDate::from_epoch_day(TODAY));
+        habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+        repository.save(&habit);
+        let query = get_habit_detail_over(Rc::clone(&repository));
+
+        let days = query.handle("h-1").unwrap().days;
+
+        assert_eq!(
+            (days[5].goal, days[6].goal),
+            (5, 6),
+            "the earlier day keeps the goal it was practised at; growing \
+             afterwards raises only the days that follow"
+        );
+    }
+
     // @scenario: practice-staircase/S2
     #[test]
     fn a_day_without_practice_still_draws_its_bar() {
