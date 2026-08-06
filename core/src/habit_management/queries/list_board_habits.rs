@@ -17,30 +17,38 @@ pub struct HabitSummary {
     pub done_today: bool,
 }
 
+/// A paused habit's presence in the Today screen's paused zone — just enough
+/// to name it and let the user reach its detail; no goal, no completion
+/// status, because a pause carries no daily pressure (adr-0007 AD-2).
+#[derive(Debug, Clone, PartialEq)]
+pub struct PausedHabit {
+    pub id: String,
+    pub title: String,
+}
+
+/// The Today screen's per-screen read model (adr-0006): active habits carry
+/// the daily pressure, paused ones sit in their own zone with none. The split
+/// is the query's job, not the view's, so the tally over `active` is correct
+/// by construction (adr-0007 AD-1).
+#[derive(Debug, Clone, PartialEq)]
+pub struct TodayHabits {
+    pub active: Vec<HabitSummary>,
+    pub paused: Vec<PausedHabit>,
+}
+
 impl ListBoardHabits {
     pub fn new(repository: Rc<dyn HabitRepository>, clock: Rc<dyn Clock>) -> Self {
         ListBoardHabits { repository, clock }
     }
 
-    pub fn handle(&self) -> Vec<HabitSummary> {
-        let today = self.clock.today();
-
-        self.repository
-            .all()
-            .iter()
-            .map(|habit| HabitSummary {
-                id: habit.id().value().to_string(),
-                title: habit.title().value().to_string(),
-                minutes: habit.current_goal(),
-                done_today: habit.is_done_on(today),
-            })
-            .collect()
+    pub fn handle(&self) -> TodayHabits {
+        todo!()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{HabitSummary, ListBoardHabits};
+    use super::{HabitSummary, ListBoardHabits, PausedHabit};
     use crate::habit_management::domain::goal::Goal;
     use crate::habit_management::domain::habit::Habit;
     use crate::habit_management::domain::habit_id::HabitId;
@@ -76,7 +84,10 @@ mod tests {
 
         let query = list_over(repository);
 
-        assert_eq!(query.handle(), Vec::new());
+        let result = query.handle();
+
+        assert_eq!(result.active, Vec::new());
+        assert_eq!(result.paused, Vec::new());
     }
 
     // @scenario: today-habit-list/S2
@@ -89,7 +100,7 @@ mod tests {
         let result = query.handle();
 
         assert_eq!(
-            result,
+            result.active,
             vec![HabitSummary {
                 id: "h-1".to_string(),
                 title: "Read one page".to_string(),
@@ -110,7 +121,7 @@ mod tests {
 
         let result = query.handle();
 
-        assert!(result[0].done_today);
+        assert!(result.active[0].done_today);
     }
 
     // No Gherkin scenario names this path yet (a completion belongs to its own
@@ -127,6 +138,42 @@ mod tests {
 
         let result = query.handle();
 
-        assert!(!result[0].done_today);
+        assert!(!result.active[0].done_today);
+    }
+
+    // @scenario: pause-resume/S1
+    #[test]
+    fn a_paused_habit_is_absent_from_active_and_present_in_paused() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut paused = a_habit();
+        paused.pause();
+        repository.save(&paused);
+        let active = Habit::new(
+            HabitId::new("h-2").unwrap(),
+            HabitTitle::new("Move a little".to_string()).unwrap(),
+            Goal::new(4).unwrap(),
+            LocalDate::from_epoch_day(TODAY),
+        );
+        repository.save(&active);
+        let query = list_over(Rc::clone(&repository));
+
+        let result = query.handle();
+
+        assert_eq!(
+            result.active,
+            vec![HabitSummary {
+                id: "h-2".to_string(),
+                title: "Move a little".to_string(),
+                minutes: 4,
+                done_today: false,
+            }]
+        );
+        assert_eq!(
+            result.paused,
+            vec![PausedHabit {
+                id: "h-1".to_string(),
+                title: "Read one page".to_string(),
+            }]
+        );
     }
 }
