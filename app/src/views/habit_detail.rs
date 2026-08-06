@@ -318,6 +318,10 @@ mod tests {
             html.contains("Passer à 6 min"),
             "expected the grow-goal button offering the next step up, got: {html}"
         );
+        assert!(
+            html.contains("Mettre en pause"),
+            "expected the pause gesture to be offered on an active habit, got: {html}"
+        );
     }
 
     // @scenario: adjust-goal/S4
@@ -398,6 +402,10 @@ mod tests {
         assert!(
             !html.contains("Faire ma minute"),
             "expected no ritual gesture on a paused habit, got: {html}"
+        );
+        assert!(
+            !html.contains("Mettre en pause"),
+            "expected no pause gesture on an already-paused habit, got: {html}"
         );
     }
 
