@@ -3,6 +3,7 @@ use std::rc::Rc;
 use crate::habit_management::domain::habit::Habit;
 use crate::habit_management::domain::habit_id::HabitId;
 use crate::habit_management::domain::habit_repository::HabitRepository;
+use crate::habit_management::domain::lifecycle_state::LifecycleState;
 use crate::shared::clock::Clock;
 use crate::shared::local_date::LocalDate;
 
@@ -54,7 +55,29 @@ impl GetHabitDetail {
     }
 
     pub fn handle(&self, habit_id: &str) -> Option<HabitDetail> {
-        todo!()
+        let id = HabitId::new(habit_id).ok()?;
+        let habit = self.repository.get(&id)?;
+        let today = self.clock.today();
+
+        Some(HabitDetail {
+            id: habit.id().value().to_string(),
+            title: habit.title().value().to_string(),
+            current_goal: habit.current_goal(),
+            next_goal_up: habit.step_history().current().grown().value(),
+            next_goal_down: habit.step_history().current().lightened().value(),
+            days: (0..WINDOW_DAYS)
+                .rev()
+                .map(|days_back| today.minus_days(days_back))
+                .map(|day| PracticeDay {
+                    done: habit.is_done_on(day),
+                    goal: goal_active_on(&habit, day),
+                })
+                .collect(),
+            state: match habit.state() {
+                LifecycleState::Active => HabitState::Active,
+                LifecycleState::Paused => HabitState::Paused,
+            },
+        })
     }
 }
 
@@ -322,10 +345,7 @@ mod tests {
     // exhaustive match (adr-0007 AD-2). One behavior, two divergent rows.
     #[test]
     fn a_habits_state_is_mapped_from_its_lifecycle() {
-        let cases = vec![
-            (false, HabitState::Active),
-            (true, HabitState::Paused),
-        ];
+        let cases = vec![(false, HabitState::Active), (true, HabitState::Paused)];
 
         for (should_pause, expected) in cases {
             let repository = Rc::new(InMemoryHabitRepository::new());
