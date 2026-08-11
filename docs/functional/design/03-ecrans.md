@@ -83,7 +83,7 @@ resume(id)      → habit.paused = false
 add(name, icon) → habits.push(Habit { steps: vec![1], .. }) ; screen = Today
 week()          → screen = Week   // tout le récap est calculé, jamais stocké
 ritual(id)      → screen = Timer ; minuteur 60 s ;  à la fin → done_today = true
-anchor(id)      → habit.anchored = true  ; screen = Today  // archive + libère une place
+anchor(id)      → habit.anchored = true  ; screen = Détail (AMENDÉ — voir ci-dessous)  // libère le siège ET le titre, par suppression de l'entrée
 unanchor(id)    → habit.anchored = false           // la remettre dans le quotidien
 set_trigger(id, texte) → habit.trigger = Some(texte)
 ```
@@ -126,3 +126,33 @@ comme fait*).
 **L'icône `ph-pause`** (`[[design-style-graphique]]`) n'est pas honorée : l'application
 n'embarque aucune police d'icônes, et en câbler une pour un seul bouton serait une
 dépendance hors sujet. Le bouton porte son texte, comme « Passer à N min ».
+
+## Amendements — ancrage, livré en slice 6 (2026-08-11)
+
+**Précision sur le plafond — la décision Q1 ne bouge pas.** L'amendement ci-dessus
+disait *« le plafond compte les habitudes non ancrées »*, ce qui reste l'effet
+observé. Mais le mécanisme qui le produit n'est pas un filtre de comptage : ancrer
+une habitude **retire son entrée du board** (`HabitBoard::release`), ce qui libère
+le siège *et* le titre du même geste. Une habitude en pause, elle, garde bel et bien
+son entrée — Q1 tient exactement tel qu'approuvé, une habitude en pause garde sa
+place. Ce qui change ici est seulement le mot pour l'ancrage : « compte les non
+ancrées » était le raccourci fonctionnel, l'implémentation l'obtient en supprimant
+l'entrée, pas en la filtrant à la lecture.
+
+**Ancrer ne renvoie pas à Aujourd'hui non plus.** Même décision et même raison
+que pour la mise en pause en slice 5 : le dessin d'origine disait
+`anchor(id) → habit.anchored = true ; screen = Today`. Le détail se relit sur
+place, en un écran « ancrée » sobre — titre, objectif, escalier de pratique,
+**aucun geste**. Renvoyer à Aujourd'hui cacherait l'écran qu'on vient de dessiner.
+
+**L'écran Ancrées ne livre que la liste et le compte.** Les points des 7 derniers
+jours et le pied « Vous suivez N / 5 habitudes en parallèle » du dessin d'origine
+sont **différés** — aucun scénario ne les demande, et tant qu'aucun écran n'offre
+de marquer fait une habitude ancrée, les points figeraient au jour de l'ancrage et
+rejoueraient indéfiniment un historique pré-ancrage. Le pied revient à la slice 7,
+où le refus à board plein devient le sujet.
+
+**Copie approuvée :** bouton du détail « L'ancrer · elle est devenue naturelle » ;
+bandeau ancrée « ancrée · {N} min » ; lien d'Aujourd'hui « Mes habitudes ancrées ·
+{N} » (affiché seulement si N ≥ 1) ; écran Ancrées : les titres + « {N} · devenues
+naturelles ».
