@@ -1,3 +1,5 @@
+use std::error::Error;
+use std::fmt;
 use std::rc::Rc;
 
 use crate::habit_management::domain::habit_id::HabitId;
@@ -7,6 +9,14 @@ use crate::habit_management::domain::habit_repository::HabitRepository;
 pub enum AnchorHabitError {
     HabitNotFound,
 }
+
+impl fmt::Display for AnchorHabitError {
+    fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {
+        todo!()
+    }
+}
+
+impl Error for AnchorHabitError {}
 
 /// Command use case: anchors a habit that has become natural. No `Clock`
 /// (adr-0007 AD-3): nothing about this transition is dated.
@@ -55,6 +65,14 @@ mod tests {
 
     fn anchor_habit_over(repository: Rc<InMemoryHabitRepository>) -> AnchorHabit {
         AnchorHabit::new(repository as Rc<dyn HabitRepository>)
+    }
+
+    #[test]
+    fn display_formats_the_error_with_the_expected_message() {
+        assert_eq!(
+            AnchorHabitError::HabitNotFound.to_string(),
+            "no habit with this id is on the board"
+        );
     }
 
     // @scenario: anchor-habit/S2
