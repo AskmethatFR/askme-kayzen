@@ -32,5 +32,6 @@ pub mod use_cases {
 
 pub mod queries {
     pub mod get_habit_detail;
+    pub mod list_anchored_habits;
     pub mod list_board_habits;
 }
