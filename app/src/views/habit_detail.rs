@@ -219,6 +219,37 @@ mod tests {
         Services::with_repository_and_clock(repository, clock)
     }
 
+    // @scenario: anchor-habit/S4's Given, verbatim: a habit completed on 10 of
+    // the last 14 days — the exact shape a stability detector would key on
+    // (adr-0008 deleted that detector; this fixture exists to keep it deleted).
+    fn services_with_a_habit_done_ten_of_the_last_fourteen_days() -> Services {
+        let today = LocalDate::from_epoch_day(20_020);
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock(today));
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Lire une page".to_string()).unwrap(),
+            Goal::new(5).unwrap(),
+            LocalDate::from_epoch_day(20_000),
+        );
+        for days_back in 0..10 {
+            habit.toggle_done(today.minus_days(days_back));
+        }
+        repository.save(&habit);
+        Services::with_repository_and_clock(repository, clock)
+    }
+
+    #[component]
+    fn RootAtHabitDoneTenOfLastFourteenDays() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_a_habit_done_ten_of_the_last_fourteen_days);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
     #[component]
     fn RootAtKnownHabit() -> Element {
         use_hook(|| {
@@ -501,6 +532,25 @@ mod tests {
         assert!(
             !html.contains("L&#39;ancrer"),
             "expected no anchor gesture on an already-anchored habit, got: {html}"
+        );
+    }
+
+    // @scenario: anchor-habit/S4
+    #[test]
+    fn anchoring_is_offered_but_never_suggested_whatever_the_habits_history() {
+        let html = render(RootAtHabitDoneTenOfLastFourteenDays);
+
+        assert!(
+            html.contains("L&#39;ancrer"),
+            "expected the anchor gesture to still be offered, got: {html}"
+        );
+        assert!(
+            !html.contains("suggé")
+                && !html.contains("prête")
+                && !html.contains("badge")
+                && !html.contains("stable"),
+            "expected no suggestion, hint or badge about anchoring — anchoring is \
+             user-initiated only, never detected, got: {html}"
         );
     }
 
