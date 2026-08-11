@@ -70,4 +70,26 @@ mod tests {
         let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
         assert_eq!(habit.state(), LifecycleState::Anchored);
     }
+
+    #[test]
+    fn anchoring_an_unknown_habit_is_rejected() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let anchor_habit = anchor_habit_over(repository);
+
+        let result = anchor_habit.execute("missing");
+
+        assert_eq!(result, Err(AnchorHabitError::HabitNotFound));
+    }
+
+    #[test]
+    fn anchoring_an_id_outside_the_bound_is_refused_without_panicking() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit("h-1"));
+        let anchor_habit = anchor_habit_over(repository);
+        let too_long = "h".repeat(HabitId::MAX_LEN + 1);
+
+        let result = anchor_habit.execute(&too_long);
+
+        assert_eq!(result, Err(AnchorHabitError::HabitNotFound));
+    }
 }
