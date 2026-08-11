@@ -7,7 +7,6 @@ use crate::habit_management::domain::lifecycle_state::LifecycleState;
 /// each anchored habit — no Clock, nothing dated is shown (C4).
 #[derive(Debug, Clone, PartialEq)]
 pub struct AnchoredHabit {
-    pub id: String,
     pub title: String,
 }
 
@@ -27,7 +26,6 @@ impl ListAnchoredHabits {
             .into_iter()
             .filter(|habit| habit.state() == LifecycleState::Anchored)
             .map(|habit| AnchoredHabit {
-                id: habit.id().value().to_string(),
                 title: habit.title().value().to_string(),
             })
             .collect()
@@ -77,7 +75,6 @@ mod tests {
         assert_eq!(
             result,
             vec![AnchoredHabit {
-                id: "h-3".to_string(),
                 title: "Read one page".to_string(),
             }]
         );
