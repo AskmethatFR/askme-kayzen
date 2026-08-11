@@ -86,6 +86,13 @@ pub fn Today() -> Element {
                 to: Route::Week {},
                 "Voir comment je grandis · cette semaine"
             }
+            if today_habits.anchored_count >= 1 {
+                Link {
+                    class: "quiet-link",
+                    to: Route::Anchored {},
+                    "Mes habitudes ancrées · {today_habits.anchored_count}"
+                }
+            }
             div { class: "add-cta",
                 Link {
                     class: "quiet-link",
