@@ -82,7 +82,7 @@ impl Habit {
     }
 
     pub fn anchor(&mut self) {
-        todo!()
+        self.state = LifecycleState::Anchored;
     }
 
     pub fn grow(&mut self, today: LocalDate) {
