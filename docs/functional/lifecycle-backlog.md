@@ -134,14 +134,19 @@ that pins the correction itself: adjusting the goal draws nothing until a day is
 done. S6 pins that a brand-new habit already shows seven faint bars — *an empty
 start is still a start*, per `[[design-principes-kaizen]]`.
 
-**Gherkin debt this exposes.** `[[adjust-goal]]` S1 and S2 both assert *« the
-change is recorded in the step history with today's local date »* — that is the
-technical model leaking into a functional spec; `StepHistory` is a code name, not
-a word the domain speaks. And **no scenario describes the staircase at all**,
-which is why the drawing could be wrong while every gate stayed green. Both the
-Architect and the reviewing Developer flagged the missing staircase scenarios
-during slice 3; the gap was recorded and not acted on. Rewrite S1/S2 in the
-user's language and add the staircase scenarios when 3b is refined.
+**Gherkin debt this exposed — both halves now closed.** `[[adjust-goal]]` S1 and S2
+used to assert *« the change is recorded in the step history with today's local
+date »* — the technical model leaking into a functional spec, `StepHistory` being a
+code name rather than a word the domain speaks. And **no scenario described the
+staircase at all**, which is why the drawing could be wrong while every gate stayed
+green; both the Architect and the reviewing Developer flagged that gap during slice 3
+and it was recorded without being acted on.
+
+Both are settled. S1 and S2 now read *« the change is added to the habit's record
+with today's date »* — rewritten in slice 3 itself (`cd66d22`), which is why no
+later cycle found anything to fix. The staircase gained its own scenarios with 3b
+(`[[practice-staircase]]`, S1–S6). The debt survived here only as an unretracted
+note.
 
 **8-slice order holds — no reorder, no inserted foundation slice.** The
 lifecycle-aggregate ADR (`[[adr-0007-habit-lifecycle-aggregate]]`) pins the shape;
@@ -221,6 +226,6 @@ quotidien* — slices 6-7), Minutes gagnées (slice 8).
 everything to rest is not the same as a day gone by unlived, and the copy does not
 yet tell them apart. No scenario names this state.
 
-**Gherkin debt from slice 3b, still open**: `[[adjust-goal]]` S1 and S2 assert *« the
-change is recorded in the step history »* — `StepHistory` is a code name, not a word
-the domain speaks. To rewrite in the user's language; independent of any slice.
+**Gherkin debt from slice 3b: closed, and it was never open.** The rewrite it asked
+for had already shipped inside slice 3 — see the 3b section above for the full
+account. No scenario carries a code name today.
