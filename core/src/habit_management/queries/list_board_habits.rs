@@ -59,6 +59,7 @@ impl ListBoardHabits {
                     id: habit.id().value().to_string(),
                     title: habit.title().value().to_string(),
                 }),
+                LifecycleState::Anchored => todo!(),
             }
         }
 

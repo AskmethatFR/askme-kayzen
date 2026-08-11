@@ -1,7 +1,6 @@
-/// Where a habit stands in its own lifecycle. Two states only — no `Anchored`
-/// yet (slice 6) — modelled as an enum rather than a `paused: bool` so that an
-/// impossible combination (e.g. paused-and-anchored) is never representable
-/// (adr-0007).
+/// Where a habit stands in its own lifecycle. Modelled as an enum rather than
+/// a set of bools so that an impossible combination (e.g. paused-and-anchored)
+/// is never representable (adr-0007).
 ///
 /// No `Default`: `Habit::new` names `Active` explicitly rather than falling
 /// back to an implicit one.
@@ -9,4 +8,5 @@
 pub enum LifecycleState {
     Active,
     Paused,
+    Anchored,
 }

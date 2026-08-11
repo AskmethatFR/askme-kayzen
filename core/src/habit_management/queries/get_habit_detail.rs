@@ -33,6 +33,7 @@ pub struct HabitDetail {
 pub enum HabitState {
     Active,
     Paused,
+    Anchored,
 }
 
 /// How many calendar days the practice staircase covers. Seven, aligned with
@@ -76,6 +77,7 @@ impl GetHabitDetail {
             state: match habit.state() {
                 LifecycleState::Active => HabitState::Active,
                 LifecycleState::Paused => HabitState::Paused,
+                LifecycleState::Anchored => todo!(),
             },
         })
     }

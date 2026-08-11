@@ -1,0 +1,73 @@
+use std::rc::Rc;
+
+use crate::habit_management::domain::habit_id::HabitId;
+use crate::habit_management::domain::habit_repository::HabitRepository;
+
+#[derive(Debug, PartialEq)]
+pub enum AnchorHabitError {
+    HabitNotFound,
+}
+
+/// Command use case: anchors a habit that has become natural. No `Clock`
+/// (adr-0007 AD-3): nothing about this transition is dated.
+#[derive(Clone)]
+pub struct AnchorHabit {
+    repository: Rc<dyn HabitRepository>,
+}
+
+impl AnchorHabit {
+    pub fn new(repository: Rc<dyn HabitRepository>) -> AnchorHabit {
+        AnchorHabit { repository }
+    }
+
+    pub fn execute(&self, habit_id: &str) -> Result<(), AnchorHabitError> {
+        let id = HabitId::new(habit_id).map_err(|_| AnchorHabitError::HabitNotFound)?;
+        let mut habit = self
+            .repository
+            .get(&id)
+            .ok_or(AnchorHabitError::HabitNotFound)?;
+        habit.anchor();
+        self.repository.save(&habit);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::habit_management::domain::goal::Goal;
+    use crate::habit_management::domain::habit::Habit;
+    use crate::habit_management::domain::habit_title::HabitTitle;
+    use crate::habit_management::domain::lifecycle_state::LifecycleState;
+    use crate::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
+    use crate::shared::local_date::LocalDate;
+
+    const CREATED_ON: i64 = 19_990;
+
+    fn a_habit(id: &str) -> Habit {
+        Habit::new(
+            HabitId::new(id).unwrap(),
+            HabitTitle::new("Read one page".to_string()).unwrap(),
+            Goal::new(5).unwrap(),
+            LocalDate::from_epoch_day(CREATED_ON),
+        )
+    }
+
+    fn anchor_habit_over(repository: Rc<InMemoryHabitRepository>) -> AnchorHabit {
+        AnchorHabit::new(repository as Rc<dyn HabitRepository>)
+    }
+
+    // @scenario: anchor-habit/S2
+    #[test]
+    fn anchoring_an_active_habit_marks_it_anchored_in_the_store() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit("h-1"));
+        let anchor_habit = anchor_habit_over(Rc::clone(&repository));
+
+        let result = anchor_habit.execute("h-1");
+
+        assert_eq!(result, Ok(()));
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+        assert_eq!(habit.state(), LifecycleState::Anchored);
+    }
+}

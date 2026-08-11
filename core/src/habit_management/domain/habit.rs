@@ -81,6 +81,10 @@ impl Habit {
         self.state = LifecycleState::Active;
     }
 
+    pub fn anchor(&mut self) {
+        todo!()
+    }
+
     pub fn grow(&mut self, today: LocalDate) {
         let grown = self.steps.current().grown();
         let already_at_the_ceiling = grown == *self.steps.current();

@@ -20,6 +20,7 @@ pub mod infrastructure {
 }
 
 pub mod use_cases {
+    pub mod anchor_habit;
     pub mod create_habit_on_request;
     pub mod grow_goal;
     pub mod lighten_goal;

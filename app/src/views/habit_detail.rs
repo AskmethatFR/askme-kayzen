@@ -97,6 +97,7 @@ pub fn HabitDetail(id: String) -> Element {
                         }
                     }
                 },
+                HabitState::Anchored => todo!(),
             }
         }
         None => rsx! {
