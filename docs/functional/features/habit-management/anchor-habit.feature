@@ -4,13 +4,13 @@
 @feature:anchor-habit
 Feature: Anchor a habit that has become natural
 
-  @wip @scenario:S1
+  @scenario:S1
   Scenario: Anchoring a habit frees a seat on the board
     Given a board holding 5 habits
     When the user anchors one of them
     Then a new habit can be requested and is accepted, because the board counts non-anchored habits only
 
-  @wip @scenario:S2
+  @scenario:S2
   Scenario: An anchored habit is listed among the anchored ones
     Given an active habit
     When the user anchors it
