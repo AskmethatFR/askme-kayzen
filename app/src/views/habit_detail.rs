@@ -239,12 +239,31 @@ mod tests {
         Services::with_repository(repository)
     }
 
+    fn services_with_one_anchored_habit() -> Services {
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit();
+        habit.anchor();
+        repository.save(&habit);
+        Services::with_repository(repository)
+    }
+
     #[component]
     fn RootAtPausedHabit() -> Element {
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
         });
         use_context_provider(services_with_one_paused_habit);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootAtAnchoredHabit() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_one_anchored_habit);
         rsx! {
             Router::<Route> {}
         }
@@ -437,6 +456,37 @@ mod tests {
         assert!(
             !html.contains("Mettre en pause"),
             "expected no pause gesture on an already-paused habit, got: {html}"
+        );
+    }
+
+    #[test]
+    fn an_anchored_habits_detail_shows_the_banner_and_staircase_with_no_gesture() {
+        let html = render(RootAtAnchoredHabit);
+
+        assert!(
+            html.contains("ancrée · 5 min"),
+            "expected the anchored banner naming the dose, got: {html}"
+        );
+        assert_eq!(
+            html.matches("day-bar").count(),
+            7,
+            "expected the practice staircase to stay on an anchored habit, got: {html}"
+        );
+        assert!(
+            !html.contains("Passer à") && !html.contains("Alléger à"),
+            "expected no goal-adjustment gesture on an anchored habit, got: {html}"
+        );
+        assert!(
+            !html.contains("Faire ma minute"),
+            "expected no ritual gesture on an anchored habit, got: {html}"
+        );
+        assert!(
+            !html.contains("Mettre en pause") && !html.contains("La reprendre"),
+            "expected no pause/resume gesture on an anchored habit, got: {html}"
+        );
+        assert!(
+            !html.contains("L'ancrer"),
+            "expected no anchor gesture on an already-anchored habit, got: {html}"
         );
     }
 
