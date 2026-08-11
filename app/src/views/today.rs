@@ -156,6 +156,14 @@ mod tests {
         Services::with_repository_and_clock(repository, clock)
     }
 
+    fn services_with_one_anchored_habit() -> Services {
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        let mut anchored = a_habit();
+        anchored.anchor();
+        repository.save(&anchored);
+        Services::with_repository(repository)
+    }
+
     fn services_with_one_active_and_one_paused_habit() -> Services {
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
         repository.save(&a_habit());
@@ -189,6 +197,14 @@ mod tests {
     #[component]
     fn RootWithActiveAndPausedHabit() -> Element {
         use_context_provider(services_with_one_active_and_one_paused_habit);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootWithAnchoredHabit() -> Element {
+        use_context_provider(services_with_one_anchored_habit);
         rsx! {
             Router::<Route> {}
         }
@@ -248,6 +264,27 @@ mod tests {
         assert!(
             html.contains("Reprendre"),
             "expected the paused row to offer a one-tap resume gesture, got: {html}"
+        );
+    }
+
+    // @scenario: anchor-habit/S2
+    #[test]
+    fn the_ancrees_link_renders_with_the_count_when_a_habit_is_anchored() {
+        let html = render(RootWithAnchoredHabit);
+
+        assert!(
+            html.contains("Mes habitudes ancr") && html.contains("· 1"),
+            "expected the Ancrées link naming the count, got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_ancrees_link_is_absent_when_nothing_is_anchored() {
+        let html = render(RootWithUndoneHabit);
+
+        assert!(
+            !html.contains("Mes habitudes ancr"),
+            "expected no Ancrées link when nothing is anchored, got: {html}"
         );
     }
 
