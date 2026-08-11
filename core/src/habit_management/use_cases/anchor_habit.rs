@@ -106,6 +106,53 @@ mod tests {
         }
     }
 
+    fn a_request_habit(
+        guid: &str,
+        board_repository: &Rc<InMemoryHabitBoardRepository>,
+        outbox: &Rc<InMemoryOutbox>,
+    ) -> RequestHabit {
+        RequestHabit::new(
+            Box::new(StubGuidGenerator {
+                guid: guid.to_string(),
+            }),
+            Rc::clone(outbox) as Rc<dyn DomainEventPublisher>,
+            Rc::clone(board_repository) as Rc<dyn HabitBoardRepository>,
+        )
+    }
+
+    /// Requests one habit per title (guid-1, guid-2, ...) and drains the
+    /// outbox through CreateHabitOnRequest, so every caller starts from a
+    /// board and a habit store that already agree — the exact wiring S1/C3
+    /// both need before they can anchor anything.
+    fn a_board_seeded_with(
+        titles: &[&str],
+    ) -> (
+        Rc<InMemoryHabitRepository>,
+        Rc<InMemoryHabitBoardRepository>,
+        Rc<InMemoryOutbox>,
+    ) {
+        let outbox = Rc::new(InMemoryOutbox::new());
+        let board_repository = Rc::new(InMemoryHabitBoardRepository::new());
+        let habit_repository = Rc::new(InMemoryHabitRepository::new());
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock::new(LocalDate::from_epoch_day(CREATED_ON)));
+        let create_habit_on_request = CreateHabitOnRequest::new(
+            Rc::clone(&habit_repository) as Rc<dyn HabitRepository>,
+            clock,
+        );
+
+        for (n, title) in titles.iter().enumerate() {
+            let guid = format!("guid-{}", n + 1);
+            a_request_habit(&guid, &board_repository, &outbox)
+                .execute(title.to_string(), 1)
+                .expect("valid habit request");
+        }
+        for event in outbox.drain() {
+            create_habit_on_request.handle(event);
+        }
+
+        (habit_repository, board_repository, outbox)
+    }
+
     #[test]
     fn display_formats_the_error_with_the_expected_message() {
         assert_eq!(
@@ -155,30 +202,14 @@ mod tests {
     fn anchoring_a_habit_frees_its_seat_so_a_sixth_request_is_now_accepted() {
         assert_eq!(HabitBoard::MAX_HABITS, 5);
 
-        let outbox = Rc::new(InMemoryOutbox::new());
-        let board_repository = Rc::new(InMemoryHabitBoardRepository::new());
-        let habit_repository = Rc::new(InMemoryHabitRepository::new());
-        let clock: Rc<dyn Clock> = Rc::new(FixedClock::new(LocalDate::from_epoch_day(CREATED_ON)));
-        let create_habit_on_request = CreateHabitOnRequest::new(
-            Rc::clone(&habit_repository) as Rc<dyn HabitRepository>,
-            clock,
-        );
-
-        for n in 1..=HabitBoard::MAX_HABITS {
-            let request_habit = RequestHabit::new(
-                Box::new(StubGuidGenerator {
-                    guid: format!("guid-{n}"),
-                }),
-                Rc::clone(&outbox) as Rc<dyn DomainEventPublisher>,
-                Rc::clone(&board_repository) as Rc<dyn HabitBoardRepository>,
-            );
-            request_habit
-                .execute(format!("Habit number {n}"), 1)
-                .expect("valid habit request");
-        }
-        for event in outbox.drain() {
-            create_habit_on_request.handle(event);
-        }
+        let titles = [
+            "Habit number 1",
+            "Habit number 2",
+            "Habit number 3",
+            "Habit number 4",
+            "Habit number 5",
+        ];
+        let (habit_repository, board_repository, outbox) = a_board_seeded_with(&titles);
 
         let anchor_habit = AnchorHabit::new(
             Rc::clone(&habit_repository) as Rc<dyn HabitRepository>,
@@ -186,15 +217,8 @@ mod tests {
         );
         anchor_habit.execute("guid-1").expect("known habit");
 
-        let sixth_request_habit = RequestHabit::new(
-            Box::new(StubGuidGenerator {
-                guid: "guid-6".to_string(),
-            }),
-            Rc::clone(&outbox) as Rc<dyn DomainEventPublisher>,
-            Rc::clone(&board_repository) as Rc<dyn HabitBoardRepository>,
-        );
-
-        let result = sixth_request_habit.execute(String::from("One habit too many"), 1);
+        let result = a_request_habit("guid-6", &board_repository, &outbox)
+            .execute(String::from("One habit too many"), 1);
 
         assert!(
             result.is_ok(),
@@ -214,30 +238,8 @@ mod tests {
     // anchored entry, not every other one.
     #[test]
     fn anchoring_a_habit_frees_its_title_while_the_others_stay_taken() {
-        let outbox = Rc::new(InMemoryOutbox::new());
-        let board_repository = Rc::new(InMemoryHabitBoardRepository::new());
-        let habit_repository = Rc::new(InMemoryHabitRepository::new());
-        let clock: Rc<dyn Clock> = Rc::new(FixedClock::new(LocalDate::from_epoch_day(CREATED_ON)));
-        let create_habit_on_request = CreateHabitOnRequest::new(
-            Rc::clone(&habit_repository) as Rc<dyn HabitRepository>,
-            clock,
-        );
-
-        for (n, title) in [(1, "Read one page"), (2, "Move a little")] {
-            let request_habit = RequestHabit::new(
-                Box::new(StubGuidGenerator {
-                    guid: format!("guid-{n}"),
-                }),
-                Rc::clone(&outbox) as Rc<dyn DomainEventPublisher>,
-                Rc::clone(&board_repository) as Rc<dyn HabitBoardRepository>,
-            );
-            request_habit
-                .execute(title.to_string(), 1)
-                .expect("valid habit request");
-        }
-        for event in outbox.drain() {
-            create_habit_on_request.handle(event);
-        }
+        let (habit_repository, board_repository, outbox) =
+            a_board_seeded_with(&["Read one page", "Move a little"]);
 
         let anchor_habit = AnchorHabit::new(
             Rc::clone(&habit_repository) as Rc<dyn HabitRepository>,
@@ -245,29 +247,16 @@ mod tests {
         );
         anchor_habit.execute("guid-1").expect("known habit");
 
-        let request_same_as_anchored = RequestHabit::new(
-            Box::new(StubGuidGenerator {
-                guid: "guid-3".to_string(),
-            }),
-            Rc::clone(&outbox) as Rc<dyn DomainEventPublisher>,
-            Rc::clone(&board_repository) as Rc<dyn HabitBoardRepository>,
-        );
         assert!(
-            request_same_as_anchored
+            a_request_habit("guid-3", &board_repository, &outbox)
                 .execute("Read one page".to_string(), 1)
                 .is_ok(),
             "expected the anchored habit's title to have been freed"
         );
 
-        let request_same_as_still_active = RequestHabit::new(
-            Box::new(StubGuidGenerator {
-                guid: "guid-4".to_string(),
-            }),
-            Rc::clone(&outbox) as Rc<dyn DomainEventPublisher>,
-            Rc::clone(&board_repository) as Rc<dyn HabitBoardRepository>,
-        );
         assert_eq!(
-            request_same_as_still_active.execute("Move a little".to_string(), 1),
+            a_request_habit("guid-4", &board_repository, &outbox)
+                .execute("Move a little".to_string(), 1),
             Err(HabitBoardError::DuplicateHabit),
             "expected the still-active habit's title to stay taken — release must \
              drop exactly the anchored entry, not every other one"
