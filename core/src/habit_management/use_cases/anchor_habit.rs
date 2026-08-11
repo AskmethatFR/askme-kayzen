@@ -66,7 +66,7 @@ mod tests {
     use crate::habit_management::domain::domain_event_publisher::DomainEventPublisher;
     use crate::habit_management::domain::goal::Goal;
     use crate::habit_management::domain::habit::Habit;
-    use crate::habit_management::domain::habit_board::HabitBoard;
+    use crate::habit_management::domain::habit_board::{HabitBoard, HabitBoardError};
     use crate::habit_management::domain::habit_title::HabitTitle;
     use crate::habit_management::domain::lifecycle_state::LifecycleState;
     use crate::habit_management::infrastructure::in_memory_habit_board_repository::InMemoryHabitBoardRepository;
@@ -207,6 +207,70 @@ mod tests {
             anchored.state(),
             LifecycleState::Anchored,
             "the anchored habit itself stays anchored — anchoring frees the seat, not the habit"
+        );
+    }
+
+    // C3: freeing the seat also frees the title — release drops exactly the
+    // anchored entry, not every other one.
+    #[test]
+    fn anchoring_a_habit_frees_its_title_while_the_others_stay_taken() {
+        let outbox = Rc::new(InMemoryOutbox::new());
+        let board_repository = Rc::new(InMemoryHabitBoardRepository::new());
+        let habit_repository = Rc::new(InMemoryHabitRepository::new());
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock::new(LocalDate::from_epoch_day(CREATED_ON)));
+        let create_habit_on_request = CreateHabitOnRequest::new(
+            Rc::clone(&habit_repository) as Rc<dyn HabitRepository>,
+            clock,
+        );
+
+        for (n, title) in [(1, "Read one page"), (2, "Move a little")] {
+            let request_habit = RequestHabit::new(
+                Box::new(StubGuidGenerator {
+                    guid: format!("guid-{n}"),
+                }),
+                Rc::clone(&outbox) as Rc<dyn DomainEventPublisher>,
+                Rc::clone(&board_repository) as Rc<dyn HabitBoardRepository>,
+            );
+            request_habit
+                .execute(title.to_string(), 1)
+                .expect("valid habit request");
+        }
+        for event in outbox.drain() {
+            create_habit_on_request.handle(event);
+        }
+
+        let anchor_habit = AnchorHabit::new(
+            Rc::clone(&habit_repository) as Rc<dyn HabitRepository>,
+            Rc::clone(&board_repository) as Rc<dyn HabitBoardRepository>,
+        );
+        anchor_habit.execute("guid-1").expect("known habit");
+
+        let request_same_as_anchored = RequestHabit::new(
+            Box::new(StubGuidGenerator {
+                guid: "guid-3".to_string(),
+            }),
+            Rc::clone(&outbox) as Rc<dyn DomainEventPublisher>,
+            Rc::clone(&board_repository) as Rc<dyn HabitBoardRepository>,
+        );
+        assert!(
+            request_same_as_anchored
+                .execute("Read one page".to_string(), 1)
+                .is_ok(),
+            "expected the anchored habit's title to have been freed"
+        );
+
+        let request_same_as_still_active = RequestHabit::new(
+            Box::new(StubGuidGenerator {
+                guid: "guid-4".to_string(),
+            }),
+            Rc::clone(&outbox) as Rc<dyn DomainEventPublisher>,
+            Rc::clone(&board_repository) as Rc<dyn HabitBoardRepository>,
+        );
+        assert_eq!(
+            request_same_as_still_active.execute("Move a little".to_string(), 1),
+            Err(HabitBoardError::DuplicateHabit),
+            "expected the still-active habit's title to stay taken — release must \
+             drop exactly the anchored entry, not every other one"
         );
     }
 }
