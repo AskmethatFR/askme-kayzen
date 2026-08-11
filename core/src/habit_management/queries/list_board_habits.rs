@@ -198,6 +198,36 @@ mod tests {
         );
     }
 
+    // @scenario: anchor-habit/S2
+    #[test]
+    fn an_anchored_habit_is_absent_from_both_active_and_paused() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut anchored = a_habit();
+        anchored.anchor();
+        repository.save(&anchored);
+        let active = Habit::new(
+            HabitId::new("h-2").unwrap(),
+            HabitTitle::new("Move a little".to_string()).unwrap(),
+            Goal::new(4).unwrap(),
+            LocalDate::from_epoch_day(TODAY),
+        );
+        repository.save(&active);
+        let query = list_over(Rc::clone(&repository));
+
+        let result = query.handle();
+
+        assert_eq!(
+            result.active,
+            vec![HabitSummary {
+                id: "h-2".to_string(),
+                title: "Move a little".to_string(),
+                minutes: 4,
+                done_today: false,
+            }]
+        );
+        assert_eq!(result.paused, Vec::new());
+    }
+
     // @scenario: pause-resume/S2
     #[test]
     fn a_resumed_habit_reappears_in_active_and_leaves_paused() {
