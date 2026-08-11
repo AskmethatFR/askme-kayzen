@@ -219,9 +219,9 @@ mod tests {
         Services::with_repository_and_clock(repository, clock)
     }
 
-    // @scenario: anchor-habit/S4's Given, verbatim: a habit completed on 10 of
-    // the last 14 days — the exact shape a stability detector would key on
-    // (adr-0008 deleted that detector; this fixture exists to keep it deleted).
+    // S4's Given, verbatim: a habit completed on 10 of the last 14 days — the
+    // exact shape a stability detector would key on (adr-0008 deleted that
+    // detector; this fixture exists to keep it deleted).
     fn services_with_a_habit_done_ten_of_the_last_fourteen_days() -> Services {
         let today = LocalDate::from_epoch_day(20_020);
         let clock: Rc<dyn Clock> = Rc::new(FixedClock(today));
