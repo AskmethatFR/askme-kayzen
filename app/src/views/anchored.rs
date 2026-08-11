@@ -1,11 +1,28 @@
+use crate::composition::Services;
 use crate::route::Route;
 use dioxus::prelude::*;
 
 #[component]
 pub fn Anchored() -> Element {
+    let services = use_context::<Services>();
+    let habits = services.list_anchored_habits.handle();
+    let count = habits.len();
+
     rsx! {
-        h1 { "Ancrées" }
-        Link { to: Route::Today {}, "Aujourd'hui" }
+        div { class: "screen",
+            header { class: "masthead",
+                Link { class: "quiet-link", to: Route::Today {}, "← Aujourd'hui" }
+            }
+            h1 { class: "greeting", "Ancrées" }
+            ul { class: "habit-list",
+                for habit in habits {
+                    li { class: "habit-row",
+                        span { class: "habit-name", "{habit.title}" }
+                    }
+                }
+            }
+            p { class: "tally", "{count} · devenues naturelles" }
+        }
     }
 }
 
