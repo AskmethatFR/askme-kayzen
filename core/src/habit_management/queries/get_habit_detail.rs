@@ -343,11 +343,13 @@ mod tests {
         );
     }
 
+    type Mutation = fn(&mut Habit);
+
     // The DTO-side state is mapped from the domain's LifecycleState by an
-    // exhaustive match (adr-0007 AD-2). One behavior, two divergent rows.
+    // exhaustive match (adr-0007 AD-2). One behavior, three divergent rows.
     #[test]
     fn a_habits_state_is_mapped_from_its_lifecycle() {
-        let cases: Vec<(fn(&mut Habit), HabitState)> = vec![
+        let cases: Vec<(Mutation, HabitState)> = vec![
             (|_habit| {}, HabitState::Active),
             (|habit| habit.pause(), HabitState::Paused),
             (|habit| habit.anchor(), HabitState::Anchored),
