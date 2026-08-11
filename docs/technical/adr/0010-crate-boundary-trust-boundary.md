@@ -3,7 +3,7 @@ id: "adr-0010-crate-boundary-trust-boundary"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-07-27"
+updated: "2026-08-06"
 relations:
   related:
     - "architecture-overview"
@@ -23,9 +23,12 @@ answers:
   - "Which routes are NOT covered by the id length bound, and why is that accepted?"
   - "The app names a core DTO in production code — is that a boundary breach?"
   - "What is the one question that decides whether a core type in kayzen-app is safe?"
+  - "Is 'a paused habit cannot be grown or practised' enforced by the core, or only by the view?"
+  - "What must land at the entry point when the multi-user trigger fires?"
 decided_in:
   - "2026-07-26 HabitId parse-at-the-boundary cycle (GATE 1.5 human approval)"
   - "2026-07-27 slice 3 adjust-goal cycle (Security T2 reformulation — amendment below)"
+  - "2026-08-06 slice 5 pause-resume cycle (Security: trigger 2 amplifier — amendment below)"
 ---
 
 # ADR 0010 — The crate boundary is the trust boundary: `HabitId` parsed once, at the core's entry points
@@ -75,7 +78,7 @@ Three were recorded by the Architect; Security confirmed them and added four. Al
 | # | Trigger | What it forces |
 |---|---|---|
 | 1 | **Persistence arrives** — the id becomes a storage key or a path component | The charset restriction goes from YAGNI to necessary (path traversal, key injection) |
-| 2 | **A multi-user context arrives** — the id becomes an authorisation boundary | The ownership check must land **in the use case, at the same place as the parse**, on pain of direct IDOR by URL |
+| 2 | **A multi-user context arrives** — the id becomes an authorisation boundary | The ownership check must land **in the use case, at the same place as the parse**, on pain of direct IDOR by URL. **Amplified 2026-08-06**: the lifecycle-state gating is enforced by the view only, and it lands at that *same* point — see the amendment at the end of this node. Trigger 2 is now two changes at one site, not one |
 | 3 | An id generator produces more than 64 characters | `MAX_LEN` must be revisited before the generator ships |
 | 4 | **SSR moves into production dependencies** (`dioxus-ssr` leaves `dev-dependencies`, or a backend appears) | **Security rates this the most important**: it converts a self-inflicted DoS into a *remote* one, and makes the `Ritual` route — which never crosses into the core and is therefore **not** covered by the bound — reachable by a third party via a forged link |
 | 5 | The id becomes a key into a **sink** — file path, SQL, `HashMap` (hash-collision DoS), or an outbound URL | The charset restriction becomes **required immediately** |
@@ -134,3 +137,54 @@ When a future change makes a core type visible in `kayzen-app`, ask **one** ques
   second door, and it reopens this ADR — treat it as escalation-trigger class, alongside the
   seven listed above.
 - **Verification**: the delivered change was approved by Dev-B (review), QA, and Security — the latter after explicitly re-testing its own rejected proposal against the code and retracting it.
+
+---
+
+## Amendment — 2026-08-06, slice 5 `pause-resume`: trigger 2 gains a second obligation at the same site
+
+Slice 5 was audited and approved by Security with **zero critical / high / medium findings**:
+the trust boundary above is intact, none of the seven triggers fires, zero new dependencies
+were added, and `cargo deny check advisories` is clean. Nothing here is a defect. What
+follows is a **prospective** finding, recorded because it is an amplifier of a trigger this
+node already owns.
+
+### The observation
+
+The rule *« une habitude en pause ne peut être ni grandie, ni allégée, ni pratiquée »* is
+enforced **by the view alone**. The core does not know it:
+
+| Entry point | Behavior on a paused habit's id |
+|---|---|
+| `GrowGoal::execute` | Accepts it and grows the goal |
+| `LightenGoal::execute` | Accepts it and lightens the goal |
+| `/habit/:id/ritual` | Reachable by typing the URL — and it never reaches the core at all (see the accepted `Ritual` consequence above) |
+
+Under the current threat model this is a **non-issue, and deliberately so**: single-user,
+local, in-memory, no network. The user owns their own data; bypassing their own UI crosses
+no trust boundary and grants them nothing they could not do by clicking. Building
+core-side state guards today would be YAGNI of exactly the kind this node's charset-restriction
+rejection already refuses — *recording the trigger is what makes it defensible not to build
+it now*.
+
+### Why it belongs to trigger 2
+
+**The day trigger 2 fires — a multi-user context, where the id becomes an authorisation
+boundary — "enforced by the view" stops being a UI convenience and becomes a real
+access-control hole.** A second user's paused habit could be grown, lightened or practised
+by URL, by anyone who can name its id.
+
+And the fix lands at **the same line as trigger 2's own remedy**: the use-case entry point,
+where the id is parsed. That is not a coincidence — it is this node's central claim
+(the single door is where every check belongs) applying to a second class of check.
+
+**The obligation carried forward**: whoever handles trigger 2 must land **both** at the
+entry point, in one pass — the ownership check *and* the lifecycle-state guard. Landing
+only the first would close the IDOR and leave a state-bypass behind it, at the very site
+that was just opened for the purpose.
+
+### Scope note
+
+This does **not** change what the boundary is or where it sits. The boundary still holds on
+what `kayzen-core` accepts as input, and no view fabricates a domain type. What changes is
+the **inventory of checks that must eventually sit at the door** — from one (ownership) to
+two (ownership + lifecycle state).

@@ -120,6 +120,7 @@ mod tests {
         let titles: Vec<String> = services
             .list_board_habits
             .handle()
+            .active
             .into_iter()
             .map(|summary| summary.title)
             .collect();

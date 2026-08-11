@@ -3,7 +3,7 @@ id: "adr-0006-cqrs-light"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-07-27"
+updated: "2026-08-06"
 relations:
   related:
     - "architecture-overview"
@@ -11,6 +11,8 @@ relations:
     - "adr-0008-goal-based-dose-user-paced-progression"
     - "adr-0010-crate-boundary-trust-boundary"
     - "adr-0011-one-public-method-per-use-case"
+    - "adr-0007-habit-lifecycle-aggregate"
+    - "adr-0009-quality-gates"
   depends-on:
     - "adr-0003-two-crate-workspace"
     - "adr-0008-goal-based-dose-user-paced-progression"
@@ -22,9 +24,13 @@ answers:
   - "What would justify escalating from CQRS-light to full CQRS with projections?"
   - "May a Dioxus view name the DTO its query returns?"
   - "Why does app/src/services/add_habit.rs import a domain error type?"
+  - "One screen shows two lists — one query returning both, or two queries?"
+  - "Where does a rule that partitions a screen's content live: the query or the view?"
+  - "How does a domain enum reach a view — as itself, as a bool, or as a DTO-side enum?"
 decided_in:
   - "LOCAL-6"
   - "2026-07-27 slice 3 adjust-goal cycle (DTO-naming scope, HabitBoardError tension recorded)"
+  - "2026-08-06 slice 5 pause-resume cycle (TodayHabits two-list DTO, DTO-side enums)"
 ---
 
 # ADR 0006 — CQRS-light for the read side of habit_management (query handlers + per-screen DTOs, no projections)
@@ -45,7 +51,7 @@ The lifecycle backlog ([[habit-progression-study]], `lifecycle-backlog`) require
 | Facet | Decision | Anchor |
 |---|---|---|
 | Handler split | **Query handlers (read use cases) separate from command use cases.** Commands live under `use_cases/`, queries under a dedicated `queries/` module — one flat `snake_case` module per query: `list_board_habits.rs`, later `get_habit_detail.rs`, `get_habit_stats.rs`. Module/file names are `snake_case` per Rust RFC 430 — flat modules (no `mod.rs`-inception folders), no `#[path]` remapping. The physical `use_cases/` (commands) vs `queries/` split was adopted early rather than deferred | `core/src/habit_management/queries/list_board_habits.rs` |
-| Read models | **Per-screen DTOs owned by their query use case** (`HabitSummary`, `HabitDetail`, later `HabitStats`). Duplication across DTOs is acceptable — one screen = one read model, no god read model | planned: DTO next to its query |
+| Read models | **Per-screen DTOs owned by their query use case** (`HabitSummary`, `HabitDetail`, later `HabitStats`). Duplication across DTOs is acceptable — one screen = one read model, no god read model. **Amended 2026-08-06**: "per-screen" is literal — a screen showing two zones gets **one DTO carrying both lists** (`TodayHabits { active, paused }`), not two queries; and a domain enum reaching the view crosses as a **DTO-side enum**, never a `bool`. See the amendment below | `core/src/habit_management/queries/list_board_habits.rs`, `core/src/habit_management/queries/get_habit_detail.rs` |
 | Crate boundary | DTOs are the **crate-boundary contract** — domain types NEVER cross into `kayzen-app` (extends [[adr-0003-two-crate-workspace]]'s dependency rule to data shapes) | — |
 | Data access | Queries read through the **EXISTING domain ports** (`HabitRepository`, `HabitBoardRepository`) against the same store. **NO dedicated ReadModel port** — a single trivial implementation would be YAGNI | — |
 | Derived data | ALL derived display data (stats, minutes gained, motivational messages) is **computed on read** by pure stateless domain services — nothing stored. Progression *suggestions* are **no longer among them**: the `StabilityPolicy` is removed ([[adr-0008-goal-based-dose-user-paced-progression]]) | — |
@@ -72,5 +78,76 @@ A MEASURED read-latency problem on device once real persistence + years of histo
 - **Known tension, pre-existing and undecided (recorded 2026-07-27)**: `app/src/services/add_habit.rs` imports `HabitBoardError`, a **domain error type**, in production code — a literal tension with the MUST above. It predates the `adjust-goal` slice and was untouched by it; the slice's reviewers surfaced it rather than fixing it out of scope. **Neither a defect of that slice nor a settled exception** — the two candidate resolutions (a DTO-side error contract for the app service, or an explicit carve-out for error types crossing the boundary) both need a decision. Recorded here so it is not rediscovered as a fresh finding on every subsequent review.
 - **MUST**: query use cases consume the existing ports (`HabitRepository`, `HabitBoardRepository`) — no new port for reads.
 - **MUST NOT**: store any derived value (suggestion, stat, message) — recompute on read.
+- **MUST**: keep a rule that decides *what a screen shows* inside the query, never in the view — the view arranges what it is handed (2026-08-06).
+- **MUST**: expose a domain enum to the app as a **DTO-side enum** declared next to its query, mapped by an exhaustive `match` — never the domain type, never a `bool` (2026-08-06; the `bool` half is [[adr-0007-habit-lifecycle-aggregate]] AD-2).
 - **MAY**: duplicate fields across per-screen DTOs; introduce the physical `commands/`/`queries/` folder split when the use-case folder crowds (no new ADR needed).
 - **Out of scope**: the query implementations themselves (next ticket), the statistics-board content/wording (functional lane), persistence technology.
+
+---
+
+## Amendment — 2026-08-06, slice 5 `pause-resume`: the two-list per-screen DTO, and DTO-side enums
+
+Slice 5 gave the Today screen a second zone (« En pause · aucune pression »). That is the
+first time one screen carries two lists, and the first time a domain enum needs to reach a
+view. Both are answered by this node's existing shape rather than beside it — hence an
+amendment.
+
+### The prescribed shape: one query, one DTO, two lists
+
+`ListBoardHabits::handle()` no longer returns a flat `Vec<HabitSummary>`. It returns
+
+```rust
+pub struct TodayHabits {
+    pub active: Vec<HabitSummary>,
+    pub paused: Vec<PausedHabit>,
+}
+```
+
+built in a single pass over `repository.all()` with an **exhaustive `match` on
+`habit.state()`**. `PausedHabit { id, title }` deliberately carries neither goal nor
+completion status: a pause carries no daily pressure, so the DTO carries none either.
+
+**This is the first DTO in the codebase to carry two lists for one screen. It is the
+prescribed shape — slices 6, 7 and 8 must not re-decide it.** When a screen grows a zone,
+the query grows a field; it does not spawn a sibling query.
+
+Two arguments carry it:
+
+1. **The partitioning IS the business rule.** *« Une habitude en pause quitte la liste du
+   jour »* is not a layout preference — it is the rule the slice exists to deliver. Rules
+   belong where they can be measured: `queries/**` is inside `.cargo/mutants.toml`'s
+   `examine_globs`; `app/src/views/**` is excluded **by design** ([[adr-0009-quality-gates]]).
+   A rule placed in the view is a rule no instrument in this repo can reach.
+2. **The tally becomes correct by construction.** Today's « X sur Y » counts active habits.
+   With the split in the query, `total = active.len()` — it cannot drift. With a
+   `paused: bool` flag and view-side filtering, the tally is correct only as long as every
+   future reader remembers to exclude the paused ones. Discipline versus arithmetic; the
+   arithmetic wins.
+
+| Rejected | Why |
+|---|---|
+| `paused: bool` on `HabitSummary`, view filters | Relocates a business rule into the one layer the mutation gate cannot see, and makes the « X sur Y » tally silently wrong the day someone forgets the filter |
+| A filtered `ListBoardHabits` + a separate `ListPausedHabits` | Two `repository.all()` passes to render one screen; a query no other screen wants; and the composition of the two zones falls back into the view — the very thing point 1 refuses. Sibling queries are for **sibling screens**, not for zones of one screen |
+| A `Vec<enum HabitRow { Active(..), Paused(..) }>` | Preserves interleaving nobody wants and forces the view to re-partition — the view work returns, plus a match |
+
+### DTO-side enums, and how they are mapped
+
+`HabitDetail` gains `state: HabitState`, an enum declared next to its query
+(`core/src/habit_management/queries/get_habit_detail.rs`) and mapped from the domain's
+`LifecycleState` by an exhaustive `match`. The "never the domain type" half is this node's
+existing MUST, reinforced by [[adr-0010-crate-boundary-trust-boundary]]; the "never a
+`bool`" half is the decision, and its reasoning lives in
+[[adr-0007-habit-lifecycle-aggregate]] AD-2 (a second bool arrives in slice 6 and makes an
+impossible combination representable, right where it renders).
+
+The mapping `match` is the point, not overhead: it is what makes slice 6's new variant a
+**compile error at every site** instead of a silent `false`.
+
+### The reach-of-the-gate corollary
+
+Both mutants generated for this cycle's read side were classed `unviable`, so the
+partition and the mapping received **zero viable mutants** — the gate proved nothing about
+either. Each is covered by one deliberate test instead. Recorded in full as L4 of
+[[adr-0009-quality-gates]]. The lesson for this node: *placing a rule inside the gate's
+perimeter is necessary, not sufficient* — the perimeter is where the instrument is
+allowed to look, not where it is guaranteed to see.

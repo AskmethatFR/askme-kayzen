@@ -1,6 +1,7 @@
 use crate::composition::Services;
 use crate::route::Route;
 use dioxus::prelude::*;
+use kayzen_core::habit_management::queries::list_board_habits::TodayHabits;
 
 #[component]
 pub fn Today() -> Element {
@@ -10,9 +11,13 @@ pub fn Today() -> Element {
         move || services.list_board_habits.handle()
     });
 
-    let list = habits();
-    let total = list.len();
-    let done = list.iter().filter(|habit| habit.done_today).count();
+    let today_habits = habits();
+    let total = today_habits.active.len();
+    let done = today_habits
+        .active
+        .iter()
+        .filter(|habit| habit.done_today)
+        .count();
 
     rsx! {
         div { class: "screen",
@@ -25,7 +30,7 @@ pub fn Today() -> Element {
 
             p { class: "eyebrow", "Vos petits pas" }
             ul { class: "habit-list",
-                for habit in list {
+                for habit in today_habits.active {
                     li { class: "habit-row",
                         div { class: "habit-body",
                             Link {
@@ -41,12 +46,35 @@ pub fn Today() -> Element {
                             onclick: {
                                 let services = services.clone();
                                 let id = habit.id.clone();
-                                move |_| {
-                                    services.mark_done.execute(&id).ok();
-                                    habits.set(services.list_board_habits.handle());
-                                }
+                                move |_| habits.set(mark_done_and_relist(&services, &id))
                             },
                             span { class: "target-ink" }
+                        }
+                    }
+                }
+            }
+
+            if !today_habits.paused.is_empty() {
+                p { class: "eyebrow", "En pause · aucune pression" }
+                ul { class: "habit-list",
+                    for habit in today_habits.paused {
+                        li { class: "habit-row is-paused",
+                            div { class: "habit-body",
+                                Link {
+                                    class: "habit-name",
+                                    to: Route::HabitDetail { id: habit.id.clone() },
+                                    "{habit.title}"
+                                }
+                            }
+                            button {
+                                class: "resume-link",
+                                onclick: {
+                                    let services = services.clone();
+                                    let id = habit.id.clone();
+                                    move |_| habits.set(resume_and_relist(&services, &id))
+                                },
+                                "Reprendre"
+                            }
                         }
                     }
                 }
@@ -67,6 +95,18 @@ pub fn Today() -> Element {
             }
         }
     }
+}
+
+#[must_use]
+fn resume_and_relist(services: &Services, id: &str) -> TodayHabits {
+    services.resume_habit.execute(id).ok();
+    services.list_board_habits.handle()
+}
+
+#[must_use]
+fn mark_done_and_relist(services: &Services, id: &str) -> TodayHabits {
+    services.mark_done.execute(id).ok();
+    services.list_board_habits.handle()
 }
 
 #[cfg(test)]
@@ -116,6 +156,20 @@ mod tests {
         Services::with_repository_and_clock(repository, clock)
     }
 
+    fn services_with_one_active_and_one_paused_habit() -> Services {
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit());
+        let mut paused = Habit::new(
+            HabitId::new("test-2").unwrap(),
+            HabitTitle::new("Move a little".to_string()).unwrap(),
+            Goal::new(2).unwrap(),
+            LocalDate::from_epoch_day(20_000),
+        );
+        paused.pause();
+        repository.save(&paused);
+        Services::with_repository(repository)
+    }
+
     #[component]
     fn RootWithUndoneHabit() -> Element {
         use_context_provider(services_with_one_undone_habit);
@@ -127,6 +181,14 @@ mod tests {
     #[component]
     fn RootWithHabitDoneToday() -> Element {
         use_context_provider(services_with_one_habit_done_today);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootWithActiveAndPausedHabit() -> Element {
+        use_context_provider(services_with_one_active_and_one_paused_habit);
         rsx! {
             Router::<Route> {}
         }
@@ -156,6 +218,78 @@ mod tests {
         assert!(
             html.contains("target is-done"),
             "expected the done target to be stamped, got: {html}"
+        );
+    }
+
+    // @scenario: pause-resume/S1
+    #[test]
+    fn a_paused_habit_renders_under_the_paused_eyebrow_and_the_tally_counts_only_active() {
+        let html = render(RootWithActiveAndPausedHabit);
+
+        assert!(
+            html.contains("En pause") && html.contains("aucune pression"),
+            "expected the paused-zone eyebrow, got: {html}"
+        );
+        assert!(
+            html.contains("Move a little"),
+            "expected the paused habit's title to render, got: {html}"
+        );
+        assert!(
+            html.contains("sur 1 ·"),
+            "expected the tally's total to count the active habit only, not the paused one, got: {html}"
+        );
+    }
+
+    // @scenario: pause-resume/S2
+    #[test]
+    fn a_paused_row_carries_its_resume_affordance() {
+        let html = render(RootWithActiveAndPausedHabit);
+
+        assert!(
+            html.contains("Reprendre"),
+            "expected the paused row to offer a one-tap resume gesture, got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_paused_zone_is_absent_when_nothing_is_paused() {
+        let html = render(RootWithUndoneHabit);
+
+        assert!(
+            !html.contains("En pause"),
+            "expected no paused-zone eyebrow when nothing is paused, got: {html}"
+        );
+    }
+
+    // @scenario: pause-resume/S2
+    #[test]
+    fn resume_and_relist_resumes_the_habit_and_returns_the_refreshed_board() {
+        let services = services_with_one_active_and_one_paused_habit();
+
+        let board = super::resume_and_relist(&services, "test-2");
+
+        assert!(
+            board.active.iter().any(|habit| habit.id == "test-2"),
+            "expected the resumed habit to reappear in active, got: {board:?}"
+        );
+        assert!(
+            !board.paused.iter().any(|habit| habit.id == "test-2"),
+            "expected the resumed habit to leave the paused zone, got: {board:?}"
+        );
+    }
+
+    #[test]
+    fn mark_done_and_relist_marks_the_habit_done_and_returns_the_refreshed_board() {
+        let services = services_with_one_undone_habit();
+
+        let board = super::mark_done_and_relist(&services, "test-1");
+
+        assert!(
+            board
+                .active
+                .iter()
+                .any(|habit| habit.id == "test-1" && habit.done_today),
+            "expected the habit to be marked done in the refreshed board, got: {board:?}"
         );
     }
 }

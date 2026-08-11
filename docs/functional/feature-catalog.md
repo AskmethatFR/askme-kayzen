@@ -2,7 +2,7 @@
 
 > Functional node (owner: pm). What the product does today, in business terms, with the acceptance that pins each behavior. Technical rationale lives in [[architecture-overview]] and [[adr-0001-validation-by-construction]].
 
-> The acceptance tables below are mirrored as spec-only Gherkin in `docs/functional/features/habit-management/`: F-1 → [[request-habit]], F-2 → [[create-habit-on-request]]. Delivered since: [[today-habit-list]], [[mark-done]], [[adjust-goal]] and [[practice-staircase]]. Every scenario there resolves to a test through its `// @scenario:` anchor (`scenario_audit.py`).
+> The acceptance tables below are mirrored as spec-only Gherkin in `docs/functional/features/habit-management/`: F-1 → [[request-habit]], F-2 → [[create-habit-on-request]]. Delivered since: [[today-habit-list]], [[mark-done]], [[adjust-goal]], [[practice-staircase]] and [[pause-resume]]. Every scenario there resolves to a test through its `// @scenario:` anchor (`scenario_audit.py`).
 
 ## F-1 — Request a habit from the board
 
@@ -82,11 +82,30 @@ The detail screen draws one bar per calendar day over the **last seven days**. A
 | A habit created three weeks ago | Opening its detail | Seven bars, one per day of the window |
 | A habit created today and not yet done | Opening its detail | Seven faint bars, standing at the goal it started on |
 
+## F-6 — Pause a habit, and take it back
+
+A habit can be set aside at any moment and taken back in a single gesture. Pausing it removes it from the daily list and places it under **« En pause · aucune pression »**, below the day's habits. Its detail becomes a **rest screen**: the practice staircase it already earned, and one way back — « La reprendre ». Nothing else is offered there, because a pause is real rest: nothing to practise, nothing to adjust.
+
+Resuming works from either place — one tap on the paused row in Aujourd'hui, or the button on its detail — and the habit returns to the day with **every day it had already lived left untouched**.
+
+A paused habit **keeps its seat** on the board. The five slots count habits that have not been anchored, so a sixth request is still refused while one is paused. This is deliberate: resuming can then never fail. *Amends the designer's literal `active = !paused && !anchored` cap formula — see `[[design-ecrans]]`.*
+
+The day's tally counts only the habits still in the day: a habit at rest is not a habit missed.
+
+**Acceptance (pinned by tests in `core/src/habit_management/use_cases/pause_habit.rs`, `.../resume_habit.rs`, `.../queries/list_board_habits.rs` and `app/src/views/`, mirrored as [[pause-resume]]):**
+
+| Given | When | Then |
+|---|---|---|
+| An active habit on the board | Pausing it | It leaves the Today list and appears in the paused zone |
+| A paused habit | Resuming it | It is active again, back in the Today list, its completion history untouched |
+| A board holding 5 habits, one of them paused | Requesting a new habit | Refused as board-full — a paused habit keeps its seat so resuming can never fail |
+| A paused habit | Opening its detail | It offers to resume it and shows its practice staircase — neither the ritual, nor growing, nor lightening |
+
 ## Not available yet (deliberate — manual development resumes from here)
 
 - **Nothing survives a restart**: every store is in-memory (`InMemoryHabitRepository`, `InMemoryHabitBoardRepository`), and the Today screen is seeded with three demo habits at startup. No persistence adapter exists yet.
-- Three of the six screens act: **Today** (list + mark done), **Add**, and **Detail** (adjust the goal, read the practice staircase). Ritual, Week and Ancrées are routed stubs.
-- No way yet for a habit to leave the board: the **"ancrée"** (anchored) rule will free a slot (slice 6); until then the board can fill to 5 and stay full. Pause/resume (slice 5), goal adjustment (slice 3) and the recap (slice 8) are specified but not built — see [[lifecycle-backlog]].
+- Three of the six screens act: **Today** (list + mark done + the paused zone), **Add**, and **Detail** (adjust the goal, read the practice staircase, pause and resume). Ritual, Week and Ancrées are routed stubs.
+- No way yet for a habit to leave the board: the **"ancrée"** (anchored) rule will free a slot (slice 6); until then the board can fill to 5 and stay full — pausing does not free one, by design (F-6). The recap (slice 8) is specified but not built — see [[lifecycle-backlog]].
 - Direct habit creation (the old `CreateHabit` command) was **removed**: the board request is the only entry point.
 
 > The F-1 → F-2 hand-off **does** run in production: `AddHabit` (app service) requests on the board, then drains the outbox synchronously and lets the create handler persist. The dispatcher is synchronous and in-process by design at this stage.

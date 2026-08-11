@@ -2,6 +2,7 @@ use crate::habit_management::domain::completion_history::CompletionHistory;
 use crate::habit_management::domain::goal::Goal;
 use crate::habit_management::domain::habit_id::HabitId;
 use crate::habit_management::domain::habit_title::HabitTitle;
+use crate::habit_management::domain::lifecycle_state::LifecycleState;
 use crate::habit_management::domain::step_history::StepHistory;
 use crate::shared::local_date::LocalDate;
 use std::error::Error;
@@ -13,6 +14,7 @@ pub struct Habit {
     title: HabitTitle,
     steps: StepHistory,
     completion_history: CompletionHistory,
+    state: LifecycleState,
 }
 
 #[derive(Debug, PartialEq)]
@@ -47,6 +49,7 @@ impl Habit {
             title,
             steps: StepHistory::seeded(created_on, goal),
             completion_history: CompletionHistory::new(),
+            state: LifecycleState::Active,
         }
     }
 
@@ -55,6 +58,9 @@ impl Habit {
     }
     pub fn title(&self) -> &HabitTitle {
         &self.title
+    }
+    pub fn state(&self) -> LifecycleState {
+        self.state
     }
     pub fn current_goal(&self) -> u32 {
         self.steps.current().value()
@@ -65,6 +71,14 @@ impl Habit {
 
     pub fn toggle_done(&mut self, today: LocalDate) {
         self.completion_history.toggle(today);
+    }
+
+    pub fn pause(&mut self) {
+        self.state = LifecycleState::Paused;
+    }
+
+    pub fn resume(&mut self) {
+        self.state = LifecycleState::Active;
     }
 
     pub fn grow(&mut self, today: LocalDate) {

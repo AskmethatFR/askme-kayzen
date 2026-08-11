@@ -2,6 +2,7 @@ use crate::composition::Services;
 use crate::route::Route;
 use dioxus::prelude::*;
 use kayzen_core::habit_management::queries::get_habit_detail::HabitDetail as HabitDetailData;
+use kayzen_core::habit_management::queries::get_habit_detail::HabitState;
 
 #[component]
 pub fn HabitDetail(id: String) -> Element {
@@ -14,51 +15,88 @@ pub fn HabitDetail(id: String) -> Element {
 
     match detail() {
         Some(habit) => {
-            rsx! {
-                div { class: "screen",
-                    header { class: "masthead",
-                        Link { class: "quiet-link", to: Route::Today {}, "← Aujourd'hui" }
-                    }
-                    h1 { class: "greeting", "{habit.title}" }
-                    p { class: "lede", "chaque jour · {habit.current_goal} min" }
-
-                    div {
-                        class: "staircase",
-                        "aria-label": "Vos sept derniers jours, objectif actuel {habit.current_goal} minutes",
-                        for day in habit.days.iter() {
-                            span {
-                                class: if day.done { "day-bar is-done" } else { "day-bar" },
-                                style: "--day-minutes: {day.goal}",
-                            }
+            let staircase = rsx! {
+                div {
+                    class: "staircase",
+                    "aria-label": "Vos sept derniers jours, objectif actuel {habit.current_goal} minutes",
+                    for day in habit.days.iter() {
+                        span {
+                            class: if day.done { "day-bar is-done" } else { "day-bar" },
+                            style: "--day-minutes: {day.goal}",
                         }
                     }
-
-                    p { class: "eyebrow", "Ajuster, à votre rythme" }
-                    button {
-                        class: "btn btn-block",
-                        onclick: {
-                            let services = services.clone();
-                            let id = id.clone();
-                            move |_| detail.set(grow_and_reload(&services, &id))
-                        },
-                        "Passer à {habit.next_goal_up} min"
-                    }
-                    button {
-                        class: "btn btn-block",
-                        onclick: {
-                            let services = services.clone();
-                            let id = id.clone();
-                            move |_| detail.set(lighten_and_reload(&services, &id))
-                        },
-                        "Alléger à {habit.next_goal_down} min"
-                    }
-
-                    Link {
-                        class: "btn btn-primary btn-block",
-                        to: Route::Ritual { id: habit.id.clone() },
-                        "Faire ma minute"
-                    }
                 }
+            };
+
+            match habit.state {
+                HabitState::Active => rsx! {
+                    div { class: "screen",
+                        header { class: "masthead",
+                            Link { class: "quiet-link", to: Route::Today {}, "← Aujourd'hui" }
+                        }
+                        h1 { class: "greeting", "{habit.title}" }
+                        p { class: "lede", "chaque jour · {habit.current_goal} min" }
+
+                        {staircase}
+
+                        p { class: "eyebrow", "Ajuster, à votre rythme" }
+                        button {
+                            class: "btn btn-block",
+                            onclick: {
+                                let services = services.clone();
+                                let id = id.clone();
+                                move |_| detail.set(grow_and_reload(&services, &id))
+                            },
+                            "Passer à {habit.next_goal_up} min"
+                        }
+                        button {
+                            class: "btn btn-block",
+                            onclick: {
+                                let services = services.clone();
+                                let id = id.clone();
+                                move |_| detail.set(lighten_and_reload(&services, &id))
+                            },
+                            "Alléger à {habit.next_goal_down} min"
+                        }
+
+                        Link {
+                            class: "btn btn-primary btn-block",
+                            to: Route::Ritual { id: habit.id.clone() },
+                            "Faire ma minute"
+                        }
+
+                        button {
+                            class: "btn btn-block",
+                            onclick: {
+                                let services = services.clone();
+                                let id = id.clone();
+                                move |_| detail.set(pause_and_reload(&services, &id))
+                            },
+                            "Mettre en pause, sans culpabilité"
+                        }
+                    }
+                },
+                HabitState::Paused => rsx! {
+                    div { class: "screen",
+                        header { class: "masthead",
+                            Link { class: "quiet-link", to: Route::Today {}, "← Aujourd'hui" }
+                        }
+                        h1 { class: "greeting", "{habit.title}" }
+                        p { class: "lede", "en pause · {habit.current_goal} min" }
+
+                        {staircase}
+
+                        button {
+                            class: "btn btn-primary btn-block",
+                            onclick: {
+                                let services = services.clone();
+                                let id = id.clone();
+                                move |_| detail.set(resume_and_reload(&services, &id))
+                            },
+                            "La reprendre"
+                        }
+                    }
+                },
             }
         }
         None => rsx! {
@@ -82,6 +120,18 @@ fn lighten_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> 
     services.get_habit_detail.handle(id)
 }
 
+#[must_use]
+fn pause_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
+    services.pause_habit.execute(id).ok();
+    services.get_habit_detail.handle(id)
+}
+
+#[must_use]
+fn resume_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
+    services.resume_habit.execute(id).ok();
+    services.get_habit_detail.handle(id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -92,6 +142,7 @@ mod tests {
     use kayzen_core::habit_management::domain::habit_repository::HabitRepository;
     use kayzen_core::habit_management::domain::habit_title::HabitTitle;
     use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
+    use kayzen_core::habit_management::queries::get_habit_detail::HabitState;
     use kayzen_core::shared::clock::Clock;
     use kayzen_core::shared::local_date::LocalDate;
     use std::rc::Rc;
@@ -163,6 +214,25 @@ mod tests {
         }
     }
 
+    fn services_with_one_paused_habit() -> Services {
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit();
+        habit.pause();
+        repository.save(&habit);
+        Services::with_repository(repository)
+    }
+
+    #[component]
+    fn RootAtPausedHabit() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_one_paused_habit);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
     #[component]
     fn RootAtFloorHabitDoneToday() -> Element {
         use_hook(|| {
@@ -207,6 +277,32 @@ mod tests {
     }
 
     #[test]
+    fn pause_and_reload_pauses_the_habit_and_returns_the_refreshed_detail() {
+        let services = services_with_one_habit();
+
+        let detail = pause_and_reload(&services, "h-1");
+
+        assert_eq!(
+            detail.map(|d| d.state),
+            Some(HabitState::Paused),
+            "expected the gesture to have run before the screen re-reads the habit"
+        );
+    }
+
+    #[test]
+    fn resume_and_reload_resumes_the_habit_and_returns_the_refreshed_detail() {
+        let services = services_with_one_paused_habit();
+
+        let detail = resume_and_reload(&services, "h-1");
+
+        assert_eq!(
+            detail.map(|d| d.state),
+            Some(HabitState::Active),
+            "expected the gesture to have run before the screen re-reads the habit"
+        );
+    }
+
+    #[test]
     fn a_known_habit_renders_its_title_and_goal() {
         let html = render(RootAtKnownHabit);
 
@@ -221,6 +317,10 @@ mod tests {
         assert!(
             html.contains("Passer à 6 min"),
             "expected the grow-goal button offering the next step up, got: {html}"
+        );
+        assert!(
+            html.contains("Mettre en pause"),
+            "expected the pause gesture to be offered on an active habit, got: {html}"
         );
     }
 
@@ -269,6 +369,43 @@ mod tests {
             html.matches("is-done").count(),
             1,
             "expected only the one practised day filled, got: {html}"
+        );
+    }
+
+    // Retagged from a Task 1 mistag: this test's Given ("a paused habit")
+    // and Then (offers only the return, plus the staircase, neither ritual,
+    // growing, nor lightening) are S4's verbatim, not S1's (S1 is about the
+    // Today screen leaving the daily list, anchored separately in
+    // list_board_habits.rs and today.rs).
+    // @scenario: pause-resume/S4
+    #[test]
+    fn a_paused_habits_detail_offers_only_its_return_and_staircase() {
+        let html = render(RootAtPausedHabit);
+
+        assert!(
+            html.contains("La reprendre"),
+            "expected the resume gesture to be offered, got: {html}"
+        );
+        assert_eq!(
+            html.matches("day-bar").count(),
+            7,
+            "expected the practice staircase to stay on a paused habit, got: {html}"
+        );
+        assert!(
+            !html.contains("Passer à"),
+            "expected no grow-goal gesture on a paused habit, got: {html}"
+        );
+        assert!(
+            !html.contains("Alléger à"),
+            "expected no lighten-goal gesture on a paused habit, got: {html}"
+        );
+        assert!(
+            !html.contains("Faire ma minute"),
+            "expected no ritual gesture on a paused habit, got: {html}"
+        );
+        assert!(
+            !html.contains("Mettre en pause"),
+            "expected no pause gesture on an already-paused habit, got: {html}"
         );
     }
 

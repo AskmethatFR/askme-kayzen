@@ -9,6 +9,7 @@ pub mod domain {
     pub mod habit_id;
     pub mod habit_repository;
     pub mod habit_title;
+    pub mod lifecycle_state;
     pub mod step_history;
 }
 
@@ -23,7 +24,9 @@ pub mod use_cases {
     pub mod grow_goal;
     pub mod lighten_goal;
     pub mod mark_done;
+    pub mod pause_habit;
     pub mod request_habit;
+    pub mod resume_habit;
 }
 
 pub mod queries {

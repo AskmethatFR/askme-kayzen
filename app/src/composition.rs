@@ -10,6 +10,8 @@ use kayzen_core::habit_management::queries::list_board_habits::ListBoardHabits;
 use kayzen_core::habit_management::use_cases::grow_goal::GrowGoal;
 use kayzen_core::habit_management::use_cases::lighten_goal::LightenGoal;
 use kayzen_core::habit_management::use_cases::mark_done::MarkDone;
+use kayzen_core::habit_management::use_cases::pause_habit::PauseHabit;
+use kayzen_core::habit_management::use_cases::resume_habit::ResumeHabit;
 use kayzen_core::shared::clock::{Clock, SystemClock};
 
 use crate::services::add_habit::AddHabit;
@@ -27,6 +29,8 @@ pub struct Services {
     pub get_habit_detail: GetHabitDetail,
     pub grow_goal: GrowGoal,
     pub lighten_goal: LightenGoal,
+    pub pause_habit: PauseHabit,
+    pub resume_habit: ResumeHabit,
 }
 
 impl Services {
@@ -72,6 +76,8 @@ impl Services {
             get_habit_detail: GetHabitDetail::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
             grow_goal: GrowGoal::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
             lighten_goal: LightenGoal::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
+            pause_habit: PauseHabit::new(Rc::clone(&habit_repository)),
+            resume_habit: ResumeHabit::new(Rc::clone(&habit_repository)),
             add_habit: AddHabit::new(
                 Rc::clone(&habit_repository),
                 board_repository,

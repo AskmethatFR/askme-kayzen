@@ -3,6 +3,7 @@ use std::rc::Rc;
 use crate::habit_management::domain::habit::Habit;
 use crate::habit_management::domain::habit_id::HabitId;
 use crate::habit_management::domain::habit_repository::HabitRepository;
+use crate::habit_management::domain::lifecycle_state::LifecycleState;
 use crate::shared::clock::Clock;
 use crate::shared::local_date::LocalDate;
 
@@ -20,6 +21,18 @@ pub struct HabitDetail {
     pub next_goal_up: u32,
     pub next_goal_down: u32,
     pub days: Vec<PracticeDay>,
+    pub state: HabitState,
+}
+
+/// The habit's lifecycle as seen by the detail screen — a DTO-side type, kept
+/// distinct from the domain's `LifecycleState` (adr-0006, adr-0010: the app
+/// crate never imports a domain type) and never a `bool` (adr-0007: a second
+/// bool for `Anchored` one slice from now would make an impossible
+/// combination representable).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum HabitState {
+    Active,
+    Paused,
 }
 
 /// How many calendar days the practice staircase covers. Seven, aligned with
@@ -60,6 +73,10 @@ impl GetHabitDetail {
                     goal: goal_active_on(&habit, day),
                 })
                 .collect(),
+            state: match habit.state() {
+                LifecycleState::Active => HabitState::Active,
+                LifecycleState::Paused => HabitState::Paused,
+            },
         })
     }
 }
@@ -87,7 +104,7 @@ fn goal_active_on(habit: &Habit, day: LocalDate) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use super::{GetHabitDetail, HabitDetail, PracticeDay};
+    use super::{GetHabitDetail, HabitDetail, HabitState, PracticeDay};
     use crate::habit_management::domain::goal::Goal;
     use crate::habit_management::domain::habit::Habit;
     use crate::habit_management::domain::habit_id::HabitId;
@@ -143,6 +160,7 @@ mod tests {
                 next_goal_up: 6,
                 next_goal_down: 4,
                 days: seven_days(false, 5),
+                state: HabitState::Active,
             })
         );
     }
@@ -321,5 +339,26 @@ mod tests {
             "yesterday was not — its bar is still drawn, only faint: a day \
              without practice is never a gap and never a warning"
         );
+    }
+
+    // The DTO-side state is mapped from the domain's LifecycleState by an
+    // exhaustive match (adr-0007 AD-2). One behavior, two divergent rows.
+    #[test]
+    fn a_habits_state_is_mapped_from_its_lifecycle() {
+        let cases = vec![(false, HabitState::Active), (true, HabitState::Paused)];
+
+        for (should_pause, expected) in cases {
+            let repository = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = a_habit();
+            if should_pause {
+                habit.pause();
+            }
+            repository.save(&habit);
+            let query = get_habit_detail_over(repository);
+
+            let result = query.handle("h-1");
+
+            assert_eq!(result.map(|detail| detail.state), Some(expected));
+        }
     }
 }
