@@ -48,7 +48,7 @@
 | 3b | `practice-staircase` | The detail's staircase is **redrawn on practice, not on intent**: one bar per calendar day, full when the day was done, faint when it was not. Owner correction 2026-07-27 — see below | M | **done** (7-day window, faint missed days, per-day heights, `steps` off the contract) |
 | ~~4~~ | ~~`growth-suggestion`~~ | **DELETED** — StabilityPolicy removed (ADR-0008); progression is user-paced, nothing is suggested | — | ✂️ removed |
 | 5 | `pause-resume` | "Mettre en pause" / paused zone / one-tap resume | S | **done** (4 scenarios; paused detail is a rest screen — resume + staircase only; seat kept) |
-| 6 | `anchor` | Anchor button (**user-initiated, no 10-of-14 suggestion**), board frees the slot, Ancrées screen counts | L | todo |
+| 6 | `anchor` | Anchor button (**user-initiated, no 10-of-14 suggestion**), board frees the slot, Ancrées screen counts | L | **done** (4 scenarios; detail re-renders as a sober anchored screen — no gesture at all; Ancrées screen ships the list + the count, nothing more) |
 | 7 | `readmit` | "La remettre dans mon quotidien" — refusable (board full / duplicate title) | M | todo |
 | 8 | `stats-board` | Per-habit stats: days done, empty days (never "failed"), grow/lighten counts, minutes gained (reframe wording — nominal, anti-guilt) — plus adaptive (never guilt-inducing) messages | M | todo |
 
@@ -165,7 +165,7 @@ Developer's first failing test of a slice is the scenario, and dropping the
 | 2 `mark-done` | `[[mark-done]]` | S1–S3, covered |
 | 3 `adjust-goal` | `[[adjust-goal]]` | S1–S4, covered (S3 pins the floor no-op — d2 now settled) |
 | 5 `pause-resume` | `[[pause-resume]]` | S1–S4, covered (S3 pins Q1 — a paused habit keeps its seat; S4 pins the rest screen, added this cycle) |
-| 6 `anchor` | `[[anchor-habit]]` | S1–S4, `@wip` (S3 pins Q3, S4 pins "no suggestion") |
+| 6 `anchor` | `[[anchor-habit]]` | S1–S4, covered (S3 pins Q3, S4 pins "no suggestion") |
 | 7 `readmit` | `[[readmit-habit]]` | S1–S3, `@wip` |
 | 8 `stats-board` | `[[habit-stats]]` | S1–S4, `@wip` |
 
@@ -182,7 +182,7 @@ Developer's first failing test of a slice is the scenario, and dropping the
 | 3 `adjust-goal` | **done.** `StepHistory` grew to a dated, **append-only** staircase (`{first, rest}` — non-emptiness structural, no `unwrap`); `Goal::grown()` / `lightened()` carry the ±1 and the floor; `Habit::grow()` / `lighten()` append a dated step. **d2 SETTLED — silent no-op at the floor**: nothing appended, `Ok(())` returned, nothing signalled to the screen (an error would contradict *« alléger n'est pas reculer »*; a UI signal would contradict S4). Two use cases, `GrowGoal` and `LightenGoal`, one public method each — see `[[adr-0011-one-public-method-per-use-case]]`. |
 | ~~4 `growth-suggestion`~~ | **removed** — no `StabilityPolicy`, no stability detection, no suggestion (ADR-0008). |
 | 5 `pause-resume` | **done.** `LifecycleState::{Active, Paused}` landed as an enum on `Habit` (illegal combos unrepresentable; `Anchored` deliberately absent until its use case exists). Two use cases, `PauseHabit` and `ResumeHabit`, one public method each, **neither taking a `Clock`** — nothing dates these transitions. `HabitBoard` untouched: paused keeps the board seat (Q1), pinned by a wired test rather than a comment. Read side reshaped: `ListBoardHabits` now returns the per-screen DTO `TodayHabits {active, paused}`, so "a paused habit leaves the day's list" is a rule in the core, not in a view. |
-| 6 `anchor` | adds `LifecycleState::Anchored`; resolves the deferred board↔habit anchoring coordination (how the board frees the slot); `HabitBoard` cap counts non-anchored. |
+| 6 `anchor` | **done.** `LifecycleState::Anchored` lands, completing the enum (`Habit::anchor()`, no precondition, never refuses). Resolves the deferred board↔habit coordination as a **synchronous application-service orchestration**: `AnchorHabit` moves the habit to `Anchored`, saves it, then **releases its board entry** (`HabitBoard::release`) and saves the board — publishing nothing. The cap does not "count non-anchored habits" as a query-time filter; the entry is **removed**, which frees the seat **and** the title in the same act (see `[[adr-0012-synchronous-cross-aggregate-coordination]]`). Read side gains `ListAnchoredHabits -> Vec<AnchoredHabit { title }>` and `TodayHabits.anchored_count`, both derived on read. |
 | 7 `readmit` | `Anchored → Active` + board re-admission (reuse the duplicate / board-full guards). |
 | 8 `stats-board` | no aggregate growth — more CQRS-light queries over the two dated histories. |
 
@@ -209,8 +209,12 @@ Landed with slice 5 (now in `[[glossary]]`): Mettre en pause (*pause*), La repre
 (*resume*), État du cycle (*Active / En pause* — `LifecycleState`; *Ancrée* joins in
 slice 6), Zone « En pause · aucune pression ».
 
-Still to add as their slices land: Anchor/Readmit (*ancrer / remettre dans le
-quotidien* — slices 6-7), Minutes gagnées (slice 8).
+Landed with slice 6 (now in `[[glossary]]`): Ancrer / Ancrée (*anchor / anchored*
+— `LifecycleState::Anchored`, user-initiated only), Habitudes ancrées (the
+Ancrées screen).
+
+Still to add as its slice lands: Readmettre / Remettre dans le quotidien
+(*readmit* — slice 7). Minutes gagnées (slice 8).
 
 ## Slice 5 `pause-resume` — settled during delivery, 2026-08-06
 
@@ -229,3 +233,22 @@ yet tell them apart. No scenario names this state.
 **Gherkin debt from slice 3b: closed, and it was never open.** The rewrite it asked
 for had already shipped inside slice 3 — see the 3b section above for the full
 account. No scenario carries a code name today.
+
+## Slice 6 `anchor` — settled during delivery, 2026-08-11
+
+| Point | Decision |
+|---|---|
+| Where anchoring lands you | **On the detail**, which re-renders as a sober "ancrée" screen: title, goal, practice staircase — **no gesture at all**. Same reasoning as pause in slice 5: returning to Aujourd'hui would hide the screen just drawn. Amends the designer's `anchor(id) → habit.anchored = true ; screen = Today` (`[[design-ecrans]]`) |
+| How the freed seat works | The board's cap counts **entries**, not "non-anchored habits" as a filter — anchoring **removes** the habit's entry from the board (`HabitBoard::release`). The seat and the title are freed by the same act, not two. Corrects the wording carried since slice 5 (see the `[[design-ecrans]]` and `[[feature-catalog]]` amendments below) without reopening Q1, which stands exactly as approved |
+| The Ancrées screen's scope | **The list and the count, nothing more.** The designer's node also draws each habit's last 7 days as dots and a footer « Vous suivez N / 5 habitudes en parallèle. » — both **deferred**. No scenario asks for them (S2 says only "listed and counted"), and as long as no screen offers to mark an anchored habit done, the dots would freeze at the day of anchoring and replay a pre-anchor history forever. The footer belongs to slice 7, where board-full refusal is the actual subject |
+| The approved copy | Detail button « L'ancrer · elle est devenue naturelle » ; anchored banner « ancrée · {N} min » ; Today link « Mes habitudes ancrées · {N} », shown only when N ≥ 1 ; Ancrées screen: the titles + « {N} · devenues naturelles » |
+| Scenario sufficiency | The four scenarios were judged sufficient; none changed. S3 ("an anchored habit can still be marked done") names **no screen** this slice — it is pinned at the rule level, on `MarkDone`, not in any UI |
+
+**Handed to slice 7:** readmission must handle a title **retaken while the habit
+was anchored** — a real rejection path, not a formality. `[[readmit-habit]]` S3
+already specifies it (refused as duplicate); `[[adr-0012-synchronous-cross-aggregate-coordination]]`
+now cites that scenario as the technical constraint on slice 7's design, since
+anchoring frees the title for reuse.
+
+**Gherkin: no debt.** `[[anchor-habit]]` shipped its four scenarios byte-for-byte
+as specified, `@wip`-free since `fb71a8d`.

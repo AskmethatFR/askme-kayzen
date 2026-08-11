@@ -74,6 +74,16 @@ pub fn HabitDetail(id: String) -> Element {
                             },
                             "Mettre en pause, sans culpabilité"
                         }
+
+                        button {
+                            class: "btn btn-block",
+                            onclick: {
+                                let services = services.clone();
+                                let id = id.clone();
+                                move |_| detail.set(anchor_and_reload(&services, &id))
+                            },
+                            "L'ancrer · elle est devenue naturelle"
+                        }
                     }
                 },
                 HabitState::Paused => rsx! {
@@ -95,6 +105,17 @@ pub fn HabitDetail(id: String) -> Element {
                             },
                             "La reprendre"
                         }
+                    }
+                },
+                HabitState::Anchored => rsx! {
+                    div { class: "screen",
+                        header { class: "masthead",
+                            Link { class: "quiet-link", to: Route::Today {}, "← Aujourd'hui" }
+                        }
+                        h1 { class: "greeting", "{habit.title}" }
+                        p { class: "lede", "ancrée · {habit.current_goal} min" }
+
+                        {staircase}
                     }
                 },
             }
@@ -129,6 +150,12 @@ fn pause_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
 #[must_use]
 fn resume_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
     services.resume_habit.execute(id).ok();
+    services.get_habit_detail.handle(id)
+}
+
+#[must_use]
+fn anchor_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
+    services.anchor_habit.execute(id).ok();
     services.get_habit_detail.handle(id)
 }
 
@@ -192,6 +219,37 @@ mod tests {
         Services::with_repository_and_clock(repository, clock)
     }
 
+    // S4's Given, verbatim: a habit completed on 10 of the last 14 days — the
+    // exact shape a stability detector would key on (adr-0008 deleted that
+    // detector; this fixture exists to keep it deleted).
+    fn services_with_a_habit_done_ten_of_the_last_fourteen_days() -> Services {
+        let today = LocalDate::from_epoch_day(20_020);
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock(today));
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Lire une page".to_string()).unwrap(),
+            Goal::new(5).unwrap(),
+            LocalDate::from_epoch_day(20_000),
+        );
+        for days_back in 0..10 {
+            habit.toggle_done(today.minus_days(days_back));
+        }
+        repository.save(&habit);
+        Services::with_repository_and_clock(repository, clock)
+    }
+
+    #[component]
+    fn RootAtHabitDoneTenOfLastFourteenDays() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_a_habit_done_ten_of_the_last_fourteen_days);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
     #[component]
     fn RootAtKnownHabit() -> Element {
         use_hook(|| {
@@ -222,12 +280,31 @@ mod tests {
         Services::with_repository(repository)
     }
 
+    fn services_with_one_anchored_habit() -> Services {
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit();
+        habit.anchor();
+        repository.save(&habit);
+        Services::with_repository(repository)
+    }
+
     #[component]
     fn RootAtPausedHabit() -> Element {
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
         });
         use_context_provider(services_with_one_paused_habit);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootAtAnchoredHabit() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_one_anchored_habit);
         rsx! {
             Router::<Route> {}
         }
@@ -290,6 +367,19 @@ mod tests {
     }
 
     #[test]
+    fn anchor_and_reload_anchors_the_habit_and_returns_the_refreshed_detail() {
+        let services = services_with_one_habit();
+
+        let detail = anchor_and_reload(&services, "h-1");
+
+        assert_eq!(
+            detail.map(|d| d.state),
+            Some(HabitState::Anchored),
+            "expected the gesture to have run before the screen re-reads the habit"
+        );
+    }
+
+    #[test]
     fn resume_and_reload_resumes_the_habit_and_returns_the_refreshed_detail() {
         let services = services_with_one_paused_habit();
 
@@ -321,6 +411,10 @@ mod tests {
         assert!(
             html.contains("Mettre en pause"),
             "expected the pause gesture to be offered on an active habit, got: {html}"
+        );
+        assert!(
+            html.contains("L&#39;ancrer · elle est devenue naturelle"),
+            "expected the anchor gesture's full copy on an active habit, got: {html}"
         );
     }
 
@@ -406,6 +500,57 @@ mod tests {
         assert!(
             !html.contains("Mettre en pause"),
             "expected no pause gesture on an already-paused habit, got: {html}"
+        );
+    }
+
+    #[test]
+    fn an_anchored_habits_detail_shows_the_banner_and_staircase_with_no_gesture() {
+        let html = render(RootAtAnchoredHabit);
+
+        assert!(
+            html.contains("ancrée · 5 min"),
+            "expected the anchored banner naming the dose, got: {html}"
+        );
+        assert_eq!(
+            html.matches("day-bar").count(),
+            7,
+            "expected the practice staircase to stay on an anchored habit, got: {html}"
+        );
+        assert!(
+            !html.contains("Passer à") && !html.contains("Alléger à"),
+            "expected no goal-adjustment gesture on an anchored habit, got: {html}"
+        );
+        assert!(
+            !html.contains("Faire ma minute"),
+            "expected no ritual gesture on an anchored habit, got: {html}"
+        );
+        assert!(
+            !html.contains("Mettre en pause") && !html.contains("La reprendre"),
+            "expected no pause/resume gesture on an anchored habit, got: {html}"
+        );
+        assert!(
+            !html.contains("L&#39;ancrer"),
+            "expected no anchor gesture on an already-anchored habit, got: {html}"
+        );
+    }
+
+    // @scenario: anchor-habit/S4
+    #[test]
+    fn anchoring_is_offered_but_never_suggested_whatever_the_habits_history() {
+        let html = render(RootAtHabitDoneTenOfLastFourteenDays);
+
+        assert!(
+            html.contains("L&#39;ancrer"),
+            "expected the anchor gesture to still be offered, got: {html}"
+        );
+        let lowercase_html = html.to_lowercase();
+        assert!(
+            !lowercase_html.contains("suggé")
+                && !lowercase_html.contains("prête")
+                && !lowercase_html.contains("badge")
+                && !lowercase_html.contains("stable"),
+            "expected no suggestion, hint or badge about anchoring — anchoring is \
+             user-initiated only, never detected, got: {html}"
         );
     }
 

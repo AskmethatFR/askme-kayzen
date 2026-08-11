@@ -2,7 +2,7 @@
 
 > Functional node (owner: pm). What the product does today, in business terms, with the acceptance that pins each behavior. Technical rationale lives in [[architecture-overview]] and [[adr-0001-validation-by-construction]].
 
-> The acceptance tables below are mirrored as spec-only Gherkin in `docs/functional/features/habit-management/`: F-1 → [[request-habit]], F-2 → [[create-habit-on-request]]. Delivered since: [[today-habit-list]], [[mark-done]], [[adjust-goal]], [[practice-staircase]] and [[pause-resume]]. Every scenario there resolves to a test through its `// @scenario:` anchor (`scenario_audit.py`).
+> The acceptance tables below are mirrored as spec-only Gherkin in `docs/functional/features/habit-management/`: F-1 → [[request-habit]], F-2 → [[create-habit-on-request]]. Delivered since: [[today-habit-list]], [[mark-done]], [[adjust-goal]], [[practice-staircase]], [[pause-resume]] and [[anchor-habit]]. Every scenario there resolves to a test through its `// @scenario:` anchor (`scenario_audit.py`).
 
 ## F-1 — Request a habit from the board
 
@@ -101,11 +101,35 @@ The day's tally counts only the habits still in the day: a habit at rest is not 
 | A board holding 5 habits, one of them paused | Requesting a new habit | Refused as board-full — a paused habit keeps its seat so resuming can never fail |
 | A paused habit | Opening its detail | It offers to resume it and shows its practice staircase — neither the ritual, nor growing, nor lightening |
 
+## F-7 — Anchor a habit that has become natural
+
+A user can mark a habit "ancrée" whenever they feel it has become natural — a **user gesture**, never a system suggestion; no habit-streak threshold triggers it. Anchoring **removes the habit's entry from the board**: the seat is freed, and the title is freed with it, in the same act — not a filter that "stops counting" the habit, an actual removal (see [[adr-0012-synchronous-cross-aggregate-coordination]]). The habit itself is untouched: its completion and step histories stay exactly as they are, and it can still be marked done — anchoring ends the seat, not the habit.
+
+The user stays on the habit's detail, which re-renders as a sober "anchored" screen: title, goal, its practice staircase — **no gesture at all**, nothing left to adjust or pause, only history to see.
+
+The new **Ancrées** screen lists every anchored habit and states how many there are. Aujourd'hui links to it as « Mes habitudes ancrées · N », shown only once N ≥ 1.
+
+> **Deferred, not built:** the designer's node also draws each anchored habit's last 7 days as dots, and a footer « Vous suivez N / 5 habitudes en parallèle. » Neither ships this slice — no scenario asks for them, and until a screen can mark an anchored habit done, the dots would freeze at the day of anchoring and replay a stale history forever. The footer belongs with slice 7, which is where board-full refusal becomes the actual subject.
+
+**Business rules** (see [[glossary]]):
+- Anchoring is always user-initiated; nothing detects readiness and nothing suggests it — no streak, no 10-of-14 threshold.
+- The board's cap of 5 counts **entries**, not habits: anchoring removes the entry, so the freed seat and the freed title are one act, not two.
+- An anchored habit can still be marked done — anchoring changes what the board knows, not what the habit is.
+
+**Acceptance (pinned by tests in `core/src/habit_management/use_cases/anchor_habit.rs`, `.../queries/list_anchored_habits.rs` and `app/src/views/`, mirrored as [[anchor-habit]]):**
+
+| Given | When | Then |
+|---|---|---|
+| A board holding 5 habits | The user anchors one of them | A new habit can be requested and is accepted — the board counts non-anchored entries only |
+| An active habit | The user anchors it | It leaves the Today list and is counted on the Ancrées screen |
+| An anchored habit | It is marked done | Today's completion is recorded — anchoring ends the seat, not the habit |
+| A habit completed on 10 of the last 14 days | The user opens its detail | Nothing suggests anchoring it — anchoring is user-initiated |
+
 ## Not available yet (deliberate — manual development resumes from here)
 
 - **Nothing survives a restart**: every store is in-memory (`InMemoryHabitRepository`, `InMemoryHabitBoardRepository`), and the Today screen is seeded with three demo habits at startup. No persistence adapter exists yet.
-- Three of the six screens act: **Today** (list + mark done + the paused zone), **Add**, and **Detail** (adjust the goal, read the practice staircase, pause and resume). Ritual, Week and Ancrées are routed stubs.
-- No way yet for a habit to leave the board: the **"ancrée"** (anchored) rule will free a slot (slice 6); until then the board can fill to 5 and stay full — pausing does not free one, by design (F-6). The recap (slice 8) is specified but not built — see [[lifecycle-backlog]].
+- Four of the six screens act: **Today** (list + mark done + the paused zone + the Ancrées link), **Add**, **Detail** (adjust the goal, read the practice staircase, pause/resume, anchor), and **Ancrées** (list + count only — see F-7). Ritual and Week are routed stubs.
+- Anchoring is one-way for now: nothing yet takes an anchored habit back into the daily list — that is [[readmit-habit]] (slice 7), refusable on board-full or on a title already retaken. The Ancrées screen's per-habit dots and its parallel-count footer are deferred (see F-7). The recap (slice 8) is specified but not built — see [[lifecycle-backlog]].
 - Direct habit creation (the old `CreateHabit` command) was **removed**: the board request is the only entry point.
 
 > The F-1 → F-2 hand-off **does** run in production: `AddHabit` (app service) requests on the board, then drains the outbox synchronously and lets the create handler persist. The dispatcher is synchronous and in-process by design at this stage.

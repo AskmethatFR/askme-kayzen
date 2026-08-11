@@ -6,7 +6,9 @@ use kayzen_core::habit_management::infrastructure::in_memory_habit_board_reposit
 use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
 use kayzen_core::habit_management::infrastructure::in_memory_outbox::InMemoryOutbox;
 use kayzen_core::habit_management::queries::get_habit_detail::GetHabitDetail;
+use kayzen_core::habit_management::queries::list_anchored_habits::ListAnchoredHabits;
 use kayzen_core::habit_management::queries::list_board_habits::ListBoardHabits;
+use kayzen_core::habit_management::use_cases::anchor_habit::AnchorHabit;
 use kayzen_core::habit_management::use_cases::grow_goal::GrowGoal;
 use kayzen_core::habit_management::use_cases::lighten_goal::LightenGoal;
 use kayzen_core::habit_management::use_cases::mark_done::MarkDone;
@@ -31,6 +33,8 @@ pub struct Services {
     pub lighten_goal: LightenGoal,
     pub pause_habit: PauseHabit,
     pub resume_habit: ResumeHabit,
+    pub anchor_habit: AnchorHabit,
+    pub list_anchored_habits: ListAnchoredHabits,
 }
 
 impl Services {
@@ -78,6 +82,11 @@ impl Services {
             lighten_goal: LightenGoal::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
             pause_habit: PauseHabit::new(Rc::clone(&habit_repository)),
             resume_habit: ResumeHabit::new(Rc::clone(&habit_repository)),
+            anchor_habit: AnchorHabit::new(
+                Rc::clone(&habit_repository),
+                Rc::clone(&board_repository),
+            ),
+            list_anchored_habits: ListAnchoredHabits::new(Rc::clone(&habit_repository)),
             add_habit: AddHabit::new(
                 Rc::clone(&habit_repository),
                 board_repository,
@@ -85,5 +94,45 @@ impl Services {
                 clock,
             ),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Regression guard for the trap this slice named: AnchorHabit and AddHabit
+    // must release/check the same board. A `Services` wired with two separate
+    // InMemoryHabitBoardRepository instances would leave every other test green
+    // while anchoring frees a seat on a phantom board.
+    #[test]
+    fn anchoring_a_habit_through_services_frees_its_seat_for_add_habit() {
+        let services = Services::with_repository(Rc::new(InMemoryHabitRepository::new()));
+
+        for n in 1..=5 {
+            services
+                .add_habit
+                .execute(&format!("Habit number {n}"))
+                .expect("valid habit request");
+        }
+        let anchored_id = services
+            .list_board_habits
+            .handle()
+            .active
+            .first()
+            .expect("at least one habit on the board")
+            .id
+            .clone();
+
+        services
+            .anchor_habit
+            .execute(&anchored_id)
+            .expect("known habit");
+
+        assert!(
+            services.add_habit.execute("One habit too many").is_ok(),
+            "expected the freed seat to be visible to AddHabit through the same \
+             board_repository"
+        );
     }
 }

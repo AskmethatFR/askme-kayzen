@@ -33,6 +33,7 @@ pub struct HabitDetail {
 pub enum HabitState {
     Active,
     Paused,
+    Anchored,
 }
 
 /// How many calendar days the practice staircase covers. Seven, aligned with
@@ -76,6 +77,7 @@ impl GetHabitDetail {
             state: match habit.state() {
                 LifecycleState::Active => HabitState::Active,
                 LifecycleState::Paused => HabitState::Paused,
+                LifecycleState::Anchored => HabitState::Anchored,
             },
         })
     }
@@ -341,18 +343,22 @@ mod tests {
         );
     }
 
+    type Mutation = fn(&mut Habit);
+
     // The DTO-side state is mapped from the domain's LifecycleState by an
-    // exhaustive match (adr-0007 AD-2). One behavior, two divergent rows.
+    // exhaustive match (adr-0007 AD-2). One behavior, three divergent rows.
     #[test]
     fn a_habits_state_is_mapped_from_its_lifecycle() {
-        let cases = vec![(false, HabitState::Active), (true, HabitState::Paused)];
+        let cases: Vec<(Mutation, HabitState)> = vec![
+            (|_habit| {}, HabitState::Active),
+            (|habit| habit.pause(), HabitState::Paused),
+            (|habit| habit.anchor(), HabitState::Anchored),
+        ];
 
-        for (should_pause, expected) in cases {
+        for (mutate, expected) in cases {
             let repository = Rc::new(InMemoryHabitRepository::new());
             let mut habit = a_habit();
-            if should_pause {
-                habit.pause();
-            }
+            mutate(&mut habit);
             repository.save(&habit);
             let query = get_habit_detail_over(repository);
 

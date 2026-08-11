@@ -3,10 +3,11 @@ id: "adr-0009-quality-gates"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-08-06"
+updated: "2026-08-11"
 relations:
   related:
     - "architecture-overview"
+    - "adr-0012-synchronous-cross-aggregate-coordination"
     - "lifecycle-backlog"
     - "feature-catalog"
     - "adr-0001-validation-by-construction"
@@ -33,12 +34,15 @@ answers:
   - "Why has renaming `new` to `parse` not been done, and who decides it?"
   - "Where do the gate implementations live, and what happens on a machine that lacks them?"
   - "Can a test in the app crate materialize a scenario, or only a core test?"
+  - "A mutant survived — do I strengthen the assertion or change what I observe?"
+  - "What measures the composition root, given that app/src/** is outside the perimeter?"
 decided_in:
   - "2026-07-25 gates cycle"
   - "2026-07-26 architect ratification (slice 3 adjust-goal cycle)"
   - "2026-07-26 base-ref + new()-blind-spot cycle (amendment below)"
   - "2026-07-27 slice 3 adjust-goal cycle (three further perimeter limits — amendment below)"
   - "2026-08-06 slice 5 pause-resume cycle (L1 corrected, exploit demonstrated, L4 added)"
+  - "2026-08-11 slice 6 anchor-habit cycle (in-perimeter survivor; composition root test-covered)"
 ---
 
 # ADR 0009 — Quality gates: spec-only Gherkin, diff-scoped mutation testing, one runner
@@ -303,3 +307,59 @@ instrument is *allowed* to look — it does not put it where the instrument *can
 **10 mutants generated for a 1290-line diff, 7 killed, 3 unviable, 0 survived.** Read with
 L4 in mind: ten mutants for a diff that size is itself the finding. The verdict is honest
 and it is thin.
+
+---
+
+## Amendment — 2026-08-11, slice 6 `anchor-habit`: the gate bites inside the perimeter, and the composition root gains its first test
+
+Two additions, both narrowing what the previous two amendments left open. The perimeter
+itself is **unchanged** — `.cargo/mutants.toml` still states its include list and its
+reasoning in the file, and both QA and Dev-B re-read it independently this cycle and
+confirmed it is a standing convention, not something this slice weakened.
+
+### A real survivor, inside the perimeter, on a one-line comparison
+
+Slice 5 ended on a discouraging note: the rules that mattered were `match`-shaped and the
+gate could not see them (L4). Slice 6 produced the opposite case, and it is worth recording
+in the same node.
+
+The campaign flagged **one survivor**: `HabitBoard::release`'s retain closure with its
+comparison inverted — `entry.id == id` instead of `!=`, i.e. *remove everyone except the
+anchored habit*. The board test written for the slice stayed green under that mutant, and
+so did the whole suite. The reason is the interesting part:
+
+> The assertion was about the **seat count**. A board left holding only the anchored entry
+> is at 1 of 5 — it still has room for a sixth request. **A count cannot distinguish
+> "removed the right entry" from "removed all the wrong ones".**
+
+What killed it was asserting the **consequence that identifies the entry**: after
+anchoring, a request reusing the *anchored* habit's title succeeds (its title was released)
+while a request reusing a *still-active* habit's title is still rejected as a duplicate.
+Both halves are needed; either alone is satisfiable by a wrong `release`.
+
+The lesson generalizes past this line: **when a mutant survives, the fix is usually not a
+stronger assertion on the same observation — it is a different observation.** Aggregate
+counts are the classic weak observation, because they are invariant under the permutations
+a comparison operator produces.
+
+### The composition root is now test-covered — a first for this repo
+
+`app/src/composition.rs` gained its first `#[cfg(test)] mod tests`: a regression guard
+proving that `AnchorHabit` and `AddHabit` see the **same** board, i.e. that
+`board_repository` is one shared `Rc` inside `Services` rather than two instances. It
+anchors five habits' worth of wiring end to end — five requests, one anchor, a sixth
+request that must now succeed.
+
+This matters because of exactly the exposure L1-bis named: `app/src/**` is outside the
+mutation gate by design, so **a wiring mistake there is measured by nothing**. Until this
+slice, the only instrument pointed at the composition root was a reviewer reading it.
+
+Dev-B verified the guard mechanically rather than trusting it: in a throwaway worktree the
+shared `Rc` was split back into two repositories, and of **109 tests, 108 stayed green** —
+only this guard failed. That ratio is the finding. A composition-root defect that silently
+sends two use cases to two different stores is invisible to a suite that tests each use
+case correctly, in isolation, with its own wiring.
+
+**Standing implication**: when a slice makes two use cases share a dependency, the sharing
+is a decision, and it needs a test that fails when the wiring is split. The composition root
+is not plumbing below the waterline — it is the only place that decision is expressed.
