@@ -7,6 +7,7 @@ use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::I
 use kayzen_core::habit_management::infrastructure::in_memory_outbox::InMemoryOutbox;
 use kayzen_core::habit_management::queries::get_habit_detail::GetHabitDetail;
 use kayzen_core::habit_management::queries::list_board_habits::ListBoardHabits;
+use kayzen_core::habit_management::use_cases::anchor_habit::AnchorHabit;
 use kayzen_core::habit_management::use_cases::grow_goal::GrowGoal;
 use kayzen_core::habit_management::use_cases::lighten_goal::LightenGoal;
 use kayzen_core::habit_management::use_cases::mark_done::MarkDone;
@@ -31,6 +32,7 @@ pub struct Services {
     pub lighten_goal: LightenGoal,
     pub pause_habit: PauseHabit,
     pub resume_habit: ResumeHabit,
+    pub anchor_habit: AnchorHabit,
 }
 
 impl Services {
@@ -78,6 +80,7 @@ impl Services {
             lighten_goal: LightenGoal::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
             pause_habit: PauseHabit::new(Rc::clone(&habit_repository)),
             resume_habit: ResumeHabit::new(Rc::clone(&habit_repository)),
+            anchor_habit: AnchorHabit::new(Rc::clone(&habit_repository)),
             add_habit: AddHabit::new(
                 Rc::clone(&habit_repository),
                 board_repository,

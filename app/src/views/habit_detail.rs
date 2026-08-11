@@ -74,6 +74,16 @@ pub fn HabitDetail(id: String) -> Element {
                             },
                             "Mettre en pause, sans culpabilité"
                         }
+
+                        button {
+                            class: "btn btn-block",
+                            onclick: {
+                                let services = services.clone();
+                                let id = id.clone();
+                                move |_| detail.set(anchor_and_reload(&services, &id))
+                            },
+                            "L'ancrer · elle est devenue naturelle"
+                        }
                     }
                 },
                 HabitState::Paused => rsx! {
@@ -131,6 +141,11 @@ fn pause_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
 fn resume_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
     services.resume_habit.execute(id).ok();
     services.get_habit_detail.handle(id)
+}
+
+#[must_use]
+fn anchor_and_reload(_services: &Services, _id: &str) -> Option<HabitDetailData> {
+    todo!()
 }
 
 #[cfg(test)]
@@ -286,6 +301,20 @@ mod tests {
         assert_eq!(
             detail.map(|d| d.state),
             Some(HabitState::Paused),
+            "expected the gesture to have run before the screen re-reads the habit"
+        );
+    }
+
+    // @scenario: anchor-habit/S2
+    #[test]
+    fn anchor_and_reload_anchors_the_habit_and_returns_the_refreshed_detail() {
+        let services = services_with_one_habit();
+
+        let detail = anchor_and_reload(&services, "h-1");
+
+        assert_eq!(
+            detail.map(|d| d.state),
+            Some(HabitState::Anchored),
             "expected the gesture to have run before the screen re-reads the habit"
         );
     }
