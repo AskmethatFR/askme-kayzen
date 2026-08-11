@@ -35,6 +35,7 @@ pub struct PausedHabit {
 pub struct TodayHabits {
     pub active: Vec<HabitSummary>,
     pub paused: Vec<PausedHabit>,
+    pub anchored_count: usize,
 }
 
 impl ListBoardHabits {
@@ -46,6 +47,7 @@ impl ListBoardHabits {
         let today = self.clock.today();
         let mut active = Vec::new();
         let mut paused = Vec::new();
+        let mut anchored_count = 0;
 
         for habit in self.repository.all() {
             match habit.state() {
@@ -63,7 +65,11 @@ impl ListBoardHabits {
             }
         }
 
-        TodayHabits { active, paused }
+        TodayHabits {
+            active,
+            paused,
+            anchored_count,
+        }
     }
 }
 
@@ -226,6 +232,28 @@ mod tests {
             }]
         );
         assert_eq!(result.paused, Vec::new());
+    }
+
+    // @scenario: anchor-habit/S2
+    #[test]
+    fn anchored_habits_are_counted() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut first_anchored = a_habit();
+        first_anchored.anchor();
+        repository.save(&first_anchored);
+        let mut second_anchored = Habit::new(
+            HabitId::new("h-2").unwrap(),
+            HabitTitle::new("Move a little".to_string()).unwrap(),
+            Goal::new(4).unwrap(),
+            LocalDate::from_epoch_day(TODAY),
+        );
+        second_anchored.anchor();
+        repository.save(&second_anchored);
+        let query = list_over(Rc::clone(&repository));
+
+        let result = query.handle();
+
+        assert_eq!(result.anchored_count, 2);
     }
 
     // @scenario: pause-resume/S2
