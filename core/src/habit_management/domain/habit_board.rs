@@ -78,7 +78,7 @@ impl HabitBoard {
     }
 
     pub fn release(&mut self, id: &HabitId) {
-        todo!()
+        self.requests.retain(|entry| &entry.id != id);
     }
 }
 
