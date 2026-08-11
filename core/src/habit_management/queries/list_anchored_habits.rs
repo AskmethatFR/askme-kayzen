@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use crate::habit_management::domain::habit_repository::HabitRepository;
+use crate::habit_management::domain::lifecycle_state::LifecycleState;
 
 /// The Ancrées screen's per-screen read model (adr-0006): just enough to name
 /// each anchored habit — no Clock, nothing dated is shown (C4).
@@ -21,7 +22,15 @@ impl ListAnchoredHabits {
     }
 
     pub fn handle(&self) -> Vec<AnchoredHabit> {
-        todo!()
+        self.repository
+            .all()
+            .into_iter()
+            .filter(|habit| habit.state() == LifecycleState::Anchored)
+            .map(|habit| AnchoredHabit {
+                id: habit.id().value().to_string(),
+                title: habit.title().value().to_string(),
+            })
+            .collect()
     }
 }
 
