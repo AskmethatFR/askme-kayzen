@@ -87,8 +87,8 @@ mod tests {
             "expected both anchored habits' titles, got: {html}"
         );
         assert!(
-            html.contains("2") && html.contains("devenues naturelles"),
-            "expected the count line naming how many are anchored, got: {html}"
+            html.contains("2 · devenues naturelles"),
+            "expected the count line's full copy naming how many are anchored, got: {html}"
         );
     }
 }

@@ -414,8 +414,8 @@ mod tests {
             "expected the pause gesture to be offered on an active habit, got: {html}"
         );
         assert!(
-            html.contains("L&#39;ancrer"),
-            "expected the anchor gesture to be offered on an active habit, got: {html}"
+            html.contains("L&#39;ancrer · elle est devenue naturelle"),
+            "expected the anchor gesture's full copy on an active habit, got: {html}"
         );
     }
 

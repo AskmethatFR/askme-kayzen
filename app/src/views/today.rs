@@ -280,8 +280,8 @@ mod tests {
         let html = render(RootWithAnchoredHabit);
 
         assert!(
-            html.contains("Mes habitudes ancr") && html.contains("· 1"),
-            "expected the Ancrées link naming the count, got: {html}"
+            html.contains("Mes habitudes ancrées · 1"),
+            "expected the Ancrées link's full copy naming the count, got: {html}"
         );
     }
 
