@@ -3,7 +3,7 @@ id: "adr-0007-habit-lifecycle-aggregate"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-08-06"
+updated: "2026-08-11"
 relations:
   related:
     - "architecture-overview"
@@ -11,6 +11,7 @@ relations:
     - "adr-0008-goal-based-dose-user-paced-progression"
     - "adr-0011-one-public-method-per-use-case"
     - "adr-0009-quality-gates"
+    - "adr-0012-synchronous-cross-aggregate-coordination"
   depends-on:
     - "adr-0002-habitboard-stateful-aggregate"
     - "adr-0008-goal-based-dose-user-paced-progression"
@@ -28,19 +29,24 @@ answers:
   - "Can StepHistory grow without bound, and where does that become a problem?"
   - "Does every use case take a Clock, or only the ones whose transition is dated?"
   - "How does a habit's lifecycle state cross the crate boundary into a view?"
-  - "Why does LifecycleState carry only Active and Paused, with no Anchored?"
+  - "When did each LifecycleState variant land, and why one slice at a time?"
   - "Who guarantees that a paused habit keeps its seat on the board?"
+  - "Does anchor() ever refuse — can a paused habit be anchored?"
+  - "Why does MarkDone still ignore LifecycleState now that Anchored exists?"
 decided_in:
   - "LOCAL-lifecycle-aggregate"
   - "2026-07-27 slice 3 adjust-goal cycle (d2 settled, StepHistory append-only)"
   - "2026-08-06 slice 5 pause-resume cycle (LifecycleState built, AD-2/AD-3/AD-5)"
+  - "2026-08-11 slice 6 anchor-habit cycle (Anchored built, AD-4; board coordination settled in adr-0012)"
 ---
 
 # ADR 0007 — Habit promoted to the lifecycle aggregate root (dated histories, library-free LocalDate, internal transitions)
 
 > **⚠️ Open point d2 SETTLED (2026-07-27, slice 3 `adjust-goal`)**: `lighten()` at the floor is a **silent no-op** — see the amendment block at the end of this node. `StepHistory` is now built and **append-only**; `Habit::grow` / `Habit::lighten` exist. The "planned" anchors below have landed for the goal facets; every other planned shape (pause/anchor, board coordination) still is.
 
-> **⚠️ Pause facets BUILT (2026-08-06, slice 5 `pause-resume`)**: `LifecycleState` exists — **with `Active` and `Paused` only, no `Anchored`** — and `Habit::pause` / `Habit::resume` are the two transitions. Three decisions are recorded in the second amendment block at the end of this node: **AD-2** (the state crosses the crate boundary as a DTO-side enum, never a `bool`), **AD-3** (the "aggregate methods take `today`" facet is **scoped**, not blanket — neither pause nor resume takes a `Clock`), **AD-5** (the board seat a paused habit keeps is pinned by a wired test, not by a comment). Still planned: `Anchored`, anchor/readmit, and the board↔habit coordination (slices 6/7).
+> **⚠️ Pause facets BUILT (2026-08-06, slice 5 `pause-resume`)**: `LifecycleState` exists — at that point **with `Active` and `Paused` only** (`Anchored` landed at slice 6, see below) — and `Habit::pause` / `Habit::resume` are the two transitions. Three decisions are recorded in the second amendment block at the end of this node: **AD-2** (the state crosses the crate boundary as a DTO-side enum, never a `bool`), **AD-3** (the "aggregate methods take `today`" facet is **scoped**, not blanket — neither pause nor resume takes a `Clock`), **AD-5** (the board seat a paused habit keeps is pinned by a wired test, not by a comment).
+
+> **⚠️ Anchor facets BUILT (2026-08-11, slice 6 `anchor-habit`)**: `LifecycleState` now carries **all three variants** and `Habit::anchor` is the third transition. The **board↔habit coordination this node deferred is settled** — in its own node, [[adr-0012-synchronous-cross-aggregate-coordination]], because it is a question about two aggregates rather than about this one. **d3 stands unamended**: anchoring publishes nothing. One decision is recorded in the third amendment block at the end of this node: **AD-4** (the rule never refuses — `anchor()` has no precondition, and the screens choose what to offer). Still planned: readmission (slice 7).
 
 > **⚠️ Dose facets AMENDED (2026-07-23) by [[adr-0008-goal-based-dose-user-paced-progression]]**: the two-VO dose model below (`InitialDuration` with its ≤5-min creation guard + a running `Dose`) is **collapsed into a single `Goal` VO** (default 5, floor 1, **no upper ceiling**, guard dropped), the `StabilityPolicy` dependency is **withdrawn** (progression is user-paced, never suggested), and `StepHistory` now records dated **Goal** changes. **Every other facet of this ADR stands** (aggregate root, `CompletionHistory`, `LocalDate`/`Clock`, `LifecycleState`, internal transitions, repo `get`+upsert). This document is amended in place below; ADR-0008 is the source of truth for the dose/progression facets.
 
@@ -64,7 +70,7 @@ The lifecycle backlog ([[lifecycle-backlog]]) requires `Habit` to gain behavior:
 | `LocalDate` (d1) | The domain **owns a pure, library-free `LocalDate` VO** in `kayzen-core` — **zero `chrono` dependency, no `chrono` type in its public API**. It carries the arithmetic the domain needs: comparison/ordering, day-difference, and "N days ago" windows (for the future `StabilityPolicy` 10-of-14). **Internal representation: an epoch-day integer** (signed days since a fixed epoch) — window arithmetic ("last 14 days") is pure integer subtraction, no hand-rolled calendar/leap-year math in the domain, and trivially testable | planned: `core/src/shared/local_date.rs` |
 | `Clock` port | A `Clock` port `today() -> LocalDate` lives in `core/src/shared/` next to `GuidGenerator`. `chrono` (or any calendar lib) is confined to the **infra `SystemClock` adapter**, which produces "today" and converts to/from `LocalDate` at the boundary. **The port returns the domain `LocalDate`, never a `chrono` type** — exactly the dependency-rule discipline of [[adr-0003-two-crate-workspace]] (domain pure, infra at the edge) | planned: `core/src/shared/clock.rs`, infra `SystemClock` |
 | Clock passed as parameter (**scope amended 2026-08-06, AD-3**) | Aggregate methods **that need a date** take `today: LocalDate` as a **plain parameter**; the **use case** holds the `Clock` and passes `clock.today()`. The aggregate stays a **pure function** — no clock stub in domain unit tests. **This is not a blanket template**: a method that dates nothing takes no `today`, and its use case holds no `Clock` — see the AD-3 amendment below | — |
-| Lifecycle state (**built 2026-08-06, partially**) | `LifecycleState` **enum** on `Habit` (not two bools — illegal combinations unrepresentable). Transitions hub through `Active` (resume/readmit → `Active`). **`toggle_done` never inspects `LifecycleState`** — a paused or anchored habit stays markable-done (no guard). Pause keeps the board seat; anchor frees it (the cross-aggregate board coordination is **deferred to slice 6**). **Slice 5 built the enum with `Active` and `Paused` only** — `Anchored` is deliberately absent until slice 6 introduces the use case that needs it (use-case-driven discipline: no Domain variant without its calling use case) | `core/src/habit_management/domain/lifecycle_state.rs` |
+| Lifecycle state (**built — `Active`+`Paused` 2026-08-06, `Anchored` 2026-08-11**) | `LifecycleState` **enum** on `Habit` (not two bools — illegal combinations unrepresentable). Transitions hub through `Active` (resume/readmit → `Active`). **`toggle_done` never inspects `LifecycleState`** — a paused or anchored habit stays markable-done (no guard). Pause keeps the board seat; **anchor frees it** — the cross-aggregate coordination that was deferred to slice 6 is now settled in [[adr-0012-synchronous-cross-aggregate-coordination]]. The enum grew **one variant per slice, each with its calling use case** (use-case-driven discipline: no Domain variant without its caller) | `core/src/habit_management/domain/lifecycle_state.rs` |
 | Events (d3) | Lifecycle mutations are **internal state transitions** (load aggregate → method → save) — **NOT published**. Event Storming names the moments (mark done / toggle off, grow / lighten, pause / resume, anchor / readmit) but publishes **none**: there is no subscriber and [[adr-0006-cqrs-light]] has no projections to feed. Only **`HabitRequested`** stays published (it crosses the aggregate boundary via the outbox). **No `HabitEvent` enum; `HabitBoardEvent` + outbox untouched** | — |
 | Repository (d5) | `HabitRepository` gains `get(&HabitId) -> Option<Habit>` and **upsert-by-id `save`** semantics (save an existing id overwrites). Introduced in **slice 2** | planned: `domain/habit_repository.rs` |
 | Read-side compatibility | Slice-1 reads stay stable: `id`/`title` unchanged; minutes read via a `current_goal()` accessor **now** (returns the initial Goal until step history lands → zero rework in slice 3). `done_today` source changes from the `false` default to `completion_history.contains(clock.today())` in slice 2 — the Today query must accept an **injected `Clock`** in slice 2 | — |
@@ -93,12 +99,13 @@ The lifecycle backlog ([[lifecycle-backlog]]) requires `Habit` to gain behavior:
 - **MUST**: enforce the floor at 1 both in `Goal` construction and in `lighten()` (`max(1, current-1)`).
 - **MUST**: keep `LocalDate` library-free — **no `chrono` type in `kayzen-core`'s public API**; `chrono` is confined to the infra `SystemClock` adapter, and the `Clock` port returns `LocalDate`.
 - **MUST**: pass `today: LocalDate` to aggregate methods **that need a date** as a parameter; the use case holds the `Clock`. The aggregate stays a pure function (no clock stub in domain unit tests). **MUST NOT** inject a `Clock` into a use case whose transition dates nothing (AD-3, 2026-08-06).
-- **MUST**: model pause/anchor with the `LifecycleState` enum (never two bools); `toggle_done` must NOT inspect `LifecycleState` (paused/anchored habits stay markable-done). **MUST**: keep the enum's variants use-case-driven — a variant lands with the use case that transitions into it, not ahead of it (`Anchored` is slice 6's).
+- **MUST**: model pause/anchor with the `LifecycleState` enum (never two bools); `toggle_done` must NOT inspect `LifecycleState` (paused/anchored habits stay markable-done). **MUST**: keep the enum's variants use-case-driven — a variant lands with the use case that transitions into it, not ahead of it.
+- **MUST**: keep the lifecycle transitions **unconditional** — `pause()`, `resume()` and `anchor()` take no precondition and return nothing; what a user may do is decided by the screen that offers the gesture, never refused by the aggregate (AD-4, 2026-08-11).
 - **MUST**: cross the crate boundary with a **DTO-side enum**, never the domain `LifecycleState` and never a `bool` (AD-2, 2026-08-06).
 - **MUST NOT**: publish any lifecycle event, introduce a `HabitEvent` enum, or touch `HabitBoardEvent` / the outbox — only `HabitRequested` is published (d3).
 - **MUST NOT**: create a second aggregate for the lifecycle, or reintroduce a separate `InitialDuration`/`Dose` split — the dose is the single `Goal` VO ([[adr-0008-goal-based-dose-user-paced-progression]]).
 - **MAY**: introduce `HabitRepository::get(&HabitId)` + upsert-by-id `save` in slice 2 (d5); add the epoch-day arithmetic `LocalDate` needs incrementally as slices require it.
-- **Out of scope (this cycle — d4)**: any production code; the aggregate grows vertically inside slices 2/3/5/6/7 of [[lifecycle-backlog]]. Also out of scope: ~~the `lighten()`-at-floor resolution (d2, slice 3)~~ **— settled 2026-07-27, see below**; the board↔habit anchoring coordination (slice 6). The `StabilityPolicy` read-side computation is **removed entirely** ([[adr-0008-goal-based-dose-user-paced-progression]]) — no detection, no suggestion.
+- **Out of scope (this cycle — d4)**: any production code; the aggregate grows vertically inside slices 2/3/5/6/7 of [[lifecycle-backlog]]. Also out of scope: ~~the `lighten()`-at-floor resolution (d2, slice 3)~~ **— settled 2026-07-27, see below**; ~~the board↔habit anchoring coordination (slice 6)~~ **— settled 2026-08-11 in [[adr-0012-synchronous-cross-aggregate-coordination]]**. The `StabilityPolicy` read-side computation is **removed entirely** ([[adr-0008-goal-based-dose-user-paced-progression]]) — no detection, no suggestion.
 
 ---
 
@@ -282,3 +289,59 @@ it would put the gesture's only logic inside an untested `onclick`. The shape is
 `app/src/views/habit_detail.rs`, `resume_and_relist` / `mark_done_and_relist` in
 `app/src/views/today.rs`. That shape is also the mitigation for the view blind spot;
 [[adr-0009-quality-gates]] owns the reasoning.
+
+---
+
+## Amendment — 2026-08-11, slice 6 `anchor-habit` (`Anchored` built; AD-4; the deferral closed)
+
+Slice 6 completes the enum this ADR planned and spends the deferral it carried since
+LOCAL-lifecycle-aggregate. One decision is recorded here; the cross-aggregate half of the
+slice is **not** in this node, and that split is deliberate — see the last paragraph.
+
+### What is now built (was "planned")
+
+`LifecycleState` carries **`Active`, `Paused`, `Anchored`**
+(`core/src/habit_management/domain/lifecycle_state.rs`), and `Habit::anchor()` is the third
+transition (`core/src/habit_management/domain/habit.rs`). It is driven by `AnchorHabit`,
+one public method, no `Clock` — AD-3's rule applied unchanged, since nothing about
+anchoring is dated (`core/src/habit_management/use_cases/anchor_habit.rs`).
+
+The compile-error bet slice 5 made **paid**: adding the variant broke every exhaustive
+`match` on `LifecycleState`, and those failures were the exhaustive worklist of sites to
+update — the partition in `core/src/habit_management/queries/list_board_habits.rs` and the
+mapping in `core/src/habit_management/queries/get_habit_detail.rs`. No site was found by
+searching; the compiler handed over the list. Recorded because it is the concrete return on
+"one variant per slice, with its use case", and the same bet is now standing for slice 7.
+
+### AD-4 — the rule never refuses; the screens choose what to offer
+
+`Habit::anchor()` takes **no precondition** and returns **nothing** — no `Result`, no
+guard, exactly like `pause()` and `resume()`. And `MarkDone` still does not inspect
+`LifecycleState`: its production code is **byte-for-byte unchanged** this slice, the
+`anchored` case pinned by a characterization test rather than by new code.
+
+This is not a new principle; it is the third application of one the human has settled
+twice. Q3 of this slice's refinement — *no domain guard on anchored, nor on paused* — and
+**d2 above** (*lightening at the floor is a silent no-op, not an error*) say the same
+thing: the aggregate models what **is**, the screen decides what is **offered**.
+
+| Rejected | Why |
+|---|---|
+| `anchor()` returning `Result` with an `AlreadyAnchored` / `CannotAnchorPaused` variant | Invents a refusal no screen can trigger, and turns a permitted gesture into a reproach — the same product register d2 already rejected once |
+| A guard in `MarkDone` refusing an anchored habit | Contradicts this node's standing rule (`toggle_done` never inspects the state) and would have made the slice touch a use case it has no business touching |
+
+**Deliberate consequence, stated plainly**: the domain would let a **paused** habit be
+anchored. Nothing refuses it — and no screen offers it, because the paused detail is a rest
+screen carrying only its return and its staircase (slice 5's owner ruling). The
+reachability of that transition is a **UI** property today. If it ever must become a domain
+property, that is a new decision and a new field, not a guard quietly added to `anchor()`.
+
+### Why the coordination is not in this node
+
+Anchoring also removes the habit's entry from the `HabitBoard`. That is a decision about
+**two aggregates** — order of writes, recovery, whether an event carries it — and this node
+owns exactly one. It is settled in
+[[adr-0012-synchronous-cross-aggregate-coordination]]. What matters here: **d3 is
+untouched**. Anchoring publishes nothing, there is still no `HabitEvent` enum, and the
+outbox still carries only `HabitRequested`. The coordination was built *because* d3 holds,
+not in spite of it.

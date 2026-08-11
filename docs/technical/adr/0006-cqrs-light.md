@@ -3,7 +3,7 @@ id: "adr-0006-cqrs-light"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-08-06"
+updated: "2026-08-11"
 relations:
   related:
     - "architecture-overview"
@@ -27,10 +27,13 @@ answers:
   - "One screen shows two lists — one query returning both, or two queries?"
   - "Where does a rule that partitions a screen's content live: the query or the view?"
   - "How does a domain enum reach a view — as itself, as a bool, or as a DTO-side enum?"
+  - "When does a new screen get its own query rather than a field on an existing DTO?"
+  - "Is a count shown on one screen over data owned by another screen stored, or derived?"
 decided_in:
   - "LOCAL-6"
   - "2026-07-27 slice 3 adjust-goal cycle (DTO-naming scope, HabitBoardError tension recorded)"
   - "2026-08-06 slice 5 pause-resume cycle (TodayHabits two-list DTO, DTO-side enums)"
+  - "2026-08-11 slice 6 anchor-habit cycle (sibling screen ⇒ sibling query; anchored_count derived)"
 ---
 
 # ADR 0006 — CQRS-light for the read side of habit_management (query handlers + per-screen DTOs, no projections)
@@ -151,3 +154,48 @@ either. Each is covered by one deliberate test instead. Recorded in full as L4 o
 [[adr-0009-quality-gates]]. The lesson for this node: *placing a rule inside the gate's
 perimeter is necessary, not sufficient* — the perimeter is where the instrument is
 allowed to look, not where it is guaranteed to see.
+
+---
+
+## Amendment — 2026-08-11, slice 6 `anchor-habit`: the other side of "per-screen", and a derived count
+
+Slice 5 established that a screen's **zones** stay inside one query. Slice 6 exercises the
+complementary half — a genuinely **new screen** — and confirms rather than qualifies the
+rule. Recorded so the two are read together and neither is over-applied.
+
+### A sibling **screen** gets a sibling query
+
+*Ancrées* is a screen of the designer's six, not a zone of *Aujourd'hui*. It therefore gets
+its own query and its own DTO: `ListAnchoredHabits -> Vec<AnchoredHabit { title }>`
+(`core/src/habit_management/queries/list_anchored_habits.rs`). No `Clock` — nothing dated
+is shown — and deliberately **just the title**: the screen names what has become natural,
+and carries no daily pressure, so the DTO carries no goal and no completion status (the
+same reasoning that emptied `PausedHabit`).
+
+This is the sentence slice 5's amendment ended on, applied: *sibling queries are for
+sibling screens, not for zones of one screen*. The rule reads in both directions, and
+"per-screen" is the criterion in both.
+
+| Rejected | Why |
+|---|---|
+| A third list on `TodayHabits` (`anchored: Vec<...>`) | Anchored habits are not part of the day — the whole slice exists to remove them from it. It would make every *Aujourd'hui* read pay for a list that screen never renders |
+| Reusing `HabitSummary` for the anchored rows | Carries a goal and a done-today flag onto a screen where neither has meaning; the DTO would describe a pressure the product deliberately removed |
+
+### `anchored_count` is **derived on read**, and it lives in the query
+
+*Aujourd'hui* offers « Mes habitudes ancrées · N » only when `N >= 1`, so it needs a count
+over data it does not display. `TodayHabits` gains `anchored_count: usize`, tallied in the
+**same single pass** over `repository.all()` that already partitions active from paused
+(`core/src/habit_management/queries/list_board_habits.rs`) — one extra arm on the `match`
+that the new variant forced open anyway.
+
+No stored counter, no second pass, no second query for a number: this node's founding rule
+(*all derived display data is computed on read*) covers it, and it is recorded here only
+because a counter is the classic place a projection quietly appears.
+
+The placement matters for the same reason the slice-5 partition did. The condition
+*« N >= 1 »* is a rendering choice and stays in the view; the **tally itself** is state, and
+state that lives in `queries/**` is inside `.cargo/mutants.toml`'s perimeter while the view
+is excluded by design ([[adr-0009-quality-gates]]). Filtering anchored habits out of both
+`active` and `paused` in that same pass is what keeps *Aujourd'hui*'s « X sur Y » — which
+is `active.len()` — correct by construction rather than by discipline.
