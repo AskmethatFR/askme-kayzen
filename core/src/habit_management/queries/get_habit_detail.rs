@@ -77,7 +77,7 @@ impl GetHabitDetail {
             state: match habit.state() {
                 LifecycleState::Active => HabitState::Active,
                 LifecycleState::Paused => HabitState::Paused,
-                LifecycleState::Anchored => todo!(),
+                LifecycleState::Anchored => HabitState::Anchored,
             },
         })
     }
