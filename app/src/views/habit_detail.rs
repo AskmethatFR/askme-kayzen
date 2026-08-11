@@ -382,6 +382,10 @@ mod tests {
             html.contains("Mettre en pause"),
             "expected the pause gesture to be offered on an active habit, got: {html}"
         );
+        assert!(
+            html.contains("L&#39;ancrer"),
+            "expected the anchor gesture to be offered on an active habit, got: {html}"
+        );
     }
 
     // @scenario: adjust-goal/S4
@@ -495,7 +499,7 @@ mod tests {
             "expected no pause/resume gesture on an anchored habit, got: {html}"
         );
         assert!(
-            !html.contains("L'ancrer"),
+            !html.contains("L&#39;ancrer"),
             "expected no anchor gesture on an already-anchored habit, got: {html}"
         );
     }
