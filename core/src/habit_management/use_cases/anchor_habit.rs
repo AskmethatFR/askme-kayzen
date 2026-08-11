@@ -11,8 +11,10 @@ pub enum AnchorHabitError {
 }
 
 impl fmt::Display for AnchorHabitError {
-    fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {
-        todo!()
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            AnchorHabitError::HabitNotFound => write!(f, "no habit with this id is on the board"),
+        }
     }
 }
 
