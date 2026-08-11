@@ -107,7 +107,17 @@ pub fn HabitDetail(id: String) -> Element {
                         }
                     }
                 },
-                HabitState::Anchored => todo!(),
+                HabitState::Anchored => rsx! {
+                    div { class: "screen",
+                        header { class: "masthead",
+                            Link { class: "quiet-link", to: Route::Today {}, "← Aujourd'hui" }
+                        }
+                        h1 { class: "greeting", "{habit.title}" }
+                        p { class: "lede", "ancrée · {habit.current_goal} min" }
+
+                        {staircase}
+                    }
+                },
             }
         }
         None => rsx! {
