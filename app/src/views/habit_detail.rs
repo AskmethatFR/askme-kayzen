@@ -144,8 +144,9 @@ fn resume_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
 }
 
 #[must_use]
-fn anchor_and_reload(_services: &Services, _id: &str) -> Option<HabitDetailData> {
-    todo!()
+fn anchor_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
+    services.anchor_habit.execute(id).ok();
+    services.get_habit_detail.handle(id)
 }
 
 #[cfg(test)]
