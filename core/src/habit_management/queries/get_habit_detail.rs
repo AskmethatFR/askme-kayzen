@@ -347,14 +347,16 @@ mod tests {
     // exhaustive match (adr-0007 AD-2). One behavior, two divergent rows.
     #[test]
     fn a_habits_state_is_mapped_from_its_lifecycle() {
-        let cases = vec![(false, HabitState::Active), (true, HabitState::Paused)];
+        let cases: Vec<(fn(&mut Habit), HabitState)> = vec![
+            (|_habit| {}, HabitState::Active),
+            (|habit| habit.pause(), HabitState::Paused),
+            (|habit| habit.anchor(), HabitState::Anchored),
+        ];
 
-        for (should_pause, expected) in cases {
+        for (mutate, expected) in cases {
             let repository = Rc::new(InMemoryHabitRepository::new());
             let mut habit = a_habit();
-            if should_pause {
-                habit.pause();
-            }
+            mutate(&mut habit);
             repository.save(&habit);
             let query = get_habit_detail_over(repository);
 
