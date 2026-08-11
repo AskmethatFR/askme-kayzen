@@ -25,7 +25,8 @@ impl Error for AnchorHabitError {}
 /// seat on the board. No `Clock` (adr-0007 AD-3): nothing about this
 /// transition is dated. Coordinates both aggregates synchronously and
 /// publishes nothing (adr-0007 d3); both steps are idempotent, so there is
-/// no transaction to reach for — replaying the gesture converges.
+/// no transaction to reach for — replaying converges, but no UI path replays
+/// it before slice 7 (C7 removes every gesture once a habit is Anchored).
 #[derive(Clone)]
 pub struct AnchorHabit {
     repository: Rc<dyn HabitRepository>,

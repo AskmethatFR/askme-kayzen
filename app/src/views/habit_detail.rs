@@ -543,11 +543,12 @@ mod tests {
             html.contains("L&#39;ancrer"),
             "expected the anchor gesture to still be offered, got: {html}"
         );
+        let lowercase_html = html.to_lowercase();
         assert!(
-            !html.contains("suggé")
-                && !html.contains("prête")
-                && !html.contains("badge")
-                && !html.contains("stable"),
+            !lowercase_html.contains("suggé")
+                && !lowercase_html.contains("prête")
+                && !lowercase_html.contains("badge")
+                && !lowercase_html.contains("stable"),
             "expected no suggestion, hint or badge about anchoring — anchoring is \
              user-initiated only, never detected, got: {html}"
         );
