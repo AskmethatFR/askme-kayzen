@@ -366,7 +366,6 @@ mod tests {
         );
     }
 
-    // @scenario: anchor-habit/S2
     #[test]
     fn anchor_and_reload_anchors_the_habit_and_returns_the_refreshed_detail() {
         let services = services_with_one_habit();

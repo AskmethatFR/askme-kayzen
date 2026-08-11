@@ -161,7 +161,6 @@ mod tests {
         );
     }
 
-    // @scenario: anchor-habit/S2
     #[test]
     fn anchoring_an_active_habit_marks_it_anchored_in_the_store() {
         let repository = Rc::new(InMemoryHabitRepository::new());
