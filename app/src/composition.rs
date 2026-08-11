@@ -80,7 +80,10 @@ impl Services {
             lighten_goal: LightenGoal::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
             pause_habit: PauseHabit::new(Rc::clone(&habit_repository)),
             resume_habit: ResumeHabit::new(Rc::clone(&habit_repository)),
-            anchor_habit: AnchorHabit::new(Rc::clone(&habit_repository)),
+            anchor_habit: AnchorHabit::new(
+                Rc::clone(&habit_repository),
+                Rc::clone(&board_repository),
+            ),
             add_habit: AddHabit::new(
                 Rc::clone(&habit_repository),
                 board_repository,

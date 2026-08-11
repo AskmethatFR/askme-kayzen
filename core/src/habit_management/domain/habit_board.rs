@@ -76,6 +76,10 @@ impl HabitBoard {
 
         Ok(HabitBoardEvent::HabitRequested { id, title, goal })
     }
+
+    pub fn release(&mut self, id: &HabitId) {
+        todo!()
+    }
 }
 
 #[cfg(test)]
