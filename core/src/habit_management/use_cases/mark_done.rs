@@ -113,6 +113,25 @@ mod tests {
         assert!(!habit.is_done_on(LocalDate::from_epoch_day(TODAY)));
     }
 
+    // @scenario: anchor-habit/S3
+    #[test]
+    fn marking_an_anchored_habit_still_records_todays_completion() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit("h-1");
+        habit.anchor();
+        repository.save(&habit);
+        let mark_done = mark_done_over(Rc::clone(&repository));
+
+        let result = mark_done.execute("h-1");
+
+        assert_eq!(result, Ok(()));
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+        assert!(
+            habit.is_done_on(LocalDate::from_epoch_day(TODAY)),
+            "anchoring ends the seat, not the habit — MarkDone must not refuse it"
+        );
+    }
+
     // @scenario: mark-done/S3
     #[test]
     fn marking_an_unknown_habit_is_rejected() {
