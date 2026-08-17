@@ -3,10 +3,11 @@ id: "adr-0007-habit-lifecycle-aggregate"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-08-11"
+updated: "2026-08-17"
 relations:
   related:
     - "architecture-overview"
+    - "adr-0013-set-based-validation-outside-aggregates"
     - "lifecycle-backlog"
     - "adr-0008-goal-based-dose-user-paced-progression"
     - "adr-0011-one-public-method-per-use-case"
@@ -30,14 +31,16 @@ answers:
   - "Does every use case take a Clock, or only the ones whose transition is dated?"
   - "How does a habit's lifecycle state cross the crate boundary into a view?"
   - "When did each LifecycleState variant land, and why one slice at a time?"
-  - "Who guarantees that a paused habit keeps its seat on the board?"
+  - "Who guarantees that a paused habit keeps its seat in the daily life? (restated 2026-08-17 — it is a filter in AddHabit, not a board entry)"
   - "Does anchor() ever refuse — can a paused habit be anchored?"
+  - "Can an anchored habit be resumed, and is that a defect? (LOW, latent; PR 2)"
   - "Why does MarkDone still ignore LifecycleState now that Anchored exists?"
 decided_in:
   - "LOCAL-lifecycle-aggregate"
   - "2026-07-27 slice 3 adjust-goal cycle (d2 settled, StepHistory append-only)"
   - "2026-08-06 slice 5 pause-resume cycle (LifecycleState built, AD-2/AD-3/AD-5)"
   - "2026-08-11 slice 6 anchor-habit cycle (Anchored built, AD-4; board coordination settled in adr-0012)"
+  - "2026-08-17 drop-habit-board refactor (one aggregate left; AD-5 restated; AD-4 scheduled for amendment by PR 2)"
 ---
 
 # ADR 0007 — Habit promoted to the lifecycle aggregate root (dated histories, library-free LocalDate, internal transitions)
@@ -253,6 +256,11 @@ that is a new field on the aggregate and a new decision — not a clock quietly 
 
 ### AD-5 — the board seat is pinned by a **wired test**, not by a comment
 
+> **⚠️ Restated 2026-08-17** — the *principle* below is intact and the test still exists; its
+> subject changed. There is no board and no seat to keep: the seat is a **`LifecycleState`
+> filter in a use case** (`AddHabit` counts habits whose `state() != Anchored`). See the
+> fourth amendment at the end of this node.
+
 Scenario `pause-resume/S3` — a paused habit keeps its seat, so a sixth request is still
 rejected — is **true by construction today**: `HabitBoard::request_habit` counts
 `requests.len()` with no state filter, and knows nothing of `LifecycleState`. That is
@@ -315,6 +323,13 @@ searching; the compiler handed over the list. Recorded because it is the concret
 
 ### AD-4 — the rule never refuses; the screens choose what to offer
 
+> **⚠️ Scheduled to be AMENDED by PR 2 (2026-08-17), and the motivation is security, not
+> purity.** Security's audit of the `drop-habit-board` refactor filed a LOW, latent,
+> pre-existing finding whose root cause is exactly this decision: `Habit::resume()` has no
+> lifecycle guard, so resuming an `Anchored` habit yields **6 non-anchored habits against a
+> 5-seat cap**. Unreachable today, reachable at slice 7. See the fourth amendment at the end
+> of this node.
+
 `Habit::anchor()` takes **no precondition** and returns **nothing** — no `Result`, no
 guard, exactly like `pause()` and `resume()`. And `MarkDone` still does not inspect
 `LifecycleState`: its production code is **byte-for-byte unchanged** this slice, the
@@ -345,3 +360,65 @@ owns exactly one. It is settled in
 untouched**. Anchoring publishes nothing, there is still no `HabitEvent` enum, and the
 outbox still carries only `HabitRequested`. The coordination was built *because* d3 holds,
 not in spite of it.
+
+---
+
+## Amendment — 2026-08-17, `drop-habit-board`: one aggregate left, AD-5 restated, AD-4 scheduled for amendment
+
+`HabitBoard` is deleted ([[adr-0013-set-based-validation-outside-aggregates]]). `Habit` is now
+the **only** aggregate in the system, which changes nothing about this node's model and two
+things about how it reads.
+
+### AD-5 restated — the seat is a filter in a use case, not a board entry
+
+The property AD-5 pinned (*a paused habit keeps its seat*) is unchanged and still asserted by
+the same test — `core/src/habit_management/use_cases/pause_habit.rs`, `// @scenario:
+pause-resume/S3`. What changed is what makes it true. It used to be true *by omission*: the
+board counted `requests.len()` with no state filter, so nothing in the code would have
+objected to a future filter — the fragility AD-5 existed to cover. It is now true **by
+construction and by a written predicate**: `AddHabit` counts habits whose `state() != Anchored`
+(`core/src/habit_management/use_cases/add_habit.rs`), and `Paused != Anchored`. The rule is
+visible in one place instead of being the absence of a filter in another.
+
+The test survives the move and is **stronger** for it: it now exercises the real production
+predicate rather than the absence of one. Its sibling `anchor-habit/S1`
+(`core/src/habit_management/use_cases/anchor_habit.rs`) pins the other direction. Both are
+load-bearing beyond scenario coverage — the mutation gate generates **no** mutant for either
+(`adr-0009` L5, added the same day), so these two tests are the only instrument pointed at
+that comparison.
+
+**AD-5's general lesson stands verbatim**: an invariant asserted only by a comment is an
+invariant nobody defends.
+
+### d3 is now trivially true
+
+*Lifecycle mutations are internal state transitions, never published.* With
+`DomainEventPublisher`, `HabitBoardEvent` and the outbox deleted, **there is nothing in the
+codebase capable of publishing anything.** d3 stops being a discipline and becomes a property
+of the code. The `MUST NOT` in Consequences stays as a guard against re-introduction.
+
+### AD-4 — the transitions still never refuse, and PR 2 changes that (for a security reason)
+
+AD-4 says: *no transition has a precondition; the screens decide what is offered.* Security's
+audit of this refactor filed a **LOW, latent, pre-existing** finding that is the bill for it:
+
+> `Habit::resume()` (`core/src/habit_management/domain/habit.rs`) has no lifecycle guard, so a
+> caller that resumes an `Anchored` habit produces a **sixth non-anchored habit against a
+> 5-seat cap**.
+
+**Unreachable today, and by UI only** — `app/src/views/today.rs` renders « Reprendre » solely
+inside `today_habits.paused`, and `app/src/views/habit_detail.rs`'s `Anchored` branch renders
+no action at all. It becomes reachable **exactly at slice 7**, the cycle that introduces a
+gesture leading out of `Anchored`.
+
+**PR 2 guards the transition table inside `Habit`, and it is its remediation.** This is not a
+reversal of AD-4's product register (*the aggregate models what is, the screen decides what is
+offered*), which stays right for **permitted** gestures like lightening at the floor. It is the
+recognition that *"an anchored habit cannot be resumed"* is a **genuine invariant of one
+instance** — verifiable on that instance alone, consulting no other aggregate, depending on
+nothing that changes elsewhere. It is the counter-example
+[[adr-0013-set-based-validation-outside-aggregates]] closes on, and the mirror image of the
+capacity rule that moved *out* of the domain in the same cycle: same test, opposite verdicts.
+
+Until PR 2 lands, the reachability of an illegal transition is a **UI** property — stated
+plainly here so slice 7 does not discover it as a fresh finding.

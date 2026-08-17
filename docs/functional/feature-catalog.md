@@ -2,50 +2,43 @@
 
 > Functional node (owner: pm). What the product does today, in business terms, with the acceptance that pins each behavior. Technical rationale lives in [[architecture-overview]] and [[adr-0001-validation-by-construction]].
 
-> The acceptance tables below are mirrored as spec-only Gherkin in `docs/functional/features/habit-management/`: F-1 → [[request-habit]], F-2 → [[create-habit-on-request]]. Delivered since: [[today-habit-list]], [[mark-done]], [[adjust-goal]], [[practice-staircase]], [[pause-resume]] and [[anchor-habit]]. Every scenario there resolves to a test through its `// @scenario:` anchor (`scenario_audit.py`).
+> The acceptance tables below are mirrored as spec-only Gherkin in `docs/functional/features/habit-management/`: F-1 → [[add-habit]]. Delivered since: [[today-habit-list]], [[mark-done]], [[adjust-goal]], [[practice-staircase]], [[pause-resume]] and [[anchor-habit]]. Every scenario there resolves to a test through its `// @scenario:` anchor (`scenario_audit.py`).
 
-## F-1 — Request a habit from the board
+## F-1 — Add a habit to my daily life
 
-A user asks the habit board to create a new habit by giving a **title** and a **daily goal** in minutes. The board checks the request against the habit rules **before** accepting it; an accepted request becomes a `HabitRequested` fact that the rest of the system can rely on without re-checking.
+A user creates a new habit by giving a **title** and a **daily goal** in minutes. The system checks the request against the habit rules **before** accepting it; validation is synchronous, and creation happens in the same gesture.
 
 > **Amended 2026-07-23 by `[[adr-0008-goal-based-dose-user-paced-progression]]`**: the dose is now a soft **goal** (default 5 min from the Add screen), **floor 1, no upper ceiling** — the old "≤ 5 minutes" cap is dropped.
 
 **Business rules** (see [[glossary]] for terms):
 - A habit carries a **daily goal ≥ 1 minute** (a soft target — flexible, no upper limit; a goal of 0 is rejected).
 - A title has **1 to 50 characters** after trimming surrounding whitespace (1 and 50 are accepted; a whitespace-only title is rejected).
-- The board holds **at most 5 habits in parallel** — a 6th request is rejected as board-full.
-- **No two identical habits** on the board: identical = same title, ignoring case and surrounding whitespace ("Lire une page" and "lire une page " are the same habit). A duplicate is rejected — and reported as a duplicate even when the board is also full.
+- The daily life holds **at most 5 habits in parallel** — a 6th is rejected as daily-life-full.
+- **No two identical habits** in the daily life: identical = same title, ignoring case and surrounding whitespace ("Lire une page" and "lire une page " are the same habit). A duplicate is rejected — and reported as a duplicate even when the daily life is also full.
 
-**Acceptance (pinned by tests in `core/src/habit_management/use_cases/request_habit.rs`):**
-
-| Given | When | Then |
-|---|---|---|
-| A valid title (1, mid, or 50 chars) and a goal ≥ 1 (including **above 5**) | Requesting a habit | Exactly one `HabitRequested` is published, carrying a generated id, the title, and the goal; the caller gets the id back; the board records the request |
-| Goal 0, or empty title, or 51-char title | Requesting a habit | The request is rejected with the specific rule violation; **nothing is published** |
-| A board already holding 5 habits | Requesting a 6th | Rejected as board-full; nothing published, board unchanged |
-| A title already on the board (any case, surrounding spaces ignored) | Requesting it again | Rejected as duplicate — even if the habit was requested but not yet created, and even on a full board |
-
-## F-2 — Habit created from an accepted request
-
-When the system handles a `HabitRequested` fact, the corresponding habit is created and persisted with the same id, description, and duration. Handling never fails on business rules — the request was already validated at the board (see [[adr-0001-validation-by-construction]]).
-
-**Acceptance (pinned by tests in `core/src/habit_management/use_cases/create_habit_on_request.rs`):**
+**Acceptance (pinned by tests in `core/src/habit_management/use_cases/add_habit.rs`):**
 
 | Given | When | Then |
 |---|---|---|
-| A published `HabitRequested` | Handling it | The habit exists in the repository with the same id, description, duration |
-| A full round trip (request → handle) | — | End-to-end: the requested habit is the persisted habit |
+| A valid title (1, mid, or 50 chars) and a goal ≥ 1 (including **above 5**) | Adding a habit | A new habit is created with a generated id, the title, and the goal; the caller gets the id back |
+| Goal 0, or empty title, or 51-char title | Adding a habit | The request is rejected with the specific rule violation; nothing is created |
+| Daily life already holding 5 habits | Adding a 6th | Rejected as daily-life-full; nothing created, daily life unchanged |
+| A title already in the daily life (any case, surrounding spaces ignored) | Adding it again | Rejected as duplicate — even on a full daily life |
+
+## ~~F-2 — Create habit from request~~ — **RETIRED**
+
+This step was merged into F-1 (slice 6): habit creation is now one gesture, one write via `AddHabit`. The two-step *request* → *handle* flow and the `HabitRequested` fact no longer exist.
 
 ## F-3 — See today's habits
 
-The Today screen lists the habits on the board, each with its title, its goal in minutes, and whether it is already done today. Everything shown is **derived on read** from the habit's own history — nothing about "today" is stored (see [[adr-0006-cqrs-light]]).
+The Today screen lists the active habits in the daily life, each with its title, its goal in minutes, and whether it is already done today. Paused habits appear in their own zone below. Everything shown is **derived on read** from the habit's own history — nothing about "today" is stored (see [[adr-0006-cqrs-light]]).
 
 **Acceptance (pinned by tests in `core/src/habit_management/queries/list_board_habits.rs`, mirrored as [[today-habit-list]]):**
 
 | Given | When | Then |
 |---|---|---|
-| A board with no habit | Asking for today's habits | An empty list |
-| A board holding one habit | Asking for today's habits | A summary with the habit id, title and goal; not done today while no completion exists for today |
+| Daily life with no habit | Asking for today's habits | An empty list |
+| Daily life holding one active habit | Asking for today's habits | A summary with the habit id, title and goal; not done today while no completion exists for today |
 | A habit already marked done today | Asking for today's habits | The summary reports it done, read from the completion history |
 
 ## F-4 — Mark a habit done today
@@ -88,7 +81,7 @@ A habit can be set aside at any moment and taken back in a single gesture. Pausi
 
 Resuming works from either place — one tap on the paused row in Aujourd'hui, or the button on its detail — and the habit returns to the day with **every day it had already lived left untouched**.
 
-A paused habit **keeps its seat** on the board. The five slots count habits that have not been anchored, so a sixth request is still refused while one is paused. This is deliberate: resuming can then never fail. *Amends the designer's literal `active = !paused && !anchored` cap formula — see `[[design-ecrans]]`.*
+A paused habit **keeps its seat in the daily life**. The five slots count habits that have not been anchored, so a sixth is still refused while one is paused. This is deliberate: resuming can then never fail. *Amends the designer's literal `active = !paused && !anchored` cap formula — see `[[design-ecrans]]`.*
 
 The day's tally counts only the habits still in the day: a habit at rest is not a habit missed.
 
@@ -96,40 +89,38 @@ The day's tally counts only the habits still in the day: a habit at rest is not 
 
 | Given | When | Then |
 |---|---|---|
-| An active habit on the board | Pausing it | It leaves the Today list and appears in the paused zone |
+| An active habit in the daily life | Pausing it | It leaves the Today list and appears in the paused zone |
 | A paused habit | Resuming it | It is active again, back in the Today list, its completion history untouched |
-| A board holding 5 habits, one of them paused | Requesting a new habit | Refused as board-full — a paused habit keeps its seat so resuming can never fail |
+| Daily life holding 5 habits, one of them paused | Adding a new habit | Refused as daily-life-full — a paused habit keeps its seat so resuming can never fail |
 | A paused habit | Opening its detail | It offers to resume it and shows its practice staircase — neither the ritual, nor growing, nor lightening |
 
 ## F-7 — Anchor a habit that has become natural
 
-A user can mark a habit "ancrée" whenever they feel it has become natural — a **user gesture**, never a system suggestion; no habit-streak threshold triggers it. Anchoring **removes the habit's entry from the board**: the seat is freed, and the title is freed with it, in the same act — not a filter that "stops counting" the habit, an actual removal (see [[adr-0012-synchronous-cross-aggregate-coordination]]). The habit itself is untouched: its completion and step histories stay exactly as they are, and it can still be marked done — anchoring ends the seat, not the habit.
+A user can mark a habit "ancrée" whenever they feel it has become natural — a **user gesture**, never a system suggestion; no habit-streak threshold triggers it. Anchoring **removes the habit's entry from the daily life**: the seat is freed, and the title is freed with it, in the same act — not a filter that "stops counting" the habit, an actual removal (see [[adr-0012-synchronous-cross-aggregate-coordination]]). The habit itself is untouched: its completion and step histories stay exactly as they are, and it can still be marked done — anchoring ends the seat, not the habit.
 
 The user stays on the habit's detail, which re-renders as a sober "anchored" screen: title, goal, its practice staircase — **no gesture at all**, nothing left to adjust or pause, only history to see.
 
 The new **Ancrées** screen lists every anchored habit and states how many there are. Aujourd'hui links to it as « Mes habitudes ancrées · N », shown only once N ≥ 1.
 
-> **Deferred, not built:** the designer's node also draws each anchored habit's last 7 days as dots, and a footer « Vous suivez N / 5 habitudes en parallèle. » Neither ships this slice — no scenario asks for them, and until a screen can mark an anchored habit done, the dots would freeze at the day of anchoring and replay a stale history forever. The footer belongs with slice 7, which is where board-full refusal becomes the actual subject.
+> **Deferred, not built:** the designer's node also draws each anchored habit's last 7 days as dots, and a footer « Vous suivez N / 5 habitudes en parallèle. » Neither ships this slice — no scenario asks for them, and until a screen can mark an anchored habit done, the dots would freeze at the day of anchoring and replay a stale history forever. The footer belongs with slice 7, which is where daily-life-full refusal becomes the actual subject.
 
 **Business rules** (see [[glossary]]):
 - Anchoring is always user-initiated; nothing detects readiness and nothing suggests it — no streak, no 10-of-14 threshold.
-- The board's cap of 5 counts **entries**, not habits: anchoring removes the entry, so the freed seat and the freed title are one act, not two.
-- An anchored habit can still be marked done — anchoring changes what the board knows, not what the habit is.
+- The daily life's cap of 5 counts **entries**, not habits: anchoring removes the entry, so the freed seat and the freed title are one act, not two.
+- An anchored habit can still be marked done — anchoring changes what the daily life knows, not what the habit is.
 
 **Acceptance (pinned by tests in `core/src/habit_management/use_cases/anchor_habit.rs`, `.../queries/list_anchored_habits.rs` and `app/src/views/`, mirrored as [[anchor-habit]]):**
 
 | Given | When | Then |
 |---|---|---|
-| A board holding 5 habits | The user anchors one of them | A new habit can be requested and is accepted — the board counts non-anchored entries only |
+| Daily life holding 5 habits | The user anchors one of them | A new habit can be added and is accepted — the daily life counts non-anchored entries only |
 | An active habit | The user anchors it | It leaves the Today list and is counted on the Ancrées screen |
 | An anchored habit | It is marked done | Today's completion is recorded — anchoring ends the seat, not the habit |
 | A habit completed on 10 of the last 14 days | The user opens its detail | Nothing suggests anchoring it — anchoring is user-initiated |
 
 ## Not available yet (deliberate — manual development resumes from here)
 
-- **Nothing survives a restart**: every store is in-memory (`InMemoryHabitRepository`, `InMemoryHabitBoardRepository`), and the Today screen is seeded with three demo habits at startup. No persistence adapter exists yet.
+- **Nothing survives a restart**: every store is in-memory (`InMemoryHabitRepository`), and the Today screen is seeded with three demo habits at startup. No persistence adapter exists yet.
 - Four of the six screens act: **Today** (list + mark done + the paused zone + the Ancrées link), **Add**, **Detail** (adjust the goal, read the practice staircase, pause/resume, anchor), and **Ancrées** (list + count only — see F-7). Ritual and Week are routed stubs.
-- Anchoring is one-way for now: nothing yet takes an anchored habit back into the daily list — that is [[readmit-habit]] (slice 7), refusable on board-full or on a title already retaken. The Ancrées screen's per-habit dots and its parallel-count footer are deferred (see F-7). The recap (slice 8) is specified but not built — see [[lifecycle-backlog]].
-- Direct habit creation (the old `CreateHabit` command) was **removed**: the board request is the only entry point.
-
-> The F-1 → F-2 hand-off **does** run in production: `AddHabit` (app service) requests on the board, then drains the outbox synchronously and lets the create handler persist. The dispatcher is synchronous and in-process by design at this stage.
+- Anchoring is one-way for now: nothing yet takes an anchored habit back into the daily life — that is [[readmit-habit]] (slice 7), refusable on daily-life-full or on a title already retaken. The Ancrées screen's per-habit dots and its parallel-count footer are deferred (see F-7). The recap (slice 8) is specified but not built — see [[lifecycle-backlog]].
+- The multi-step *request* → *create-on-request* flow is **gone** (slice 6): habit creation is one gesture via `AddHabit`, one write, no published events.
