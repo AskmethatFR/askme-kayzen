@@ -145,16 +145,22 @@ The constraint this node carried forward — *"re-admit an existing habit id wit
 no event that creates a `Habit`. Readmission is now a **lifecycle transition on one aggregate**,
 the exact mirror of anchoring:
 
-1. `Habit::readmit()` (or `resume()` reused) moves the state out of `Anchored` — one aggregate,
-   one method, one write, the shape of `PauseHabit` / `ResumeHabit` / `AnchorHabit`.
+1. `Habit::readmit()` moves the state out of `Anchored` — one aggregate, one method, one write,
+   the shape of `PauseHabit` / `ResumeHabit` / `AnchorHabit`. ~~(or `resume()` reused)~~ —
+   **struck 2026-08-17**: reusing `resume()` would mean widening its guard to admit `Anchored`,
+   which re-opens the closed security finding verbatim. `Habit::resume()`'s guard must stay
+   exactly `!= Paused` ([[adr-0007-habit-lifecycle-aggregate]] AD-9).
 2. **The rejection path is real and it is set-based validation, not an aggregate rule.** A
    readmitted habit re-enters the daily life, so it must pass the *same* two guards `AddHabit`
    runs — the title may have been retaken while the habit was anchored (`readmit-habit` S3), and
    the daily life may be full. That check belongs in the `ReadmitHabit` use case, over
    `repository.all()` filtered on `state != Anchored`, per
    [[adr-0013-set-based-validation-outside-aggregates]].
-3. **The lifecycle guard lands first.** PR 2 gives `Habit` its transition table (an anchored habit
-   cannot be *resumed*), which is a genuine invariant of one instance — see
+3. **The lifecycle guard landed first — 2026-08-17, PR 2.** `Habit` has its transition table (an
+   anchored habit cannot be *resumed*), a genuine invariant of one instance — see
    [[adr-0013-set-based-validation-outside-aggregates]]'s counter-example and
-   [[adr-0007-habit-lifecycle-aggregate]] AD-4. Slice 7 is the first cycle where that guard is
-   reachable from a screen, which is why PR 2 precedes it.
+   [[adr-0007-habit-lifecycle-aggregate]] **AD-9**. Slice 7 is the first cycle where that guard is
+   reachable from a screen, which is why PR 2 preceded it. **`ReadmitHabit` is not covered by
+   PR 2's induction** — it is the first transition since `AddHabit` that increases the
+   non-anchored count, so point 2's set check is mandatory, and it runs **before** the
+   transition, with exactly one save after both.

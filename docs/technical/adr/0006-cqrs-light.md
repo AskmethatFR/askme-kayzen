@@ -30,12 +30,14 @@ answers:
   - "How does a domain enum reach a view — as itself, as a bool, or as a DTO-side enum?"
   - "When does a new screen get its own query rather than a field on an existing DTO?"
   - "Is a count shown on one screen over data owned by another screen stored, or derived?"
+  - "A new domain error appears — does the use case wrap it, or flatten it into its own variant?"
 decided_in:
   - "LOCAL-6"
   - "2026-07-27 slice 3 adjust-goal cycle (DTO-naming scope, HabitBoardError tension recorded)"
   - "2026-08-06 slice 5 pause-resume cycle (TodayHabits two-list DTO, DTO-side enums)"
   - "2026-08-11 slice 6 anchor-habit cycle (sibling screen ⇒ sibling query; anchored_count derived)"
   - "2026-08-17 drop-habit-board refactor (the HabitBoardError tension resolved by deletion)"
+  - "2026-08-17 PR 2 guard-lifecycle-transitions (flat use-case variants keep the MUST unqualified)"
 ---
 
 # ADR 0006 — CQRS-light for the read side of habit_management (query handlers + per-screen DTOs, no projections)
@@ -83,6 +85,7 @@ A MEASURED read-latency problem on device once real persistence + years of histo
 - ~~**Known tension, pre-existing and undecided (recorded 2026-07-27)**: app/src/services/add_habit.rs imports `HabitBoardError`, a **domain error type**, in production code — a literal tension with the MUST above. The two candidate resolutions (a DTO-side error contract for the app service, or an explicit carve-out for error types crossing the boundary) both need a decision.~~
   - **RESOLVED 2026-08-17 by deletion — neither candidate resolution was needed.** The app service existed only to drain the outbox that the deleted `HabitBoard` design required ([[adr-0013-set-based-validation-outside-aggregates]]); the whole `app/src/services/` layer went with it. **The MUST above now holds unqualified on the write side**: `app/` production code imports **no domain error at all**. The Add screen calls `services.add_habit.execute(...)` and reads the outcome with `.is_ok()` (`app/src/views/add_habit.rs`); every other gesture uses `.ok()`. The only domain items named in `app/` production code are the `HabitRepository` **port** and its in-memory adapter, both in `app/src/composition.rs` — a composition root wiring an adapter to a port, which is what a composition root is for, not a view importing a domain type.
   - Recorded as **resolved** rather than deleted, because the shape recurs: an error type leaks into the app crate when the app is made to orchestrate. Remove the orchestration and the leak goes with it. Reach for a DTO-side error contract only once an app-side orchestration genuinely earns its place.
+  - **First test of the unqualified MUST, passed (2026-08-17, PR 2).** The lifecycle guards introduced a *new* domain error, `TransitionError` — the exact shape that leaked last time. It does not leak, because each use case maps it to a **flat variant of its own error** (`PauseHabitError::NotActive`, `ResumeHabitError::NotPaused`, `AnchorHabitError::NotActive`) instead of wrapping it as `Refused(TransitionError)`. Mechanically verified: `grep -rn "TransitionError" core/src app/src` returns **one file**, `core/src/habit_management/domain/habit.rs`. **The flat variant is what keeps this MUST unqualified** — a wrapping variant would have put a domain type back in the app crate's reachable API on the very next cycle ([[adr-0007-habit-lifecycle-aggregate]] AD-9).
 - **MUST**: query use cases consume the existing port (`HabitRepository`) — no new port for reads. *(`HabitBoardRepository` was the second port when this was written; it is deleted.)*
 - **MUST NOT**: store any derived value (suggestion, stat, message) — recompute on read.
 - **MUST**: keep a rule that decides *what a screen shows* inside the query, never in the view — the view arranges what it is handed (2026-08-06).
