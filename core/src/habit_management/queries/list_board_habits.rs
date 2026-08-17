@@ -262,7 +262,7 @@ mod tests {
         let repository = Rc::new(InMemoryHabitRepository::new());
         let mut habit = a_habit();
         habit.pause();
-        habit.resume();
+        habit.resume().expect("a fresh habit is active, then paused");
         repository.save(&habit);
         let query = list_over(Rc::clone(&repository));
 

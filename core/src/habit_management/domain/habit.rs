@@ -42,6 +42,12 @@ impl fmt::Display for HabitError {
 
 impl Error for HabitError {}
 
+#[derive(Debug, PartialEq)]
+pub enum TransitionError {
+    NotActive,
+    NotPaused,
+}
+
 impl Habit {
     pub const MAX_IN_DAILY_LIFE: usize = 5;
 
@@ -79,8 +85,12 @@ impl Habit {
         self.state = LifecycleState::Paused;
     }
 
-    pub fn resume(&mut self) {
+    pub fn resume(&mut self) -> Result<(), TransitionError> {
+        if self.state != LifecycleState::Paused {
+            return Err(TransitionError::NotPaused);
+        }
         self.state = LifecycleState::Active;
+        Ok(())
     }
 
     pub fn anchor(&mut self) {

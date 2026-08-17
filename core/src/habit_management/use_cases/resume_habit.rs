@@ -8,12 +8,14 @@ use crate::habit_management::domain::habit_repository::HabitRepository;
 #[derive(Debug, PartialEq)]
 pub enum ResumeHabitError {
     HabitNotFound,
+    NotPaused,
 }
 
 impl fmt::Display for ResumeHabitError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             ResumeHabitError::HabitNotFound => write!(f, "no habit with this id exists"),
+            ResumeHabitError::NotPaused => write!(f, "only a paused habit can be resumed"),
         }
     }
 }
@@ -39,7 +41,9 @@ impl ResumeHabit {
             .repository
             .get(&id)
             .ok_or(ResumeHabitError::HabitNotFound)?;
-        habit.resume();
+        habit
+            .resume()
+            .map_err(|_| ResumeHabitError::NotPaused)?;
         self.repository.save(&habit);
         Ok(())
     }
