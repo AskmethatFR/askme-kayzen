@@ -13,7 +13,7 @@ pub enum PauseHabitError {
 impl fmt::Display for PauseHabitError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            PauseHabitError::HabitNotFound => write!(f, "no habit with this id is on the board"),
+            PauseHabitError::HabitNotFound => write!(f, "no habit with this id exists"),
         }
     }
 }
@@ -63,7 +63,7 @@ mod tests {
     fn display_formats_the_error_with_the_expected_message() {
         assert_eq!(
             PauseHabitError::HabitNotFound.to_string(),
-            "no habit with this id is on the board"
+            "no habit with this id exists"
         );
     }
 
