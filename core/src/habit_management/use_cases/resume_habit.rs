@@ -63,6 +63,10 @@ mod tests {
             ResumeHabitError::HabitNotFound.to_string(),
             "no habit with this id exists"
         );
+        assert_eq!(
+            ResumeHabitError::NotPaused.to_string(),
+            "only a paused habit can be resumed"
+        );
     }
 
     fn a_habit(id: &str) -> Habit {
@@ -119,5 +123,35 @@ mod tests {
         let result = resume_habit.execute(&too_long);
 
         assert_eq!(result, Err(ResumeHabitError::HabitNotFound));
+    }
+
+    #[test]
+    fn resuming_an_active_habit_is_refused() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit("h-1"));
+        let resume_habit = resume_habit_over(Rc::clone(&repository));
+
+        let result = resume_habit.execute("h-1");
+
+        assert_eq!(result, Err(ResumeHabitError::NotPaused));
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+        assert_eq!(habit.state(), LifecycleState::Active);
+    }
+
+    // the security cell: pause -> anchor no longer holds a route back to
+    // Active through resume().
+    #[test]
+    fn resuming_an_anchored_habit_is_refused() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit("h-1");
+        habit.anchor();
+        repository.save(&habit);
+        let resume_habit = resume_habit_over(Rc::clone(&repository));
+
+        let result = resume_habit.execute("h-1");
+
+        assert_eq!(result, Err(ResumeHabitError::NotPaused));
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+        assert_eq!(habit.state(), LifecycleState::Anchored);
     }
 }
