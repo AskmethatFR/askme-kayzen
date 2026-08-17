@@ -140,8 +140,8 @@ mod tests {
         assert_eq!(habit.state(), LifecycleState::Active);
     }
 
-    // the security cell: pause -> anchor no longer holds a route back to
-    // Active through resume().
+    // the security cell: anchoring a habit frees a seat, and resume() no longer
+    // routes it back to Active — that is the 6-against-5 path Security flagged in PR 1.
     #[test]
     fn resuming_an_anchored_habit_is_refused() {
         let repository = Rc::new(InMemoryHabitRepository::new());

@@ -205,7 +205,9 @@ mod tests {
         let repository = a_daily_life_seeded_with(&titles);
 
         let anchor_habit = AnchorHabit::new(Rc::clone(&repository) as Rc<dyn HabitRepository>);
-        anchor_habit.execute("guid-1").expect("known habit");
+        anchor_habit
+            .execute("guid-1")
+            .expect("a known, active habit");
 
         let result =
             an_add_habit("guid-6", &repository).execute(String::from("One habit too many"), 1);
@@ -229,7 +231,9 @@ mod tests {
         let repository = a_daily_life_seeded_with(&["Read one page", "Move a little"]);
 
         let anchor_habit = AnchorHabit::new(Rc::clone(&repository) as Rc<dyn HabitRepository>);
-        anchor_habit.execute("guid-1").expect("known habit");
+        anchor_habit
+            .execute("guid-1")
+            .expect("a known, active habit");
 
         assert!(
             an_add_habit("guid-3", &repository)

@@ -184,7 +184,9 @@ mod tests {
         }
 
         let pause_habit = pause_habit_over(Rc::clone(&habit_repository));
-        pause_habit.execute("guid-1").expect("known habit");
+        pause_habit
+            .execute("guid-1")
+            .expect("a known, active habit");
 
         let sixth_add_habit = AddHabit::new(
             Rc::clone(&habit_repository) as Rc<dyn HabitRepository>,
