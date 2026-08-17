@@ -275,7 +275,7 @@ mod tests {
     fn services_with_one_paused_habit() -> Services {
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
         let mut habit = a_habit();
-        habit.pause();
+        habit.pause().expect("a fresh habit is active");
         repository.save(&habit);
         Services::with_repository(repository)
     }

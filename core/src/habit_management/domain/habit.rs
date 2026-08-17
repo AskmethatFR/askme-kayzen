@@ -81,8 +81,12 @@ impl Habit {
         self.completion_history.toggle(today);
     }
 
-    pub fn pause(&mut self) {
+    pub fn pause(&mut self) -> Result<(), TransitionError> {
+        if self.state != LifecycleState::Active {
+            return Err(TransitionError::NotActive);
+        }
         self.state = LifecycleState::Paused;
+        Ok(())
     }
 
     pub fn resume(&mut self) -> Result<(), TransitionError> {

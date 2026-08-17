@@ -92,7 +92,7 @@ mod tests {
         let repository = Rc::new(InMemoryHabitRepository::new());
         let mut habit = a_habit("h-1");
         habit.toggle_done(LocalDate::from_epoch_day(CREATED_ON));
-        habit.pause();
+        habit.pause().expect("a fresh habit is active");
         repository.save(&habit);
         let resume_habit = resume_habit_over(Rc::clone(&repository));
 

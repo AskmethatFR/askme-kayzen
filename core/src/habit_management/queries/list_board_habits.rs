@@ -173,7 +173,7 @@ mod tests {
     fn a_paused_habit_is_absent_from_active_and_present_in_paused() {
         let repository = Rc::new(InMemoryHabitRepository::new());
         let mut paused = a_habit();
-        paused.pause();
+        paused.pause().expect("a fresh habit is active");
         repository.save(&paused);
         let active = Habit::new(
             HabitId::new("h-2").unwrap(),
@@ -261,7 +261,7 @@ mod tests {
     fn a_resumed_habit_reappears_in_active_and_leaves_paused() {
         let repository = Rc::new(InMemoryHabitRepository::new());
         let mut habit = a_habit();
-        habit.pause();
+        habit.pause().expect("a fresh habit is active");
         habit.resume().expect("a fresh habit is active, then paused");
         repository.save(&habit);
         let query = list_over(Rc::clone(&repository));
