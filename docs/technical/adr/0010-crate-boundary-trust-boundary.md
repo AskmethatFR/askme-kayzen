@@ -3,10 +3,11 @@ id: "adr-0010-crate-boundary-trust-boundary"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-08-06"
+updated: "2026-08-17"
 relations:
   related:
     - "architecture-overview"
+    - "adr-0013-set-based-validation-outside-aggregates"
     - "adr-0004-routing-flat-enum"
     - "adr-0009-quality-gates"
   depends-on:
@@ -55,10 +56,27 @@ Security **re-reviewed the delivered code and retracted its own recommendation**
 | The bound | `MIN_LEN = 1`, `MAX_LEN = 64` (`1..=64`). 64 confirmed by the human (Q1) — comfortably above any generated id shape, low enough to bound memory | `core/src/habit_management/domain/habit_id.rs` |
 | **No trim** | Deliberate human decision (Q2): an id padded with spaces **is a different id**. Normalising would silently change repository lookup semantics — unlike `HabitTitle`, where trimming serves a human-typed value | `core/src/habit_management/domain/habit_id.rs` |
 | Error shape | `HabitError::IdLength { min, max }`, mirroring the existing `TitleLength`. One error family per aggregate — no separate `HabitIdError` | `core/src/habit_management/domain/habit.rs` |
-| Refusal rides the existing failure path | Each of the three production sites absorbs the refusal through the failure it already owned: `None` (read), `MarkDoneError::HabitNotFound`, `HabitBoardError::InvalidHabit`. **No public signature changed** | `core/src/habit_management/queries/get_habit_detail.rs`, `core/src/habit_management/use_cases/mark_done.rs`, `core/src/habit_management/use_cases/request_habit.rs` |
+| Refusal rides the existing failure path | Each of the three production sites absorbs the refusal through the failure it already owned: `None` (read), `MarkDoneError::HabitNotFound`, and — since 2026-08-17 — `AddHabitError::InvalidHabit` (formerly `HabitBoardError::InvalidHabit`). **No public signature changed** | `core/src/habit_management/queries/get_habit_detail.rs`, `core/src/habit_management/use_cases/mark_done.rs`, `core/src/habit_management/use_cases/add_habit.rs` |
 | Malformed ≡ unknown | A malformed id and an unknown id collapse onto the **same** fallback. Deliberate: the UI never discloses which id shapes are valid, so the failure path leaks nothing about the id space | `core/src/habit_management/queries/get_habit_detail.rs` |
 | Views never parse | `kayzen-app` production code must never construct a domain type — including `HabitId`. The view forwards the raw route parameter; the core refuses it. (Test fixtures under `#[cfg(test)]` in the app crate *do* build domain objects to seed a store — that is fixture wiring, not a production door) | `app/src/views/habit_detail.rs` |
-| The generated id is parsed too | `RequestHabit` parses the `GuidGenerator` output through the same door rather than trusting it. The generator is infrastructure; the boundary does not make exceptions for friendly callers | `core/src/habit_management/use_cases/request_habit.rs` |
+| The generated id is parsed too | `AddHabit` parses the `GuidGenerator` output through the same door rather than trusting it — as `RequestHabit` did before it (2026-08-17). The generator is infrastructure; the boundary does not make exceptions for friendly callers | `core/src/habit_management/use_cases/add_habit.rs` |
+
+> **Note (2026-08-17, `drop-habit-board`) — this node is UNAMENDED in substance.** The
+> `drop-habit-board` refactor deleted `HabitBoard`, the outbox and the whole
+> `app/src/services/` layer ([[adr-0013-set-based-validation-outside-aggregates]]), which
+> touches two rows above **only by renaming their call sites**: the `RequestHabit` entry point
+> became `AddHabit`, and `HabitBoardError::InvalidHabit` became `AddHabitError::InvalidHabit`.
+> **The door itself is unchanged** — one fallible `HabitId::new`, `1..=64`, no trim, no `From`,
+> parsed at the core's entry point and never in a view.
+>
+> One consequence is worth stating so the next cycle does not re-derive it: the only
+> *non-boundary* parse in the system — the `GuidGenerator` output — **moved** from
+> `RequestHabit` to `AddHabit`; it did not disappear and it did not multiply. Security verified
+> this cycle that **every URL-sourced `&str` entry point still parses through `HabitId::new` as
+> its first statement**, and the refactor *reduced* the app's coupling to the core (production
+> code in `app/` now imports no domain error at all, `.is_ok()`/`.ok()` at every call site),
+> which strengthens the boundary rather than testing it. The seven escalation triggers below
+> are untouched.
 
 ## Rejected alternatives
 

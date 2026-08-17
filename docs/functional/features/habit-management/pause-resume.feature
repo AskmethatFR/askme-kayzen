@@ -18,10 +18,10 @@ Feature: Pause a habit and resume it
     And its completion history is untouched
 
   @scenario:S3
-  Scenario: A paused habit keeps its seat on the board
-    Given a board holding 5 habits, one of them paused
-    When a new habit is requested
-    Then the request is rejected as board-full, because a paused habit keeps its seat so resuming can never fail
+  Scenario: A paused habit keeps its seat in the daily life
+    Given a daily life holding 5 habits, one of them paused
+    When a new habit is added
+    Then it is rejected as daily-life-full, because a paused habit keeps its seat so resuming can never fail
 
   @scenario:S4
   Scenario: The detail of a paused habit offers only its return

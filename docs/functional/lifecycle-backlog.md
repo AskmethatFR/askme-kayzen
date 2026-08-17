@@ -182,13 +182,12 @@ Developer's first failing test of a slice is the scenario, and dropping the
 | 3 `adjust-goal` | **done.** `StepHistory` grew to a dated, **append-only** staircase (`{first, rest}` — non-emptiness structural, no `unwrap`); `Goal::grown()` / `lightened()` carry the ±1 and the floor; `Habit::grow()` / `lighten()` append a dated step. **d2 SETTLED — silent no-op at the floor**: nothing appended, `Ok(())` returned, nothing signalled to the screen (an error would contradict *« alléger n'est pas reculer »*; a UI signal would contradict S4). Two use cases, `GrowGoal` and `LightenGoal`, one public method each — see `[[adr-0011-one-public-method-per-use-case]]`. |
 | ~~4 `growth-suggestion`~~ | **removed** — no `StabilityPolicy`, no stability detection, no suggestion (ADR-0008). |
 | 5 `pause-resume` | **done.** `LifecycleState::{Active, Paused}` landed as an enum on `Habit` (illegal combos unrepresentable; `Anchored` deliberately absent until its use case exists). Two use cases, `PauseHabit` and `ResumeHabit`, one public method each, **neither taking a `Clock`** — nothing dates these transitions. `HabitBoard` untouched: paused keeps the board seat (Q1), pinned by a wired test rather than a comment. Read side reshaped: `ListBoardHabits` now returns the per-screen DTO `TodayHabits {active, paused}`, so "a paused habit leaves the day's list" is a rule in the core, not in a view. |
-| 6 `anchor` | **done.** `LifecycleState::Anchored` lands, completing the enum (`Habit::anchor()`, no precondition, never refuses). Resolves the deferred board↔habit coordination as a **synchronous application-service orchestration**: `AnchorHabit` moves the habit to `Anchored`, saves it, then **releases its board entry** (`HabitBoard::release`) and saves the board — publishing nothing. The cap does not "count non-anchored habits" as a query-time filter; the entry is **removed**, which frees the seat **and** the title in the same act (see `[[adr-0012-synchronous-cross-aggregate-coordination]]`). Read side gains `ListAnchoredHabits -> Vec<AnchoredHabit { title }>` and `TodayHabits.anchored_count`, both derived on read. |
-| 7 `readmit` | `Anchored → Active` + board re-admission (reuse the duplicate / board-full guards). |
+| 6 `anchor` | **done.** `LifecycleState::Anchored` lands, completing the enum (`Habit::anchor()`, no precondition, never refuses). Resolves the deferred board↔habit coordination as a **synchronous application-service orchestration**: `AnchorHabit` moves the habit to `Anchored`, saves it, then **releases its board entry** (`HabitBoard::release`) and saves the board — publishing nothing. The cap does not "count non-anchored habits" as a query-time filter; the entry is **removed**, which frees the seat **and** the title in the same act (see `[[adr-0012-synchronous-cross-aggregate-coordination]]`). Read side gains `ListAnchoredHabits -> Vec<AnchoredHabit { title }>` and `TodayHabits.anchored_count`, both derived on read. **Debt paid**: the aggregate-boundary debt is closed — the invariant that a single `Habit` cannot violate (max 5 non-anchored) is now enforced at its rightful layer, the `AddHabit` use case, not hosted on an aggregate boundary object. |
+| 7 `readmit` | `Anchored → Active` + daily-life re-admission (reuse the duplicate / daily-life-full guards). |
 | 8 `stats-board` | no aggregate growth — more CQRS-light queries over the two dated histories. |
 
 Lifecycle mutations are **internal state transitions** (load aggregate → method → save),
-**not** published events — only `HabitRequested` crosses the outbox
-(`[[adr-0007-habit-lifecycle-aggregate]]`).
+**not** published events (see `[[adr-0007-habit-lifecycle-aggregate]]`).
 
 ## Glossary impact
 
@@ -205,6 +204,10 @@ Mark done, Local date, Clock, Goal.
 `[[adr-0008-goal-based-dose-user-paced-progression]]`. They are named here only so
 nobody re-adds them from an older reading.
 
+Landed with slice 6 (now in `[[glossary]]`): **Le quotidien / Daily life** (the set of non-anchored habits, max 5), **Ajouter une habitude / Add a habit** (one gesture, one write, validates and creates synchronously).
+
+~~Habit Board~~ (`HabitBoard` aggregate), ~~Request (a habit)~~ (`request_habit` use case), ~~HabitRequested~~ (domain event), ~~Outbox~~ (event store), and ~~DomainEventPublisher~~ (event port) are **void** — the multi-step *request* → *handle* flow is replaced by the single `AddHabit` use case (slice 6), and the `HabitBoard` itself is deleted in the same slice because its only responsibility — guarding the invariant *"max 5 in the daily life"* — is a single-habit predicate that belongs in `AddHabit`, not a boundary object. They are named here only so nobody re-adds them from an older reading.
+
 Landed with slice 5 (now in `[[glossary]]`): Mettre en pause (*pause*), La reprendre
 (*resume*), État du cycle (*Active / En pause* — `LifecycleState`; *Ancrée* joins in
 slice 6), Zone « En pause · aucune pression ».
@@ -215,6 +218,20 @@ Ancrées screen).
 
 Still to add as its slice lands: Readmettre / Remettre dans le quotidien
 (*readmit* — slice 7). Minutes gagnées (slice 8).
+
+## Slice 7 precondition — blocking issue (Security PR 2)
+
+**Issue: `Habit::resume()` has no guard on the daily-life-full invariant.**
+
+Today (slice 6), resuming an `Anchored` habit is unreachable — no screen offers it. At slice 7, readmission will make it reachable. A caller could:
+1. `AddHabit` with 5 habits → 5 non-anchored, 0 anchored
+2. `Anchor` one → 4 non-anchored, 1 anchored
+3. `Resume` the anchored one (today: unreachable; slice 7: offered by *« La remettre »*) → 5 non-anchored again, no check applied, still within the cap by accident
+4. But a second `Resume` on another anchored habit would produce **6 non-anchored**, violating the cap.
+
+**Solution (part of slice 7's DoD):** Readmission **must re-apply the daily-life count guard**. This is enforced by **never calling `Habit::resume()` directly** — instead, readmission goes through a use case that reads the current daily-life count, checks it against the cap, then moves the habit to `Active`. The technical constraint appears in `[[adr-0012-synchronous-cross-aggregate-coordination]]` as the "precondition for slice 7": readmission re-admits an existing habit id without republishing `HabitRequested` — the guard is the only new responsibility.
+
+**Note on `readmit-habit.feature` scenarios:** S1 and S2 still reference "board" vocabulary (« takes a seat on the board », « refused as board-full »). This is deliberate — the feature file is `@wip`, and slice 7's own PM lane will rewrite it as part of that slice's specification pass. Do not update it now.
 
 ## Slice 5 `pause-resume` — settled during delivery, 2026-08-06
 

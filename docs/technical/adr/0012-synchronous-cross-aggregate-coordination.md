@@ -2,31 +2,36 @@
 id: "adr-0012-synchronous-cross-aggregate-coordination"
 type: "technical"
 owner: "architect"
-status: "current"
-updated: "2026-08-11"
+status: "superseded"
+updated: "2026-08-17"
 relations:
+  # No hand-written `superseded-by` here: it is an INVERSE edge, derived at query
+  # time from adr-0013's own `supersedes`.
   related:
     - "architecture-overview"
     - "adr-0006-cqrs-light"
     - "adr-0011-one-public-method-per-use-case"
+    - "adr-0013-set-based-validation-outside-aggregates"
   depends-on:
     - "adr-0002-habitboard-stateful-aggregate"
     - "adr-0007-habit-lifecycle-aggregate"
 answers:
-  - "One gesture must change two aggregates — is that an event, a saga, or a synchronous orchestration?"
-  - "Why is no HabitAnchored event published when anchoring frees a board seat?"
-  - "In which order are the two aggregates saved, and what breaks if the order is inverted?"
-  - "What happens if the process dies between the two saves?"
-  - "What would force this decision to be reopened?"
-  - "Why can a new habit retake an anchored habit's title, and what does that impose on readmission?"
+  - "~~One gesture must change two aggregates — event, saga, or synchronous orchestration?~~ VOID — no gesture touches two aggregates any more"
+  - "~~In which order are the two aggregates saved?~~ VOID — there is one write"
+  - "~~What happens if the process dies between the two saves?~~ VOID — there is no interval"
+  - "What did the cross-aggregate coordination cost, and what made the whole question disappear?"
+  - "What does slice 7 (readmission) actually face now?"
 decided_in:
   - "2026-08-11 slice 6 anchor-habit cycle"
+  - "2026-08-17 drop-habit-board refactor (SUPERSEDED / VOID)"
 ---
 
 # ADR 0012 — Cross-aggregate coordination is a synchronous application-service orchestration, not an event
 
-> **One-liner**: When one user gesture must change two aggregates, the **command use case orchestrates them synchronously in one call and publishes nothing** — `AnchorHabit::execute` moves the `Habit` to `Anchored`, saves it, then removes its entry from the `HabitBoard` and saves that. Both transitions are **idempotent**, so a replay converges from any partial state; the save order (**habit first, board second**) is deliberate and chosen for its failure mode.
-> **Links**: [[adr-0007-habit-lifecycle-aggregate]] (d3 — lifecycle mutations are internal transitions, never published; this node is where that rule meets a second aggregate), [[adr-0002-habitboard-stateful-aggregate]] (the board's load → mutate → save discipline and its `release` method, added in the same cycle), [[adr-0011-one-public-method-per-use-case]] (the use case that does the orchestrating still exposes exactly one public method), [[adr-0006-cqrs-light]] (why there is no projection to feed and therefore no subscriber), [[architecture-overview]] (where this is applied).
+> **⚠️ SUPERSEDED AND VOID (2026-08-17) by [[adr-0013-set-based-validation-outside-aggregates]].** This node answered *"one gesture must change two aggregates — how?"*. With `HabitBoard` deleted there is **one aggregate left**, and **no gesture touches two**. Every decision below has lost its subject: the save-order doctrine, the idempotence-instead-of-a-transaction argument, the partial-anchor failure mode, and the constraint it carried to slice 7. `AnchorHabit::execute` is now the same 8-line load → mutate → save shape as `PauseHabit` and `ResumeHabit` (`core/src/habit_management/use_cases/anchor_habit.rs`). **Nothing below is current.** In particular the MUST *"free the seat through `HabitBoard::release`, never by mutating the registry from a use case"* names a method, a type and a registry that no longer exist — see the 2026-08-17 amendment for what replaces the whole node, and what slice 7 actually faces.
+
+> **One-liner** *(historical)*: When one user gesture must change two aggregates, the **command use case orchestrates them synchronously in one call and publishes nothing** — `AnchorHabit::execute` moves the `Habit` to `Anchored`, saves it, then removes its entry from the `HabitBoard` and saves that. Both transitions are **idempotent**, so a replay converges from any partial state; the save order (**habit first, board second**) is deliberate and chosen for its failure mode.
+> **Links**: [[adr-0013-set-based-validation-outside-aggregates]] (what voided this), [[adr-0007-habit-lifecycle-aggregate]] (d3 — lifecycle mutations are internal transitions, never published; **still current**, and the only part of this node's reasoning that survives), [[adr-0002-habitboard-stateful-aggregate]] (the board this coordinated with, also superseded), [[adr-0011-one-public-method-per-use-case]] (still current), [[adr-0006-cqrs-light]] (why there is no projection to feed and therefore no subscriber), [[architecture-overview]] (where this was applied).
 
 ## Context
 
@@ -51,9 +56,9 @@ eventual consistency — is a solution to a problem this system does not have.
 |---|---|---|
 | Coordination shape | The **command use case orchestrates synchronously**: `AnchorHabit::execute` = load habit → `anchor()` → save habit → load board → `release(&id)` → save board → `Ok(())`. One call, one stack frame, no intermediate state visible to anything | `core/src/habit_management/use_cases/anchor_habit.rs` |
 | Publication | **Nothing is published.** No `HabitAnchored`, no `HabitEvent` enum, `HabitBoardEvent` and the outbox untouched — [[adr-0007-habit-lifecycle-aggregate]] d3 is preserved intact, not amended | — |
-| How the seat is freed | Through a **board method**, `HabitBoard::release(&mut self, id)`, not by mutating the registry from the use case. The invariant stays inside the aggregate that owns it ([[adr-0002-habitboard-stateful-aggregate]] amendment, same cycle) | `core/src/habit_management/domain/habit_board.rs` |
+| How the seat is freed | Through a **board method**, `HabitBoard::release(&mut self, id)`, not by mutating the registry from the use case. The invariant stays inside the aggregate that owns it ([[adr-0002-habitboard-stateful-aggregate]] amendment, same cycle) | core/src/habit_management/domain/habit_board.rs *(deleted)* |
 | Save order | **Habit first, board second** — deliberately, for the failure mode it produces (see below). Not an accident of writing order | `core/src/habit_management/use_cases/anchor_habit.rs` |
-| Recovery model | **Idempotence instead of a transaction.** `anchor()` assigns a state, `release()` retains over the registry and is a silent no-op when the entry is absent. Replaying the gesture from any partial state converges to the same result; nothing accumulates, nothing double-counts | `core/src/habit_management/domain/habit.rs`, `core/src/habit_management/domain/habit_board.rs` |
+| Recovery model | **Idempotence instead of a transaction.** `anchor()` assigns a state, `release()` retains over the registry and is a silent no-op when the entry is absent. Replaying the gesture from any partial state converges to the same result; nothing accumulates, nothing double-counts | `core/src/habit_management/domain/habit.rs`, core/src/habit_management/domain/habit_board.rs *(deleted)* |
 | No transaction manager | Nothing to enlist: two in-memory maps in one process. A unit of work spanning both repositories would be ceremony over `HashMap`s | — |
 | No `Clock` | Nothing about anchoring is dated — [[adr-0007-habit-lifecycle-aggregate]] AD-3's rule applied, not re-derived | `core/src/habit_management/use_cases/anchor_habit.rs` |
 
@@ -96,13 +101,60 @@ histories. Slice 7's spec starts from this constraint rather than rediscovering 
 | A domain service holding both aggregates | The coordination is **orchestration, not a domain rule**: it encodes *what a gesture does*, not *what is always true*. It belongs in the application layer, which is where [[adr-0011-one-public-method-per-use-case]] already puts one gesture = one use case |
 | Board saved first, habit second | Inverts the failure mode into the exploitable one — see the table above |
 
-## Consequences / Constraints
+## Consequences / Constraints — **VOID since 2026-08-17, retained verbatim as history**
 
-- **MUST**: keep the save order **habit, then board**, in `AnchorHabit::execute`. The order is a decision with a stated failure model, not a formatting choice.
-- **MUST**: keep both steps idempotent — `anchor()` assigns (it does not toggle or accumulate) and `release()` is a **silent no-op when the entry is absent**. Convergence-by-replay is the only recovery mechanism this design has; a guard that turns a missing entry into an error would remove it.
-- **MUST**: free the seat through `HabitBoard::release`, never by mutating the registry from a use case ([[adr-0002-habitboard-stateful-aggregate]]).
-- **MUST NOT**: publish any lifecycle event, or introduce a `HabitEvent` enum, to coordinate two aggregates ([[adr-0007-habit-lifecycle-aggregate]] d3 stands unamended).
-- **MUST NOT**: teach `HabitBoard` to filter its own registry on a habit's lifecycle state.
-- **Constraint carried to slice 7**: readmission re-admits an **existing** habit id — it must not republish `HabitRequested`, which would create a second `Habit` for the same identity. The title released by anchoring may legitimately have been retaken in the meantime, so readmission has a real rejection path to design.
-- **Escalation triggers** — any one of these reopens this node: (1) the **persistence slice**, where a partial write survives a restart and "replay converges" stops being free; (2) **concurrency** of any kind, which makes the interval between the two saves observable; (3) a **third** cross-aggregate coordination, at which point the shape is a pattern worth naming rather than a decision taken twice.
-- **Out of scope**: any transaction/saga/outbox machinery; readmission itself (slice 7); a retry path — nothing in the app replays the gesture today, and slice 6's UI removes every gesture from an anchored habit.
+> ⚠️ **None of the constraints below is in force.** They govern a two-aggregate gesture that no
+> longer exists. Read the amendment at the end of this node before acting on any of them; the
+> third bullet in particular names a method (`HabitBoard::release`), a type and a registry that
+> were deleted. The **only** rule in this list that survives is the `MUST NOT` on publishing —
+> and it survives because it belongs to [[adr-0007-habit-lifecycle-aggregate]] d3, not to this node.
+
+- ~~**MUST**: keep the save order **habit, then board**, in `AnchorHabit::execute`.~~ **VOID** — there is one save.
+- ~~**MUST**: keep both steps idempotent — `anchor()` assigns and `release()` is a silent no-op when the entry is absent.~~ **VOID** — `release` is deleted. (`anchor()` still assigns rather than toggles, but that is [[adr-0007-habit-lifecycle-aggregate]]'s rule, not this node's.)
+- ~~**MUST**: free the seat through `HabitBoard::release`, never by mutating the registry from a use case.~~ **VOID — and actively misleading.** There is no seat to free, no `release`, and no registry. A seat is free when no non-anchored habit occupies it, computed live at the gesture ([[adr-0013-set-based-validation-outside-aggregates]]).
+- **MUST NOT**: publish any lifecycle event, or introduce a `HabitEvent` enum ([[adr-0007-habit-lifecycle-aggregate]] d3). **Still in force** — and now unconditional: the outbox and `DomainEventPublisher` are deleted, so the codebase publishes **nothing at all**.
+- ~~**MUST NOT**: teach `HabitBoard` to filter its own registry on a habit's lifecycle state.~~ **VOID** — the filter on `LifecycleState` is now exactly what the rule *is*, and it lives in `core/src/habit_management/use_cases/add_habit.rs`. The prohibition was a consequence of the mistaken boundary.
+- ~~**Constraint carried to slice 7**: readmission must not republish `HabitRequested`.~~ **VOID** — see "What slice 7 actually faces" in the amendment below.
+- ~~**Escalation triggers** (1) persistence, (2) concurrency, (3) a third coordination.~~ **VOID as written.** Triggers (1) and (2) did not disappear — they were **inherited and sharpened** by [[adr-0013-set-based-validation-outside-aggregates]], whose Security escalation trigger is the one to read. Trigger (3) is gone: there is no coordination to repeat.
+- ~~**Out of scope**: transaction/saga/outbox machinery; readmission; a retry path.~~ **VOID**.
+
+---
+
+## Amendment — 2026-08-17, `drop-habit-board`: the question itself disappeared
+
+This node was not wrong about *how to coordinate two aggregates*; it was reasoning correctly
+about a coordination that should never have existed. The second aggregate was
+`HabitBoard`, invented in [[adr-0002-habitboard-stateful-aggregate]] to host a rule that is
+not an aggregate invariant. Delete it and the entire question evaporates — which is why this
+node is **void**, not merely superseded in its answer.
+
+### What each of this node's decisions cost, and what replaced it
+
+| This node decided | Status |
+|---|---|
+| Save order habit → board, chosen for its failure mode | **Gone.** `AnchorHabit::execute` performs one write. There is no order and no failure mode to choose |
+| Idempotence instead of a transaction, so replay converges | **Gone.** There is no partial state to converge from |
+| A crash between the two saves loses a seat (cap stricter than the rule) | **Gone.** Security recorded the mirror-image finding on the creation path: the *old* double write could consume a seat without creating the habit — a self-inflicted business DoS by seat leak. The single write removes that defect class outright |
+| `AnchorHabit` holds two repositories and orchestrates them | **Gone.** It holds `HabitRepository` alone and is byte-for-byte the same shape as `PauseHabit` / `ResumeHabit` (`core/src/habit_management/use_cases/anchor_habit.rs`) |
+| Nothing is published ([[adr-0007-habit-lifecycle-aggregate]] d3 preserved) | **Survives, and hardens.** d3 was always the other node's rule; with the outbox and `DomainEventPublisher` deleted, nothing in the codebase can publish anything |
+
+### What slice 7 (readmission) actually faces
+
+The constraint this node carried forward — *"re-admit an existing habit id without republishing
+`HabitRequested`"* — is meaningless: there is no `HabitRequested`, no board to re-admit onto, and
+no event that creates a `Habit`. Readmission is now a **lifecycle transition on one aggregate**,
+the exact mirror of anchoring:
+
+1. `Habit::readmit()` (or `resume()` reused) moves the state out of `Anchored` — one aggregate,
+   one method, one write, the shape of `PauseHabit` / `ResumeHabit` / `AnchorHabit`.
+2. **The rejection path is real and it is set-based validation, not an aggregate rule.** A
+   readmitted habit re-enters the daily life, so it must pass the *same* two guards `AddHabit`
+   runs — the title may have been retaken while the habit was anchored (`readmit-habit` S3), and
+   the daily life may be full. That check belongs in the `ReadmitHabit` use case, over
+   `repository.all()` filtered on `state != Anchored`, per
+   [[adr-0013-set-based-validation-outside-aggregates]].
+3. **The lifecycle guard lands first.** PR 2 gives `Habit` its transition table (an anchored habit
+   cannot be *resumed*), which is a genuine invariant of one instance — see
+   [[adr-0013-set-based-validation-outside-aggregates]]'s counter-example and
+   [[adr-0007-habit-lifecycle-aggregate]] AD-4. Slice 7 is the first cycle where that guard is
+   reachable from a screen, which is why PR 2 precedes it.

@@ -3,10 +3,11 @@ id: "adr-0001-validation-by-construction"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-07-27"
+updated: "2026-08-17"
 relations:
   related:
     - "architecture-overview"
+    - "adr-0013-set-based-validation-outside-aggregates"
     - "adr-0009-quality-gates"
     - "adr-0010-crate-boundary-trust-boundary"
     - "adr-0008-goal-based-dose-user-paced-progression"
@@ -19,11 +20,13 @@ answers:
   - "Are the invariants this ADR mandates covered by the mutation gate?"
   - "May a VO method build a new instance without going through the validating constructor?"
   - "Why does Goal::grown/lightened saturate, and why can no test tell the difference?"
+  - "Is it still possible to reach Habit::new with an unvalidated value?"
 decided_in:
   - "LOCAL-1"
   - "LOCAL-2"
   - "2026-07-26 crate-boundary parsing cycle (notes below)"
   - "2026-07-27 slice 3 adjust-goal cycle (SEC-1: in-module derivations, human arbitrated for Security)"
+  - "2026-08-17 drop-habit-board refactor (event leg moot; principle unchanged)"
 ---
 
 # ADR 0001 — Validation by construction: VOs as single source of truth, events valid end-to-end
@@ -47,10 +50,23 @@ The board-driven creation flow (LOCAL-1) splits habit creation into an emitting 
 | Facet | Decision | Anchor |
 |---|---|---|
 | Single source of truth | The two business rules live ONLY in the VO constructors (`HabitTitle`, `InitialDuration`), moved out of `Habit::new` | `core/src/habit_management/domain/habit_title.rs`, `core/src/habit_management/domain/goal.rs` |
-| Validate before emission | `HabitBoard::request_habit` builds the VOs and returns `Result<HabitBoardEvent, HabitBoardError>` — an event cannot exist unless validation passed | `core/src/habit_management/domain/habit_board.rs` |
-| Events carry VOs | `HabitBoardEvent::HabitRequested` holds the VOs, not primitives — validity is enforced by the type system end-to-end | `core/src/habit_management/domain/habit_board_event.rs` |
-| Parse, don't validate | `Habit::new(HabitId, HabitTitle, InitialDuration) -> Habit` is infallible; the domain speaks `HabitId`, never raw `String` | `core/src/habit_management/domain/habit.rs` |
-| Event is a fact | `CreateHabitOnRequest` is an **application** event handler (not a domain service): it consumes the event without re-validation and calls `HabitRepository::save` | `core/src/habit_management/use_cases/create_habit_on_request.rs` |
+| ~~Validate before emission~~ **MOOT 2026-08-17** | `HabitBoard::request_habit` built the VOs and returned `Result<HabitBoardEvent, HabitBoardError>` — an event could not exist unless validation passed | core/src/habit_management/domain/habit_board.rs *(deleted)* |
+| ~~Events carry VOs~~ **MOOT 2026-08-17** | `HabitBoardEvent::HabitRequested` held the VOs, not primitives | core/src/habit_management/domain/habit_board_event.rs *(deleted)* |
+| Parse, don't validate | `Habit::new(HabitId, HabitTitle, Goal, LocalDate) -> Habit` is infallible; the domain speaks `HabitId`, never raw `String` | `core/src/habit_management/domain/habit.rs` |
+| ~~Event is a fact~~ **MOOT 2026-08-17** | `CreateHabitOnRequest` was an **application** event handler that consumed the event without re-validation | core/src/habit_management/use_cases/create_habit_on_request.rs *(deleted)* |
+
+> **Note (2026-08-17, `drop-habit-board`) — this ADR's principle is UNCHANGED and now more visible.**
+> Three of the five rows above described the *event* leg of the deleted board-driven flow
+> ([[adr-0013-set-based-validation-outside-aggregates]]). What they protected was an
+> intermediate: an already-validated fact travelling to a downstream consumer that had to be
+> trusted not to re-validate it. **That intermediate is gone.** `AddHabit::execute` builds
+> `HabitId`, `HabitTitle` and `Goal` and hands all three straight to `Habit::new`
+> (`core/src/habit_management/use_cases/add_habit.rs`) — there is no event, no handler and no
+> gap in which an unvalidated value could exist. The rule *"invariants live in the VO
+> constructors; `Habit::new` is infallible"* is now enforced by a **single call site with three
+> parsed arguments**, which is the strongest form this ADR has ever had: reaching `Habit::new`
+> with an unvalidated value is not discouraged, it is *impossible*. Nothing below is amended;
+> the anchors that named deleted files are struck through.
 
 > **Note (2026-07-26) — the second half of the "Parse, don't validate" row was aspirational until now.**
 > `HabitId` was obtained through an infallible `impl From<&str>`, so a raw URL
@@ -87,7 +103,7 @@ The board-driven creation flow (LOCAL-1) splits habit creation into an emitting 
 - **MUST NOT**: re-validate event payloads downstream; a consumed event is a fact.
 - **MUST NOT**: make `Habit::new` fallible again. (A *VO* constructor being fallible is the opposite case — that is precisely where an invariant belongs; see the 2026-07-26 note above.)
 - **MUST NOT**: give any VO a second, infallible construction path (`From`, `Deserialize`, a public field) that bypasses its validating constructor — [[adr-0010-crate-boundary-trust-boundary]]. **Refined 2026-07-27**: an *in-module derivation* is the one admitted shape — see the amendment below for the three conditions it must meet.
-- **Out of scope**: cross-habit invariants — settled since LOCAL-2 by [[adr-0002-habitboard-stateful-aggregate]].
+- **Out of scope**: cross-habit rules. ~~Settled since LOCAL-2 by [[adr-0002-habitboard-stateful-aggregate]]~~ → **re-settled 2026-08-17 by [[adr-0013-set-based-validation-outside-aggregates]]**: they are *not invariants at all*, so they were never this node's business; they live in the use case performing the gesture.
 
 ---
 

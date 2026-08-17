@@ -43,6 +43,8 @@ impl fmt::Display for HabitError {
 impl Error for HabitError {}
 
 impl Habit {
+    pub const MAX_IN_DAILY_LIFE: usize = 5;
+
     pub fn new(id: HabitId, title: HabitTitle, goal: Goal, created_on: LocalDate) -> Habit {
         Habit {
             id,

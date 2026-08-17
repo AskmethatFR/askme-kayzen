@@ -13,7 +13,7 @@ pub enum ResumeHabitError {
 impl fmt::Display for ResumeHabitError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ResumeHabitError::HabitNotFound => write!(f, "no habit with this id is on the board"),
+            ResumeHabitError::HabitNotFound => write!(f, "no habit with this id exists"),
         }
     }
 }
@@ -61,7 +61,7 @@ mod tests {
     fn display_formats_the_error_with_the_expected_message() {
         assert_eq!(
             ResumeHabitError::HabitNotFound.to_string(),
-            "no habit with this id is on the board"
+            "no habit with this id exists"
         );
     }
 

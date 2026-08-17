@@ -2,7 +2,6 @@ use dioxus::prelude::*;
 
 mod composition;
 mod route;
-mod services;
 mod views;
 
 use composition::Services;

@@ -3,11 +3,12 @@ id: "adr-0009-quality-gates"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-08-11"
+updated: "2026-08-17"
 relations:
   related:
     - "architecture-overview"
     - "adr-0012-synchronous-cross-aggregate-coordination"
+    - "adr-0013-set-based-validation-outside-aggregates"
     - "lifecycle-backlog"
     - "feature-catalog"
     - "adr-0001-validation-by-construction"
@@ -36,6 +37,9 @@ answers:
   - "Can a test in the app crate materialize a scenario, or only a core test?"
   - "A mutant survived — do I strengthen the assertion or change what I observe?"
   - "What measures the composition root, given that app/src/** is outside the perimeter?"
+  - "Does cargo-mutants ever mutate an enum variant or swap one method call for another? (L5)"
+  - "A campaign reported 11/11 killed — does that mean every guard was probed?"
+  - "Why can a whitespace-differing fixture not discriminate HabitTitle::matches from ==?"
 decided_in:
   - "2026-07-25 gates cycle"
   - "2026-07-26 architect ratification (slice 3 adjust-goal cycle)"
@@ -43,6 +47,7 @@ decided_in:
   - "2026-07-27 slice 3 adjust-goal cycle (three further perimeter limits — amendment below)"
   - "2026-08-06 slice 5 pause-resume cycle (L1 corrected, exploit demonstrated, L4 added)"
   - "2026-08-11 slice 6 anchor-habit cycle (in-perimeter survivor; composition root test-covered)"
+  - "2026-08-17 drop-habit-board refactor (L5: enum variants and method calls are never mutated)"
 ---
 
 # ADR 0009 — Quality gates: spec-only Gherkin, diff-scoped mutation testing, one runner
@@ -94,7 +99,7 @@ executable statement of intent, and `Display for HabitError` could be replaced b
 | Why that blind spot is an **ADR-level** fact, not a tooling footnote | [[adr-0001-validation-by-construction]] requires **every** domain invariant to live in a value-object constructor, and those constructors are named `new`. So the gate this node presents as the project's discrimination guarantee **structurally cannot measure the project's most load-bearing decision**. Six such constructors exist today: `Habit::new`, `CompletionHistory::new`, `Goal::new`, `HabitId::new`, `HabitTitle::new`, and the private `StepChange::new` | `core/src/habit_management/domain/habit.rs`, `core/src/habit_management/domain/habit_id.rs`, `core/src/habit_management/domain/habit_title.rs` |
 | Measured, not inferred | Dev-B proved the effect by controlled experiment: renaming `HabitId::new` → `HabitId::parse`, changing nothing else, made **7 mutants appear** on the boundary comparison where there had been zero; applied workspace-wide it yielded **48 mutants, 34 caught, 14 unviable, 0 missed**. Verified contrast: `LocalDate::from_epoch_day` — a fallible constructor of identical shape but a different name — **does** get mutants | `core/src/shared/local_date.rs` |
 | Mitigation: **surface it, advisory only** | `scripts/check.sh` lists every `fn new` under `core/src/**/domain/**` whose return type is not a bare `Self`, naming the cause inline. It is **never appended to `FAILED` and never affects the exit code** — both reviewers verified this by breaking it deliberately. It is an explicitly-labelled **single-line-signature grep heuristic** that prints its own limits on every run (it will miss a wrapped signature and cannot see through a type alias), and it distinguishes "could not look" from "none found" rather than reporting an unscanned target as clean | `scripts/check.sh` |
-| A survivor on an adapter is a **use-case** finding | Testing an adapter directly proves the adapter matches itself. When a mutant survives outside the perimeter, the question is which use case failed to cover the concern. The two `UuidGenerator` survivors were really saying that no test pinned "every accepted request gets a freshly generated id" — that test belongs to `RequestHabit` | `core/src/habit_management/use_cases/request_habit.rs` |
+| A survivor on an adapter is a **use-case** finding | Testing an adapter directly proves the adapter matches itself. When a mutant survives outside the perimeter, the question is which use case failed to cover the concern. The two `UuidGenerator` survivors were really saying that no test pinned "every accepted request gets a freshly generated id" — that test belonged to `RequestHabit`, and moved with the gesture to `core/src/habit_management/use_cases/add_habit.rs` (2026-08-17) | `core/src/habit_management/use_cases/add_habit.rs` |
 | The gate reads **committed** work | The diff is `git diff <base-ref>...`, and cargo-mutants refuses a tree whose lines have moved under the patch. Commit the slice, then gate it | `scripts/mutation-gate.sh` |
 | **base-ref is mandatory, never defaulted** (corrected 2026-07-26) | The base-ref is a CLI argument with **no default and no guess**: *the commit immediately before this slice's first RED commit*. `scripts/mutation-gate.sh` exits **2** without one, and `scripts/check.sh` exits 2 before any gate runs when a work-class is given without one. Only the caller knows which commit that is — it moves on every new slice, so any fixed default goes stale as often as it helps | `scripts/mutation-gate.sh`, `scripts/check.sh` |
 | Why the old `HEAD~1` default was a defect, not a convenience (2026-07-26) | GATE 2 of the operator protocol **mandates** every TDD slice be split into ≥ 2 commits — failing tests alone, then implementation, a hook hard-denying a mixed commit. So the protocol's *only* permitted shape is exactly what `HEAD~1` under-scoped: the RED commit's test additions fell outside the measured diff. **The more disciplined the developer, the more the gate under-measured.** Measured on the `98a1d13`→`5693d01` pair: `HEAD~1` → `killed=2`; correct ref `70e3d70` → `killed=3` — and **both reported `verdict: "pass"`**. Nothing in the output distinguished "correctly scoped" from "missed a commit". Reproduced independently by QA, the CTO and Dev-B | `scripts/mutation-gate.sh` |
@@ -363,3 +368,66 @@ case correctly, in isolation, with its own wiring.
 **Standing implication**: when a slice makes two use cases share a dependency, the sharing
 is a decision, and it needs a test that fails when the wiring is split. The composition root
 is not plumbing below the waterline — it is the only place that decision is expressed.
+
+---
+
+## Amendment — 2026-08-17, `drop-habit-board`: **L5**, the blind spot that made a green gate look like a proof
+
+Both artifacts the previous amendment records were deleted this cycle
+([[adr-0013-set-based-validation-outside-aggregates]]). Their replacements are recorded below,
+but the durable lesson is the new perimeter limit, **L5** — the one that explains why the
+survivor story above was luckier than it looked.
+
+### L5 — cargo-mutants mutates neither enum variants nor method calls
+
+The two guards that carry the whole write side of `AddHabit`
+(`core/src/habit_management/use_cases/add_habit.rs`) received **zero** mutants:
+
+| Guard | The mutant that would matter | Generated? |
+|---|---|---|
+| `habit.state() != LifecycleState::Anchored` | `!= LifecycleState::Paused` (or `== Anchored`) | **No** — cargo-mutants does not substitute enum variants |
+| `habit.title().matches(&title)` | `==` instead of `matches` | **No** — it does not swap one method call for another |
+
+The campaign reported **11/11 killed**. That is *not* the same statement as "every guard was
+probed" — it is "everything the instrument agreed to generate was killed". L5 joins L1-bis
+(views excluded), L2 (`Goal` derivations yield only unviable mutants), L3 (struct-literal
+fields), L4 (`match` arms) and the `fn new` hard-skip. **Read every clean campaign in this
+repo as *clean within reach*, never as *clean*.**
+
+Both guards are in fact pinned — by hand-verified tests, which is the countermeasure L5 leaves:
+
+| Guard | Pinned by | Anchor |
+|---|---|---|
+| The `!= Anchored` filter, in both directions | `pause-resume/S3` (a paused habit keeps its seat) and `anchor-habit/S1` (an anchored one frees it) | `core/src/habit_management/use_cases/pause_habit.rs`, `core/src/habit_management/use_cases/anchor_habit.rs` |
+| `matches` vs `==` | `add-habit/S5`, with a **case-differing** fixture | `core/src/habit_management/use_cases/add_habit.rs` |
+
+One subtlety worth writing down, because the next author will reach for the wrong fixture:
+`HabitTitle::new` **trims**, so the whitespace axis of `matches` is neutralised at
+construction and cannot discriminate anything at the use-case level. **Only the case
+difference does the work in S5.** A fixture differing by leading spaces would look like a
+`matches`-vs-`==` test and prove nothing.
+
+### An assertion that pinned zero words — the class the gate cannot see either
+
+Dev-B found and fixed a related defect in the same cycle: a test whose **expected value was
+computed from the `Display` impl under test**. Any wording change moves both sides together,
+so the assertion holds for every possible message. Pinned by a **literal**, it bites. Same
+family as L5 — a green signal over an unmeasured line — but reachable by a reviewer, not by
+an instrument.
+
+### The two slice-6 artifacts, replaced
+
+- **The in-perimeter survivor** (`HabitBoard::release`'s `!=` flipped to `==`) is gone with
+  `release`. The lesson it produced — *when a mutant survives, change the observation, do not
+  strengthen the assertion on the same one* — **stands and is the reason the amendment above
+  is kept**. Its concrete form here: a seat *count* could not distinguish "removed the right
+  entry" from "removed all the wrong ones"; the *released title* could.
+- **The composition root's guard test** (`anchoring_a_habit_through_services_frees_its_seat_for_add_habit`)
+  is deleted, and **that is not a coverage hole**. Dev-B verified the reasoning: the bug class
+  it caught — two divergent board stores behind one `Services` — is now **structurally
+  impossible**, there being one store. The residual class (a use case wired to a different
+  repository instance) is caught transitively by the view tests that pin
+  `add_habit ↔ list_board_habits`, `anchor_habit ↔ get_habit_detail` and
+  `resume`/`mark_done ↔ list_board_habits`. The **standing implication above survives
+  unchanged**: the next slice that makes two use cases share a dependency still owes a test
+  that fails when the wiring is split.

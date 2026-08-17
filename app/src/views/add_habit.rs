@@ -1,4 +1,4 @@
-use crate::composition::Services;
+use crate::composition::{STARTING_GOAL, Services};
 use crate::route::Route;
 use dioxus::prelude::*;
 use rand::seq::SliceRandom;
@@ -65,7 +65,11 @@ pub fn AddHabit() -> Element {
                             onclick: {
                                 let services = services.clone();
                                 move |_| {
-                                    if services.add_habit.execute(idea).is_ok() {
+                                    if services
+                                        .add_habit
+                                        .execute(idea.to_string(), STARTING_GOAL)
+                                        .is_ok()
+                                    {
                                         navigator.push(Route::Today {});
                                     }
                                 }
@@ -91,7 +95,7 @@ pub fn AddHabit() -> Element {
                 onclick: {
                     let services = services.clone();
                     move |_| {
-                        if services.add_habit.execute(&name()).is_ok() {
+                        if services.add_habit.execute(name(), STARTING_GOAL).is_ok() {
                             navigator.push(Route::Today {});
                         }
                     }
@@ -105,7 +109,7 @@ pub fn AddHabit() -> Element {
 #[cfg(test)]
 mod tests {
     use super::{IDEAS, two_random_ideas};
-    use crate::composition::Services;
+    use crate::composition::{STARTING_GOAL, Services};
     use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
     use std::rc::Rc;
 
@@ -115,7 +119,10 @@ mod tests {
     fn adding_a_habit_makes_it_appear_on_today() {
         let services = Services::with_repository(Rc::new(InMemoryHabitRepository::new()));
 
-        services.add_habit.execute("Lire une page").unwrap();
+        services
+            .add_habit
+            .execute("Lire une page".to_string(), STARTING_GOAL)
+            .unwrap();
 
         let titles: Vec<String> = services
             .list_board_habits

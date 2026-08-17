@@ -3,10 +3,11 @@ id: "adr-0006-cqrs-light"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-08-11"
+updated: "2026-08-17"
 relations:
   related:
     - "architecture-overview"
+    - "adr-0013-set-based-validation-outside-aggregates"
     - "habit-progression-study"
     - "adr-0008-goal-based-dose-user-paced-progression"
     - "adr-0010-crate-boundary-trust-boundary"
@@ -23,7 +24,7 @@ answers:
   - "Where will the future per-habit statistics board get its data from?"
   - "What would justify escalating from CQRS-light to full CQRS with projections?"
   - "May a Dioxus view name the DTO its query returns?"
-  - "Why does app/src/services/add_habit.rs import a domain error type?"
+  - "~~Why does app/src/services/add_habit.rs import a domain error type?~~ RESOLVED 2026-08-17 — it no longer exists; app/ imports no domain error"
   - "One screen shows two lists — one query returning both, or two queries?"
   - "Where does a rule that partitions a screen's content live: the query or the view?"
   - "How does a domain enum reach a view — as itself, as a bool, or as a DTO-side enum?"
@@ -34,6 +35,7 @@ decided_in:
   - "2026-07-27 slice 3 adjust-goal cycle (DTO-naming scope, HabitBoardError tension recorded)"
   - "2026-08-06 slice 5 pause-resume cycle (TodayHabits two-list DTO, DTO-side enums)"
   - "2026-08-11 slice 6 anchor-habit cycle (sibling screen ⇒ sibling query; anchored_count derived)"
+  - "2026-08-17 drop-habit-board refactor (the HabitBoardError tension resolved by deletion)"
 ---
 
 # ADR 0006 — CQRS-light for the read side of habit_management (query handlers + per-screen DTOs, no projections)
@@ -78,8 +80,10 @@ A MEASURED read-latency problem on device once real persistence + years of histo
 - **MUST**: every screen reads through a query use case returning its own DTO; `kayzen-app` never imports a domain type.
   - **The stakes of that MUST changed on 2026-07-26.** [[adr-0010-crate-boundary-trust-boundary]] makes this rule the reason the **crate boundary is the system's trust boundary**: because the app crate cannot fabricate a domain type, a query's entry point (primitives in, DTO out) is structurally the anticorruption layer, and parsing belongs there rather than in the view. Violating this MUST is therefore no longer only an architectural regression — it opens a second, unaudited door into the domain.
   - **Scope clarified 2026-07-27**: the MUST is about **domain types**. A view **naming** its query's output DTO (`HabitDetail` in `app/src/views/habit_detail.rs`) is the *prescribed* shape of this ADR, not an exception to it — DTOs exist precisely so the app needs no domain type. The boundary holds on what the core **accepts as input**, and no core entry point accepts a DTO. Full reasoning and the one-question test: [[adr-0010-crate-boundary-trust-boundary]]'s 2026-07-27 amendment.
-- **Known tension, pre-existing and undecided (recorded 2026-07-27)**: `app/src/services/add_habit.rs` imports `HabitBoardError`, a **domain error type**, in production code — a literal tension with the MUST above. It predates the `adjust-goal` slice and was untouched by it; the slice's reviewers surfaced it rather than fixing it out of scope. **Neither a defect of that slice nor a settled exception** — the two candidate resolutions (a DTO-side error contract for the app service, or an explicit carve-out for error types crossing the boundary) both need a decision. Recorded here so it is not rediscovered as a fresh finding on every subsequent review.
-- **MUST**: query use cases consume the existing ports (`HabitRepository`, `HabitBoardRepository`) — no new port for reads.
+- ~~**Known tension, pre-existing and undecided (recorded 2026-07-27)**: app/src/services/add_habit.rs imports `HabitBoardError`, a **domain error type**, in production code — a literal tension with the MUST above. The two candidate resolutions (a DTO-side error contract for the app service, or an explicit carve-out for error types crossing the boundary) both need a decision.~~
+  - **RESOLVED 2026-08-17 by deletion — neither candidate resolution was needed.** The app service existed only to drain the outbox that the deleted `HabitBoard` design required ([[adr-0013-set-based-validation-outside-aggregates]]); the whole `app/src/services/` layer went with it. **The MUST above now holds unqualified on the write side**: `app/` production code imports **no domain error at all**. The Add screen calls `services.add_habit.execute(...)` and reads the outcome with `.is_ok()` (`app/src/views/add_habit.rs`); every other gesture uses `.ok()`. The only domain items named in `app/` production code are the `HabitRepository` **port** and its in-memory adapter, both in `app/src/composition.rs` — a composition root wiring an adapter to a port, which is what a composition root is for, not a view importing a domain type.
+  - Recorded as **resolved** rather than deleted, because the shape recurs: an error type leaks into the app crate when the app is made to orchestrate. Remove the orchestration and the leak goes with it. Reach for a DTO-side error contract only once an app-side orchestration genuinely earns its place.
+- **MUST**: query use cases consume the existing port (`HabitRepository`) — no new port for reads. *(`HabitBoardRepository` was the second port when this was written; it is deleted.)*
 - **MUST NOT**: store any derived value (suggestion, stat, message) — recompute on read.
 - **MUST**: keep a rule that decides *what a screen shows* inside the query, never in the view — the view arranges what it is handed (2026-08-06).
 - **MUST**: expose a domain enum to the app as a **DTO-side enum** declared next to its query, mapped by an exhaustive `match` — never the domain type, never a `bool` (2026-08-06; the `bool` half is [[adr-0007-habit-lifecycle-aggregate]] AD-2).
