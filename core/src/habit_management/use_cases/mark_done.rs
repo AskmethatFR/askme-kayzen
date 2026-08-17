@@ -14,7 +14,7 @@ pub enum MarkDoneError {
 impl fmt::Display for MarkDoneError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            MarkDoneError::HabitNotFound => write!(f, "no habit with this id is on the board"),
+            MarkDoneError::HabitNotFound => write!(f, "no habit with this id exists"),
         }
     }
 }
@@ -81,7 +81,7 @@ mod tests {
     fn display_formats_the_error_with_the_expected_message() {
         assert_eq!(
             MarkDoneError::HabitNotFound.to_string(),
-            "no habit with this id is on the board"
+            "no habit with this id exists"
         );
     }
 
