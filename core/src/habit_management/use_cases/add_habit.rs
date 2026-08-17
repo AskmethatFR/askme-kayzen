@@ -36,11 +36,9 @@ impl fmt::Display for AddHabitError {
 
 impl Error for AddHabitError {}
 
-/// Command use case: adds a habit to the daily life in a single write. Formerly
-/// two writes coordinated through a `HabitBoard` aggregate and a published
-/// event (`RequestHabit` + `CreateHabitOnRequest`); the "at most
-/// `Habit::MAX_IN_DAILY_LIFE`" rule is set-based validation over the existing
-/// `HabitRepository`, not an aggregate invariant, so it belongs here.
+/// Command use case: adds a habit to the daily life in a single write. The
+/// "at most `Habit::MAX_IN_DAILY_LIFE`" rule is set-based validation over the
+/// existing `HabitRepository`, not an aggregate invariant, so it belongs here.
 #[derive(Clone)]
 pub struct AddHabit {
     repository: Rc<dyn HabitRepository>,

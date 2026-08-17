@@ -21,10 +21,7 @@ impl fmt::Display for AnchorHabitError {
 impl Error for AnchorHabitError {}
 
 /// Command use case: anchors a habit that has become natural. No `Clock`
-/// (adr-0007 AD-3): nothing about this transition is dated. Freeing its seat
-/// in the daily life is no longer a second write to coordinate — `AddHabit`
-/// reads `LifecycleState` straight off `HabitRepository`, so this is now
-/// exactly the same shape as `PauseHabit`/`ResumeHabit`.
+/// (adr-0007 AD-3): nothing about this transition is dated.
 #[derive(Clone)]
 pub struct AnchorHabit {
     repository: Rc<dyn HabitRepository>,
