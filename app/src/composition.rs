@@ -1,8 +1,6 @@
 use std::rc::Rc;
 
-use kayzen_core::habit_management::domain::habit_board_repository::HabitBoardRepository;
 use kayzen_core::habit_management::domain::habit_repository::HabitRepository;
-use kayzen_core::habit_management::infrastructure::in_memory_habit_board_repository::InMemoryHabitBoardRepository;
 use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
 use kayzen_core::habit_management::queries::get_habit_detail::GetHabitDetail;
 use kayzen_core::habit_management::queries::list_anchored_habits::ListAnchoredHabits;
@@ -51,8 +49,7 @@ impl Services {
         services
     }
 
-    /// Wires every service over a caller-provided habit store (the board store,
-    /// still needed by `AnchorHabit`, is created fresh alongside it), resolving
+    /// Wires every service over a caller-provided habit store, resolving
     /// "today" from the real system clock. Testability seam: tests inject a
     /// habit store seeded with known data and assert what the screens render.
     pub fn with_repository(habit_repository: Rc<dyn HabitRepository>) -> Self {
@@ -68,9 +65,6 @@ impl Services {
         habit_repository: Rc<dyn HabitRepository>,
         clock: Rc<dyn Clock>,
     ) -> Self {
-        let board_repository: Rc<dyn HabitBoardRepository> =
-            Rc::new(InMemoryHabitBoardRepository::new());
-
         Services {
             list_board_habits: ListBoardHabits::new(
                 Rc::clone(&habit_repository),
@@ -82,7 +76,7 @@ impl Services {
             lighten_goal: LightenGoal::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
             pause_habit: PauseHabit::new(Rc::clone(&habit_repository)),
             resume_habit: ResumeHabit::new(Rc::clone(&habit_repository)),
-            anchor_habit: AnchorHabit::new(Rc::clone(&habit_repository), board_repository),
+            anchor_habit: AnchorHabit::new(Rc::clone(&habit_repository)),
             list_anchored_habits: ListAnchoredHabits::new(Rc::clone(&habit_repository)),
             add_habit: AddHabit::new(habit_repository, Rc::new(UuidGenerator), clock),
         }
