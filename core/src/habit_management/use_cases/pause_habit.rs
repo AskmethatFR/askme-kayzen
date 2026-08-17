@@ -65,6 +65,10 @@ mod tests {
             PauseHabitError::HabitNotFound.to_string(),
             "no habit with this id exists"
         );
+        assert_eq!(
+            PauseHabitError::NotActive.to_string(),
+            "only an active habit can be paused"
+        );
     }
 
     fn a_habit(id: &str) -> Habit {
@@ -114,6 +118,36 @@ mod tests {
         let result = pause_habit.execute(&too_long);
 
         assert_eq!(result, Err(PauseHabitError::HabitNotFound));
+    }
+
+    #[test]
+    fn pausing_a_paused_habit_is_refused() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit("h-1");
+        habit.pause();
+        repository.save(&habit);
+        let pause_habit = pause_habit_over(Rc::clone(&repository));
+
+        let result = pause_habit.execute("h-1");
+
+        assert_eq!(result, Err(PauseHabitError::NotActive));
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+        assert_eq!(habit.state(), LifecycleState::Paused);
+    }
+
+    #[test]
+    fn pausing_an_anchored_habit_is_refused() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit("h-1");
+        habit.anchor();
+        repository.save(&habit);
+        let pause_habit = pause_habit_over(Rc::clone(&repository));
+
+        let result = pause_habit.execute("h-1");
+
+        assert_eq!(result, Err(PauseHabitError::NotActive));
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+        assert_eq!(habit.state(), LifecycleState::Anchored);
     }
 
     struct StubGuidGenerator {
