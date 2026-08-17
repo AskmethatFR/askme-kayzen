@@ -250,7 +250,7 @@ mod tests {
             ),
             (
                 AddHabitError::InvalidHabit(HabitError::TitleLength { min: 1, max: 50 }),
-                HabitError::TitleLength { min: 1, max: 50 }.to_string(),
+                "a title size must be between 1 and 50 characters".to_string(),
             ),
             (
                 AddHabitError::InvalidHabit(HabitError::GoalTooSmall { min: 1 }),
