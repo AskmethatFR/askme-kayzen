@@ -18,8 +18,19 @@ pub enum AddHabitError {
 }
 
 impl fmt::Display for AddHabitError {
-    fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {
-        todo!()
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            AddHabitError::InvalidHabit(error) => write!(f, "{error}"),
+            AddHabitError::DuplicateHabit => {
+                write!(f, "a habit with this title is already in your daily life")
+            }
+            AddHabitError::DailyLifeFull { max } => {
+                write!(
+                    f,
+                    "your daily life already holds the maximum of {max} habits"
+                )
+            }
+        }
     }
 }
 
@@ -50,8 +61,35 @@ impl AddHabit {
         }
     }
 
-    pub fn execute(&self, _title: String, _goal: u32) -> Result<(), AddHabitError> {
-        todo!()
+    pub fn execute(&self, title: String, goal: u32) -> Result<(), AddHabitError> {
+        let id =
+            HabitId::new(&self.guid_generator.generate()).map_err(AddHabitError::InvalidHabit)?;
+        let title = HabitTitle::new(title).map_err(AddHabitError::InvalidHabit)?;
+        let goal = Goal::new(goal).map_err(AddHabitError::InvalidHabit)?;
+
+        let in_daily_life: Vec<Habit> = self
+            .repository
+            .all()
+            .into_iter()
+            .filter(|habit| habit.state() != LifecycleState::Anchored)
+            .collect();
+
+        if in_daily_life
+            .iter()
+            .any(|habit| habit.title().matches(&title))
+        {
+            return Err(AddHabitError::DuplicateHabit);
+        }
+
+        if in_daily_life.len() >= Habit::MAX_IN_DAILY_LIFE {
+            return Err(AddHabitError::DailyLifeFull {
+                max: Habit::MAX_IN_DAILY_LIFE,
+            });
+        }
+
+        self.repository
+            .save(&Habit::new(id, title, goal, self.clock.today()));
+        Ok(())
     }
 }
 
@@ -121,7 +159,10 @@ mod tests {
 
     fn a_fresh_add_habit() -> (AddHabit, Rc<InMemoryHabitRepository>) {
         let repository = Rc::new(InMemoryHabitRepository::new());
-        let add_habit = add_habit_with("fixed-guid", Rc::clone(&repository) as Rc<dyn HabitRepository>);
+        let add_habit = add_habit_with(
+            "fixed-guid",
+            Rc::clone(&repository) as Rc<dyn HabitRepository>,
+        );
         (add_habit, repository)
     }
 
