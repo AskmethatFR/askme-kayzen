@@ -7,7 +7,6 @@ mod today;
 mod week;
 
 pub use add_habit::AddHabit;
-pub(crate) use add_habit::STARTING_GOAL;
 pub use anchored::Anchored;
 pub use habit_detail::HabitDetail;
 pub use not_found::NotFound;

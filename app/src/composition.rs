@@ -15,7 +15,9 @@ use kayzen_core::habit_management::use_cases::resume_habit::ResumeHabit;
 use kayzen_core::shared::clock::{Clock, SystemClock};
 use kayzen_core::shared::guid_generator::UuidGenerator;
 
-use crate::views::STARTING_GOAL;
+/// The default daily goal offered to every new habit — a flexible target, not
+/// a ceiling. Kaizen begins gently, not necessarily tiny.
+pub(crate) const STARTING_GOAL: u32 = 5;
 
 /// Composition root: a pure DI registry. It builds and holds each action service
 /// over a single shared set of stores, then is provided once at the app root via

@@ -1,4 +1,4 @@
-use crate::composition::Services;
+use crate::composition::{STARTING_GOAL, Services};
 use crate::route::Route;
 use dioxus::prelude::*;
 use rand::seq::SliceRandom;
@@ -33,10 +33,6 @@ fn two_random_ideas() -> Vec<&'static str> {
         .copied()
         .collect()
 }
-
-/// The default daily goal offered to every new habit — a flexible target,
-/// not a ceiling. Kaizen begins gently, not necessarily tiny.
-pub(crate) const STARTING_GOAL: u32 = 5;
 
 #[component]
 pub fn AddHabit() -> Element {
@@ -112,8 +108,8 @@ pub fn AddHabit() -> Element {
 
 #[cfg(test)]
 mod tests {
-    use super::{IDEAS, STARTING_GOAL, two_random_ideas};
-    use crate::composition::Services;
+    use super::{IDEAS, two_random_ideas};
+    use crate::composition::{STARTING_GOAL, Services};
     use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
     use std::rc::Rc;
 
