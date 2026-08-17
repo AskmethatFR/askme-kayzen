@@ -26,9 +26,11 @@ answers:
   - "Is the read-then-write in AddHabit::execute a race (TOCTOU)?"
   - "What exactly reopens the concurrency question, and what is the fix when it does?"
   - "Where does the number 5 live, and why is a constant on Habit not the same mistake?"
-  - "What IS a real Habit invariant, then?"
+  - "What IS a real Habit invariant, then? (the counter-example landed in PR 2)"
+  - "A transition grows the set a rule bounds — where does the check go?"
 decided_in:
   - "2026-08-17 drop-habit-board refactor (human ruling on the invariant test)"
+  - "2026-08-17 PR 2 guard-lifecycle-transitions (the counter-example landed; the symmetry table)"
 ---
 
 # ADR 0013 — Set-based validation lives outside aggregates
@@ -36,7 +38,7 @@ decided_in:
 > **⚠️ Supersedes [[adr-0002-habitboard-stateful-aggregate]] and [[adr-0012-synchronous-cross-aggregate-coordination]].** Both nodes are correct reasoning built on a false premise: that « au plus 5 habitudes dans le quotidien » and « pas de doublon de titre » are aggregate invariants defining a boundary. They are not. `HabitBoard`, its repository, its event, the outbox, `RequestHabit` and `CreateHabitOnRequest` are **deleted** — 10 files, 1093 lines.
 
 > **One-liner**: A rule whose predicate depends on another aggregate's **mutable** state, or on the composition of a set that changes over time, is **not an invariant** and must never be hosted by an aggregate — it is **set-based validation**, and it lives in the use case that performs the gesture, reading the set through the existing repository port.
-> **Links**: [[adr-0001-validation-by-construction]] (per-instance invariants, which this node does **not** touch — they stay in the VO constructors), [[adr-0007-habit-lifecycle-aggregate]] (`Habit` is the only aggregate left; its AD-4 is the counter-example this node closes on), [[adr-0011-one-public-method-per-use-case]] (`AddHabit` is one gesture, one public method), [[architecture-overview]] (where this is applied).
+> **Links**: [[adr-0001-validation-by-construction]] (per-instance invariants, which this node does **not** touch — they stay in the VO constructors), [[adr-0007-habit-lifecycle-aggregate]] (`Habit` is the only aggregate left; its **AD-9** is the counter-example this node closes on — landed 2026-08-17, amending AD-4), [[adr-0011-one-public-method-per-use-case]] (`AddHabit` is one gesture, one public method), [[architecture-overview]] (where this is applied).
 
 ## Context
 
@@ -197,23 +199,41 @@ it stops being optional.
 Publishing a constant is not hosting an invariant. The mistake this node corrects was giving
 an aggregate a *behaviour* it could not honour — not giving a type a *name* for a number.
 
-## The counter-example that keeps the rule usable
+## The counter-example that keeps the rule usable — **LANDED 2026-08-17 (PR 2)**
 
-This node is not "invariants are suspicious". The rule cuts both ways, and the live
-counter-example is already scheduled:
+This node is not "invariants are suspicious". The rule cuts both ways, and the
+counter-example is no longer hypothetical — it shipped the same day, in PR 2
+`guard-lifecycle-transitions`.
 
 **Transition-table legality IS a real invariant of `Habit`.** *An anchored habit cannot be
 resumed* is verifiable on **one instance**, consults **no other aggregate**, and depends on
 nothing that changes outside that instance — it passes all three checks in the Context
-section. It belongs **inside `Habit`**, in `resume()` / `pause()` / `anchor()`, and its
-absence is a real (currently latent) defect: `Habit::resume()`
-(`core/src/habit_management/domain/habit.rs:82-84`) has no guard, so a caller resuming an
-`Anchored` habit yields **6 non-anchored habits against a 5-seat cap**. Unreachable today —
-no screen offers it — and reachable exactly at slice 7. **PR 2 is its remediation**, and it
-amends [[adr-0007-habit-lifecycle-aggregate]] AD-4.
+section. It belongs **inside `Habit`**, and it is now there:
+`core/src/habit_management/domain/habit.rs` guards all three transitions
+(`pause()` requires `Active`, `resume()` requires `Paused`, `anchor()` requires `Active`,
+each returning `Result<(), TransitionError>`), and the three use cases
+(`core/src/habit_management/use_cases/pause_habit.rs`,
+`core/src/habit_management/use_cases/resume_habit.rs`,
+`core/src/habit_management/use_cases/anchor_habit.rs`) map the refusal to a flat variant of
+their own error. Full table and rationale: [[adr-0007-habit-lifecycle-aggregate]] **AD-9**,
+which amends AD-4.
 
-Use the pair as the calibration: « at most 5 » out of the aggregate, « you cannot resume what
-is anchored » into it. Same cycle, opposite directions, one test.
+**The symmetry, crisply — this is the calibration to reuse:**
+
+| Rule | Nature | Where it lives | Why |
+|---|---|---|---|
+| « au plus 5 dans le quotidien » | **Set-based validation** — the predicate is a property of a *set whose composition changes* | The use case, reading the set live (`core/src/habit_management/use_cases/add_habit.rs`) | No single `Habit` can violate it alone; no `Habit` can see the set |
+| « on ne reprend pas ce qui est ancré » | **Invariant** — a property of *one instance*, verifiable on it alone | The aggregate (`core/src/habit_management/domain/habit.rs`) | Consults no other aggregate; depends on nothing that changes elsewhere |
+
+Same three checks, opposite verdicts, one cycle apart. When the next rule arrives, ask which
+column it lands in before asking where to put the code.
+
+**And the two are not independent** — that is the part worth keeping. The cap is what makes
+the transition guard *security*-relevant rather than merely tidy: an unguarded
+`Anchored → Active` was the one transition that could grow the set the cap bounds. The
+induction that closes it is recorded in [[adr-0007-habit-lifecycle-aggregate]] AD-9, and it
+is the reason slice 7's `ReadmitHabit` must re-apply the **set** check itself — it is the
+first transition since `AddHabit` that increases the count.
 
 ## Consequences / Constraints
 
@@ -234,5 +254,10 @@ is anchored » into it. Same cycle, opposite directions, one test.
   predicate is read live or not at all.
 - **MUST NOT**: answer a future concurrency problem by re-reading the set. Move the cap into
   the write (see the escalation trigger).
-- **Out of scope**: readmission (slice 7); the transition-table guard (PR 2); persistence,
-  and the conditional-write/unique-index question it will force.
+- **MUST**: when a *transition* increases the size of a set some rule bounds, re-apply that
+  set check **in the use case**, before the transition and before the single write. The
+  aggregate guard is not a substitute — it cannot see the set. This is the standing
+  obligation on slice 7's `ReadmitHabit` ([[adr-0007-habit-lifecycle-aggregate]] AD-9).
+- **Out of scope**: readmission (slice 7); ~~the transition-table guard (PR 2)~~ **— landed
+  2026-08-17, see the counter-example section**; persistence, and the
+  conditional-write/unique-index question it will force.

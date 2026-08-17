@@ -8,12 +8,14 @@ use crate::habit_management::domain::habit_repository::HabitRepository;
 #[derive(Debug, PartialEq)]
 pub enum AnchorHabitError {
     HabitNotFound,
+    NotActive,
 }
 
 impl fmt::Display for AnchorHabitError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             AnchorHabitError::HabitNotFound => write!(f, "no habit with this id exists"),
+            AnchorHabitError::NotActive => write!(f, "only an active habit can be anchored"),
         }
     }
 }
@@ -38,7 +40,7 @@ impl AnchorHabit {
             .repository
             .get(&id)
             .ok_or(AnchorHabitError::HabitNotFound)?;
-        habit.anchor();
+        habit.anchor().map_err(|_| AnchorHabitError::NotActive)?;
         self.repository.save(&habit);
 
         Ok(())
@@ -115,6 +117,10 @@ mod tests {
             AnchorHabitError::HabitNotFound.to_string(),
             "no habit with this id exists"
         );
+        assert_eq!(
+            AnchorHabitError::NotActive.to_string(),
+            "only an active habit can be anchored"
+        );
     }
 
     #[test]
@@ -152,6 +158,38 @@ mod tests {
         assert_eq!(result, Err(AnchorHabitError::HabitNotFound));
     }
 
+    // the human's ruling: a habit at rest is not being practised, so the
+    // user resumes it first — anchoring never accepts Paused.
+    #[test]
+    fn anchoring_a_paused_habit_is_refused() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit("h-1");
+        habit.pause().expect("a fresh habit is active");
+        repository.save(&habit);
+        let anchor_habit = anchor_habit_over(Rc::clone(&repository));
+
+        let result = anchor_habit.execute("h-1");
+
+        assert_eq!(result, Err(AnchorHabitError::NotActive));
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+        assert_eq!(habit.state(), LifecycleState::Paused);
+    }
+
+    #[test]
+    fn anchoring_an_anchored_habit_is_refused() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit("h-1");
+        habit.anchor().expect("a fresh habit is active");
+        repository.save(&habit);
+        let anchor_habit = anchor_habit_over(Rc::clone(&repository));
+
+        let result = anchor_habit.execute("h-1");
+
+        assert_eq!(result, Err(AnchorHabitError::NotActive));
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+        assert_eq!(habit.state(), LifecycleState::Anchored);
+    }
+
     // @scenario: anchor-habit/S1
     #[test]
     fn anchoring_a_habit_frees_its_seat_so_a_sixth_request_is_now_accepted() {
@@ -167,7 +205,9 @@ mod tests {
         let repository = a_daily_life_seeded_with(&titles);
 
         let anchor_habit = AnchorHabit::new(Rc::clone(&repository) as Rc<dyn HabitRepository>);
-        anchor_habit.execute("guid-1").expect("known habit");
+        anchor_habit
+            .execute("guid-1")
+            .expect("a known, active habit");
 
         let result =
             an_add_habit("guid-6", &repository).execute(String::from("One habit too many"), 1);
@@ -191,7 +231,9 @@ mod tests {
         let repository = a_daily_life_seeded_with(&["Read one page", "Move a little"]);
 
         let anchor_habit = AnchorHabit::new(Rc::clone(&repository) as Rc<dyn HabitRepository>);
-        anchor_habit.execute("guid-1").expect("known habit");
+        anchor_habit
+            .execute("guid-1")
+            .expect("a known, active habit");
 
         assert!(
             an_add_habit("guid-3", &repository)

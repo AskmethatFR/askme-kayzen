@@ -8,12 +8,14 @@ use crate::habit_management::domain::habit_repository::HabitRepository;
 #[derive(Debug, PartialEq)]
 pub enum ResumeHabitError {
     HabitNotFound,
+    NotPaused,
 }
 
 impl fmt::Display for ResumeHabitError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             ResumeHabitError::HabitNotFound => write!(f, "no habit with this id exists"),
+            ResumeHabitError::NotPaused => write!(f, "only a paused habit can be resumed"),
         }
     }
 }
@@ -39,7 +41,7 @@ impl ResumeHabit {
             .repository
             .get(&id)
             .ok_or(ResumeHabitError::HabitNotFound)?;
-        habit.resume();
+        habit.resume().map_err(|_| ResumeHabitError::NotPaused)?;
         self.repository.save(&habit);
         Ok(())
     }
@@ -63,6 +65,10 @@ mod tests {
             ResumeHabitError::HabitNotFound.to_string(),
             "no habit with this id exists"
         );
+        assert_eq!(
+            ResumeHabitError::NotPaused.to_string(),
+            "only a paused habit can be resumed"
+        );
     }
 
     fn a_habit(id: &str) -> Habit {
@@ -84,7 +90,7 @@ mod tests {
         let repository = Rc::new(InMemoryHabitRepository::new());
         let mut habit = a_habit("h-1");
         habit.toggle_done(LocalDate::from_epoch_day(CREATED_ON));
-        habit.pause();
+        habit.pause().expect("a fresh habit is active");
         repository.save(&habit);
         let resume_habit = resume_habit_over(Rc::clone(&repository));
 
@@ -119,5 +125,35 @@ mod tests {
         let result = resume_habit.execute(&too_long);
 
         assert_eq!(result, Err(ResumeHabitError::HabitNotFound));
+    }
+
+    #[test]
+    fn resuming_an_active_habit_is_refused() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit("h-1"));
+        let resume_habit = resume_habit_over(Rc::clone(&repository));
+
+        let result = resume_habit.execute("h-1");
+
+        assert_eq!(result, Err(ResumeHabitError::NotPaused));
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+        assert_eq!(habit.state(), LifecycleState::Active);
+    }
+
+    // the security cell: anchoring a habit frees a seat, and resume() no longer
+    // routes it back to Active — that is the 6-against-5 path Security flagged in PR 1.
+    #[test]
+    fn resuming_an_anchored_habit_is_refused() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit("h-1");
+        habit.anchor().expect("a fresh habit is active");
+        repository.save(&habit);
+        let resume_habit = resume_habit_over(Rc::clone(&repository));
+
+        let result = resume_habit.execute("h-1");
+
+        assert_eq!(result, Err(ResumeHabitError::NotPaused));
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+        assert_eq!(habit.state(), LifecycleState::Anchored);
     }
 }

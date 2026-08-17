@@ -351,8 +351,18 @@ mod tests {
     fn a_habits_state_is_mapped_from_its_lifecycle() {
         let cases: Vec<(Mutation, HabitState)> = vec![
             (|_habit| {}, HabitState::Active),
-            (|habit| habit.pause(), HabitState::Paused),
-            (|habit| habit.anchor(), HabitState::Anchored),
+            (
+                |habit: &mut Habit| {
+                    habit.pause().expect("a fresh habit is active");
+                },
+                HabitState::Paused,
+            ),
+            (
+                |habit: &mut Habit| {
+                    habit.anchor().expect("a fresh habit is active");
+                },
+                HabitState::Anchored,
+            ),
         ];
 
         for (mutate, expected) in cases {

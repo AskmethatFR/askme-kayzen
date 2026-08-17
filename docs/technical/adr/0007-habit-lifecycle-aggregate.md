@@ -32,8 +32,12 @@ answers:
   - "How does a habit's lifecycle state cross the crate boundary into a view?"
   - "When did each LifecycleState variant land, and why one slice at a time?"
   - "Who guarantees that a paused habit keeps its seat in the daily life? (restated 2026-08-17 — it is a filter in AddHabit, not a board entry)"
-  - "Does anchor() ever refuse — can a paused habit be anchored?"
-  - "Can an anchored habit be resumed, and is that a defect? (LOW, latent; PR 2)"
+  - "~~Does anchor() ever refuse — can a paused habit be anchored?~~ It refuses since PR 2; a paused habit cannot be anchored (AD-9)"
+  - "~~Can an anchored habit be resumed, and is that a defect? (LOW, latent; PR 2)~~ It cannot — resume() requires Paused (AD-9)"
+  - "What is the full lifecycle transition table, and which cells are refused? (AD-9)"
+  - "Why is the guard written `if state != X` and not a `match`?"
+  - "What shape does a refused transition take at the crate boundary — does TransitionError cross it?"
+  - "Why can no lifecycle transition break the 5-seat cap, and what must ReadmitHabit do about it? (AD-9)"
   - "Why does MarkDone still ignore LifecycleState now that Anchored exists?"
 decided_in:
   - "LOCAL-lifecycle-aggregate"
@@ -41,6 +45,7 @@ decided_in:
   - "2026-08-06 slice 5 pause-resume cycle (LifecycleState built, AD-2/AD-3/AD-5)"
   - "2026-08-11 slice 6 anchor-habit cycle (Anchored built, AD-4; board coordination settled in adr-0012)"
   - "2026-08-17 drop-habit-board refactor (one aggregate left; AD-5 restated; AD-4 scheduled for amendment by PR 2)"
+  - "2026-08-17 PR 2 guard-lifecycle-transitions (AD-9: the transition table returns to the aggregate; AD-4 amended)"
 ---
 
 # ADR 0007 — Habit promoted to the lifecycle aggregate root (dated histories, library-free LocalDate, internal transitions)
@@ -50,6 +55,8 @@ decided_in:
 > **⚠️ Pause facets BUILT (2026-08-06, slice 5 `pause-resume`)**: `LifecycleState` exists — at that point **with `Active` and `Paused` only** (`Anchored` landed at slice 6, see below) — and `Habit::pause` / `Habit::resume` are the two transitions. Three decisions are recorded in the second amendment block at the end of this node: **AD-2** (the state crosses the crate boundary as a DTO-side enum, never a `bool`), **AD-3** (the "aggregate methods take `today`" facet is **scoped**, not blanket — neither pause nor resume takes a `Clock`), **AD-5** (the board seat a paused habit keeps is pinned by a wired test, not by a comment).
 
 > **⚠️ Anchor facets BUILT (2026-08-11, slice 6 `anchor-habit`)**: `LifecycleState` now carries **all three variants** and `Habit::anchor` is the third transition. The **board↔habit coordination this node deferred is settled** — in its own node, [[adr-0012-synchronous-cross-aggregate-coordination]], because it is a question about two aggregates rather than about this one. **d3 stands unamended**: anchoring publishes nothing. One decision is recorded in the third amendment block at the end of this node: **AD-4** (the rule never refuses — `anchor()` has no precondition, and the screens choose what to offer). Still planned: readmission (slice 7).
+
+> **⚠️ AD-4 AMENDED (2026-08-17, PR 2 `guard-lifecycle-transitions`)**: the three transitions **now refuse**. `pause()` requires `Active`, `resume()` requires `Paused`, `anchor()` requires `Active`; each returns `Result<(), TransitionError>`. The motivation is **security, not purity** — the unguarded `resume()` was the only transition that could push the daily life to 6 habits against a 5-seat cap. The full 9-cell table, the human's `Paused → Anchored` ruling, and the constraint slice 7's `ReadmitHabit` inherits are in the **fifth amendment block (AD-9)** at the end of this node. AD-4's *product* register survives intact; what changed is who owns **legality**.
 
 > **⚠️ Dose facets AMENDED (2026-07-23) by [[adr-0008-goal-based-dose-user-paced-progression]]**: the two-VO dose model below (`InitialDuration` with its ≤5-min creation guard + a running `Dose`) is **collapsed into a single `Goal` VO** (default 5, floor 1, **no upper ceiling**, guard dropped), the `StabilityPolicy` dependency is **withdrawn** (progression is user-paced, never suggested), and `StepHistory` now records dated **Goal** changes. **Every other facet of this ADR stands** (aggregate root, `CompletionHistory`, `LocalDate`/`Clock`, `LifecycleState`, internal transitions, repo `get`+upsert). This document is amended in place below; ADR-0008 is the source of truth for the dose/progression facets.
 
@@ -103,7 +110,9 @@ The lifecycle backlog ([[lifecycle-backlog]]) requires `Habit` to gain behavior:
 - **MUST**: keep `LocalDate` library-free — **no `chrono` type in `kayzen-core`'s public API**; `chrono` is confined to the infra `SystemClock` adapter, and the `Clock` port returns `LocalDate`.
 - **MUST**: pass `today: LocalDate` to aggregate methods **that need a date** as a parameter; the use case holds the `Clock`. The aggregate stays a pure function (no clock stub in domain unit tests). **MUST NOT** inject a `Clock` into a use case whose transition dates nothing (AD-3, 2026-08-06).
 - **MUST**: model pause/anchor with the `LifecycleState` enum (never two bools); `toggle_done` must NOT inspect `LifecycleState` (paused/anchored habits stay markable-done). **MUST**: keep the enum's variants use-case-driven — a variant lands with the use case that transitions into it, not ahead of it.
-- **MUST**: keep the lifecycle transitions **unconditional** — `pause()`, `resume()` and `anchor()` take no precondition and return nothing; what a user may do is decided by the screen that offers the gesture, never refused by the aggregate (AD-4, 2026-08-11).
+- **MUST**: guard every lifecycle transition **inside `Habit`** — what is **legal** is the aggregate's business, not the screen's. `pause()` requires `Active`, `resume()` requires **exactly** `Paused`, `anchor()` requires `Active`; each returns `Result<(), TransitionError>` and refuses from any other state (AD-9, 2026-08-17, superseding AD-4's unconditional half). **MUST**: write each guard as `if self.state != LifecycleState::X { return Err(...) }`, never as a `match` — cargo-mutants generates a real `!=`→`==` mutant for the `if` and none for a `match` arm ([[adr-0009-quality-gates]] L4).
+- **MUST NOT**: refuse a gesture the product **permits** — AD-4's product register stands unamended. Lightening at the floor is still a silent no-op (d2), `toggle_done` still inspects nothing, and no transition gains a variant reporting "already there" as a reproach. The aggregate refuses what is **illegal**, never what is merely a no-op.
+- **MUST NOT**: let `TransitionError` cross the crate boundary. Each use case maps it to a **flat variant of its own error** (`PauseHabitError::NotActive`, `ResumeHabitError::NotPaused`, `AnchorHabitError::NotActive`) — never `Refused(TransitionError)` — which is what keeps [[adr-0006-cqrs-light]]'s *"the app never imports a domain type"* MUST unqualified. `TransitionError` implements neither `Display` nor `Error`: it crosses nothing, so it needs neither (AD-9).
 - **MUST**: cross the crate boundary with a **DTO-side enum**, never the domain `LifecycleState` and never a `bool` (AD-2, 2026-08-06).
 - **MUST NOT**: publish any lifecycle event, introduce a `HabitEvent` enum, or touch `HabitBoardEvent` / the outbox — only `HabitRequested` is published (d3).
 - **MUST NOT**: create a second aggregate for the lifecycle, or reintroduce a separate `InitialDuration`/`Dose` split — the dose is the single `Goal` VO ([[adr-0008-goal-based-dose-user-paced-progression]]).
@@ -323,12 +332,13 @@ searching; the compiler handed over the list. Recorded because it is the concret
 
 ### AD-4 — the rule never refuses; the screens choose what to offer
 
-> **⚠️ Scheduled to be AMENDED by PR 2 (2026-08-17), and the motivation is security, not
-> purity.** Security's audit of the `drop-habit-board` refactor filed a LOW, latent,
-> pre-existing finding whose root cause is exactly this decision: `Habit::resume()` has no
-> lifecycle guard, so resuming an `Anchored` habit yields **6 non-anchored habits against a
-> 5-seat cap**. Unreachable today, reachable at slice 7. See the fourth amendment at the end
-> of this node.
+> **⚠️ AMENDED by PR 2 (2026-08-17) — the motivation was security, not purity.** Security's
+> audit of the `drop-habit-board` refactor filed a LOW, latent, pre-existing finding whose
+> root cause is exactly this decision: `Habit::resume()` had no lifecycle guard, so resuming
+> an `Anchored` habit yielded **6 non-anchored habits against a 5-seat cap**. The three
+> transitions now refuse — see **AD-9**, the fifth amendment at the end of this node. What
+> survives below is the *product* register (the aggregate does not reproach a permitted
+> gesture); what is superseded is the claim that **legality** belongs to the screens.
 
 `Habit::anchor()` takes **no precondition** and returns **nothing** — no `Result`, no
 guard, exactly like `pause()` and `resume()`. And `MarkDone` still does not inspect
@@ -351,6 +361,10 @@ screen carrying only its return and its staircase (slice 5's owner ruling). The
 reachability of that transition is a **UI** property today. If it ever must become a domain
 property, that is a new decision and a new field, not a guard quietly added to `anchor()`.
 
+> **Superseded by AD-9 (2026-08-17).** It became a domain property, and by the route this
+> paragraph named: a new decision (a human ruling on `Paused → Anchored`), taken in its own
+> cycle, not a guard quietly added. `anchor()` now requires `Active`.
+
 ### Why the coordination is not in this node
 
 Anchoring also removes the habit's entry from the `HabitBoard`. That is a decision about
@@ -363,7 +377,7 @@ not in spite of it.
 
 ---
 
-## Amendment — 2026-08-17, `drop-habit-board`: one aggregate left, AD-5 restated, AD-4 scheduled for amendment
+## Amendment — 2026-08-17, `drop-habit-board`: one aggregate left, AD-5 restated, AD-4 handed to PR 2
 
 `HabitBoard` is deleted ([[adr-0013-set-based-validation-outside-aggregates]]). `Habit` is now
 the **only** aggregate in the system, which changes nothing about this node's model and two
@@ -397,7 +411,7 @@ invariant nobody defends.
 codebase capable of publishing anything.** d3 stops being a discipline and becomes a property
 of the code. The `MUST NOT` in Consequences stays as a guard against re-introduction.
 
-### AD-4 — the transitions still never refuse, and PR 2 changes that (for a security reason)
+### AD-4 — the transitions still never refuse, and PR 2 changed that (for a security reason)
 
 AD-4 says: *no transition has a precondition; the screens decide what is offered.* Security's
 audit of this refactor filed a **LOW, latent, pre-existing** finding that is the bill for it:
@@ -411,7 +425,8 @@ inside `today_habits.paused`, and `app/src/views/habit_detail.rs`'s `Anchored` b
 no action at all. It becomes reachable **exactly at slice 7**, the cycle that introduces a
 gesture leading out of `Anchored`.
 
-**PR 2 guards the transition table inside `Habit`, and it is its remediation.** This is not a
+**PR 2 guarded the transition table inside `Habit`, and it is its remediation** — it landed
+the same day, see **AD-9** below. This is not a
 reversal of AD-4's product register (*the aggregate models what is, the screen decides what is
 offered*), which stays right for **permitted** gestures like lightening at the floor. It is the
 recognition that *"an anchored habit cannot be resumed"* is a **genuine invariant of one
@@ -420,5 +435,148 @@ nothing that changes elsewhere. It is the counter-example
 [[adr-0013-set-based-validation-outside-aggregates]] closes on, and the mirror image of the
 capacity rule that moved *out* of the domain in the same cycle: same test, opposite verdicts.
 
-Until PR 2 lands, the reachability of an illegal transition is a **UI** property — stated
-plainly here so slice 7 does not discover it as a fresh finding.
+~~Until PR 2 lands, the reachability of an illegal transition is a **UI** property~~ — **PR 2
+landed the same day** and it is a domain property now (AD-9). Slice 7 inherits a different
+obligation, and a subtler one: readmission is the *one* transition the guards do not cover.
+Read AD-9's last section before writing it.
+
+---
+
+## Amendment — 2026-08-17, PR 2 `guard-lifecycle-transitions`: the transition table returns to the aggregate (AD-9)
+
+The amendment the block above scheduled. Seven commits, three TDD pairs, **zero
+user-observable change** — with one honest exception, stated at the end. AD-4 is amended,
+not reversed: its *product* register survives verbatim, its claim on **legality** does not.
+
+### AD-9 — the three transitions guard themselves
+
+```rust
+pub enum TransitionError { NotActive, NotPaused }
+
+pub fn pause(&mut self)  -> Result<(), TransitionError>   // requires Active
+pub fn resume(&mut self) -> Result<(), TransitionError>   // requires Paused
+pub fn anchor(&mut self) -> Result<(), TransitionError>   // requires Active
+```
+
+`core/src/habit_management/domain/habit.rs`. Each guard is one line —
+`if self.state != LifecycleState::X { return Err(...) }` — followed by the assignment that
+already existed. `Habit::readmit()` is **deliberately absent** (slice 7), and
+`TransitionError` carries **two variants only**: `NotAnchored` lands with the caller that
+can produce it, exactly the use-case-driven discipline this node applies to `LifecycleState`
+itself.
+
+### The 9-cell table
+
+| from ↓ / gesture → | `pause()` | `resume()` | `anchor()` |
+|---|---|---|---|
+| `Active` | → `Paused` | `Err(NotPaused)` | → `Anchored` |
+| `Paused` | `Err(NotActive)` | → `Active` | **`Err(NotActive)`** — human ruling, below |
+| `Anchored` | `Err(NotActive)` | `Err(NotPaused)` | `Err(NotActive)` |
+
+Three legal cells, six refused. The `Anchored` row is entirely refused: the only gesture
+leading out of it is readmission, which does not exist yet.
+
+**`Paused → Anchored` is refused, and that is a product decision, not a technical one.**
+The human's ruling, in their own words:
+
+> *« ancrer, c'est constater que c'est devenu naturel ; une habitude au repos n'est pas
+> pratiquée, donc on la reprend d'abord »*
+
+This is the decision AD-4 said would be needed — *« a new decision, not a guard quietly
+added »*. The user's path is `Paused → Active → Anchored`, two gestures, and the middle one
+is the point: you re-practise before you can call it natural.
+
+### Why `if state != X` and never `match`
+
+A deliberate **measurement** constraint, not a style preference. [[adr-0009-quality-gates]]
+L4: cargo-mutants **does not mutate `match` arms**, and does generate a real `!=` → `==`
+mutant for the `if`. Written as a `match`, the three guards would sit in the gate's blind
+spot; written as an `if`, the exact regression they prevent (the guard inverted) is a mutant
+the gate produces and the tests kill. **The shape of the guard is chosen so the instrument
+can see it.**
+
+### The error shape — flat at the boundary, silent inside
+
+| Layer | Type | Why |
+|---|---|---|
+| Domain | `TransitionError { NotActive, NotPaused }`, **no `Display`, no `Error` impl** | It crosses no boundary, so it needs neither. A `Display` impl would be a message nobody reads |
+| Application | `PauseHabitError::NotActive`, `ResumeHabitError::NotPaused`, `AnchorHabitError::NotActive` — **flat variants**, never `Refused(TransitionError)` | [[adr-0006-cqrs-light]]'s MUST: `app/` imports no domain type. Wrapping would put `TransitionError` in the app crate's reachable API |
+
+Each use case maps with `habit.pause().map_err(|_| PauseHabitError::NotActive)?`
+(`core/src/habit_management/use_cases/pause_habit.rs`, and the two siblings). Mechanically
+verified: `TransitionError` appears in **exactly one file** in the workspace —
+`grep -rn "TransitionError" core/src app/src` returns `domain/habit.rs` and nothing else.
+
+### Security's argument — why this is an invariant proof, not a purity argument
+
+Let **N** = the habits whose `state() != Anchored` — the cap's predicate, and the
+workspace's **only** counting site (`core/src/habit_management/use_cases/add_habit.rs`,
+the `filter` at line 72). Production writes `state` in exactly **four** places
+(`habit.rs` lines 60, 88, 96, 104):
+
+| Write | Transition | Effect on \|N\| | Guarded by |
+|---|---|---|---|
+| `Habit::new` | ∅ → `Active` | **+1** | `AddHabit` — checks the cap **before** the save |
+| `pause()` | `Active` → `Paused` | 0 | requires `Active` |
+| `resume()` | `Paused` → `Active` | 0 | requires `Paused` |
+| `anchor()` | `Active` → `Anchored` | **−1** | requires `Active` |
+
+**After this PR, no lifecycle transition can increase \|N\|.** Only `AddHabit` can, and it
+checks. `|N| ≤ 5` therefore holds **by induction** over every reachable state of the store.
+
+That is exactly what the hole was: `resume()` accepting `Anchored → Active` was the *only*
+transition that increased the count, and the only one unguarded. The finding was
+unreachable through the UI when it was filed, and **reachable exactly at slice 7** — this
+PR lands first, as its remediation.
+
+### The honest exception to "zero user-observable change"
+
+Dev-B found it and it is real. `app/src/views/habit_detail.rs` (the `Active` branch, lines
+69-86) renders « Mettre en pause » **and** « L'ancrer » side by side. Clicked fast enough
+that both dispatch before Dioxus re-renders, the second gesture reads a **stale VDOM**:
+
+| Order | Pre-PR | Post-PR |
+|---|---|---|
+| pause → anchor | `Anchored` | `Paused` (the anchor is refused) |
+| anchor → pause | `Paused` | `Anchored` (the pause is refused) |
+
+Semantics move from **last wins** to **first wins**. Security answered the narrower
+question and the answer is reassuring: the pairing can only make the cap **stricter or
+neutral, never violate it** (`pause→anchor` ends `Paused`, seat kept; `anchor→pause` ends
+`Anchored`, \|N\|−1). It is a **UX delta, not a security one**, and the resulting state is
+the human-ruled-correct one in both orders.
+
+Nobody could settle whether Dioxus actually delivers both events in one frame: this repo
+has **no click-dispatch harness** — the deferred tooling gap [[adr-0009-quality-gates]]
+L1-bis names. Recorded rather than fixed, because fixing it blind would mean rendering one
+button on a guess.
+
+### The constraint this places on slice 7 — read before writing `ReadmitHabit`
+
+`ReadmitHabit` is `Anchored → Active`: **the first transition since `AddHabit` that
+increases \|N\|**. It therefore falls **outside the induction above** and must re-apply the
+set check itself. Required order:
+
+1. load the habit;
+2. **the set check first** — count `state() != Anchored` **live**, `>= Habit::MAX_IN_DAILY_LIFE`
+   refuses. The habit being readmitted is still `Anchored`, so it is not yet in that count;
+3. **then** `habit.readmit()` — the transition guard, `NotAnchored`;
+4. **then exactly one save**, after both checks. `InMemoryHabitRepository::save` is an
+   unconditional upsert with **no rollback**.
+
+**The main trap, stated so nobody walks into it**: widening `resume()`'s guard to
+`if state == Active { Err }` so that `ResumeHabit` can serve readmission **re-opens the
+finding verbatim** — and viciously, because the current triangulation tests would still
+pass: the developer doing it would delete `resuming_an_anchored_habit_is_refused` as "now
+false". **`Habit::resume()`'s guard must stay exactly `!= Paused`.** Readmission is a new
+method and a new use case, never a widening of an existing one.
+
+Other ways to get it wrong, each a real failure mode:
+
+| Mistake | Why it is wrong | The tell |
+|---|---|---|
+| Putting the cap check inside `Habit::readmit()` | Forbidden by [[adr-0013-set-based-validation-outside-aggregates]] — a `Habit` does not see the set | The developer has to pass the count in as a parameter |
+| Counting `state() == Active` instead of `state() != Anchored` | Drops paused habits from the count — they keep their seat (AD-5) | A paused habit stops blocking a sixth |
+| `>` instead of `>=` | Off by one: admits a sixth | — |
+| Saving before the checks | A refused readmission has already written | Two `save` calls, or one before a `?` |
+

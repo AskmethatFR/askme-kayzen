@@ -166,7 +166,7 @@ mod tests {
     fn services_with_one_anchored_habit() -> Services {
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
         let mut anchored = a_habit();
-        anchored.anchor();
+        anchored.anchor().expect("a fresh habit is active");
         repository.save(&anchored);
         Services::with_repository(repository)
     }
@@ -180,7 +180,7 @@ mod tests {
             Goal::new(2).unwrap(),
             LocalDate::from_epoch_day(20_000),
         );
-        paused.pause();
+        paused.pause().expect("a fresh habit is active");
         repository.save(&paused);
         Services::with_repository(repository)
     }

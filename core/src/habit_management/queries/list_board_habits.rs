@@ -173,7 +173,7 @@ mod tests {
     fn a_paused_habit_is_absent_from_active_and_present_in_paused() {
         let repository = Rc::new(InMemoryHabitRepository::new());
         let mut paused = a_habit();
-        paused.pause();
+        paused.pause().expect("a fresh habit is active");
         repository.save(&paused);
         let active = Habit::new(
             HabitId::new("h-2").unwrap(),
@@ -209,7 +209,7 @@ mod tests {
     fn an_anchored_habit_is_absent_from_both_active_and_paused() {
         let repository = Rc::new(InMemoryHabitRepository::new());
         let mut anchored = a_habit();
-        anchored.anchor();
+        anchored.anchor().expect("a fresh habit is active");
         repository.save(&anchored);
         let active = Habit::new(
             HabitId::new("h-2").unwrap(),
@@ -239,7 +239,7 @@ mod tests {
     fn anchored_habits_are_counted() {
         let repository = Rc::new(InMemoryHabitRepository::new());
         let mut first_anchored = a_habit();
-        first_anchored.anchor();
+        first_anchored.anchor().expect("a fresh habit is active");
         repository.save(&first_anchored);
         let mut second_anchored = Habit::new(
             HabitId::new("h-2").unwrap(),
@@ -247,7 +247,7 @@ mod tests {
             Goal::new(4).unwrap(),
             LocalDate::from_epoch_day(TODAY),
         );
-        second_anchored.anchor();
+        second_anchored.anchor().expect("a fresh habit is active");
         repository.save(&second_anchored);
         let query = list_over(Rc::clone(&repository));
 
@@ -261,8 +261,10 @@ mod tests {
     fn a_resumed_habit_reappears_in_active_and_leaves_paused() {
         let repository = Rc::new(InMemoryHabitRepository::new());
         let mut habit = a_habit();
-        habit.pause();
-        habit.resume();
+        habit.pause().expect("a fresh habit is active");
+        habit
+            .resume()
+            .expect("a fresh habit is active, then paused");
         repository.save(&habit);
         let query = list_over(Rc::clone(&repository));
 

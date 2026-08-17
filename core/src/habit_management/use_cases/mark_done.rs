@@ -118,7 +118,7 @@ mod tests {
     fn marking_an_anchored_habit_still_records_todays_completion() {
         let repository = Rc::new(InMemoryHabitRepository::new());
         let mut habit = a_habit("h-1");
-        habit.anchor();
+        habit.anchor().expect("a fresh habit is active");
         repository.save(&habit);
         let mark_done = mark_done_over(Rc::clone(&repository));
 

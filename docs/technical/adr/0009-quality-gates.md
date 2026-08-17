@@ -40,6 +40,9 @@ answers:
   - "Does cargo-mutants ever mutate an enum variant or swap one method call for another? (L5)"
   - "A campaign reported 11/11 killed — does that mean every guard was probed?"
   - "Why can a whitespace-differing fixture not discriminate HabitTitle::matches from ==?"
+  - "How do I test a guard the mutation gate cannot mutate? (three-cell triangulation)"
+  - "Why is a lifecycle guard written `if state != X` rather than as a `match`?"
+  - "When is swapping a returned error variant equivalent-accepted, and when does that expire?"
 decided_in:
   - "2026-07-25 gates cycle"
   - "2026-07-26 architect ratification (slice 3 adjust-goal cycle)"
@@ -48,6 +51,7 @@ decided_in:
   - "2026-08-06 slice 5 pause-resume cycle (L1 corrected, exploit demonstrated, L4 added)"
   - "2026-08-11 slice 6 anchor-habit cycle (in-perimeter survivor; composition root test-covered)"
   - "2026-08-17 drop-habit-board refactor (L5: enum variants and method calls are never mutated)"
+  - "2026-08-17 PR 2 guard-lifecycle-transitions (three-cell triangulation named; the if-over-match constraint)"
 ---
 
 # ADR 0009 — Quality gates: spec-only Gherkin, diff-scoped mutation testing, one runner
@@ -140,6 +144,7 @@ executable statement of intent, and `Display for HabitError` could be replaced b
 - **Open, deferred, and owned by the human**: renaming the domain's `new` constructors to `parse`. Not decided here; the option and its measured payoff are recorded so the decision can be taken with evidence rather than rediscovered.
 - The gates need the operator's toolbox on the machine (`CLAUDE_HOME`, default `~/.claude`). A fresh clone without it gets two red gates and a path in the message, not a false green.
 - A scenario may be pinned from either crate, so a slice's user-observable half is provable: "both gestures are offered" is an assertion about a rendered screen, and it counts.
+- **The perimeter's limits are a constraint on how production code is written, not only on how it is read** (2026-08-17, PR 2). A state guard is written `if self.state != LifecycleState::X { return Err(...) }` rather than as a `match`, precisely because the `if` yields a real `!=`→`==` mutant and a `match` arm yields none (L4). Where that choice is not available, the guard is **surrounded** by three-cell triangulation instead — see the PR 2 amendment.
 
 ---
 
@@ -431,3 +436,70 @@ an instrument.
   `resume`/`mark_done ↔ list_board_habits`. The **standing implication above survives
   unchanged**: the next slice that makes two use cases share a dependency still owes a test
   that fails when the wiring is split.
+
+---
+
+## Amendment — 2026-08-17, PR 2 `guard-lifecycle-transitions`: L5's countermeasure gets a name
+
+L5 was recorded the same morning as a *limit*. PR 2 is the **first change in this repo whose
+correctness depends on the L5 mitigation** rather than on the gate: three new guards, all of
+them enum-variant equality comparisons, all of them in the exact blind spot L5 names. The
+countermeasure is written down here as a reusable pattern, because "pinned by hand-verified
+tests" is not an instruction anyone can follow twice.
+
+### Three-cell triangulation — the pattern for an enum-variant equality guard
+
+A guard of the shape `if self.state != LifecycleState::X` generates **no** mutant (L5: enum
+variants are never substituted). The failure it must catch is therefore not *inversion* —
+`!=` → `==` **is** generated for the `if`, and the gate kills it — but a guard comparing
+against the **wrong variant**, which compiles, passes every happy-path test, and produces
+zero mutants.
+
+**The pattern**: test each transition from **all three source states** — one legal call
+asserting `Ok`, and the two illegal ones asserting `Err`. A wrong variant then fails **two
+of the three** tests, not zero.
+
+| Transition | Legal (`Ok`) | Illegal (`Err`) | Illegal (`Err`) |
+|---|---|---|---|
+| `pause()` | `pausing_an_active_habit_leaves_it_paused_in_the_store` | `pausing_a_paused_habit_is_refused` | `pausing_an_anchored_habit_is_refused` |
+| `resume()` | `resuming_a_paused_habit_makes_it_active_and_its_history_untouched` | `resuming_an_active_habit_is_refused` | `resuming_an_anchored_habit_is_refused` |
+| `anchor()` | `anchoring_an_active_habit_marks_it_anchored_in_the_store` | `anchoring_a_paused_habit_is_refused` | `anchoring_an_anchored_habit_is_refused` |
+
+Anchors: `core/src/habit_management/use_cases/pause_habit.rs`,
+`core/src/habit_management/use_cases/resume_habit.rs`,
+`core/src/habit_management/use_cases/anchor_habit.rs`.
+
+**Verified twice, by hand, in two lanes.** Dev-B checked the reasoning; Security
+independently hand-mutated all three guards to the wrong variant and observed **genuine
+assertion failures** each time — plus the pure guard *removal* (the exact pre-PR
+regression), killed by two tests. The triangulation is not a claim, it is a measurement.
+
+**Generalise it as**: *a guard the gate cannot mutate must be surrounded, not asserted.*
+One test per legal path proves nothing about which variant the guard names; N tests covering
+every source state of an N-variant enum do. Cost is linear in the enum's size, which is why
+it is affordable here (3) and worth re-costing at 8.
+
+**A caveat Dev-B raised and Security closed, in the reassuring direction.** Completeness of
+the triangulation is conditional on `LifecycleState` having exactly three variants. A fourth
+would leave an untested source state — but not a runtime hole: the guards are **fail-closed**
+(`!= <legal variant>` refuses an unknown variant rather than admitting it), the cap predicate
+`!= Anchored` would count a new variant as occupying a seat (**stricter**, never laxer), and
+the two `match`es on `state()` (`core/src/habit_management/queries/list_board_habits.rs`
+line 53, `core/src/habit_management/queries/get_habit_detail.rs` line 77) are **exhaustive
+with no `_ =>` arm**, so a fourth variant **breaks compilation**. The residual risk is a
+**test gap the compiler announces**, not a defect that ships.
+
+### A survivor disposition, and the condition under which it expires
+
+Swapping the *returned* variant — `Err(TransitionError::NotActive)` ↔ `Err(NotPaused)` —
+is **`equivalent-accepted`**, and the reason is worth keeping because it has an expiry date:
+
+- all three call sites discard the value (`map_err(|_| <flat use-case variant>)`) before
+  anything reads it;
+- `TransitionError` implements neither `Display` nor `Error`, so no message can differ.
+
+**The equivalence holds only because each transition has exactly one failure mode today**,
+which is what makes `map_err(|_| …)` total and faithful. That is a property of the current
+table, not of the design. **`ReadmitHabit` will have two** (`NotAnchored` and a full daily
+life), and at that point a discarded error value stops being equivalent and starts being a
+bug. Record the condition with the disposition, never the disposition alone.

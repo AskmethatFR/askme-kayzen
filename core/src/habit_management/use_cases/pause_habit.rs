@@ -8,12 +8,14 @@ use crate::habit_management::domain::habit_repository::HabitRepository;
 #[derive(Debug, PartialEq)]
 pub enum PauseHabitError {
     HabitNotFound,
+    NotActive,
 }
 
 impl fmt::Display for PauseHabitError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             PauseHabitError::HabitNotFound => write!(f, "no habit with this id exists"),
+            PauseHabitError::NotActive => write!(f, "only an active habit can be paused"),
         }
     }
 }
@@ -38,7 +40,7 @@ impl PauseHabit {
             .repository
             .get(&id)
             .ok_or(PauseHabitError::HabitNotFound)?;
-        habit.pause();
+        habit.pause().map_err(|_| PauseHabitError::NotActive)?;
         self.repository.save(&habit);
         Ok(())
     }
@@ -64,6 +66,10 @@ mod tests {
         assert_eq!(
             PauseHabitError::HabitNotFound.to_string(),
             "no habit with this id exists"
+        );
+        assert_eq!(
+            PauseHabitError::NotActive.to_string(),
+            "only an active habit can be paused"
         );
     }
 
@@ -116,6 +122,36 @@ mod tests {
         assert_eq!(result, Err(PauseHabitError::HabitNotFound));
     }
 
+    #[test]
+    fn pausing_a_paused_habit_is_refused() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit("h-1");
+        habit.pause().expect("a fresh habit is active");
+        repository.save(&habit);
+        let pause_habit = pause_habit_over(Rc::clone(&repository));
+
+        let result = pause_habit.execute("h-1");
+
+        assert_eq!(result, Err(PauseHabitError::NotActive));
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+        assert_eq!(habit.state(), LifecycleState::Paused);
+    }
+
+    #[test]
+    fn pausing_an_anchored_habit_is_refused() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit("h-1");
+        habit.anchor().expect("a fresh habit is active");
+        repository.save(&habit);
+        let pause_habit = pause_habit_over(Rc::clone(&repository));
+
+        let result = pause_habit.execute("h-1");
+
+        assert_eq!(result, Err(PauseHabitError::NotActive));
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+        assert_eq!(habit.state(), LifecycleState::Anchored);
+    }
+
     struct StubGuidGenerator {
         guid: String,
     }
@@ -148,7 +184,9 @@ mod tests {
         }
 
         let pause_habit = pause_habit_over(Rc::clone(&habit_repository));
-        pause_habit.execute("guid-1").expect("known habit");
+        pause_habit
+            .execute("guid-1")
+            .expect("a known, active habit");
 
         let sixth_add_habit = AddHabit::new(
             Rc::clone(&habit_repository) as Rc<dyn HabitRepository>,

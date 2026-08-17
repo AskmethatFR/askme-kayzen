@@ -63,10 +63,10 @@ mod tests {
         let repository = Rc::new(InMemoryHabitRepository::new());
         repository.save(&a_habit("h-1", "Move a little"));
         let mut paused = a_habit("h-2", "Breathe");
-        paused.pause();
+        paused.pause().expect("a fresh habit is active");
         repository.save(&paused);
         let mut anchored = a_habit("h-3", "Read one page");
-        anchored.anchor();
+        anchored.anchor().expect("a fresh habit is active");
         repository.save(&anchored);
         let query = list_over(repository);
 
