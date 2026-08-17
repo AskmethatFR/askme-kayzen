@@ -52,10 +52,10 @@ mod tests {
     fn services_with_two_anchored_habits() -> Services {
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
         let mut first = a_habit("h-1", "Lire une page");
-        first.anchor();
+        first.anchor().expect("a fresh habit is active");
         repository.save(&first);
         let mut second = a_habit("h-2", "Bouger un peu");
-        second.anchor();
+        second.anchor().expect("a fresh habit is active");
         repository.save(&second);
         Services::with_repository(repository)
     }

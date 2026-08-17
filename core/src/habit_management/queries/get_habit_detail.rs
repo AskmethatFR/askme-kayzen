@@ -357,7 +357,12 @@ mod tests {
                 },
                 HabitState::Paused,
             ),
-            (|habit| habit.anchor(), HabitState::Anchored),
+            (
+                |habit: &mut Habit| {
+                    habit.anchor().expect("a fresh habit is active");
+                },
+                HabitState::Anchored,
+            ),
         ];
 
         for (mutate, expected) in cases {

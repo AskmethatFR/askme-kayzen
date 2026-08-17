@@ -141,7 +141,7 @@ mod tests {
     fn pausing_an_anchored_habit_is_refused() {
         let repository = Rc::new(InMemoryHabitRepository::new());
         let mut habit = a_habit("h-1");
-        habit.anchor();
+        habit.anchor().expect("a fresh habit is active");
         repository.save(&habit);
         let pause_habit = pause_habit_over(Rc::clone(&repository));
 

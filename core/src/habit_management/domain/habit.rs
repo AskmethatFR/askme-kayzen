@@ -97,8 +97,12 @@ impl Habit {
         Ok(())
     }
 
-    pub fn anchor(&mut self) {
+    pub fn anchor(&mut self) -> Result<(), TransitionError> {
+        if self.state != LifecycleState::Active {
+            return Err(TransitionError::NotActive);
+        }
         self.state = LifecycleState::Anchored;
+        Ok(())
     }
 
     pub fn grow(&mut self, today: LocalDate) {

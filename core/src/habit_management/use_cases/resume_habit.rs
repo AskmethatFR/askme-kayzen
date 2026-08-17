@@ -41,9 +41,7 @@ impl ResumeHabit {
             .repository
             .get(&id)
             .ok_or(ResumeHabitError::HabitNotFound)?;
-        habit
-            .resume()
-            .map_err(|_| ResumeHabitError::NotPaused)?;
+        habit.resume().map_err(|_| ResumeHabitError::NotPaused)?;
         self.repository.save(&habit);
         Ok(())
     }
@@ -148,7 +146,7 @@ mod tests {
     fn resuming_an_anchored_habit_is_refused() {
         let repository = Rc::new(InMemoryHabitRepository::new());
         let mut habit = a_habit("h-1");
-        habit.anchor();
+        habit.anchor().expect("a fresh habit is active");
         repository.save(&habit);
         let resume_habit = resume_habit_over(Rc::clone(&repository));
 

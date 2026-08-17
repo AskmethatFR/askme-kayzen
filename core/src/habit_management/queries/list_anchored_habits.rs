@@ -66,7 +66,7 @@ mod tests {
         paused.pause().expect("a fresh habit is active");
         repository.save(&paused);
         let mut anchored = a_habit("h-3", "Read one page");
-        anchored.anchor();
+        anchored.anchor().expect("a fresh habit is active");
         repository.save(&anchored);
         let query = list_over(repository);
 

@@ -8,12 +8,14 @@ use crate::habit_management::domain::habit_repository::HabitRepository;
 #[derive(Debug, PartialEq)]
 pub enum AnchorHabitError {
     HabitNotFound,
+    NotActive,
 }
 
 impl fmt::Display for AnchorHabitError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             AnchorHabitError::HabitNotFound => write!(f, "no habit with this id exists"),
+            AnchorHabitError::NotActive => write!(f, "only an active habit can be anchored"),
         }
     }
 }
@@ -38,7 +40,7 @@ impl AnchorHabit {
             .repository
             .get(&id)
             .ok_or(AnchorHabitError::HabitNotFound)?;
-        habit.anchor();
+        habit.anchor().map_err(|_| AnchorHabitError::NotActive)?;
         self.repository.save(&habit);
 
         Ok(())
@@ -177,7 +179,7 @@ mod tests {
     fn anchoring_an_anchored_habit_is_refused() {
         let repository = Rc::new(InMemoryHabitRepository::new());
         let mut habit = a_habit("h-1");
-        habit.anchor();
+        habit.anchor().expect("a fresh habit is active");
         repository.save(&habit);
         let anchor_habit = anchor_habit_over(Rc::clone(&repository));
 

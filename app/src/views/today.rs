@@ -166,7 +166,7 @@ mod tests {
     fn services_with_one_anchored_habit() -> Services {
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
         let mut anchored = a_habit();
-        anchored.anchor();
+        anchored.anchor().expect("a fresh habit is active");
         repository.save(&anchored);
         Services::with_repository(repository)
     }
