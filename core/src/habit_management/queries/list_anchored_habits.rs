@@ -29,9 +29,22 @@ impl ListAnchoredHabits {
     }
 
     pub fn handle(&self) -> AnchoredScreen {
+        let all = self.repository.all();
+        let in_daily_life = all
+            .iter()
+            .filter(|habit| habit.state() != LifecycleState::Anchored)
+            .count();
+        let habits = all
+            .into_iter()
+            .filter(|habit| habit.state() == LifecycleState::Anchored)
+            .map(|habit| AnchoredHabit {
+                id: habit.id().value().to_string(),
+                title: habit.title().value().to_string(),
+            })
+            .collect();
         AnchoredScreen {
-            habits: Vec::new(),
-            in_daily_life: 0,
+            habits,
+            in_daily_life,
         }
     }
 }

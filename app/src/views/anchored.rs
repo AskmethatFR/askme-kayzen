@@ -1,6 +1,7 @@
 use crate::composition::Services;
 use crate::route::Route;
 use dioxus::prelude::*;
+use kayzen_core::habit_management::domain::habit::Habit;
 use kayzen_core::habit_management::queries::list_anchored_habits::AnchoredScreen;
 use kayzen_core::habit_management::use_cases::readmit_habit::ReadmitHabitError;
 
@@ -9,6 +10,8 @@ pub fn Anchored() -> Element {
     let services = use_context::<Services>();
     let screen = services.list_anchored_habits.handle();
     let count = screen.habits.len();
+    let max = Habit::MAX_IN_DAILY_LIFE;
+    let mut readmit_error: Signal<Option<(String, &'static str)>> = use_signal(|| None);
 
     rsx! {
         div { class: "screen",
@@ -20,10 +23,39 @@ pub fn Anchored() -> Element {
                 for habit in screen.habits {
                     li { class: "habit-row",
                         span { class: "habit-name", "{habit.title}" }
+                        button {
+                            class: "readmit",
+                            onclick: {
+                                let services = services.clone();
+                                let habit_id = habit.id.clone();
+                                move |_| {
+                                    let (result, _) = readmit_and_relist(&services, &habit_id);
+                                    match result {
+                                        Ok(()) => readmit_error.set(None),
+                                        Err(error) => match refusal_message(error) {
+                                            Some(message) => {
+                                                readmit_error.set(Some((habit_id.clone(), message)))
+                                            }
+                                            None => readmit_error.set(None),
+                                        },
+                                    }
+                                }
+                            },
+                            "La remettre dans mon quotidien"
+                        }
+                        if let Some((_, message)) = readmit_error()
+                            .as_ref()
+                            .filter(|(row_id, _)| row_id == &habit.id)
+                        {
+                            p { class: "quiet-note", "{message}" }
+                        }
                     }
                 }
             }
             p { class: "tally", "{count} · devenues naturelles" }
+            p { class: "tally",
+                "Vous suivez {screen.in_daily_life} / {max} habitudes en parallèle"
+            }
         }
     }
 }
@@ -33,20 +65,20 @@ fn readmit_and_relist(
     services: &Services,
     id: &str,
 ) -> (Result<(), ReadmitHabitError>, AnchoredScreen) {
-    let _ = (services, id);
-    (
-        Err(ReadmitHabitError::NotAnchored),
-        AnchoredScreen {
-            habits: Vec::new(),
-            in_daily_life: 0,
-        },
-    )
+    let result = services.readmit_habit.execute(id);
+    let screen = services.list_anchored_habits.handle();
+    (result, screen)
 }
 
 #[must_use]
 fn refusal_message(error: ReadmitHabitError) -> Option<&'static str> {
-    let _ = error;
-    None
+    match error {
+        ReadmitHabitError::DailyLifeFull { .. } => {
+            Some("Le quotidien est complet · pour la remettre, ancréez-en une autre d'abord")
+        }
+        ReadmitHabitError::DuplicateHabit => Some("Elle est déjà dans votre quotidien"),
+        ReadmitHabitError::HabitNotFound | ReadmitHabitError::NotAnchored => None,
+    }
 }
 
 #[cfg(test)]
