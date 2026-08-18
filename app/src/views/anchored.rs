@@ -1,12 +1,14 @@
 use crate::composition::Services;
 use crate::route::Route;
 use dioxus::prelude::*;
+use kayzen_core::habit_management::queries::list_anchored_habits::AnchoredScreen;
+use kayzen_core::habit_management::use_cases::readmit_habit::ReadmitHabitError;
 
 #[component]
 pub fn Anchored() -> Element {
     let services = use_context::<Services>();
-    let habits = services.list_anchored_habits.handle();
-    let count = habits.len();
+    let screen = services.list_anchored_habits.handle();
+    let count = screen.habits.len();
 
     rsx! {
         div { class: "screen",
@@ -15,7 +17,7 @@ pub fn Anchored() -> Element {
             }
             h1 { class: "greeting", "Ancrées" }
             ul { class: "habit-list",
-                for habit in habits {
+                for habit in screen.habits {
                     li { class: "habit-row",
                         span { class: "habit-name", "{habit.title}" }
                     }
@@ -24,6 +26,27 @@ pub fn Anchored() -> Element {
             p { class: "tally", "{count} · devenues naturelles" }
         }
     }
+}
+
+#[must_use]
+fn readmit_and_relist(
+    services: &Services,
+    id: &str,
+) -> (Result<(), ReadmitHabitError>, AnchoredScreen) {
+    let _ = (services, id);
+    (
+        Err(ReadmitHabitError::NotAnchored),
+        AnchoredScreen {
+            habits: Vec::new(),
+            in_daily_life: 0,
+        },
+    )
+}
+
+#[must_use]
+fn refusal_message(error: ReadmitHabitError) -> Option<&'static str> {
+    let _ = error;
+    None
 }
 
 #[cfg(test)]
@@ -60,12 +83,39 @@ mod tests {
         Services::with_repository(repository)
     }
 
+    /// Two active, one paused, one anchored — the readmit-habit/S4 fixture:
+    /// the daily life holds 3 non-anchored habits (a paused one counts), while
+    /// the Ancrées screen lists exactly the one anchored habit.
+    fn services_with_three_non_anchored_and_one_anchored_habit() -> Services {
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit("h-1", "Bouger un peu"));
+        repository.save(&a_habit("h-2", "Boire un verre d'eau"));
+        let mut paused = a_habit("h-3", "Respirer");
+        paused.pause().expect("a fresh habit is active");
+        repository.save(&paused);
+        let mut anchored = a_habit("h-4", "Lire une page");
+        anchored.anchor().expect("a fresh habit is active");
+        repository.save(&anchored);
+        Services::with_repository(repository)
+    }
+
     #[component]
     fn RootAtAnchoredScreen() -> Element {
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/anchored")));
         });
         use_context_provider(services_with_two_anchored_habits);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootAtAnchoredScreenWithDailyLife() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/anchored")));
+        });
+        use_context_provider(services_with_three_non_anchored_and_one_anchored_habit);
         rsx! {
             Router::<Route> {}
         }
@@ -90,5 +140,93 @@ mod tests {
             html.contains("2 · devenues naturelles"),
             "expected the count line's full copy naming how many are anchored, got: {html}"
         );
+    }
+
+    #[test]
+    fn the_ancrees_screen_offers_to_readmit_each_anchored_habit() {
+        let html = render(RootAtAnchoredScreen);
+
+        assert_eq!(
+            html.matches("La remettre dans mon quotidien").count(),
+            2,
+            "expected one readmit button per anchored habit, got: {html}"
+        );
+    }
+
+    // @scenario: readmit-habit/S4
+    #[test]
+    fn the_ancrees_screen_states_how_many_habits_are_followed_in_parallel() {
+        let html = render(RootAtAnchoredScreenWithDailyLife);
+
+        assert!(
+            html.contains(&format!(
+                "Vous suivez 3 / {} habitudes en parallèle",
+                Habit::MAX_IN_DAILY_LIFE
+            )),
+            "expected the parallel-count line to read 3 non-anchored habits (a paused one counts), \
+             got: {html}"
+        );
+    }
+
+    #[test]
+    fn readmit_and_relist_removes_the_habit_from_the_screen_and_grows_the_parallel_count() {
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit("h-1", "Bouger un peu"));
+        repository.save(&a_habit("h-2", "Boire un verre d'eau"));
+        let mut anchored = a_habit("h-3", "Lire une page");
+        anchored.anchor().expect("a fresh habit is active");
+        repository.save(&anchored);
+        let services = Services::with_repository(repository);
+
+        let (result, screen) = readmit_and_relist(&services, "h-3");
+
+        assert_eq!(result, Ok(()));
+        assert!(screen.habits.is_empty(), "the readmitted habit leaves the screen");
+        assert_eq!(screen.in_daily_life, 3);
+    }
+
+    #[test]
+    fn readmit_and_relist_keeps_the_habit_listed_on_a_refusal() {
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        for n in 1..=Habit::MAX_IN_DAILY_LIFE {
+            repository.save(&a_habit(&format!("h-{n}"), &format!("Habit number {n}")));
+        }
+        let mut anchored = a_habit("h-anchored", "Lire une page");
+        anchored.anchor().expect("a fresh habit is active");
+        repository.save(&anchored);
+        let services = Services::with_repository(repository);
+
+        let (result, screen) = readmit_and_relist(&services, "h-anchored");
+
+        assert_eq!(
+            result,
+            Err(ReadmitHabitError::DailyLifeFull {
+                max: Habit::MAX_IN_DAILY_LIFE
+            })
+        );
+        assert_eq!(screen.habits.len(), 1, "the refused habit stays listed");
+        assert_eq!(screen.habits[0].id, "h-anchored");
+    }
+
+    #[test]
+    fn a_full_daily_life_refusal_names_the_exact_quiet_message() {
+        assert_eq!(
+            refusal_message(ReadmitHabitError::DailyLifeFull { max: 5 }),
+            Some("Le quotidien est complet · pour la remettre, ancréez-en une autre d'abord")
+        );
+    }
+
+    #[test]
+    fn a_duplicate_title_refusal_names_the_exact_quiet_message() {
+        assert_eq!(
+            refusal_message(ReadmitHabitError::DuplicateHabit),
+            Some("Elle est déjà dans votre quotidien")
+        );
+    }
+
+    #[test]
+    fn an_unreachable_refusal_renders_no_message() {
+        assert_eq!(refusal_message(ReadmitHabitError::HabitNotFound), None);
+        assert_eq!(refusal_message(ReadmitHabitError::NotAnchored), None);
     }
 }

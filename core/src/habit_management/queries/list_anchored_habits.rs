@@ -4,10 +4,18 @@ use crate::habit_management::domain::habit_repository::HabitRepository;
 use crate::habit_management::domain::lifecycle_state::LifecycleState;
 
 /// The Ancrées screen's per-screen read model (adr-0006): just enough to name
-/// each anchored habit — no Clock, nothing dated is shown (C4).
+/// each anchored habit and to state how many habits the daily life holds in
+/// parallel — no Clock, nothing dated is shown (C4).
 #[derive(Debug, Clone, PartialEq)]
 pub struct AnchoredHabit {
+    pub id: String,
     pub title: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AnchoredScreen {
+    pub habits: Vec<AnchoredHabit>,
+    pub in_daily_life: usize,
 }
 
 #[derive(Clone)]
@@ -20,15 +28,11 @@ impl ListAnchoredHabits {
         ListAnchoredHabits { repository }
     }
 
-    pub fn handle(&self) -> Vec<AnchoredHabit> {
-        self.repository
-            .all()
-            .into_iter()
-            .filter(|habit| habit.state() == LifecycleState::Anchored)
-            .map(|habit| AnchoredHabit {
-                title: habit.title().value().to_string(),
-            })
-            .collect()
+    pub fn handle(&self) -> AnchoredScreen {
+        AnchoredScreen {
+            habits: Vec::new(),
+            in_daily_life: 0,
+        }
     }
 }
 
@@ -74,9 +78,52 @@ mod tests {
 
         assert_eq!(
             result,
-            vec![AnchoredHabit {
-                title: "Read one page".to_string(),
-            }]
+            AnchoredScreen {
+                habits: vec![AnchoredHabit {
+                    id: "h-3".to_string(),
+                    title: "Read one page".to_string(),
+                }],
+                in_daily_life: 2,
+            }
+        );
+    }
+
+    // @scenario: readmit-habit/S4
+    #[test]
+    fn in_daily_life_counts_every_non_anchored_habit_including_paused_ones() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit("h-1", "Move a little"));
+        repository.save(&a_habit("h-2", "Drink water"));
+        let mut paused = a_habit("h-3", "Breathe");
+        paused.pause().expect("a fresh habit is active");
+        repository.save(&paused);
+        let mut anchored_a = a_habit("h-4", "Read one page");
+        anchored_a.anchor().expect("a fresh habit is active");
+        repository.save(&anchored_a);
+        let mut anchored_b = a_habit("h-5", "Write a line");
+        anchored_b.anchor().expect("a fresh habit is active");
+        repository.save(&anchored_b);
+        let query = list_over(repository);
+
+        let result = query.handle();
+
+        assert_eq!(result.habits.len(), 2);
+        assert_eq!(
+            result.habits,
+            vec![
+                AnchoredHabit {
+                    id: "h-4".to_string(),
+                    title: "Read one page".to_string(),
+                },
+                AnchoredHabit {
+                    id: "h-5".to_string(),
+                    title: "Write a line".to_string(),
+                },
+            ]
+        );
+        assert_eq!(
+            result.in_daily_life, 3,
+            "a paused habit is still part of the daily life — only anchored ones are not"
         );
     }
 }
