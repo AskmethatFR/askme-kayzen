@@ -46,6 +46,7 @@ impl Error for HabitError {}
 pub enum TransitionError {
     NotActive,
     NotPaused,
+    NotAnchored,
 }
 
 impl Habit {
@@ -102,6 +103,14 @@ impl Habit {
             return Err(TransitionError::NotActive);
         }
         self.state = LifecycleState::Anchored;
+        Ok(())
+    }
+
+    pub fn readmit(&mut self) -> Result<(), TransitionError> {
+        if self.state != LifecycleState::Anchored {
+            return Err(TransitionError::NotAnchored);
+        }
+        self.state = LifecycleState::Active;
         Ok(())
     }
 

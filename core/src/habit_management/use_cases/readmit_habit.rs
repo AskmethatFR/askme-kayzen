@@ -46,8 +46,38 @@ impl ReadmitHabit {
         ReadmitHabit { repository }
     }
 
-    pub fn execute(&self, _habit_id: &str) -> Result<(), ReadmitHabitError> {
-        Err(ReadmitHabitError::HabitNotFound)
+    pub fn execute(&self, habit_id: &str) -> Result<(), ReadmitHabitError> {
+        let id = HabitId::new(habit_id).map_err(|_| ReadmitHabitError::HabitNotFound)?;
+        let mut habit = self
+            .repository
+            .get(&id)
+            .ok_or(ReadmitHabitError::HabitNotFound)?;
+
+        let in_daily_life: Vec<Habit> = self
+            .repository
+            .all()
+            .into_iter()
+            .filter(|habit| habit.state() != LifecycleState::Anchored && habit.id() != &id)
+            .collect();
+
+        let target_title = habit.title().clone();
+        if in_daily_life
+            .iter()
+            .any(|candidate| candidate.title().matches(&target_title))
+        {
+            return Err(ReadmitHabitError::DuplicateHabit);
+        }
+
+        if in_daily_life.len() >= Habit::MAX_IN_DAILY_LIFE {
+            return Err(ReadmitHabitError::DailyLifeFull {
+                max: Habit::MAX_IN_DAILY_LIFE,
+            });
+        }
+
+        habit.readmit().map_err(|_| ReadmitHabitError::NotAnchored)?;
+        self.repository.save(&habit);
+
+        Ok(())
     }
 }
 
