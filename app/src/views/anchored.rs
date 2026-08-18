@@ -78,7 +78,7 @@ fn readmit_and_relist(
 fn refusal_message(error: ReadmitHabitError) -> Option<&'static str> {
     match error {
         ReadmitHabitError::DailyLifeFull { .. } => {
-            Some("Le quotidien est complet · pour la remettre, ancréez-en une autre d'abord")
+            Some("Le quotidien est complet · pour la remettre, ancrez-en une autre d'abord")
         }
         ReadmitHabitError::DuplicateHabit => Some("Elle est déjà dans votre quotidien"),
         ReadmitHabitError::HabitNotFound | ReadmitHabitError::NotAnchored => None,
@@ -251,7 +251,7 @@ mod tests {
     fn a_full_daily_life_refusal_names_the_exact_quiet_message() {
         assert_eq!(
             refusal_message(ReadmitHabitError::DailyLifeFull { max: 5 }),
-            Some("Le quotidien est complet · pour la remettre, ancréez-en une autre d'abord")
+            Some("Le quotidien est complet · pour la remettre, ancrez-en une autre d'abord")
         );
     }
 
