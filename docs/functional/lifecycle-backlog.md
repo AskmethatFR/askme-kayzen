@@ -49,7 +49,7 @@
 | ~~4~~ | ~~`growth-suggestion`~~ | **DELETED** — StabilityPolicy removed (ADR-0008); progression is user-paced, nothing is suggested | — | ✂️ removed |
 | 5 | `pause-resume` | "Mettre en pause" / paused zone / one-tap resume | S | **done** (4 scenarios; paused detail is a rest screen — resume + staircase only; seat kept) |
 | 6 | `anchor` | Anchor button (**user-initiated, no 10-of-14 suggestion**), board frees the slot, Ancrées screen counts | L | **done** (4 scenarios; detail re-renders as a sober anchored screen — no gesture at all; Ancrées screen ships the list + the count, nothing more) |
-| 7 | `readmit` | "La remettre dans mon quotidien" — refusable (board full / duplicate title) | M | todo |
+| 7 | `readmit` | "La remettre dans mon quotidien" — refusable (board full / duplicate title) | M | **done** (4 scenarios; Ancrées screen: per-row readmit button, quiet refusals, parallel-count footer shipped) |
 | 8 | `stats-board` | Per-habit stats: days done, empty days (never "failed"), grow/lighten counts, minutes gained (reframe wording — nominal, anti-guilt) — plus adaptive (never guilt-inducing) messages | M | todo |
 
 Order rationale: completions (2) precede progression (4); grow/lighten (3) before
@@ -166,7 +166,7 @@ Developer's first failing test of a slice is the scenario, and dropping the
 | 3 `adjust-goal` | `[[adjust-goal]]` | S1–S4, covered (S3 pins the floor no-op — d2 now settled) |
 | 5 `pause-resume` | `[[pause-resume]]` | S1–S4, covered (S3 pins Q1 — a paused habit keeps its seat; S4 pins the rest screen, added this cycle) |
 | 6 `anchor` | `[[anchor-habit]]` | S1–S4, covered (S3 pins Q3, S4 pins "no suggestion") |
-| 7 `readmit` | `[[readmit-habit]]` | S1–S3, `@wip` |
+| 7 `readmit` | `[[readmit-habit]]` | S1–S4, covered (S2 pins the full-life refusal, S3 the retaken-title refusal, S4 the parallel-count footer with a paused habit in the fixture) |
 | 8 `stats-board` | `[[habit-stats]]` | S1–S4, `@wip` |
 
 ## Per-slice aggregate growth (so nothing is forgotten — technical shape in `[[adr-0007-habit-lifecycle-aggregate]]`)
@@ -183,7 +183,7 @@ Developer's first failing test of a slice is the scenario, and dropping the
 | ~~4 `growth-suggestion`~~ | **removed** — no `StabilityPolicy`, no stability detection, no suggestion (ADR-0008). |
 | 5 `pause-resume` | **done.** `LifecycleState::{Active, Paused}` landed as an enum on `Habit` (illegal combos unrepresentable; `Anchored` deliberately absent until its use case exists). Two use cases, `PauseHabit` and `ResumeHabit`, one public method each, **neither taking a `Clock`** — nothing dates these transitions. `HabitBoard` untouched: paused keeps the board seat (Q1), pinned by a wired test rather than a comment. Read side reshaped: `ListBoardHabits` now returns the per-screen DTO `TodayHabits {active, paused}`, so "a paused habit leaves the day's list" is a rule in the core, not in a view. |
 | 6 `anchor` | **done.** `LifecycleState::Anchored` lands, completing the enum (`Habit::anchor()` — since PR 2 it requires an `Active` habit and refuses anything else). Resolves the deferred board↔habit coordination as a **synchronous application-service orchestration**: `AnchorHabit` moves the habit to `Anchored`, saves it, then **releases its board entry** (`HabitBoard::release`) and saves the board — publishing nothing. The cap does not "count non-anchored habits" as a query-time filter; the entry is **removed**, which frees the seat **and** the title in the same act (see `[[adr-0012-synchronous-cross-aggregate-coordination]]`). Read side gains `ListAnchoredHabits -> Vec<AnchoredHabit { title }>` and `TodayHabits.anchored_count`, both derived on read. **Debt paid**: the aggregate-boundary debt is closed — the invariant that a single `Habit` cannot violate (max 5 non-anchored) is now enforced at its rightful layer, the `AddHabit` use case, not hosted on an aggregate boundary object. |
-| 7 `readmit` | `Anchored → Active` + daily-life re-admission (reuse the duplicate / daily-life-full guards). |
+| 7 `readmit` | **done.** `Habit::readmit()` lands, completing the transition table (`Anchored → Active`, guard `if state != Anchored` → `TransitionError::NotAnchored`, written `if`-not-`match` per adr-0009 L4); `TransitionError` gains its third variant with its caller. `ReadmitHabit`, one public method, no `Clock` (AD-3), is the **first transition since `AddHabit` that increases the non-anchored count** — it re-applies the set check itself (ADR-0013, AD-9): load → duplicate-before-capacity over `state() != Anchored` read live → `readmit()` → **one** save; a refusal leaves nothing behind. **The trap held**: `resume()`'s guard stays exactly `!= Paused`, readmission is a new method + new use case, `resuming_an_anchored_habit_is_refused` untouched. Read side: `ListAnchoredHabits` returns `AnchoredScreen { habits: Vec<AnchoredHabit { id, title }>, in_daily_life }` — the Ancrées screen now acts (per-row « La remettre », quiet refusals, always-rendered footer « Vous suivez N / 5 habitudes en parallèle » fed by `in_daily_life`, same predicate as the cap). |
 | 8 `stats-board` | no aggregate growth — more CQRS-light queries over the two dated histories. |
 
 Lifecycle mutations are **internal state transitions** (load aggregate → method → save),
@@ -216,8 +216,7 @@ Landed with slice 6 (now in `[[glossary]]`): Ancrer / Ancrée (*anchor / anchore
 — `LifecycleState::Anchored`, user-initiated only), Habitudes ancrées (the
 Ancrées screen).
 
-Still to add as its slice lands: Readmettre / Remettre dans le quotidien
-(*readmit* — slice 7). Minutes gagnées (slice 8).
+Still to add as its slice lands: ~~Readmettre / Remettre dans le quotidien (*readmit* — slice 7)~~ **landed**. Minutes gagnées (slice 8).
 
 ## Slice 7 precondition — blocking issue (Security PR 2)
 
@@ -233,11 +232,11 @@ Today (slice 6), resuming an `Anchored` habit is unreachable — no screen offer
 
 **Closed — the transition itself.** `Habit::resume()` now requires a `Paused` habit and refuses an anchored one outright, so step 3 above is no longer a route back into the daily life. Security's induction: production writes a habit's state in exactly four places, and after PR 2 **no lifecycle transition can grow the daily life** — only `AddHabit` can, and it counts first. See `[[adr-0007-habit-lifecycle-aggregate]]` AD-9.
 
-**Still owed — the count.** Readmission is `Anchored → Active`: the **first** transition since adding a habit that grows the daily life, so it falls outside that induction and must re-apply the count itself. Order, non-negotiable: read the current non-anchored count → refuse at the cap → *then* move the habit → *then* one single write. A refusal must leave nothing behind.
+**Still owed — the count — CLOSED 2026-08-18 (slice 7).** Readmission is `Anchored → Active`: the first transition since adding a habit that grows the daily life. `ReadmitHabit` re-applies the count itself, in the mandated order (read the current non-anchored count → refuse at the cap → *then* move the habit → *then* one single write); the refusal paths write nothing. Security re-verified the induction with the new write site: `readmit()` is the only other +1 and it checks before saving.
 
 **The trap slice 7 must not fall into.** Widening `Habit::resume()` so it can serve readmission re-opens this issue **word for word** — and viciously, the existing tests would still pass, because whoever widened it would delete « resuming an anchored habit is refused » as newly false. `resume()`'s guard stays exactly « requires paused ». Readmission is a **new** gesture with its own method and its own use case, never a loosened one. The full technical constraint is in `[[adr-0007-habit-lifecycle-aggregate]]` AD-9.
 
-**Note on `readmit-habit.feature` scenarios:** S1 and S2 still reference "board" vocabulary (« takes a seat on the board », « refused as board-full »). This is deliberate — the feature file is `@wip`, and slice 7's own PM lane will rewrite it as part of that slice's specification pass. Do not update it now.
+**Note on `readmit-habit.feature` scenarios — SUPERSEDED 2026-08-18 (slice 7).** S1 and S2 were rewritten in quotidien vocabulary and S4 (the parallel-count footer) added as part of slice 7's specification pass; the file ships `@wip`-free, all four anchored.
 
 ## Slice 5 `pause-resume` — settled during delivery, 2026-08-06
 
@@ -263,7 +262,7 @@ account. No scenario carries a code name today.
 |---|---|
 | Where anchoring lands you | **On the detail**, which re-renders as a sober "ancrée" screen: title, goal, practice staircase — **no gesture at all**. Same reasoning as pause in slice 5: returning to Aujourd'hui would hide the screen just drawn. Amends the designer's `anchor(id) → habit.anchored = true ; screen = Today` (`[[design-ecrans]]`) |
 | How the freed seat works | The board's cap counts **entries**, not "non-anchored habits" as a filter — anchoring **removes** the habit's entry from the board (`HabitBoard::release`). The seat and the title are freed by the same act, not two. Corrects the wording carried since slice 5 (see the `[[design-ecrans]]` and `[[feature-catalog]]` amendments below) without reopening Q1, which stands exactly as approved |
-| The Ancrées screen's scope | **The list and the count, nothing more.** The designer's node also draws each habit's last 7 days as dots and a footer « Vous suivez N / 5 habitudes en parallèle. » — both **deferred**. No scenario asks for them (S2 says only "listed and counted"), and as long as no screen offers to mark an anchored habit done, the dots would freeze at the day of anchoring and replay a pre-anchor history forever. The footer belongs to slice 7, where board-full refusal is the actual subject |
+| The Ancrées screen's scope | **The list and the count, nothing more.** The designer's node also draws each habit's last 7 days as dots and a footer « Vous suivez N / 5 habitudes en parallèle. » — the dots remain **deferred**; the **footer shipped in slice 7** (2026-08-18), where board-full refusal is the actual subject. No scenario asks for the dots (S2 says only "listed and counted"), and as long as no screen offers to mark an anchored habit done, the dots would freeze at the day of anchoring and replay a pre-anchor history forever. |
 | The approved copy | Detail button « L'ancrer · elle est devenue naturelle » ; anchored banner « ancrée · {N} min » ; Today link « Mes habitudes ancrées · {N} », shown only when N ≥ 1 ; Ancrées screen: the titles + « {N} · devenues naturelles » |
 | Scenario sufficiency | The four scenarios were judged sufficient; none changed. S3 ("an anchored habit can still be marked done") names **no screen** this slice — it is pinned at the rule level, on `MarkDone`, not in any UI |
 

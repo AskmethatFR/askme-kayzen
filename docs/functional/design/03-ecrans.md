@@ -146,11 +146,13 @@ place, en un écran « ancrée » sobre — titre, objectif, escalier de pratiqu
 **aucun geste**. Renvoyer à Aujourd'hui cacherait l'écran qu'on vient de dessiner.
 
 **L'écran Ancrées ne livre que la liste et le compte.** Les points des 7 derniers
-jours et le pied « Vous suivez N / 5 habitudes en parallèle » du dessin d'origine
-sont **différés** — aucun scénario ne les demande, et tant qu'aucun écran n'offre
-de marquer fait une habitude ancrée, les points figeraient au jour de l'ancrage et
-rejoueraient indéfiniment un historique pré-ancrage. Le pied revient à la slice 7,
-où le refus à board plein devient le sujet.
+jours du dessin d'origine sont **différés** — aucun scénario ne les demande, et tant
+qu'aucun écran n'offre de marquer fait une habitude ancrée, les points figeraient au
+jour de l'ancrage et rejoueraient indéfiniment un historique pré-ancrage. Le pied
+« Vous suivez N / 5 habitudes en parallèle » revient à la slice 7 *(livré 2026-08-18)*,
+où le refus à board plein devient le sujet — et « La remettre dans mon quotidien »
+(désarchive) est devenu un geste de cet écran, refusable si le quotidien est complet
+ou si le titre a été repris.
 
 **Copie approuvée :** bouton du détail « L'ancrer · elle est devenue naturelle » ;
 bandeau ancrée « ancrée · {N} min » ; lien d'Aujourd'hui « Mes habitudes ancrées ·

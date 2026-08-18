@@ -3,7 +3,7 @@ id: "adr-0007-habit-lifecycle-aggregate"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-08-17"
+updated: "2026-08-18"
 relations:
   related:
     - "architecture-overview"
@@ -39,6 +39,7 @@ answers:
   - "What shape does a refused transition take at the crate boundary — does TransitionError cross it?"
   - "Why can no lifecycle transition break the 5-seat cap, and what must ReadmitHabit do about it? (AD-9)"
   - "Why does MarkDone still ignore LifecycleState now that Anchored exists?"
+  - "How is an anchored habit brought back into the daily life, and who re-applies the cap check? (AD-9, discharged 2026-08-18)"
 decided_in:
   - "LOCAL-lifecycle-aggregate"
   - "2026-07-27 slice 3 adjust-goal cycle (d2 settled, StepHistory append-only)"
@@ -46,6 +47,7 @@ decided_in:
   - "2026-08-11 slice 6 anchor-habit cycle (Anchored built, AD-4; board coordination settled in adr-0012)"
   - "2026-08-17 drop-habit-board refactor (one aggregate left; AD-5 restated; AD-4 scheduled for amendment by PR 2)"
   - "2026-08-17 PR 2 guard-lifecycle-transitions (AD-9: the transition table returns to the aggregate; AD-4 amended)"
+  - "2026-08-18 slice 7 readmit-habit cycle (AD-9 discharged: `readmit()` lands, `NotAnchored` joins, the cap re-check is built)"
 ---
 
 # ADR 0007 — Habit promoted to the lifecycle aggregate root (dated histories, library-free LocalDate, internal transitions)
@@ -579,4 +581,80 @@ Other ways to get it wrong, each a real failure mode:
 | Counting `state() == Active` instead of `state() != Anchored` | Drops paused habits from the count — they keep their seat (AD-5) | A paused habit stops blocking a sixth |
 | `>` instead of `>=` | Off by one: admits a sixth | — |
 | Saving before the checks | A refused readmission has already written | Two `save` calls, or one before a `?` |
+
+---
+
+## Amendment — 2026-08-18, slice 7 `readmit-habit`: the transition table is complete, AD-9 discharged
+
+The cycle this node's AD-9 section scheduled. `Habit::readmit()` lands and the
+`Anchored → Active` cell becomes legal; the cap re-check AD-9 made obligatory is
+built and Security-reverified.
+
+### What is now built (was "planned")
+
+`Habit::readmit()` (`core/src/habit_management/domain/habit.rs`), the mirror of
+`anchor()`, guarded exactly like its siblings:
+
+```rust
+pub fn readmit(&mut self) -> Result<(), TransitionError> {
+    if self.state != LifecycleState::Anchored {
+        return Err(TransitionError::NotAnchored);
+    }
+    self.state = LifecycleState::Active;
+    Ok(())
+}
+```
+
+`TransitionError` carries its third variant, **`NotAnchored`**, landing with its
+caller per the use-case-driven discipline applied to `LifecycleState` itself.
+The 9-cell table becomes 16 cells; the new row and column read:
+
+| from ↓ / gesture → | `readmit()` |
+|---|---|
+| `Active` | `Err(NotAnchored)` |
+| `Paused` | `Err(NotAnchored)` |
+| `Anchored` | → `Active` |
+
+Driven by `ReadmitHabit`, one public method, no `Clock` — AD-3 applied, nothing
+about readmission is dated (`core/src/habit_management/use_cases/readmit_habit.rs`).
+
+### AD-9's slice-7 constraint is discharged, in the mandated order
+
+`ReadmitHabit::execute` is the **first transition since `AddHabit` that increases
+\|N\|**, so it re-applies the set check itself ([[adr-0013-set-based-validation-outside-aggregates]]):
+
+1. parse + `get` the habit;
+2. the set check first — `repository.all()` filtered `state() != Anchored`, read
+   live, **duplicate before capacity** (mirroring `AddHabit`'s precedence);
+   capacity `>= Habit::MAX_IN_DAILY_LIFE` refuses; the habit being readmitted is
+   still `Anchored`, so it is not yet in that count;
+3. then `habit.readmit()` — the transition guard, `NotAnchored`;
+4. then **exactly one save**, after both checks. A refusal leaves nothing behind
+   (asserted via a counting repository: `save_calls == 0` on both refusal paths).
+
+**The trap held.** `resume()`'s guard stays exactly `!= Paused`;
+`resuming_an_anchored_habit_is_refused` is byte-unchanged and green. Readmission
+is a new method and a new use case, never a loosened `resume()`.
+
+### Security's induction, extended
+
+Production writes `state` in five places now, and the table gains one row:
+
+| Write | Transition | Effect on \|N\| | Guarded by |
+|---|---|---|---|
+| `Habit::new` | ∅ → `Active` | **+1** | `AddHabit` — checks the cap before the save |
+| `pause()` | `Active` → `Paused` | 0 | requires `Active` |
+| `resume()` | `Paused` → `Active` | 0 | requires `Paused` |
+| `anchor()` | `Active` → `Anchored` | **−1** | requires `Active` |
+| `readmit()` | `Anchored` → `Active` | **+1** | `ReadmitHabit` — re-applies the set check before the save |
+
+The two +1 sites are exactly the two that check; `\|N\| ≤ 5` still holds by
+induction. Security's verdict this cycle: no production path reaches a sixth
+non-anchored habit; the one-write contract is held on every path.
+
+### The honest one-liner on the guard's shape
+
+`readmit()` is written `if self.state != LifecycleState::Anchored`, never a
+`match`, for the same reason AD-9 states for its three siblings
+([[adr-0009-quality-gates]] L4): the instrument must be able to see the guard.
 

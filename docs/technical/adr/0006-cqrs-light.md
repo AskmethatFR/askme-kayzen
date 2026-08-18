@@ -206,3 +206,29 @@ state that lives in `queries/**` is inside `.cargo/mutants.toml`'s perimeter whi
 is excluded by design ([[adr-0009-quality-gates]]). Filtering anchored habits out of both
 `active` and `paused` in that same pass is what keeps *Aujourd'hui*'s « X sur Y » — which
 is `active.len()` — correct by construction rather than by discipline.
+
+---
+
+## Amendment — 2026-08-18, slice 7 `readmit-habit`: the Ancrées query grows an `id` and a count
+
+Slice 7 gives the Ancrées screen its first **gesture**, and the gesture reshapes its read
+model. The DTO grows `id` on each row (the readmit button must target a habit; a title is
+not a stable key once anchoring freed it) and a `in_daily_life` count (the screen now
+states how many habits are followed in parallel, and explains why a readmission may be
+refused).
+
+`ListAnchoredHabits -> AnchoredScreen { habits: Vec<AnchoredHabit { id, title }>, in_daily_life: usize }`
+(`core/src/habit_management/queries/list_anchored_habits.rs`).
+
+Still **one query per screen, one pass, nothing stored**: `in_daily_life` counts
+`state() != Anchored` in the same pass that collects the anchored rows — the identical
+predicate the daily-life cap uses ([[adr-0013-set-based-validation-outside-aggregates]]),
+now read by three sites and never mirrored. No `Clock` still holds: nothing dated is shown.
+
+| Rejected | Why |
+|---|---|
+| Keep `Vec<AnchoredHabit { title }>`, key the button by title | Titles are not stable keys after anchoring frees them; and the gesture's use case takes an id, so the read model would have to invent one |
+| A second query (or a second pass) for the footer count | One screen, one query, one DTO — the slice-5 rule, applied to a count instead of a list |
+
+The `id` on a row is not pressure: it is identity. The screen still shows only titles,
+goal-less and completion-less, per the slice-6 ruling.
