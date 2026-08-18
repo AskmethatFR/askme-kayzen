@@ -60,7 +60,11 @@ pub fn Anchored() -> Element {
     }
 }
 
+// The tuple pairs a `#[must_use]` Result with the plain screen read-model;
+// the attribute must stay for the screen half, so the redundancy lint is
+// silenced rather than the annotation dropped (adr-0009 gesture pattern).
 #[must_use]
+#[allow(clippy::double_must_use)]
 fn readmit_and_relist(
     services: &Services,
     id: &str,
@@ -213,7 +217,10 @@ mod tests {
         let (result, screen) = readmit_and_relist(&services, "h-3");
 
         assert_eq!(result, Ok(()));
-        assert!(screen.habits.is_empty(), "the readmitted habit leaves the screen");
+        assert!(
+            screen.habits.is_empty(),
+            "the readmitted habit leaves the screen"
+        );
         assert_eq!(screen.in_daily_life, 3);
     }
 

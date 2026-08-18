@@ -26,7 +26,10 @@ impl fmt::Display for ReadmitHabitError {
                 write!(f, "a habit with this title is already in your daily life")
             }
             ReadmitHabitError::DailyLifeFull { max } => {
-                write!(f, "your daily life already holds the maximum of {max} habits")
+                write!(
+                    f,
+                    "your daily life already holds the maximum of {max} habits"
+                )
             }
         }
     }
@@ -74,7 +77,9 @@ impl ReadmitHabit {
             });
         }
 
-        habit.readmit().map_err(|_| ReadmitHabitError::NotAnchored)?;
+        habit
+            .readmit()
+            .map_err(|_| ReadmitHabitError::NotAnchored)?;
         self.repository.save(&habit);
 
         Ok(())
@@ -423,8 +428,7 @@ mod tests {
             .execute("h-anchored")
             .expect("the daily life holds one non-anchored habit");
 
-        let result =
-            an_add_habit("guid-2", &repository).execute(String::from("read one page"), 1);
+        let result = an_add_habit("guid-2", &repository).execute(String::from("read one page"), 1);
 
         assert_eq!(result, Err(AddHabitError::DuplicateHabit));
     }
