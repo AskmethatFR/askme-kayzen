@@ -20,6 +20,7 @@ pub mod use_cases {
     pub mod lighten_goal;
     pub mod mark_done;
     pub mod pause_habit;
+    pub mod readmit_habit;
     pub mod resume_habit;
 }
 
