@@ -42,7 +42,7 @@ pub fn Today() -> Element {
                         }
                         button {
                             class: if habit.done_today { "target is-done" } else { "target" },
-                            aria_label: if habit.done_today { "Fait aujourd'hui" } else { "Marquer comme fait" },
+                            aria_label: if habit.done_today { "Fait aujourd'hui · {habit.title}" } else { "Marquer comme fait · {habit.title}" },
                             onclick: {
                                 let services = services.clone();
                                 let id = habit.id.clone();
@@ -68,6 +68,7 @@ pub fn Today() -> Element {
                             }
                             button {
                                 class: "resume-link",
+                                aria_label: "Reprendre · {habit.title}",
                                 onclick: {
                                     let services = services.clone();
                                     let id = habit.id.clone();
