@@ -286,10 +286,8 @@ mod tests {
         Services::with_repository(Rc::new(InMemoryHabitRepository::new()))
     }
 
-    // Mirrors S4's Given verbatim ("whatever its completions and its current
-    // goal"): today's completion stays inert until HabitDetail carries it, so
-    // no mutation here can currently make it matter — kept deliberately for
-    // when it does, not an oversight.
+    // A habit at the floor, done today: the recap reads today's completion, so
+    // this fixture pins the singular form on the recap (slice 8).
     fn services_with_a_floor_habit_done_today() -> Services {
         let clock: Rc<dyn Clock> = Rc::new(FixedClock(LocalDate::from_epoch_day(20_005)));
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
