@@ -519,4 +519,55 @@ mod tests {
             assert_eq!(recap.empty_days, expected_empty);
         }
     }
+
+    // @scenario: habit-stats/S2
+    #[test]
+    fn a_recap_counts_how_often_the_goal_grew_and_how_often_it_was_lightened() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Read one page".to_string()).unwrap(),
+            Goal::new(5).unwrap(),
+            LocalDate::from_epoch_day(CREATED_ON),
+        );
+        for _ in 0..3 {
+            habit.grow(LocalDate::from_epoch_day(TODAY));
+        }
+        habit.lighten(LocalDate::from_epoch_day(TODAY));
+        repository.save(&habit);
+        let query = get_habit_detail_over(repository);
+
+        let detail = query.handle("h-1").unwrap();
+
+        assert_eq!(detail.recap.growths, 3);
+        assert_eq!(detail.recap.lightenings, 1);
+        assert_eq!(
+            detail.current_goal, 7,
+            "five grown three times then lightened once stands at seven"
+        );
+    }
+
+    // @scenario: habit-stats/S2
+    #[test]
+    fn a_lightening_refused_at_the_floor_moves_no_counter() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Read one page".to_string()).unwrap(),
+            Goal::new(1).unwrap(),
+            LocalDate::from_epoch_day(CREATED_ON),
+        );
+        habit.lighten(LocalDate::from_epoch_day(TODAY));
+        repository.save(&habit);
+        let query = get_habit_detail_over(repository);
+
+        let detail = query.handle("h-1").unwrap();
+
+        assert_eq!(
+            detail.recap.lightenings, 0,
+            "a lightening refused at the floor records no step, so the recap \
+             counts no lightening"
+        );
+        assert_eq!(detail.current_goal, 1);
+    }
 }
