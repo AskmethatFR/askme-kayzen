@@ -8,8 +8,11 @@ use kayzen_core::habit_management::use_cases::readmit_habit::ReadmitHabitError;
 #[component]
 pub fn Anchored() -> Element {
     let services = use_context::<Services>();
-    let screen = services.list_anchored_habits.handle();
-    let count = screen.habits.len();
+    let mut screen = use_signal({
+        let services = services.clone();
+        move || services.list_anchored_habits.handle()
+    });
+    let count = screen().habits.len();
     let max = Habit::MAX_IN_DAILY_LIFE;
     let mut readmit_error: Signal<Option<(String, &'static str)>> = use_signal(|| None);
 
@@ -20,7 +23,7 @@ pub fn Anchored() -> Element {
             }
             h1 { class: "greeting", "Ancrées" }
             ul { class: "habit-list",
-                for habit in screen.habits {
+                for habit in screen().habits {
                     li { class: "habit-row",
                         span { class: "habit-name", "{habit.title}" }
                         button {
@@ -29,16 +32,9 @@ pub fn Anchored() -> Element {
                                 let services = services.clone();
                                 let habit_id = habit.id.clone();
                                 move |_| {
-                                    let (result, _) = readmit_and_relist(&services, &habit_id);
-                                    match result {
-                                        Ok(()) => readmit_error.set(None),
-                                        Err(error) => match refusal_message(error) {
-                                            Some(message) => {
-                                                readmit_error.set(Some((habit_id.clone(), message)))
-                                            }
-                                            None => readmit_error.set(None),
-                                        },
-                                    }
+                                    let (reloaded, message) = readmit_row(&services, &habit_id);
+                                    screen.set(reloaded);
+                                    readmit_error.set(message.map(|text| (habit_id.clone(), text)));
                                 }
                             },
                             "La remettre dans mon quotidien"
@@ -54,24 +50,10 @@ pub fn Anchored() -> Element {
             }
             p { class: "tally", "{count} · devenues naturelles" }
             p { class: "tally",
-                "Vous suivez {screen.in_daily_life} / {max} habitudes en parallèle"
+                "Vous suivez {screen().in_daily_life} / {max} habitudes en parallèle"
             }
         }
     }
-}
-
-// The tuple pairs a `#[must_use]` Result with the plain screen read-model;
-// the attribute must stay for the screen half, so the redundancy lint is
-// silenced rather than the annotation dropped (adr-0009 gesture pattern).
-#[must_use]
-#[allow(clippy::double_must_use)]
-fn readmit_and_relist(
-    services: &Services,
-    id: &str,
-) -> (Result<(), ReadmitHabitError>, AnchoredScreen) {
-    let result = services.readmit_habit.execute(id);
-    let screen = services.list_anchored_habits.handle();
-    (result, screen)
 }
 
 #[must_use]
@@ -86,8 +68,13 @@ fn refusal_message(error: ReadmitHabitError) -> Option<&'static str> {
 }
 
 #[must_use]
-fn readmit_row(_services: &Services, _id: &str) -> (AnchoredScreen, Option<&'static str>) {
-    todo!()
+fn readmit_row(services: &Services, id: &str) -> (AnchoredScreen, Option<&'static str>) {
+    let message = match services.readmit_habit.execute(id) {
+        Ok(()) => None,
+        Err(error) => refusal_message(error),
+    };
+    let screen = services.list_anchored_habits.handle();
+    (screen, message)
 }
 
 #[cfg(test)]
