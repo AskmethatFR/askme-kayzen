@@ -294,6 +294,34 @@ mod tests {
         Services::with_repository(repository)
     }
 
+    fn services_with_a_habit_thirty_days_old_done_twelve_days() -> Services {
+        let today = LocalDate::from_epoch_day(20_000);
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock(today));
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Lire une page".to_string()).unwrap(),
+            Goal::new(5).unwrap(),
+            LocalDate::from_epoch_day(19_971),
+        );
+        for days_back in 0..12 {
+            habit.toggle_done(LocalDate::from_epoch_day(19_971 + days_back));
+        }
+        repository.save(&habit);
+        Services::with_repository_and_clock(repository, clock)
+    }
+
+    #[component]
+    fn RootAtThirtyDayHabitDoneTwelve() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_a_habit_thirty_days_old_done_twelve_days);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
     #[component]
     fn RootAtPausedHabit() -> Element {
         use_hook(|| {
@@ -640,6 +668,54 @@ mod tests {
         assert!(
             html.contains("Aujourd") && html.contains("quiet-link"),
             "expected a link back to Aujourd'hui, got: {html}"
+        );
+    }
+
+    // @scenario: habit-stats/S1
+    #[test]
+    fn the_recap_names_the_days_without_practice_and_never_a_failure() {
+        let html = render(RootAtThirtyDayHabitDoneTwelve);
+
+        assert!(
+            html.contains("12") && html.contains("réalisés"),
+            "expected 12 days done to be shown, got: {html}"
+        );
+        assert!(
+            html.contains("18") && html.contains("autres jours"),
+            "expected the 18 days without practice to be shown, got: {html}"
+        );
+        let lowercase_html = html.to_lowercase();
+        for forbidden in ["échec", "raté", "manqué", "perdu", "oublié", "failed", "vide"] {
+            assert!(
+                !lowercase_html.contains(forbidden),
+                "expected no failure word in the recap, got: {html}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_recap_is_shown_whatever_the_habits_state() {
+        for root in [RootAtKnownHabit, RootAtPausedHabit, RootAtAnchoredHabit] {
+            let html = render(root);
+
+            assert!(
+                html.contains("class=\"recap\""),
+                "expected the recap zone on every habit state, got: {html}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_single_day_reads_in_the_singular() {
+        let html = render(RootAtFloorHabitDoneToday);
+
+        assert!(
+            html.contains("1 réalisé"),
+            "expected the singular form for a single day done, got: {html}"
+        );
+        assert!(
+            !html.contains("1 réalisés"),
+            "expected no plural form for a single day done, got: {html}"
         );
     }
 }
