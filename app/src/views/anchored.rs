@@ -152,6 +152,48 @@ mod tests {
         }
     }
 
+    fn services_with_full_daily_life_and_one_anchored_habit() -> Services {
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        for n in 1..=Habit::MAX_IN_DAILY_LIFE {
+            repository.save(&a_habit(&format!("h-{n}"), &format!("Habit number {n}")));
+        }
+        let mut anchored = a_habit("h-anchored", "Lire une page");
+        anchored.anchor().expect("a fresh habit is active");
+        repository.save(&anchored);
+        Services::with_repository(repository)
+    }
+
+    fn services_with_a_duplicate_titled_habit_and_one_anchored() -> Services {
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit("h-1", "lire une page"));
+        let mut anchored = a_habit("h-anchored", "Lire une page");
+        anchored.anchor().expect("a fresh habit is active");
+        repository.save(&anchored);
+        Services::with_repository(repository)
+    }
+
+    #[component]
+    fn RootAtAnchoredScreenWithFullDailyLife() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/anchored")));
+        });
+        use_context_provider(services_with_full_daily_life_and_one_anchored_habit);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootAtAnchoredScreenWithDuplicateTitle() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/anchored")));
+        });
+        use_context_provider(services_with_a_duplicate_titled_habit_and_one_anchored);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
     #[component]
     fn RootAtEmptyAnchoredScreen() -> Element {
         use_hook(|| {
@@ -188,6 +230,34 @@ mod tests {
         assert!(
             html.contains("Vous suivez 1 / 5 habitudes en parallèle"),
             "got: {html}"
+        );
+    }
+
+    #[test]
+    fn clicking_readmit_on_a_full_daily_life_shows_the_refusal_message() {
+        let mut screen = Screen::open(RootAtAnchoredScreenWithFullDailyLife);
+
+        screen.click("La remettre dans mon quotidien · Lire une page");
+
+        let html = screen.html();
+        assert!(
+            html.contains(
+                "Le quotidien est complet · pour la remettre, ancrez-en une autre d&#39;abord"
+            ),
+            "expected the refusal message next to the refused row, got: {html}"
+        );
+    }
+
+    #[test]
+    fn clicking_readmit_on_a_duplicate_title_shows_the_refusal_message() {
+        let mut screen = Screen::open(RootAtAnchoredScreenWithDuplicateTitle);
+
+        screen.click("La remettre dans mon quotidien · Lire une page");
+
+        let html = screen.html();
+        assert!(
+            html.contains("Elle est déjà dans votre quotidien"),
+            "expected the duplicate refusal message next to the refused row, got: {html}"
         );
     }
 

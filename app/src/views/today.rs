@@ -278,6 +278,10 @@ mod tests {
             html.contains("target is-done"),
             "expected the done target to be stamped, got: {html}"
         );
+        assert!(
+            html.contains(r#"aria-label="Fait aujourd&#39;hui · Read one page""#),
+            "expected the aria-label to name which habit is stamped, got: {html}"
+        );
     }
 
     // @scenario: pause-resume/S1
