@@ -161,29 +161,27 @@ body {
   opacity: .5;
 }
 
-/* the ink that stamps in when done */
 .target-ink {
   position: absolute;
   inset: 5px;
   border-radius: 50%;
-  background: var(--color-ink);
+  background: var(--color-accent);
   transform: scale(0);
   opacity: 0;
 }
-.target.is-done { border-color: var(--color-ink); }
+.target.is-done { border-color: var(--color-accent); }
 .target.is-done::before { opacity: 0; }
 .target.is-done .target-ink {
   transform: scale(1);
   opacity: 1;
   animation: kzStamp .35s cubic-bezier(.2, .8, .3, 1.2) both;
 }
-/* one diffusing accent ring on completion */
 .target.is-done::after {
   content: "";
   position: absolute;
   inset: -2px;
   border-radius: 50%;
-  border: 2px solid var(--color-accent);
+  border: 2px solid var(--color-accent-700);
   animation: kzRing .5s ease-out both;
 }
 

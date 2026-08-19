@@ -50,7 +50,7 @@ Ne jamais coder un hex en dur : passer par les variables `var(--color-*)`.
 ## Motifs d'interaction
 
 - Espacer les sections par du **blanc**, jamais des filets ou des cartes.
-- Validation d'une habitude : la cible ronde se remplit d'encre (`kzStamp`) avec deux
+- Validation d'une habitude : la cible ronde se remplit d'accent cyan (`kzStamp`) avec deux
   anneaux qui se diffusent (`kzRing`) en cyan puis magenta — récompense visuelle satisfaisante.
 - Transition d'écran douce : léger fondu + montée (`kzUp`).
 - Rituel : cercle central qui « respire » lentement (`kzBreathe`, 8 s).
