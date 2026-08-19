@@ -31,15 +31,17 @@ pub fn HabitDetail(id: String) -> Element {
 
             let recap = {
                 let days_done_label = plural(habit.recap.days_done, "réalisé", "réalisés");
-                let empty_days_label =
-                    plural(habit.recap.empty_days, "autre jour", "autres jours");
+                let empty_days_label = plural(habit.recap.empty_days, "autre jour", "autres jours");
                 let minutes_label = plural(
                     habit.recap.minutes_practised as usize,
                     "minute de pratique accumulée",
                     "minutes de pratique accumulées",
                 );
-                let goal_label =
-                    plural(habit.current_goal as usize, "minute visée", "minutes visées");
+                let goal_label = plural(
+                    habit.current_goal as usize,
+                    "minute visée",
+                    "minutes visées",
+                );
 
                 rsx! {
                     section { class: "recap",
