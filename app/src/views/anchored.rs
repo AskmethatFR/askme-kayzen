@@ -152,6 +152,17 @@ mod tests {
         }
     }
 
+    #[component]
+    fn RootAtEmptyAnchoredScreen() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/anchored")));
+        });
+        use_context_provider(|| Services::with_repository(Rc::new(InMemoryHabitRepository::new())));
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
     fn render(root: fn() -> Element) -> String {
         let mut vdom = VirtualDom::new(root);
         vdom.rebuild_in_place();
@@ -221,6 +232,16 @@ mod tests {
             )),
             "expected the parallel-count line to read 3 non-anchored habits (a paused one counts), \
              got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_parallel_count_footer_still_renders_when_nothing_is_anchored() {
+        let html = render(RootAtEmptyAnchoredScreen);
+
+        assert!(
+            html.contains("Vous suivez 0 / 5 habitudes en parallèle"),
+            "expected the parallel-count footer even on an empty Ancrées list, got: {html}"
         );
     }
 
