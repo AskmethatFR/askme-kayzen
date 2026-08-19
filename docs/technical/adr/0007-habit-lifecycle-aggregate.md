@@ -627,7 +627,11 @@ about readmission is dated (`core/src/habit_management/use_cases/readmit_habit.r
 2. the set check first — `repository.all()` filtered `state() != Anchored`, read
    live, **duplicate before capacity** (mirroring `AddHabit`'s precedence);
    capacity `>= Habit::MAX_IN_DAILY_LIFE` refuses; the habit being readmitted is
-   still `Anchored`, so it is not yet in that count;
+   still `Anchored`, so it is not yet in that count. The filter also excludes
+   the target's own id (`&& habit.id() != &id`): on a *refusal* path the target
+   is not yet `Anchored` (an `Active`/`Paused` habit calling `execute` on
+   itself), so `state() != Anchored` alone would let it match its own title
+   and turn `NotAnchored` into `DuplicateHabit`;
 3. then `habit.readmit()` — the transition guard, `NotAnchored`;
 4. then **exactly one save**, after both checks. A refusal leaves nothing behind
    (asserted via a counting repository: `save_calls == 0` on both refusal paths).
