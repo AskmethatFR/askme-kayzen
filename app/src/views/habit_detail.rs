@@ -419,6 +419,35 @@ mod tests {
         Services::with_repository_and_clock(repository, clock)
     }
 
+    fn services_with_a_habit_done_twice_at_five_then_once_at_six() -> Services {
+        let today = LocalDate::from_epoch_day(20_005);
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock(today));
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Lire une page".to_string()).unwrap(),
+            Goal::new(5).unwrap(),
+            LocalDate::from_epoch_day(20_000),
+        );
+        habit.toggle_done(LocalDate::from_epoch_day(20_003));
+        habit.toggle_done(LocalDate::from_epoch_day(20_004));
+        habit.grow(today);
+        habit.toggle_done(today);
+        repository.save(&habit);
+        Services::with_repository_and_clock(repository, clock)
+    }
+
+    #[component]
+    fn RootAtHabitDoneTwiceAtFiveThenOnceAtSix() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_a_habit_done_twice_at_five_then_once_at_six);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
     #[component]
     fn RootAtHabitGrownThreeTimesLightenedOnce() -> Element {
         use_hook(|| {
@@ -844,6 +873,16 @@ mod tests {
         assert!(
             html.contains("Objectif : 7 min"),
             "expected the current goal to be shown, got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_recap_shows_the_minutes_practised() {
+        let html = render(RootAtHabitDoneTwiceAtFiveThenOnceAtSix);
+
+        assert!(
+            html.contains("16") && html.contains("minutes de pratique accumulées"),
+            "expected the sixteen practised minutes to be shown, got: {html}"
         );
     }
 }
