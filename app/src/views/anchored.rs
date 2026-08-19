@@ -152,7 +152,7 @@ mod tests {
         }
     }
 
-    fn services_with_full_daily_life_and_one_anchored_habit() -> Services {
+    fn services_with_full_daily_life_and_two_anchored_habits() -> Services {
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
         for n in 1..=Habit::MAX_IN_DAILY_LIFE {
             repository.save(&a_habit(&format!("h-{n}"), &format!("Habit number {n}")));
@@ -160,6 +160,9 @@ mod tests {
         let mut anchored = a_habit("h-anchored", "Lire une page");
         anchored.anchor().expect("a fresh habit is active");
         repository.save(&anchored);
+        let mut other_anchored = a_habit("h-anchored-2", "Bouger un peu");
+        other_anchored.anchor().expect("a fresh habit is active");
+        repository.save(&other_anchored);
         Services::with_repository(repository)
     }
 
@@ -177,7 +180,7 @@ mod tests {
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/anchored")));
         });
-        use_context_provider(services_with_full_daily_life_and_one_anchored_habit);
+        use_context_provider(services_with_full_daily_life_and_two_anchored_habits);
         rsx! {
             Router::<Route> {}
         }
@@ -234,17 +237,26 @@ mod tests {
     }
 
     #[test]
-    fn clicking_readmit_on_a_full_daily_life_shows_the_refusal_message() {
+    fn clicking_readmit_on_a_full_daily_life_shows_the_refusal_only_under_the_refused_row() {
         let mut screen = Screen::open(RootAtAnchoredScreenWithFullDailyLife);
 
         screen.click("La remettre dans mon quotidien · Lire une page");
 
         let html = screen.html();
+        let message =
+            "Le quotidien est complet · pour la remettre, ancrez-en une autre d&#39;abord";
+        assert_eq!(
+            html.matches(message).count(),
+            1,
+            "expected the refusal message under exactly the refused row, got: {html}"
+        );
+        let message_index = html.find(message).expect("refusal message present");
+        let other_row_index = html
+            .find("Bouger un peu")
+            .expect("the other anchored habit still renders");
         assert!(
-            html.contains(
-                "Le quotidien est complet · pour la remettre, ancrez-en une autre d&#39;abord"
-            ),
-            "expected the refusal message next to the refused row, got: {html}"
+            message_index < other_row_index,
+            "expected the refusal message under Lire une page's row, not Bouger un peu's, got: {html}"
         );
     }
 
