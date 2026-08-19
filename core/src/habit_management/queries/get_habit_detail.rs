@@ -597,4 +597,38 @@ mod tests {
         );
         assert_eq!(recap.days_done, 3);
     }
+
+    // @scenario: habit-stats/S4
+    #[test]
+    fn the_recap_names_how_the_habit_is_living_right_now() {
+        let cases: Vec<(Option<i64>, RecapMessage)> = vec![
+            (None, RecapMessage::FreshStart),
+            (Some(0), RecapMessage::Growing),
+            (Some(6), RecapMessage::Growing),
+            (Some(7), RecapMessage::Resting),
+            (Some(10), RecapMessage::Resting),
+        ];
+
+        for (days_ago, expected) in cases {
+            let repository = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = Habit::new(
+                HabitId::new("h-1").unwrap(),
+                HabitTitle::new("Read one page".to_string()).unwrap(),
+                Goal::new(5).unwrap(),
+                LocalDate::from_epoch_day(CREATED_ON),
+            );
+            if let Some(days_ago) = days_ago {
+                habit.toggle_done(LocalDate::from_epoch_day(TODAY - days_ago));
+            }
+            repository.save(&habit);
+            let query = get_habit_detail_over(repository);
+
+            let message = query.handle("h-1").unwrap().recap.message;
+
+            assert_eq!(
+                message, expected,
+                "a habit last completed {days_ago:?} days ago reads as {expected:?}"
+            );
+        }
+    }
 }
