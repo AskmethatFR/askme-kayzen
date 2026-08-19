@@ -30,28 +30,16 @@ pub fn HabitDetail(id: String) -> Element {
             };
 
             let recap = {
-                let days_done_label = format!(
-                    "{} {}",
-                    habit.recap.days_done,
-                    plural(habit.recap.days_done, "réalisé", "réalisés")
+                let days_done_label = plural(habit.recap.days_done, "réalisé", "réalisés");
+                let empty_days_label =
+                    plural(habit.recap.empty_days, "autre jour", "autres jours");
+                let minutes_label = plural(
+                    habit.recap.minutes_practised as usize,
+                    "minute de pratique accumulée",
+                    "minutes de pratique accumulées",
                 );
-                let empty_days_label = format!(
-                    "{} {}",
-                    habit.recap.empty_days,
-                    plural(habit.recap.empty_days, "autre jour", "autres jours")
-                );
-                let minutes_label = format!(
-                    "{} {}",
-                    habit.recap.minutes_practised,
-                    plural(
-                        habit.recap.minutes_practised as usize,
-                        "minute de pratique accumulée",
-                        "minutes de pratique accumulées"
-                    )
-                );
-                let growths_label = format!("{} fois grandie", habit.recap.growths);
-                let lightenings_label = format!("{} fois allégée", habit.recap.lightenings);
-                let goal_label = format!("Objectif : {} min", habit.current_goal);
+                let goal_label =
+                    plural(habit.current_goal as usize, "minute visée", "minutes visées");
 
                 rsx! {
                     section { class: "recap",
@@ -71,11 +59,11 @@ pub fn HabitDetail(id: String) -> Element {
                             }
                             li {
                                 span { class: "recap-figure", "{habit.recap.growths}" }
-                                span { class: "recap-label", "{growths_label}" }
+                                span { class: "recap-label", "fois grandie" }
                             }
                             li {
                                 span { class: "recap-figure", "{habit.recap.lightenings}" }
-                                span { class: "recap-label", "{lightenings_label}" }
+                                span { class: "recap-label", "fois allégée" }
                             }
                             li {
                                 span { class: "recap-figure", "{habit.current_goal}" }
