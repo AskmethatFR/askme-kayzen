@@ -669,4 +669,52 @@ mod tests {
             }
         );
     }
+
+    // N5: minutes_practised summed goal_active_on() with a bare `+=`, asymmetric
+    // with Goal::grown's saturating_add — a debug build panics on overflow
+    // instead of saturating.
+    #[test]
+    fn minutes_practised_saturates_instead_of_overflowing() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Read one page".to_string()).unwrap(),
+            Goal::new(u32::MAX).unwrap(),
+            LocalDate::from_epoch_day(TODAY - 1),
+        );
+        habit.toggle_done(LocalDate::from_epoch_day(TODAY - 1));
+        habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+        repository.save(&habit);
+        let query = get_habit_detail_over(repository);
+
+        let recap = query.handle("h-1").unwrap().recap;
+
+        assert_eq!(recap.minutes_practised, u32::MAX);
+    }
+
+    // N6: clock skew (device date moved back, westward TZ change on the
+    // creation day) means today < created_on. The day-walk must still cover
+    // at least the habit's own creation day, keeping D3 (days_done + empty_days
+    // = age) true instead of silently reading zero everywhere.
+    #[test]
+    fn a_recap_still_covers_the_creation_day_when_the_clock_lags_behind_it() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Read one page".to_string()).unwrap(),
+            Goal::new(5).unwrap(),
+            LocalDate::from_epoch_day(TODAY + 5),
+        );
+        repository.save(&habit);
+        let query = get_habit_detail_over(repository);
+
+        let recap = query.handle("h-1").unwrap().recap;
+
+        assert_eq!(
+            recap.days_done + recap.empty_days,
+            1,
+            "D3: days_done + empty_days must equal the habit's age even when \
+             the clock's today lags behind its created_on"
+        );
+    }
 }
