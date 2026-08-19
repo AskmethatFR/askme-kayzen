@@ -71,7 +71,9 @@ impl Screen {
         match matches.as_slice() {
             [id] => *id,
             [] => {
-                panic!("no element with aria-label {aria_label:?} found; available labels: {available:?}")
+                panic!(
+                    "no element with aria-label {aria_label:?} found; available labels: {available:?}"
+                )
             }
             _ => panic!(
                 "ambiguous aria-label {aria_label:?}: {} elements share it",
