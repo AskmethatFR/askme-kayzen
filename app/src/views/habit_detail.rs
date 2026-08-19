@@ -401,6 +401,35 @@ mod tests {
         }
     }
 
+    fn services_with_a_habit_grown_three_times_and_lightened_once() -> Services {
+        let today = LocalDate::from_epoch_day(20_005);
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock(today));
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Lire une page".to_string()).unwrap(),
+            Goal::new(5).unwrap(),
+            LocalDate::from_epoch_day(20_000),
+        );
+        for _ in 0..3 {
+            habit.grow(today);
+        }
+        habit.lighten(today);
+        repository.save(&habit);
+        Services::with_repository_and_clock(repository, clock)
+    }
+
+    #[component]
+    fn RootAtHabitGrownThreeTimesLightenedOnce() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_a_habit_grown_three_times_and_lightened_once);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
     #[component]
     fn RootAtPausedHabit() -> Element {
         use_hook(|| {
@@ -797,6 +826,24 @@ mod tests {
         assert!(
             !html.contains("1 réalisés"),
             "expected no plural form for a single day done, got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_recap_shows_how_often_the_goal_moved() {
+        let html = render(RootAtHabitGrownThreeTimesLightenedOnce);
+
+        assert!(
+            html.contains("3") && html.contains("fois grandie"),
+            "expected three growths to be shown, got: {html}"
+        );
+        assert!(
+            html.contains("1") && html.contains("fois allégée"),
+            "expected one lightening to be shown, got: {html}"
+        );
+        assert!(
+            html.contains("Objectif : 7 min"),
+            "expected the current goal to be shown, got: {html}"
         );
     }
 }
