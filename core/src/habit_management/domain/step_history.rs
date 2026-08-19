@@ -66,3 +66,39 @@ impl StepHistory {
         self.rest.push(StepChange::new(on, goal));
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn a_history() -> StepHistory {
+        StepHistory::seeded(LocalDate::from_epoch_day(20_000), Goal::new(5).unwrap())
+    }
+
+    // Called by two use cases (GrowGoal, LightenGoal — via Habit::grow/lighten)
+    // and read by GetHabitDetail: a published contract, so this pins the
+    // invariant directly rather than through a single calling use case
+    // (test-ddd-tactical Entry Gate). `already_at_the_ceiling`/
+    // `already_at_the_floor` in Habit currently duplicate this guard on the
+    // caller side — this test decides whether `record` should enforce it
+    // itself instead (N1).
+    #[test]
+    fn recording_a_goal_equal_to_the_current_one_leaves_the_history_unchanged() {
+        let mut history = a_history();
+
+        history.record(LocalDate::from_epoch_day(20_001), Goal::new(5).unwrap());
+
+        assert_eq!(history.changes().len(), 1);
+        assert_eq!(history.current(), &Goal::new(5).unwrap());
+    }
+
+    #[test]
+    fn recording_a_different_goal_appends_a_new_step() {
+        let mut history = a_history();
+
+        history.record(LocalDate::from_epoch_day(20_001), Goal::new(6).unwrap());
+
+        assert_eq!(history.changes().len(), 2);
+        assert_eq!(history.current(), &Goal::new(6).unwrap());
+    }
+}
