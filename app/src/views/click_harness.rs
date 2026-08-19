@@ -9,11 +9,12 @@ static INSTALL_EVENT_CONVERTER: Once = Once::new();
 
 // Locates by aria-label against the Mutations captured at `open()`'s first
 // render only: `ElementId`s are reassigned on every diff, so that lookup
-// stays valid before any `click()` runs, and a second click on the same
-// `Screen` is not supported.
+// stays valid before any `click()` runs — a second `click()` on the same
+// `Screen` panics rather than silently targeting a stale id.
 pub(crate) struct Screen {
     vdom: VirtualDom,
     first_render: Mutations,
+    clicked: bool,
 }
 
 impl Screen {
@@ -23,7 +24,11 @@ impl Screen {
         });
         let mut vdom = VirtualDom::new(root);
         let first_render = vdom.rebuild_to_vec();
-        Screen { vdom, first_render }
+        Screen {
+            vdom,
+            first_render,
+            clicked: false,
+        }
     }
 
     pub(crate) fn html(&self) -> String {
@@ -31,6 +36,10 @@ impl Screen {
     }
 
     pub(crate) fn click(&mut self, aria_label: &str) {
+        assert!(
+            !self.clicked,
+            "a Screen supports one click: ElementIds move after the diff"
+        );
         let id = self.locate(aria_label);
         let data: Rc<dyn Any> = Rc::new(PlatformEventData::new(Box::new(
             SerializedMouseData::default(),
@@ -39,9 +48,11 @@ impl Screen {
             .runtime()
             .handle_event("click", dioxus_core::Event::new(data, true), id);
         self.vdom.render_immediate(&mut NoOpMutations);
+        self.clicked = true;
     }
 
     fn locate(&self, aria_label: &str) -> dioxus_core::ElementId {
+        let mut matches = Vec::new();
         let mut available = Vec::new();
         for edit in &self.first_render.edits {
             if let Mutation::SetAttribute {
@@ -52,12 +63,21 @@ impl Screen {
             } = edit
             {
                 if text == aria_label {
-                    return *id;
+                    matches.push(*id);
                 }
                 available.push(text.clone());
             }
         }
-        panic!("no element with aria-label {aria_label:?} found; available labels: {available:?}");
+        match matches.as_slice() {
+            [id] => *id,
+            [] => {
+                panic!("no element with aria-label {aria_label:?} found; available labels: {available:?}")
+            }
+            _ => panic!(
+                "ambiguous aria-label {aria_label:?}: {} elements share it",
+                matches.len()
+            ),
+        }
     }
 }
 
