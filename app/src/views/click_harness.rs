@@ -60,3 +60,47 @@ impl Screen {
         panic!("no element with aria-label {aria_label:?} found; available labels: {available:?}");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[component]
+    fn RootWithVanishingButton() -> Element {
+        let mut visible = use_signal(|| true);
+        let label = "vanish";
+        rsx! {
+            if visible() {
+                button {
+                    aria_label: "{label}",
+                    onclick: move |_| visible.set(false),
+                    "x"
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "a Screen supports one click")]
+    fn clicking_twice_on_the_same_screen_panics_instead_of_silently_targeting_a_stale_id() {
+        let mut screen = Screen::open(RootWithVanishingButton);
+        screen.click("vanish");
+        screen.click("vanish");
+    }
+
+    #[component]
+    fn RootWithDuplicateAriaLabels() -> Element {
+        let label = "dup";
+        rsx! {
+            button { aria_label: "{label}", "a" }
+            button { aria_label: "{label}", "b" }
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "ambiguous aria-label")]
+    fn locating_a_duplicated_aria_label_panics_instead_of_silently_picking_the_first() {
+        let mut screen = Screen::open(RootWithDuplicateAriaLabels);
+        screen.click("dup");
+    }
+}
