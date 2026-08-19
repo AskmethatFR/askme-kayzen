@@ -101,9 +101,6 @@ mod tests {
         );
     }
 
-    // Mirrors S4's Given verbatim: 2 active + 1 paused = 3 non-anchored habits
-    // (the .feature previously said 2, the paused habit omitted — corrected
-    // to match this fixture, not the other way around).
     // @scenario: readmit-habit/S4
     #[test]
     fn in_daily_life_counts_every_non_anchored_habit_including_paused_ones() {
