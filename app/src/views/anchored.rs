@@ -25,7 +25,15 @@ pub fn Anchored() -> Element {
             ul { class: "habit-list",
                 for habit in screen().habits {
                     li { class: "habit-row",
-                        span { class: "habit-name", "{habit.title}" }
+                        div { class: "habit-body",
+                            span { class: "habit-name", "{habit.title}" }
+                            if let Some((_, message)) = readmit_error()
+                                .as_ref()
+                                .filter(|(row_id, _)| row_id == &habit.id)
+                            {
+                                p { class: "quiet-note", "{message}" }
+                            }
+                        }
                         button {
                             class: "readmit",
                             aria_label: "La remettre dans mon quotidien · {habit.title}",
@@ -40,12 +48,6 @@ pub fn Anchored() -> Element {
                                 }
                             },
                             "La remettre dans mon quotidien"
-                        }
-                        if let Some((_, message)) = readmit_error()
-                            .as_ref()
-                            .filter(|(row_id, _)| row_id == &habit.id)
-                        {
-                            p { class: "quiet-note", "{message}" }
                         }
                     }
                 }
@@ -431,7 +433,9 @@ mod tests {
         let message =
             "Le quotidien est complet · pour la remettre, ancrez-en une autre d&#39;abord";
         assert!(
-            html.contains(&format!(r#"<p class="quiet-note">{message}</p></div><button"#)),
+            html.contains(&format!(
+                r#"<p class="quiet-note">{message}</p></div><button"#
+            )),
             "expected the refusal note nested inside the habit-body wrapper, closed before \
              the readmit button — not a direct child of the flex habit-row, got: {html}"
         );
