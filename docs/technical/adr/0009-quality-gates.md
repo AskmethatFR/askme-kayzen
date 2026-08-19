@@ -7,6 +7,8 @@ updated: "2026-08-17"
 relations:
   related:
     - "architecture-overview"
+    # Annuls this node's L1-bis « residue too thin » rationale — that facet only.
+    - "adr-0014-view-wiring-click-dispatch-harness"
     - "adr-0012-synchronous-cross-aggregate-coordination"
     - "adr-0013-set-based-validation-outside-aggregates"
     - "lifecycle-backlog"
@@ -262,13 +264,14 @@ afterwards and observed the named test fail.
 ### The mitigation pattern: extract the gesture into a free function
 
 **Logic written inline inside an `onclick` closure is unreachable by every gate this repo
-owns.** There is no click dispatch in the test suite (L1 already recorded that this repo
+owns.** There was, at slice 5, no click dispatch in the test suite (L1 already recorded that this repo
 has no `VirtualDom` event-driving precedent), the mutation gate does not look at
 `app/src/**`, and a render assertion cannot tell two identically-rendered buttons apart.
 
 Extracted into a **`#[must_use]` free function** taking `&Services` and the id and
 returning the refreshed read model, the same logic becomes **plain Rust**: callable from a
-test with no click infrastructure at all, and mutable-and-caught like any other function.
+test with no click infrastructure at all, and mutable-and-caught like any other function. The
+pattern itself stands, unchanged, and is not what expired below.
 
 ```
 onclick: move |_| { ...gesture... }        →  unreachable by every gate
@@ -277,15 +280,27 @@ fn pause_and_reload(&Services, &str) -> T  →  ordinary, testable Rust
 
 Delivered shape: `pause_and_reload` / `resume_and_reload` in
 `app/src/views/habit_detail.rs`, `resume_and_relist` / `mark_done_and_relist` in
-`app/src/views/today.rs`. The `onclick` is reduced to a call plus a signal assignment —
-the residue too thin to hide a defect. Mutation (a) is now caught by the function's own
-test; (b) and (c) by the render assertions pinning the button's presence per state and the
-zone's absence when empty.
+`app/src/views/today.rs`. The `onclick` is reduced to a call plus a signal assignment.
+Mutation (a) is now caught by the function's own test; (b) and (c) by the render assertions
+pinning the button's presence per state and the zone's absence when empty.
 
-**This pattern is the standing answer until a click-dispatch harness lands.** It is not a
-workaround for a missing tool — it is the recognition that a gesture is application logic
-that happens to be triggered by a click, and it belongs somewhere a test can call it.
-Treat inline `onclick` logic as an untested-by-construction site in every review.
+> ~~*the residue too thin to hide a defect*~~ — **RATIONALE ANNULLED 2026-08-19 by
+> [[adr-0014-view-wiring-click-dispatch-harness]]**, and this facet only; every other decision
+> in this node stands. The residue hid **three** defects in one cycle, each leaving the full
+> suite green: a read model captured before the gesture and re-set after it, a refusal-message
+> assignment collapsed to `None`, and a per-row predicate forced to `true`. The measured reason
+> is worse than "we had no harness" — **every mutant cargo-mutants generates over the views is a
+> whole-`fn` return replacement; none descends into a closure**, so the residue is outside the
+> tool's operator set at *any* perimeter width. Do not wave inline `onclick` residue through on
+> the strength of the struck sentence.
+
+**The extraction pattern is the standing answer, and it is no longer the *whole* answer** —
+~~until a click-dispatch harness lands~~, which it did on 2026-08-19. The extraction is not a
+workaround for a missing tool: it is the recognition that a gesture is application logic that
+happens to be triggered by a click, and it belongs somewhere a test can call it. What changed is
+that the leftover wiring is now pinned by a dispatched click rather than argued away —
+[[adr-0014-view-wiring-click-dispatch-harness]]. Treat inline `onclick` logic as an
+untested-by-construction site in every review.
 
 ### L4 — cargo-mutants does not mutate `match` arms
 
