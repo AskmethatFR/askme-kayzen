@@ -77,6 +77,9 @@ impl Habit {
     pub fn step_history(&self) -> &StepHistory {
         &self.steps
     }
+    pub fn created_on(&self) -> LocalDate {
+        self.steps.started_on()
+    }
 
     pub fn toggle_done(&mut self, today: LocalDate) {
         self.completion_history.toggle(today);

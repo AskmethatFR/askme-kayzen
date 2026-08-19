@@ -44,6 +44,11 @@ impl StepHistory {
         }
     }
 
+    /// The day this history was seeded — the habit's own first day.
+    pub fn started_on(&self) -> LocalDate {
+        self.first.on()
+    }
+
     pub fn current(&self) -> &Goal {
         self.rest
             .last()

@@ -22,6 +22,7 @@ pub struct HabitDetail {
     pub next_goal_down: u32,
     pub days: Vec<PracticeDay>,
     pub state: HabitState,
+    pub recap: HabitRecap,
 }
 
 /// The habit's lifecycle as seen by the detail screen — a DTO-side type, kept
@@ -49,6 +50,32 @@ pub struct PracticeDay {
     pub done: bool,
     pub goal: u32,
 }
+
+/// Everything the detail screen tells about a habit's whole life, derived on
+/// read from the two dated histories (adr-0006: nothing is stored).
+#[derive(Debug, Clone, PartialEq)]
+pub struct HabitRecap {
+    pub days_done: usize,
+    pub empty_days: usize,
+    pub minutes_practised: u32,
+    pub growths: usize,
+    pub lightenings: usize,
+    pub message: RecapMessage,
+}
+
+/// How the habit is living right now, as the recap says it — a DTO-side enum
+/// (adr-0006: a domain-shaped choice crosses as an enum, never a bool, and the
+/// French words live in the view, never in core).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RecapMessage {
+    FreshStart,
+    Resting,
+    Growing,
+}
+
+/// Days without practice after which the recap speaks of rest. Seven, the only
+/// rhythm this app speaks (see WINDOW_DAYS).
+const RESTING_AFTER_DAYS: usize = 7;
 
 impl GetHabitDetail {
     pub fn new(repository: Rc<dyn HabitRepository>, clock: Rc<dyn Clock>) -> GetHabitDetail {
@@ -79,6 +106,7 @@ impl GetHabitDetail {
                 LifecycleState::Paused => HabitState::Paused,
                 LifecycleState::Anchored => HabitState::Anchored,
             },
+            recap: recap_of(&habit, today),
         })
     }
 }
@@ -104,9 +132,15 @@ fn goal_active_on(habit: &Habit, day: LocalDate) -> u32 {
         .value()
 }
 
+fn recap_of(habit: &Habit, today: LocalDate) -> HabitRecap {
+    todo!("walk every day from creation to today, counting practice")
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{GetHabitDetail, HabitDetail, HabitState, PracticeDay};
+    use super::{
+        GetHabitDetail, HabitDetail, HabitRecap, HabitState, PracticeDay, RecapMessage,
+    };
     use crate::habit_management::domain::goal::Goal;
     use crate::habit_management::domain::habit::Habit;
     use crate::habit_management::domain::habit_id::HabitId;
@@ -163,6 +197,14 @@ mod tests {
                 next_goal_down: 4,
                 days: seven_days(false, 5),
                 state: HabitState::Active,
+                recap: HabitRecap {
+                    days_done: 0,
+                    empty_days: 11,
+                    minutes_practised: 0,
+                    growths: 0,
+                    lightenings: 0,
+                    message: RecapMessage::FreshStart,
+                },
             })
         );
     }
@@ -376,5 +418,27 @@ mod tests {
 
             assert_eq!(result.map(|detail| detail.state), Some(expected));
         }
+    }
+
+    // @scenario: habit-stats/S1
+    #[test]
+    fn a_recap_counts_the_days_done_and_the_days_without_practice() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Read one page".to_string()).unwrap(),
+            Goal::new(5).unwrap(),
+            LocalDate::from_epoch_day(TODAY - 29),
+        );
+        for days_back in 0..12 {
+            habit.toggle_done(LocalDate::from_epoch_day(TODAY - 29 + days_back));
+        }
+        repository.save(&habit);
+        let query = get_habit_detail_over(repository);
+
+        let recap = query.handle("h-1").unwrap().recap;
+
+        assert_eq!(recap.days_done, 12);
+        assert_eq!(recap.empty_days, 18);
     }
 }
