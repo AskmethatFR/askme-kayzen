@@ -25,6 +25,6 @@ Feature: Put an anchored habit back into the daily life
 
   @scenario:S4
   Scenario: The Ancrées screen states how many habits are followed in parallel
-    Given an anchored habit and a daily life holding 2 non-anchored habits
+    Given an anchored habit and a daily life holding 2 active habits and 1 paused habit
     When the user opens the Ancrées screen
-    Then the screen reads "Vous suivez 2 / 5 habitudes en parallèle"
+    Then the screen reads "Vous suivez 3 / 5 habitudes en parallèle"
