@@ -2,7 +2,7 @@
 
 > Functional node (owner: pm). What the product does today, in business terms, with the acceptance that pins each behavior. Technical rationale lives in [[architecture-overview]] and [[adr-0001-validation-by-construction]].
 
-> The acceptance tables below are mirrored as spec-only Gherkin in `docs/functional/features/habit-management/`: F-1 → [[add-habit]]. Delivered since: [[today-habit-list]], [[mark-done]], [[adjust-goal]], [[practice-staircase]], [[pause-resume]] and [[anchor-habit]]. Every scenario there resolves to a test through its `// @scenario:` anchor (`scenario_audit.py`).
+> The acceptance tables below are mirrored as spec-only Gherkin in `docs/functional/features/habit-management/`: F-1 → [[add-habit]]. Delivered since: [[today-habit-list]], [[mark-done]], [[adjust-goal]], [[practice-staircase]], [[pause-resume]], [[anchor-habit]], [[readmit-habit]] and [[habit-stats]]. Every scenario there resolves to a test through its `// @scenario:` anchor (`scenario_audit.py`).
 
 ## F-1 — Add a habit to my daily life
 
@@ -118,9 +118,26 @@ The new **Ancrées** screen lists every anchored habit and states how many there
 | An anchored habit | It is marked done | Today's completion is recorded — anchoring ends the seat, not the habit |
 | A habit completed on 10 of the last 14 days | The user opens its detail | Nothing suggests anchoring it — anchoring is user-initiated |
 
+## F-8 — Read a habit's story as a recap
+
+The detail screen shows, under the practice staircase and in every habit state (active, paused, anchored), the habit's whole life told without guilt: **days done**, **other days** (never "failed", never "empty"), **minutes of practice accumulated**, how often the goal was **grown** and **lightened**, the **current goal**, and one adaptive sentence — never a congratulations, never a reproach.
+
+Everything is **derived on read** from the two dated histories (completions + steps): nothing about the recap is stored (see [[adr-0006-cqrs-light]]). The recap counts every day from creation to today, done or not (`days done + other days = the habit's age`); minutes are the sum of each completed day against the goal in force that day — total practised time, never a gain over the starting goal. After **7 days without practice** the sentence acknowledges the rest (« Elle se repose en ce moment. Elle vous attend, sans presser. »); a habit never done opens on « Un début parfait. Tout est encore devant. »; otherwise « Vous la faites vivre, à votre rythme. ». There is **no streak anywhere** — an empty day is never a failure, and the recap is a reading, not a gesture (nothing on it is clickable).
+
+**Acceptance (pinned by tests in `core/src/habit_management/queries/get_habit_detail.rs` and `app/src/views/habit_detail.rs`, mirrored as [[habit-stats]]):**
+
+| Given | When | Then |
+|---|---|---|
+| A habit whose life spans 30 days, completed on 12 of them | The user opens its recap | It reads « 12 réalisés » and « 18 autres jours », and the days without practice are never named a failure |
+| A habit grown 3 times and lightened once, now at 7 minutes | The user opens its recap | It reads « 3 fois grandie », « 1 fois allégée » and the current goal; the lightening is never named a setback |
+| A habit completed on two days whose goal was 5 minutes, then on one day whose goal was 6 | The user opens its recap | It reads « 16 minutes de pratique accumulées », and the label says time practised, never gain over the starting goal |
+| A habit with no completion for the last 10 days | The user opens its recap | The message acknowledges the rest without blaming, because an empty day is never a failure |
+| A habit created today and not yet done | The user opens its recap | The message reads « Un début parfait », because an empty start is still a start |
+| A habit created today and not yet done | The user opens its recap | It reads « 0 réalisé · 1 autre jour » — the recap counts the day it was created |
+
 ## Not available yet (deliberate — manual development resumes from here)
 
 - **Nothing survives a restart**: every store is in-memory (`InMemoryHabitRepository`), and the Today screen is seeded with three demo habits at startup. No persistence adapter exists yet.
 - Four of the six screens act: **Today** (list + mark done + the paused zone + the Ancrées link), **Add**, **Detail** (adjust the goal, read the practice staircase, pause/resume, anchor), and **Ancrées** (list + count only — see F-7). Ritual and Week are routed stubs.
-- Anchoring is now two-way: the Ancrées screen offers « La remettre dans mon quotidien » on each anchored habit (`[[readmit-habit]]`, slice 7), refusable on a full daily life (« Le quotidien est complet · pour la remettre, ancrez-en une autre d'abord ») or on a title already retaken (« Elle est déjà dans votre quotidien »). The screen's parallel-count footer « Vous suivez N / 5 habitudes en parallèle » is shipped; its per-habit dots remain deferred (see F-7). The recap (slice 8) is specified but not built — see [[lifecycle-backlog]].
+- Anchoring is now two-way: the Ancrées screen offers « La remettre dans mon quotidien » on each anchored habit (`[[readmit-habit]]`, slice 7), refusable on a full daily life (« Le quotidien est complet · pour la remettre, ancrez-en une autre d'abord ») or on a title already retaken (« Elle est déjà dans votre quotidien »). The screen's parallel-count footer « Vous suivez N / 5 habitudes en parallèle » is shipped; its per-habit dots remain deferred (see F-7). The recap ([[habit-stats]], slice 8) is shipped — see F-8.
 - The multi-step *request* → *create-on-request* flow is **gone** (slice 6): habit creation is one gesture via `AddHabit`, one write, no published events.

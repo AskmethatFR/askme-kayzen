@@ -36,8 +36,9 @@ decided_in:
   - "2026-07-27 slice 3 adjust-goal cycle (DTO-naming scope, HabitBoardError tension recorded)"
   - "2026-08-06 slice 5 pause-resume cycle (TodayHabits two-list DTO, DTO-side enums)"
   - "2026-08-11 slice 6 anchor-habit cycle (sibling screen ⇒ sibling query; anchored_count derived)"
-  - "2026-08-17 drop-habit-board refactor (the HabitBoardError tension resolved by deletion)"
-  - "2026-08-17 PR 2 guard-lifecycle-transitions (flat use-case variants keep the MUST unqualified)"
+   - "2026-08-17 drop-habit-board refactor (the HabitBoardError tension resolved by deletion)"
+   - "2026-08-17 PR 2 guard-lifecycle-transitions (flat use-case variants keep the MUST unqualified)"
+   - "2026-08-19 slice 8 stats-board cycle (the statistics board landed as a field on GetHabitDetail's DTO; the planned get-habit-stats/ anchor is stale)"
 ---
 
 # ADR 0006 — CQRS-light for the read side of habit_management (query handlers + per-screen DTOs, no projections)
@@ -57,12 +58,12 @@ The lifecycle backlog ([[habit-progression-study]], `lifecycle-backlog`) require
 
 | Facet | Decision | Anchor |
 |---|---|---|
-| Handler split | **Query handlers (read use cases) separate from command use cases.** Commands live under `use_cases/`, queries under a dedicated `queries/` module — one flat `snake_case` module per query: `list_board_habits.rs`, later `get_habit_detail.rs`, `get_habit_stats.rs`. Module/file names are `snake_case` per Rust RFC 430 — flat modules (no `mod.rs`-inception folders), no `#[path]` remapping. The physical `use_cases/` (commands) vs `queries/` split was adopted early rather than deferred | `core/src/habit_management/queries/list_board_habits.rs` |
+| Handler split | **Query handlers (read use cases) separate from command use cases.** Commands live under `use_cases/`, queries under a dedicated `queries/` module — one flat `snake_case` module per query: `list_board_habits.rs`, later `get_habit_detail.rs`, ~~`get_habit_stats.rs`~~ (the stats board landed as a field of `GetHabitDetail`'s DTO — slice 8, see the Statistics board row). Module/file names are `snake_case` per Rust RFC 430 — flat modules (no `mod.rs`-inception folders), no `#[path]` remapping. The physical `use_cases/` (commands) vs `queries/` split was adopted early rather than deferred | `core/src/habit_management/queries/list_board_habits.rs` |
 | Read models | **Per-screen DTOs owned by their query use case** (`HabitSummary`, `HabitDetail`, later `HabitStats`). Duplication across DTOs is acceptable — one screen = one read model, no god read model. **Amended 2026-08-06**: "per-screen" is literal — a screen showing two zones gets **one DTO carrying both lists** (`TodayHabits { active, paused }`), not two queries; and a domain enum reaching the view crosses as a **DTO-side enum**, never a `bool`. See the amendment below | `core/src/habit_management/queries/list_board_habits.rs`, `core/src/habit_management/queries/get_habit_detail.rs` |
 | Crate boundary | DTOs are the **crate-boundary contract** — domain types NEVER cross into `kayzen-app` (extends [[adr-0003-two-crate-workspace]]'s dependency rule to data shapes) | — |
 | Data access | Queries read through the **EXISTING domain ports** (`HabitRepository`, `HabitBoardRepository`) against the same store. **NO dedicated ReadModel port** — a single trivial implementation would be YAGNI | — |
 | Derived data | ALL derived display data (stats, minutes gained, motivational messages) is **computed on read** by pure stateless domain services — nothing stored. Progression *suggestions* are **no longer among them**: the `StabilityPolicy` is removed ([[adr-0008-goal-based-dose-user-paced-progression]]) | — |
-| Statistics board | The future per-habit statistics board is **MORE QUERIES over the two dated histories** already in the aggregate (completions + step history) — days done, empty days, grow/lighten counts, minutes gained are *derivations, not projections*. The designer's own "tout le récap est dérivé" principle generalizes to every stat. Adaptive motivational messages = another stateless read-side policy | planned: `get-habit-stats/` |
+| Statistics board | The per-habit statistics board is **MORE QUERIES over the two dated histories** already in the aggregate (completions + step history) — days done, empty days, grow/lighten counts, minutes practised are *derivations, not projections*. The designer's own "tout le récap est dérivé" principle generalizes to every stat. Adaptive motivational messages = another stateless read-side policy. **Landed 2026-08-19 (slice 8) as a field of `GetHabitDetail`'s DTO** (`HabitDetail.recap`, D1) — the recap is a *zone of one screen*, so the 2026-08-06/08-11 rule applies: a zone gets a field, only a sibling screen gets a sibling query. **The planned `get-habit-stats/` anchor is stale** — that query file does not exist and will not be written | ~~planned: `get-habit-stats/`~~ — stale (slice 8) |
 
 ## Rejected alternatives
 
