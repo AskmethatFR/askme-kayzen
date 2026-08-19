@@ -727,6 +727,20 @@ mod tests {
         );
     }
 
+    #[test]
+    fn the_ritual_gesture_states_no_duration_the_habit_does_not_have() {
+        let html = render(RootAtKnownHabit);
+
+        assert!(
+            html.contains("Commencer ma pratique"),
+            "expected the ritual gesture in its neutral, duration-free wording, got: {html}"
+        );
+        assert!(
+            !html.contains("Faire ma minute"),
+            "expected the old copy asserting a duration to be gone, got: {html}"
+        );
+    }
+
     // @scenario: adjust-goal/S4
     #[test]
     fn both_gestures_stay_offered_whatever_the_habits_history() {
