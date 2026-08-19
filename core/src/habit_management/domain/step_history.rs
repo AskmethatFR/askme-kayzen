@@ -30,6 +30,8 @@ impl StepChange {
 /// `Option` or a panic. Further steps are appended one at a time through
 /// `record`, called by the use case that grows or lightens the goal
 /// (adjust-goal slice 3); the history never removes, pops, or merges steps.
+/// A step recording the goal already in force is not a step — `record`
+/// ignores it, so no two consecutive steps ever carry the same goal.
 #[derive(Debug, Clone, PartialEq)]
 pub struct StepHistory {
     first: StepChange,
@@ -80,9 +82,7 @@ mod tests {
     // Called by two use cases (GrowGoal, LightenGoal — via Habit::grow/lighten)
     // and read by GetHabitDetail: a published contract, so this pins the
     // invariant directly rather than through a single calling use case
-    // (test-ddd-tactical Entry Gate). This test drove the guard into record()
-    // itself (N1) — Habit no longer duplicates it as already_at_the_ceiling/
-    // already_at_the_floor on the caller side.
+    // (test-ddd-tactical Entry Gate).
     #[test]
     fn recording_a_goal_equal_to_the_current_one_leaves_the_history_unchanged() {
         let mut history = a_history();

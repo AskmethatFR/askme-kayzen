@@ -673,9 +673,8 @@ mod tests {
         );
     }
 
-    // N5: minutes_practised summed goal_active_on() with a bare `+=`, asymmetric
-    // with Goal::grown's saturating_add — a debug build panics on overflow
-    // instead of saturating.
+    // A u32 sum over every practised day saturates rather than panicking in
+    // debug, matching Goal::grown.
     #[test]
     fn minutes_practised_saturates_instead_of_overflowing() {
         let repository = Rc::new(InMemoryHabitRepository::new());
@@ -695,7 +694,7 @@ mod tests {
         assert_eq!(recap.minutes_practised, u32::MAX);
     }
 
-    // N6: clock skew (device date moved back, westward TZ change on the
+    // Clock skew (device date moved back, westward TZ change on the
     // creation day) means today < created_on. The day-walk must still cover
     // at least the habit's own creation day, keeping D3 (days_done + empty_days
     // = age) true instead of silently reading zero everywhere.

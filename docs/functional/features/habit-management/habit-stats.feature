@@ -18,7 +18,7 @@ Feature: Read a habit's story
   Scenario: The recap counts how often the goal moved
     Given a habit grown 3 times and lightened once, now at 7 minutes
     When the user opens its recap
-    Then it reads "3 fois grandie", "1 fois allégée" and the current goal
+    Then it reads "3 fois grandie" and "1 fois allégée"
     And the lightening is never named a setback
 
   @scenario:S3

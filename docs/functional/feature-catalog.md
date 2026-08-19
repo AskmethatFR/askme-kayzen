@@ -120,7 +120,7 @@ The new **Ancrées** screen lists every anchored habit and states how many there
 
 ## F-8 — Read a habit's story as a recap
 
-The detail screen shows, under the practice staircase and in every habit state (active, paused, anchored), the habit's whole life told without guilt: **days done**, **other days** (never "failed", never "empty"), **minutes of practice accumulated**, how often the goal was **grown** and **lightened**, the **current goal**, and one adaptive sentence — never a congratulations, never a reproach.
+The detail screen shows, under the practice staircase and in every habit state (active, paused, anchored), the habit's whole life told without guilt: **days done**, **other days** (never "failed", never "empty"), **minutes of practice accumulated**, how often the goal was **grown** and **lightened**, and one adaptive sentence — never a congratulations, never a reproach. The current goal is already stated by the lede and the adjust buttons; the recap does not restate it.
 
 Everything is **derived on read** from the two dated histories (completions + steps): nothing about the recap is stored (see [[adr-0006-cqrs-light]]). The recap counts every day from creation to today, done or not (`days done + other days = the habit's age`); minutes are the sum of each completed day against the goal in force that day — total practised time, never a gain over the starting goal. After **7 days without practice** the sentence acknowledges the rest (« Elle se repose en ce moment. Elle vous attend, sans presser. »); a habit never done opens on « Un début parfait. Tout est encore devant. »; otherwise « Vous la faites vivre, à votre rythme. ». There is **no streak anywhere** — an empty day is never a failure, and the recap is a reading, not a gesture (nothing on it is clickable).
 
@@ -129,9 +129,9 @@ Everything is **derived on read** from the two dated histories (completions + st
 | Given | When | Then |
 |---|---|---|
 | A habit whose life spans 30 days, completed on 12 of them | The user opens its recap | It reads « 12 réalisés » and « 18 autres jours », and the days without practice are never named a failure |
-| A habit grown 3 times and lightened once, now at 7 minutes | The user opens its recap | It reads « 3 fois grandie », « 1 fois allégée » and the current goal; the lightening is never named a setback |
+| A habit grown 3 times and lightened once, now at 7 minutes | The user opens its recap | It reads « 3 fois grandie » and « 1 fois allégée »; the lightening is never named a setback |
 | A habit completed on two days whose goal was 5 minutes, then on one day whose goal was 6 | The user opens its recap | It reads « 16 minutes de pratique accumulées », and the label says time practised, never gain over the starting goal |
-| A habit with no completion for the last 10 days | The user opens its recap | The message acknowledges the rest without blaming, because an empty day is never a failure |
+| A habit practised at least once, with no completion for the last 10 days | The user opens its recap | The message acknowledges the rest without blaming, because an empty day is never a failure |
 | A habit created today and not yet done | The user opens its recap | The message reads « Un début parfait », because an empty start is still a start |
 | A habit created today and not yet done | The user opens its recap | It reads « 0 réalisé · 1 autre jour » — the recap counts the day it was created |
 
