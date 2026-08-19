@@ -497,9 +497,9 @@ mod tests {
         }
     }
 
-    // Six pairwise-distinct values, one per HabitRecap field plus the current
-    // goal — mirrors get_habit_detail's field-integrity fixture, one layer up.
-    fn services_with_a_habit_with_six_pairwise_distinct_recap_figures() -> Services {
+    // Five pairwise-distinct values, one per HabitRecap field — mirrors
+    // get_habit_detail's field-integrity fixture, one layer up.
+    fn services_with_a_habit_with_five_pairwise_distinct_recap_figures() -> Services {
         let today = LocalDate::from_epoch_day(20_006);
         let clock: Rc<dyn Clock> = Rc::new(FixedClock(today));
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
@@ -521,11 +521,11 @@ mod tests {
     }
 
     #[component]
-    fn RootAtHabitWithSixPairwiseDistinctRecapFigures() -> Element {
+    fn RootAtHabitWithFivePairwiseDistinctRecapFigures() -> Element {
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
         });
-        use_context_provider(services_with_a_habit_with_six_pairwise_distinct_recap_figures);
+        use_context_provider(services_with_a_habit_with_five_pairwise_distinct_recap_figures);
         rsx! {
             Router::<Route> {}
         }
@@ -954,8 +954,8 @@ mod tests {
             "expected one lightening to be shown, got: {html}"
         );
         assert!(
-            figure_pair(&html, 7, "minutes visées"),
-            "expected the current goal to be shown, got: {html}"
+            !html.contains("visée"),
+            "expected the recap to no longer carry the current goal as a row, got: {html}"
         );
     }
 
@@ -975,10 +975,10 @@ mod tests {
     // layer up: cargo-mutants never mutates rsx! markup, and a
     // `contains(number) && contains(word)` pair passes on a swapped field just
     // as readily as on the right one — this is exactly how B1 shipped green).
-    // Six pairwise-distinct figures make any swap observable.
+    // Five pairwise-distinct figures make any swap observable.
     #[test]
     fn the_recap_view_carries_each_figure_in_its_own_field() {
-        let html = render(RootAtHabitWithSixPairwiseDistinctRecapFigures);
+        let html = render(RootAtHabitWithFivePairwiseDistinctRecapFigures);
 
         assert!(
             figure_pair(&html, 4, "réalisés"),
@@ -999,10 +999,6 @@ mod tests {
         assert!(
             figure_pair(&html, 1, "fois allégée"),
             "expected lightenings in its own field, got: {html}"
-        );
-        assert!(
-            figure_pair(&html, 11, "minutes visées"),
-            "expected the current goal in its own field, got: {html}"
         );
     }
 
