@@ -80,10 +80,9 @@ mod tests {
     // Called by two use cases (GrowGoal, LightenGoal — via Habit::grow/lighten)
     // and read by GetHabitDetail: a published contract, so this pins the
     // invariant directly rather than through a single calling use case
-    // (test-ddd-tactical Entry Gate). `already_at_the_ceiling`/
-    // `already_at_the_floor` in Habit currently duplicate this guard on the
-    // caller side — this test decides whether `record` should enforce it
-    // itself instead (N1).
+    // (test-ddd-tactical Entry Gate). This test drove the guard into record()
+    // itself (N1) — Habit no longer duplicates it as already_at_the_ceiling/
+    // already_at_the_floor on the caller side.
     #[test]
     fn recording_a_goal_equal_to_the_current_one_leaves_the_history_unchanged() {
         let mut history = a_history();
