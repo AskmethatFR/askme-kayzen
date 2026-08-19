@@ -1036,4 +1036,22 @@ mod tests {
             "expected the fresh-start sentence to be shown, got: {html}"
         );
     }
+
+    // plural() is app-crate code, excluded from the mutation scope
+    // (.cargo/mutants.toml) — this branch was invisible to both gates until
+    // this assertion. Zero reads as singular in French ("0 réalisé", never
+    // "0 réalisés").
+    #[test]
+    fn zero_reads_in_the_singular() {
+        let html = render(RootAtBrandNewHabit);
+
+        assert!(
+            figure_pair(&html, 0, "réalisé"),
+            "expected the singular form at zero, got: {html}"
+        );
+        assert!(
+            !figure_pair(&html, 0, "réalisés"),
+            "expected no plural form at zero, got: {html}"
+        );
+    }
 }
