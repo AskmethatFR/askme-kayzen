@@ -120,6 +120,7 @@ fn mark_done_and_relist(services: &Services, id: &str) -> TodayHabits {
 mod tests {
     use crate::composition::Services;
     use crate::route::Route;
+    use crate::views::click_harness::Screen;
     use dioxus::prelude::*;
     use kayzen_core::habit_management::domain::goal::Goal;
     use kayzen_core::habit_management::domain::habit::Habit;
@@ -221,6 +222,40 @@ mod tests {
         let mut vdom = VirtualDom::new(root);
         vdom.rebuild_in_place();
         dioxus_ssr::render(&vdom)
+    }
+
+    #[test]
+    fn clicking_mark_done_stamps_the_habit_and_grows_the_done_tally() {
+        let mut screen = Screen::open(RootWithUndoneHabit);
+
+        screen.click("Marquer comme fait · Read one page");
+
+        let html = screen.html();
+        assert!(
+            html.contains("target is-done"),
+            "expected the target to be stamped after the click, got: {html}"
+        );
+        assert!(
+            html.contains("1 sur 1 ·"),
+            "expected the tally to count the freshly-done habit, got: {html}"
+        );
+    }
+
+    #[test]
+    fn clicking_reprendre_moves_the_habit_out_of_the_paused_zone() {
+        let mut screen = Screen::open(RootWithActiveAndPausedHabit);
+
+        screen.click("Reprendre · Move a little");
+
+        let html = screen.html();
+        assert!(
+            !html.contains("En pause"),
+            "expected the paused zone to disappear once its only habit resumes, got: {html}"
+        );
+        assert!(
+            html.contains("0 sur 2 ·"),
+            "expected the resumed habit to join the active tally, got: {html}"
+        );
     }
 
     #[test]
