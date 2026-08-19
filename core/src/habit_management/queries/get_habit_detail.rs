@@ -4,6 +4,7 @@ use crate::habit_management::domain::habit::Habit;
 use crate::habit_management::domain::habit_id::HabitId;
 use crate::habit_management::domain::habit_repository::HabitRepository;
 use crate::habit_management::domain::lifecycle_state::LifecycleState;
+use crate::habit_management::domain::step_history::StepChange;
 use crate::shared::clock::Clock;
 use crate::shared::local_date::LocalDate;
 
@@ -22,6 +23,7 @@ pub struct HabitDetail {
     pub next_goal_down: u32,
     pub days: Vec<PracticeDay>,
     pub state: HabitState,
+    pub recap: HabitRecap,
 }
 
 /// The habit's lifecycle as seen by the detail screen — a DTO-side type, kept
@@ -50,6 +52,32 @@ pub struct PracticeDay {
     pub goal: u32,
 }
 
+/// Everything the detail screen tells about a habit's whole life, derived on
+/// read from the two dated histories (adr-0006: nothing is stored).
+#[derive(Debug, Clone, PartialEq)]
+pub struct HabitRecap {
+    pub days_done: usize,
+    pub empty_days: usize,
+    pub minutes_practised: u32,
+    pub growths: usize,
+    pub lightenings: usize,
+    pub message: RecapMessage,
+}
+
+/// How the habit is living right now, as the recap says it — a DTO-side enum
+/// (adr-0006: a domain-shaped choice crosses as an enum, never a bool, and the
+/// French words live in the view, never in core).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RecapMessage {
+    FreshStart,
+    Resting,
+    Growing,
+}
+
+/// Days without practice after which the recap speaks of rest. Seven, the only
+/// rhythm this app speaks (see WINDOW_DAYS).
+const RESTING_AFTER_DAYS: usize = 7;
+
 impl GetHabitDetail {
     pub fn new(repository: Rc<dyn HabitRepository>, clock: Rc<dyn Clock>) -> GetHabitDetail {
         GetHabitDetail { repository, clock }
@@ -59,6 +87,7 @@ impl GetHabitDetail {
         let id = HabitId::new(habit_id).ok()?;
         let habit = self.repository.get(&id)?;
         let today = self.clock.today();
+        let steps = habit.step_history().changes();
 
         Some(HabitDetail {
             id: habit.id().value().to_string(),
@@ -71,7 +100,7 @@ impl GetHabitDetail {
                 .map(|days_back| today.minus_days(days_back))
                 .map(|day| PracticeDay {
                     done: habit.is_done_on(day),
-                    goal: goal_active_on(&habit, day),
+                    goal: goal_active_on(&steps, day),
                 })
                 .collect(),
             state: match habit.state() {
@@ -79,6 +108,7 @@ impl GetHabitDetail {
                 LifecycleState::Paused => HabitState::Paused,
                 LifecycleState::Anchored => HabitState::Anchored,
             },
+            recap: recap_of(&habit, &steps, today),
         })
     }
 }
@@ -92,9 +122,7 @@ impl GetHabitDetail {
 ///
 /// Indexing the first step cannot panic: `StepHistory::seeded` is its only
 /// constructor, so a history always holds at least the step it was seeded with.
-fn goal_active_on(habit: &Habit, day: LocalDate) -> u32 {
-    let steps = habit.step_history().changes();
-
+fn goal_active_on(steps: &[&StepChange], day: LocalDate) -> u32 {
     steps
         .iter()
         .rev()
@@ -104,9 +132,70 @@ fn goal_active_on(habit: &Habit, day: LocalDate) -> u32 {
         .value()
 }
 
+fn recap_of(habit: &Habit, steps: &[&StepChange], today: LocalDate) -> HabitRecap {
+    let created_on = habit.created_on();
+    let (mut days_done, mut empty_days, mut minutes_practised) = (0usize, 0usize, 0u32);
+    let mut days_since_last_completion: Option<usize> = None;
+
+    // Clock skew (device date moved back, westward TZ change on the creation
+    // day) can put today before created_on. Clamping the walk's start to
+    // whichever is later keeps it covering at least the creation day, instead
+    // of running zero iterations and silently reading the recap as all zeros.
+    let mut day = today.max(created_on);
+    let mut days_back = 0usize;
+    while day >= created_on {
+        if habit.is_done_on(day) {
+            days_done += 1;
+            minutes_practised = minutes_practised.saturating_add(goal_active_on(steps, day));
+            if days_since_last_completion.is_none() {
+                days_since_last_completion = Some(days_back);
+            }
+        } else {
+            empty_days += 1;
+        }
+        day = day.minus_days(1);
+        days_back += 1;
+    }
+
+    let (growths, lightenings) = goal_moves(steps);
+
+    HabitRecap {
+        days_done,
+        empty_days,
+        minutes_practised,
+        growths,
+        lightenings,
+        message: message_for(days_since_last_completion),
+    }
+}
+
+fn goal_moves(steps: &[&StepChange]) -> (usize, usize) {
+    let (mut growths, mut lightenings) = (0usize, 0usize);
+    for pair in steps.windows(2) {
+        let previous = pair[0].goal().value();
+        let next = pair[1].goal().value();
+        if next > previous {
+            growths += 1;
+        } else if next < previous {
+            lightenings += 1;
+        }
+    }
+    (growths, lightenings)
+}
+
+fn message_for(days_since_last_completion: Option<usize>) -> RecapMessage {
+    let Some(days) = days_since_last_completion else {
+        return RecapMessage::FreshStart;
+    };
+    if days >= RESTING_AFTER_DAYS {
+        return RecapMessage::Resting;
+    }
+    RecapMessage::Growing
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{GetHabitDetail, HabitDetail, HabitState, PracticeDay};
+    use super::{GetHabitDetail, HabitDetail, HabitRecap, HabitState, PracticeDay, RecapMessage};
     use crate::habit_management::domain::goal::Goal;
     use crate::habit_management::domain::habit::Habit;
     use crate::habit_management::domain::habit_id::HabitId;
@@ -163,6 +252,14 @@ mod tests {
                 next_goal_down: 4,
                 days: seven_days(false, 5),
                 state: HabitState::Active,
+                recap: HabitRecap {
+                    days_done: 0,
+                    empty_days: 11,
+                    minutes_practised: 0,
+                    growths: 0,
+                    lightenings: 0,
+                    message: RecapMessage::FreshStart,
+                },
             })
         );
     }
@@ -376,5 +473,250 @@ mod tests {
 
             assert_eq!(result.map(|detail| detail.state), Some(expected));
         }
+    }
+
+    // @scenario: habit-stats/S1
+    #[test]
+    fn a_recap_counts_the_days_done_and_the_days_without_practice() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Read one page".to_string()).unwrap(),
+            Goal::new(5).unwrap(),
+            LocalDate::from_epoch_day(TODAY - 29),
+        );
+        for days_back in 0..12 {
+            habit.toggle_done(LocalDate::from_epoch_day(TODAY - 29 + days_back));
+        }
+        repository.save(&habit);
+        let query = get_habit_detail_over(repository);
+
+        let recap = query.handle("h-1").unwrap().recap;
+
+        assert_eq!(recap.days_done, 12);
+        assert_eq!(recap.empty_days, 18);
+    }
+
+    // @scenario: habit-stats/S1
+    #[test]
+    fn a_brand_new_habits_recap_counts_its_single_day() {
+        let cases: Vec<(bool, usize, usize)> = vec![(false, 0, 1), (true, 1, 0)];
+
+        for (done_today, expected_done, expected_empty) in cases {
+            let repository = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = Habit::new(
+                HabitId::new("h-1").unwrap(),
+                HabitTitle::new("Read one page".to_string()).unwrap(),
+                Goal::new(5).unwrap(),
+                LocalDate::from_epoch_day(TODAY),
+            );
+            if done_today {
+                habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+            }
+            repository.save(&habit);
+            let query = get_habit_detail_over(repository);
+
+            let recap = query.handle("h-1").unwrap().recap;
+
+            assert_eq!(recap.days_done, expected_done);
+            assert_eq!(recap.empty_days, expected_empty);
+        }
+    }
+
+    // @scenario: habit-stats/S2
+    #[test]
+    fn a_recap_counts_how_often_the_goal_grew_and_how_often_it_was_lightened() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Read one page".to_string()).unwrap(),
+            Goal::new(5).unwrap(),
+            LocalDate::from_epoch_day(CREATED_ON),
+        );
+        for _ in 0..3 {
+            habit.grow(LocalDate::from_epoch_day(TODAY));
+        }
+        habit.lighten(LocalDate::from_epoch_day(TODAY));
+        repository.save(&habit);
+        let query = get_habit_detail_over(repository);
+
+        let detail = query.handle("h-1").unwrap();
+
+        assert_eq!(detail.recap.growths, 3);
+        assert_eq!(detail.recap.lightenings, 1);
+        assert_eq!(
+            detail.current_goal, 7,
+            "five grown three times then lightened once stands at seven"
+        );
+    }
+
+    // @scenario: habit-stats/S2
+    #[test]
+    fn a_lightening_refused_at_the_floor_moves_no_counter() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Read one page".to_string()).unwrap(),
+            Goal::new(1).unwrap(),
+            LocalDate::from_epoch_day(CREATED_ON),
+        );
+        habit.lighten(LocalDate::from_epoch_day(TODAY));
+        repository.save(&habit);
+        let query = get_habit_detail_over(repository);
+
+        let detail = query.handle("h-1").unwrap();
+
+        assert_eq!(
+            detail.recap.lightenings, 0,
+            "a lightening refused at the floor records no step, so the recap \
+             counts no lightening"
+        );
+        assert_eq!(detail.current_goal, 1);
+    }
+
+    // @scenario: habit-stats/S3
+    #[test]
+    fn the_minutes_practised_sum_each_completed_day_against_the_goal_in_force_that_day() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Read one page".to_string()).unwrap(),
+            Goal::new(5).unwrap(),
+            LocalDate::from_epoch_day(CREATED_ON),
+        );
+        habit.toggle_done(LocalDate::from_epoch_day(TODAY - 2));
+        habit.toggle_done(LocalDate::from_epoch_day(TODAY - 1));
+        habit.grow(LocalDate::from_epoch_day(TODAY));
+        habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+        repository.save(&habit);
+        let query = get_habit_detail_over(repository);
+
+        let recap = query.handle("h-1").unwrap().recap;
+
+        assert_eq!(
+            recap.minutes_practised, 16,
+            "two days at five minutes and one at six sum to sixteen — never \
+             fifteen (three times five) nor eighteen (three times six)"
+        );
+        assert_eq!(recap.days_done, 3);
+    }
+
+    // @scenario: habit-stats/S4
+    #[test]
+    fn the_recap_names_how_the_habit_is_living_right_now() {
+        let cases: Vec<(Option<i64>, RecapMessage)> = vec![
+            (None, RecapMessage::FreshStart),
+            (Some(0), RecapMessage::Growing),
+            (Some(6), RecapMessage::Growing),
+            (Some(7), RecapMessage::Resting),
+            (Some(10), RecapMessage::Resting),
+        ];
+
+        for (days_ago, expected) in cases {
+            let repository = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = Habit::new(
+                HabitId::new("h-1").unwrap(),
+                HabitTitle::new("Read one page".to_string()).unwrap(),
+                Goal::new(5).unwrap(),
+                LocalDate::from_epoch_day(CREATED_ON),
+            );
+            if let Some(days_ago) = days_ago {
+                habit.toggle_done(LocalDate::from_epoch_day(TODAY - days_ago));
+            }
+            repository.save(&habit);
+            let query = get_habit_detail_over(repository);
+
+            let message = query.handle("h-1").unwrap().recap.message;
+
+            assert_eq!(
+                message, expected,
+                "a habit last completed {days_ago:?} days ago reads as {expected:?}"
+            );
+        }
+    }
+
+    // No Gherkin scenario names this field-by-field integrity (L3 blind spot:
+    // cargo-mutants never mutates a struct initializer, so a days_done /
+    // empty_days swap would pass the gate). Five pairwise-distinct values make
+    // any swap observable.
+    #[test]
+    fn the_recap_carries_each_figure_in_its_own_field() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Read one page".to_string()).unwrap(),
+            Goal::new(4).unwrap(),
+            LocalDate::from_epoch_day(TODAY - 2),
+        );
+        for _ in 0..4 {
+            habit.grow(LocalDate::from_epoch_day(TODAY));
+        }
+        for _ in 0..5 {
+            habit.lighten(LocalDate::from_epoch_day(TODAY));
+        }
+        habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+        repository.save(&habit);
+        let query = get_habit_detail_over(repository);
+
+        let recap = query.handle("h-1").unwrap().recap;
+
+        assert_eq!(
+            recap,
+            HabitRecap {
+                days_done: 1,
+                empty_days: 2,
+                minutes_practised: 3,
+                growths: 4,
+                lightenings: 5,
+                message: RecapMessage::Growing,
+            }
+        );
+    }
+
+    // A u32 sum over every practised day saturates rather than panicking in
+    // debug, matching Goal::grown.
+    #[test]
+    fn minutes_practised_saturates_instead_of_overflowing() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Read one page".to_string()).unwrap(),
+            Goal::new(u32::MAX).unwrap(),
+            LocalDate::from_epoch_day(TODAY - 1),
+        );
+        habit.toggle_done(LocalDate::from_epoch_day(TODAY - 1));
+        habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+        repository.save(&habit);
+        let query = get_habit_detail_over(repository);
+
+        let recap = query.handle("h-1").unwrap().recap;
+
+        assert_eq!(recap.minutes_practised, u32::MAX);
+    }
+
+    // Clock skew (device date moved back, westward TZ change on the
+    // creation day) means today < created_on. The day-walk must still cover
+    // at least the habit's own creation day, keeping D3 (days_done + empty_days
+    // = age) true instead of silently reading zero everywhere.
+    #[test]
+    fn a_recap_still_covers_the_creation_day_when_the_clock_lags_behind_it() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Read one page".to_string()).unwrap(),
+            Goal::new(5).unwrap(),
+            LocalDate::from_epoch_day(TODAY + 5),
+        );
+        repository.save(&habit);
+        let query = get_habit_detail_over(repository);
+
+        let recap = query.handle("h-1").unwrap().recap;
+
+        assert_eq!(
+            recap.days_done + recap.empty_days,
+            1,
+            "D3: days_done + empty_days must equal the habit's age even when \
+             the clock's today lags behind its created_on"
+        );
     }
 }

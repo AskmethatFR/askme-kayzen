@@ -30,6 +30,8 @@ impl StepChange {
 /// `Option` or a panic. Further steps are appended one at a time through
 /// `record`, called by the use case that grows or lightens the goal
 /// (adjust-goal slice 3); the history never removes, pops, or merges steps.
+/// A step recording the goal already in force is not a step — `record`
+/// ignores it, so no two consecutive steps ever carry the same goal.
 #[derive(Debug, Clone, PartialEq)]
 pub struct StepHistory {
     first: StepChange,
@@ -42,6 +44,10 @@ impl StepHistory {
             first: StepChange::new(on, goal),
             rest: Vec::new(),
         }
+    }
+
+    pub fn started_on(&self) -> LocalDate {
+        self.first.on()
     }
 
     pub fn current(&self) -> &Goal {
@@ -58,6 +64,42 @@ impl StepHistory {
     }
 
     pub fn record(&mut self, on: LocalDate, goal: Goal) {
+        if &goal == self.current() {
+            return;
+        }
         self.rest.push(StepChange::new(on, goal));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn a_history() -> StepHistory {
+        StepHistory::seeded(LocalDate::from_epoch_day(20_000), Goal::new(5).unwrap())
+    }
+
+    // Called by two use cases (GrowGoal, LightenGoal — via Habit::grow/lighten)
+    // and read by GetHabitDetail: a published contract, so this pins the
+    // invariant directly rather than through a single calling use case
+    // (test-ddd-tactical Entry Gate).
+    #[test]
+    fn recording_a_goal_equal_to_the_current_one_leaves_the_history_unchanged() {
+        let mut history = a_history();
+
+        history.record(LocalDate::from_epoch_day(20_001), Goal::new(5).unwrap());
+
+        assert_eq!(history.changes().len(), 1);
+        assert_eq!(history.current(), &Goal::new(5).unwrap());
+    }
+
+    #[test]
+    fn recording_a_different_goal_appends_a_new_step() {
+        let mut history = a_history();
+
+        history.record(LocalDate::from_epoch_day(20_001), Goal::new(6).unwrap());
+
+        assert_eq!(history.changes().len(), 2);
+        assert_eq!(history.current(), &Goal::new(6).unwrap());
     }
 }

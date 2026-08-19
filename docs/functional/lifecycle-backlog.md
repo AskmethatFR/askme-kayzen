@@ -50,7 +50,7 @@
 | 5 | `pause-resume` | "Mettre en pause" / paused zone / one-tap resume | S | **done** (4 scenarios; paused detail is a rest screen — resume + staircase only; seat kept) |
 | 6 | `anchor` | Anchor button (**user-initiated, no 10-of-14 suggestion**), board frees the slot, Ancrées screen counts | L | **done** (4 scenarios; detail re-renders as a sober anchored screen — no gesture at all; Ancrées screen ships the list + the count, nothing more) |
 | 7 | `readmit` | "La remettre dans mon quotidien" — refusable (board full / duplicate title) | M | **done** (4 scenarios; Ancrées screen: per-row readmit button, quiet refusals, parallel-count footer shipped) |
-| 8 | `stats-board` | Per-habit stats: days done, empty days (never "failed"), grow/lighten counts, minutes gained (reframe wording — nominal, anti-guilt) — plus adaptive (never guilt-inducing) messages | M | todo |
+| 8 | `stats-board` | Per-habit stats: days done, empty days (never "failed"), grow/lighten counts, minutes gained (reframe wording — nominal, anti-guilt) — plus adaptive (never guilt-inducing) messages | M | **done** (5 scenarios; the recap is a zone of the detail screen — see "settled during delivery" below) |
 
 Order rationale: completions (2) precede progression (4); grow/lighten (3) before
 suggestion (4) so the suggestion highlights an existing affordance; anchor last
@@ -167,7 +167,7 @@ Developer's first failing test of a slice is the scenario, and dropping the
 | 5 `pause-resume` | `[[pause-resume]]` | S1–S4, covered (S3 pins Q1 — a paused habit keeps its seat; S4 pins the rest screen, added this cycle) |
 | 6 `anchor` | `[[anchor-habit]]` | S1–S4, covered (S3 pins Q3, S4 pins "no suggestion") |
 | 7 `readmit` | `[[readmit-habit]]` | S1–S4, covered (S2 pins the full-life refusal, S3 the retaken-title refusal, S4 the parallel-count footer with a paused habit in the fixture) |
-| 8 `stats-board` | `[[habit-stats]]` | S1–S4, `@wip` |
+| 8 `stats-board` | `[[habit-stats]]` | S1–S5, covered |
 
 ## Per-slice aggregate growth (so nothing is forgotten — technical shape in `[[adr-0007-habit-lifecycle-aggregate]]`)
 
@@ -184,7 +184,7 @@ Developer's first failing test of a slice is the scenario, and dropping the
 | 5 `pause-resume` | **done.** `LifecycleState::{Active, Paused}` landed as an enum on `Habit` (illegal combos unrepresentable; `Anchored` deliberately absent until its use case exists). Two use cases, `PauseHabit` and `ResumeHabit`, one public method each, **neither taking a `Clock`** — nothing dates these transitions. `HabitBoard` untouched: paused keeps the board seat (Q1), pinned by a wired test rather than a comment. Read side reshaped: `ListBoardHabits` now returns the per-screen DTO `TodayHabits {active, paused}`, so "a paused habit leaves the day's list" is a rule in the core, not in a view. |
 | 6 `anchor` | **done.** `LifecycleState::Anchored` lands, completing the enum (`Habit::anchor()` — since PR 2 it requires an `Active` habit and refuses anything else). Resolves the deferred board↔habit coordination as a **synchronous application-service orchestration**: `AnchorHabit` moves the habit to `Anchored`, saves it, then **releases its board entry** (`HabitBoard::release`) and saves the board — publishing nothing. The cap does not "count non-anchored habits" as a query-time filter; the entry is **removed**, which frees the seat **and** the title in the same act (see `[[adr-0012-synchronous-cross-aggregate-coordination]]`). Read side gains `ListAnchoredHabits -> Vec<AnchoredHabit { title }>` and `TodayHabits.anchored_count`, both derived on read. **Debt paid**: the aggregate-boundary debt is closed — the invariant that a single `Habit` cannot violate (max 5 non-anchored) is now enforced at its rightful layer, the `AddHabit` use case, not hosted on an aggregate boundary object. |
 | 7 `readmit` | **done.** `Habit::readmit()` lands, completing the transition table (`Anchored → Active`, guard `if state != Anchored` → `TransitionError::NotAnchored`, written `if`-not-`match` per adr-0009 L4); `TransitionError` gains its third variant with its caller. `ReadmitHabit`, one public method, no `Clock` (AD-3), is the **first transition since `AddHabit` that increases the non-anchored count** — it re-applies the set check itself (ADR-0013, AD-9): load → duplicate-before-capacity over `state() != Anchored` read live → `readmit()` → **one** save; a refusal leaves nothing behind. **The trap held**: `resume()`'s guard stays exactly `!= Paused`, readmission is a new method + new use case, `resuming_an_anchored_habit_is_refused` untouched. Read side: `ListAnchoredHabits` returns `AnchoredScreen { habits: Vec<AnchoredHabit { id, title }>, in_daily_life }` — the Ancrées screen now acts (per-row « La remettre », quiet refusals, always-rendered footer « Vous suivez N / 5 habitudes en parallèle » fed by `in_daily_life`, same predicate as the cap). |
-| 8 `stats-board` | no aggregate growth — more CQRS-light queries over the two dated histories. |
+| 8 `stats-board` | **done.** No aggregate growth — the recap is a **CQRS-light read** over the two dated histories, computed in `GetHabitDetail::handle` (a zone of one screen ⇒ a field of its DTO, per adr-0006). Two read-only accessors added: `Habit::created_on()` / `StepHistory::started_on()` — the recap's inclusive span anchors on the day the habit was seeded. `CompletionHistory` untouched. |
 
 Lifecycle mutations are **internal state transitions** (load aggregate → method → save),
 **not** published events (see `[[adr-0007-habit-lifecycle-aggregate]]`).
@@ -216,7 +216,7 @@ Landed with slice 6 (now in `[[glossary]]`): Ancrer / Ancrée (*anchor / anchore
 — `LifecycleState::Anchored`, user-initiated only), Habitudes ancrées (the
 Ancrées screen).
 
-Still to add as its slice lands: ~~Readmettre / Remettre dans le quotidien (*readmit* — slice 7)~~ **landed**. Minutes gagnées (slice 8).
+Still to add as its slice lands: ~~Readmettre / Remettre dans le quotidien (*readmit* — slice 7)~~ **landed**. ~~Minutes gagnées (slice 8)~~ **landed as « Minutes de pratique accumulées »** — the `current − steps[0]` sense is void (see the glossary), the recap sums each completed day against the goal in force that day.
 
 ## Slice 7 precondition — blocking issue (Security PR 2)
 
@@ -274,3 +274,25 @@ anchoring frees the title for reuse.
 
 **Gherkin: no debt.** `[[anchor-habit]]` shipped its four scenarios byte-for-byte
 as specified, `@wip`-free since `fb71a8d`.
+
+## Slice 8 `stats-board` — settled during delivery, 2026-08-19
+
+The recap is the **8th and last slice**: the detail screen tells a habit's whole
+life without guilt. All 8 decisions below were arbitrated by the owner before
+implementation and shipped locked.
+
+| # | Decision |
+|---|---|
+| D1 | The recap is a **zone of the detail screen**, not a 7th screen ⇒ one more field `recap: HabitRecap` on the `HabitDetail` DTO, computed in `GetHabitDetail::handle`. No `GetHabitStats`, no route, no `Services` field. The planned `get-habit-stats/` anchor of [[adr-0006-cqrs-light]] is stale |
+| D2 | **Minutes = Σ of the goals of the done days** (total practised). Never Σ(`current − steps[0]`) — the old formula would read "0" to a regular practitioner |
+| D3 | **Inclusive span**: every day from creation to today counts, done or not. `days_done + empty_days = age in days`. A habit created today and not done reads « 0 réalisé · 1 autre jour » — the `FreshStart` message carries the gentleness |
+| D4 | The recap shows in **all 3 states** (Active / Paused / Anchored) — it is a reading, not a gesture; the rest screens forbid gestures only |
+| D5 | **3 messages, none congratulating**. Rest threshold = **7 days** without practice — the only rhythm this app speaks (`WINDOW_DAYS`). No streak, ever |
+| D6 | Copy: « réalisés » / « autres jours » / « minutes de pratique accumulées » — "autres jours" avoids the word *empty*; "pratique accumulée" lifts the total-vs-delta ambiguity |
+| D7 | **No ADR** — everything applies [[adr-0006-cqrs-light]]. An ADR is never amended; a genuinely changed decision would be a new ADR with `supersedes:` |
+| D8 | `CompletionHistory` stays **closed** (`new / toggle / contains` only) — the day-by-day walk needs only `contains`, `minus_days` and `Ord` |
+
+**Handed to the recap, not reopened:** the 7-day window (slice 3b), the soft goal
+(ADR-0008), the anti-guilt first principle. The detail screen goes from O(7) to
+O(age) on this slice — **accepted, not optimised** (adr-0006 fixes the escalation
+trigger: a measured latency problem, none observed).
