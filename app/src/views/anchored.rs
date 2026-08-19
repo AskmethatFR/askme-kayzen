@@ -81,6 +81,7 @@ fn readmit_row(services: &Services, id: &str) -> (AnchoredScreen, Option<&'stati
 mod tests {
     use super::*;
     use crate::composition::Services;
+    use crate::views::click_harness::Screen;
     use dioxus::history::{MemoryHistory, provide_history_context};
     use kayzen_core::habit_management::domain::goal::Goal;
     use kayzen_core::habit_management::domain::habit::Habit;
@@ -153,6 +154,28 @@ mod tests {
         let mut vdom = VirtualDom::new(root);
         vdom.rebuild_in_place();
         dioxus_ssr::render(&vdom)
+    }
+
+    #[test]
+    fn clicking_readmit_takes_the_habit_out_of_the_anchored_list_and_grows_the_parallel_count() {
+        let mut screen = Screen::open(RootAtAnchoredScreen);
+
+        screen.click("La remettre dans mon quotidien · Lire une page");
+
+        let html = screen.html();
+        assert!(
+            !html.contains("Lire une page"),
+            "the readmitted habit leaves the Ancrées list, got: {html}"
+        );
+        assert!(
+            html.contains("Bouger un peu"),
+            "the other anchored habit stays, got: {html}"
+        );
+        assert!(html.contains("1 · devenues naturelles"), "got: {html}");
+        assert!(
+            html.contains("Vous suivez 1 / 5 habitudes en parallèle"),
+            "got: {html}"
+        );
     }
 
     // @scenario: anchor-habit/S2
