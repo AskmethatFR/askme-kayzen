@@ -1006,7 +1006,10 @@ mod tests {
         );
     }
 
-    // @scenario: habit-stats/S4
+    // @scenario: habit-stats/S4 — the fixture practises the habit once before
+    // the 10 empty days (N3): the bare "no completion for the last 10 days"
+    // Given also fit a never-practised habit, which reads FreshStart, not
+    // this resting sentence.
     #[test]
     fn a_resting_habits_recap_acknowledges_the_rest_without_blaming() {
         let html = render(RootAtHabitRestingForTenDays);

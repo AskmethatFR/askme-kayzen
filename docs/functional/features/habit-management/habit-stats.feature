@@ -30,7 +30,7 @@ Feature: Read a habit's story
 
   @scenario:S4
   Scenario: The recap message stays free of guilt whatever the history
-    Given a habit with no completion for the last 10 days
+    Given a habit practised at least once, with no completion for the last 10 days
     When the user opens its recap
     Then the message acknowledges the rest without blaming, because an empty day is never a failure
 
