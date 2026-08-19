@@ -7,26 +7,35 @@ Feature: Read a habit's story
   # Everything below is derived from the completion and step histories on read —
   # nothing is stored (adr-0006-cqrs-light).
 
-  @wip @scenario:S1
-  Scenario: The recap counts the days done and the empty days
-    Given a habit completed on 12 days since its creation, 30 days ago
+  @scenario:S1
+  Scenario: The recap counts the days done and the other days
+    Given a habit whose life spans 30 days, completed on 12 of them
     When the user opens its recap
-    Then it reads 12 days done and 18 empty days, named as empty and never as failed
+    Then it reads "12 réalisés" and "18 autres jours"
+    And the days without practice are never named a failure
 
-  @wip @scenario:S2
+  @scenario:S2
   Scenario: The recap counts how often the goal moved
-    Given a habit grown 3 times and lightened once
+    Given a habit grown 3 times and lightened once, now at 7 minutes
     When the user opens its recap
-    Then it reads 3 growths and 1 lightening, with the current goal
+    Then it reads "3 fois grandie", "1 fois allégée" and the current goal
+    And the lightening is never named a setback
 
-  @wip @scenario:S3
-  Scenario: The recap sums the minutes gained since the beginning
-    Given a habit completed on days whose goal was 5, then 6 minutes
+  @scenario:S3
+  Scenario: The recap sums the minutes practised since the beginning
+    Given a habit completed on two days whose goal was 5 minutes, then on one day whose goal was 6
     When the user opens its recap
-    Then the minutes gained sum each completed day against the goal in force that day
+    Then it reads "16 minutes de pratique accumulées"
+    And the label says time practised, never gain over the starting goal
 
-  @wip @scenario:S4
+  @scenario:S4
   Scenario: The recap message stays free of guilt whatever the history
     Given a habit with no completion for the last 10 days
     When the user opens its recap
-    Then the message acknowledges the pause without blaming, because an empty day is never a failure
+    Then the message acknowledges the rest without blaming, because an empty day is never a failure
+
+  @scenario:S5
+  Scenario: A brand-new habit already has something to read
+    Given a habit created today and not yet done
+    When the user opens its recap
+    Then the message reads "Un début parfait", because an empty start is still a start

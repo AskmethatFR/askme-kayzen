@@ -631,4 +631,42 @@ mod tests {
             );
         }
     }
+
+    // No Gherkin scenario names this field-by-field integrity (L3 blind spot:
+    // cargo-mutants never mutates a struct initializer, so a days_done /
+    // empty_days swap would pass the gate). Five pairwise-distinct values make
+    // any swap observable.
+    #[test]
+    fn the_recap_carries_each_figure_in_its_own_field() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Read one page".to_string()).unwrap(),
+            Goal::new(4).unwrap(),
+            LocalDate::from_epoch_day(TODAY - 2),
+        );
+        for _ in 0..4 {
+            habit.grow(LocalDate::from_epoch_day(TODAY));
+        }
+        for _ in 0..5 {
+            habit.lighten(LocalDate::from_epoch_day(TODAY));
+        }
+        habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+        repository.save(&habit);
+        let query = get_habit_detail_over(repository);
+
+        let recap = query.handle("h-1").unwrap().recap;
+
+        assert_eq!(
+            recap,
+            HabitRecap {
+                days_done: 1,
+                empty_days: 2,
+                minutes_practised: 3,
+                growths: 4,
+                lightenings: 5,
+                message: RecapMessage::Growing,
+            }
+        );
+    }
 }
