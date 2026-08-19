@@ -225,6 +225,17 @@ mod tests {
         dioxus_ssr::render(&vdom)
     }
 
+    fn footer_links_section(html: &str) -> &str {
+        let start = html
+            .find(r#"<div class="footer-links">"#)
+            .expect("expected a footer-links wrapper around the two navigation links");
+        let after_open = &html[start..];
+        let end = after_open
+            .find("</div>")
+            .expect("expected the footer-links wrapper to close");
+        &after_open[..end]
+    }
+
     #[test]
     fn clicking_mark_done_stamps_the_habit_and_grows_the_done_tally() {
         let mut screen = Screen::open(RootWithUndoneHabit);
@@ -332,6 +343,36 @@ mod tests {
         assert!(
             !html.contains("Mes habitudes ancr"),
             "expected no Ancrées link when nothing is anchored, got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_footer_links_stack_inside_one_wrapper_when_the_ancrees_link_is_present() {
+        let html = render(RootWithAnchoredHabit);
+        let section = footer_links_section(&html);
+
+        assert!(
+            section.contains("Voir comment je grandis · cette semaine"),
+            "expected the Week link inside the footer-links wrapper, got: {section}"
+        );
+        assert!(
+            section.contains("Mes habitudes ancrées · 1"),
+            "expected the Ancrées link inside the same footer-links wrapper, got: {section}"
+        );
+    }
+
+    #[test]
+    fn the_footer_links_wrapper_holds_only_the_week_link_when_nothing_is_anchored() {
+        let html = render(RootWithUndoneHabit);
+        let section = footer_links_section(&html);
+
+        assert!(
+            section.contains("Voir comment je grandis · cette semaine"),
+            "expected the Week link inside the footer-links wrapper, got: {section}"
+        );
+        assert!(
+            !section.contains("Mes habitudes ancr"),
+            "expected no Ancrées link inside the wrapper when nothing is anchored, got: {section}"
         );
     }
 
