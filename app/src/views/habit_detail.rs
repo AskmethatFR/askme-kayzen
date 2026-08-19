@@ -437,6 +437,56 @@ mod tests {
         Services::with_repository_and_clock(repository, clock)
     }
 
+    fn services_with_a_habit_resting_for_ten_days() -> Services {
+        let today = LocalDate::from_epoch_day(20_020);
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock(today));
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Lire une page".to_string()).unwrap(),
+            Goal::new(5).unwrap(),
+            LocalDate::from_epoch_day(20_000),
+        );
+        habit.toggle_done(today.minus_days(10));
+        repository.save(&habit);
+        Services::with_repository_and_clock(repository, clock)
+    }
+
+    #[component]
+    fn RootAtHabitRestingForTenDays() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_a_habit_resting_for_ten_days);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    fn services_with_a_brand_new_habit() -> Services {
+        let today = LocalDate::from_epoch_day(20_000);
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock(today));
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Lire une page".to_string()).unwrap(),
+            Goal::new(5).unwrap(),
+            today,
+        ));
+        Services::with_repository_and_clock(repository, clock)
+    }
+
+    #[component]
+    fn RootAtBrandNewHabit() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_a_brand_new_habit);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
     #[component]
     fn RootAtHabitDoneTwiceAtFiveThenOnceAtSix() -> Element {
         use_hook(|| {
@@ -883,6 +933,37 @@ mod tests {
         assert!(
             html.contains("16") && html.contains("minutes de pratique accumulées"),
             "expected the sixteen practised minutes to be shown, got: {html}"
+        );
+    }
+
+    // @scenario: habit-stats/S4
+    #[test]
+    fn a_resting_habits_recap_acknowledges_the_rest_without_blaming() {
+        let html = render(RootAtHabitRestingForTenDays);
+
+        assert!(
+            html.contains("Elle se repose en ce moment"),
+            "expected the resting sentence to be shown, got: {html}"
+        );
+        let lowercase_html = html.to_lowercase();
+        for forbidden in [
+            "échec", "raté", "manqué", "perdu", "oublié", "failed", "vide",
+        ] {
+            assert!(
+                !lowercase_html.contains(forbidden),
+                "expected no failure word in a resting recap, got: {html}"
+            );
+        }
+    }
+
+    // @scenario: habit-stats/S5
+    #[test]
+    fn a_brand_new_habits_recap_opens_on_a_perfect_start() {
+        let html = render(RootAtBrandNewHabit);
+
+        assert!(
+            html.contains("Un début parfait"),
+            "expected the fresh-start sentence to be shown, got: {html}"
         );
     }
 }
