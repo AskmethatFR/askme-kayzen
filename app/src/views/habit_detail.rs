@@ -42,6 +42,7 @@ pub fn HabitDetail(id: String) -> Element {
                         p { class: "eyebrow", "Ajuster, à votre rythme" }
                         button {
                             class: "btn btn-block",
+                            aria_label: "Passer à {habit.next_goal_up} min · {habit.title}",
                             onclick: {
                                 let services = services.clone();
                                 let id = id.clone();
@@ -51,6 +52,7 @@ pub fn HabitDetail(id: String) -> Element {
                         }
                         button {
                             class: "btn btn-block",
+                            aria_label: "Alléger à {habit.next_goal_down} min · {habit.title}",
                             onclick: {
                                 let services = services.clone();
                                 let id = id.clone();
@@ -67,6 +69,7 @@ pub fn HabitDetail(id: String) -> Element {
 
                         button {
                             class: "btn btn-block",
+                            aria_label: "Mettre en pause, sans culpabilité · {habit.title}",
                             onclick: {
                                 let services = services.clone();
                                 let id = id.clone();
@@ -77,6 +80,7 @@ pub fn HabitDetail(id: String) -> Element {
 
                         button {
                             class: "btn btn-block",
+                            aria_label: "L'ancrer · elle est devenue naturelle · {habit.title}",
                             onclick: {
                                 let services = services.clone();
                                 let id = id.clone();
@@ -98,6 +102,7 @@ pub fn HabitDetail(id: String) -> Element {
 
                         button {
                             class: "btn btn-primary btn-block",
+                            aria_label: "La reprendre · {habit.title}",
                             onclick: {
                                 let services = services.clone();
                                 let id = id.clone();
