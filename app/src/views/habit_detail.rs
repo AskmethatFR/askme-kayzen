@@ -106,7 +106,7 @@ pub fn HabitDetail(id: String) -> Element {
                         Link {
                             class: "btn btn-primary btn-block",
                             to: Route::Ritual { id: habit.id.clone() },
-                            "Faire ma minute"
+                            "Commencer ma pratique"
                         }
 
                         button {
