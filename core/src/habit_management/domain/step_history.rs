@@ -44,7 +44,6 @@ impl StepHistory {
         }
     }
 
-    /// The day this history was seeded — the habit's own first day.
     pub fn started_on(&self) -> LocalDate {
         self.first.on()
     }
@@ -63,6 +62,9 @@ impl StepHistory {
     }
 
     pub fn record(&mut self, on: LocalDate, goal: Goal) {
+        if &goal == self.current() {
+            return;
+        }
         self.rest.push(StepChange::new(on, goal));
     }
 }

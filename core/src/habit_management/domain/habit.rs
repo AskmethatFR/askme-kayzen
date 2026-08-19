@@ -118,21 +118,11 @@ impl Habit {
     }
 
     pub fn grow(&mut self, today: LocalDate) {
-        let grown = self.steps.current().grown();
-        let already_at_the_ceiling = grown == *self.steps.current();
-        if already_at_the_ceiling {
-            return;
-        }
-        self.steps.record(today, grown);
+        self.steps.record(today, self.steps.current().grown());
     }
 
     pub fn lighten(&mut self, today: LocalDate) {
-        let lightened = self.steps.current().lightened();
-        let already_at_the_floor = lightened == *self.steps.current();
-        if already_at_the_floor {
-            return;
-        }
-        self.steps.record(today, lightened);
+        self.steps.record(today, self.steps.current().lightened());
     }
 
     pub fn is_done_on(&self, day: LocalDate) -> bool {
