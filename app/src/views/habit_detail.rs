@@ -37,11 +37,6 @@ pub fn HabitDetail(id: String) -> Element {
                     "minute de pratique accumulée",
                     "minutes de pratique accumulées",
                 );
-                let goal_label = plural(
-                    habit.current_goal as usize,
-                    "minute visée",
-                    "minutes visées",
-                );
 
                 rsx! {
                     section { class: "recap",
@@ -66,10 +61,6 @@ pub fn HabitDetail(id: String) -> Element {
                             li {
                                 span { class: "recap-figure", "{habit.recap.lightenings}" }
                                 span { class: "recap-label", "fois allégée" }
-                            }
-                            li {
-                                span { class: "recap-figure", "{habit.current_goal}" }
-                                span { class: "recap-label", "{goal_label}" }
                             }
                         }
                         p { class: "quiet-note", "{recap_copy(habit.recap.message)}" }
