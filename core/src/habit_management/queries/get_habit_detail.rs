@@ -570,4 +570,31 @@ mod tests {
         );
         assert_eq!(detail.current_goal, 1);
     }
+
+    // @scenario: habit-stats/S3
+    #[test]
+    fn the_minutes_practised_sum_each_completed_day_against_the_goal_in_force_that_day() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Read one page".to_string()).unwrap(),
+            Goal::new(5).unwrap(),
+            LocalDate::from_epoch_day(CREATED_ON),
+        );
+        habit.toggle_done(LocalDate::from_epoch_day(TODAY - 2));
+        habit.toggle_done(LocalDate::from_epoch_day(TODAY - 1));
+        habit.grow(LocalDate::from_epoch_day(TODAY));
+        habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+        repository.save(&habit);
+        let query = get_habit_detail_over(repository);
+
+        let recap = query.handle("h-1").unwrap().recap;
+
+        assert_eq!(
+            recap.minutes_practised, 16,
+            "two days at five minutes and one at six sum to sixteen — never \
+             fifteen (three times five) nor eighteen (three times six)"
+        );
+        assert_eq!(recap.days_done, 3);
+    }
 }
