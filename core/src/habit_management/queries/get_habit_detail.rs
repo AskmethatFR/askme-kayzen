@@ -133,14 +133,66 @@ fn goal_active_on(habit: &Habit, day: LocalDate) -> u32 {
 }
 
 fn recap_of(habit: &Habit, today: LocalDate) -> HabitRecap {
-    todo!("walk every day from creation to today, counting practice")
+    let created_on = habit.created_on();
+    let (mut days_done, mut empty_days, mut minutes_practised) = (0usize, 0usize, 0u32);
+    let mut days_since_last_completion: Option<usize> = None;
+
+    let mut day = today;
+    let mut days_back = 0usize;
+    while day >= created_on {
+        if habit.is_done_on(day) {
+            days_done += 1;
+            minutes_practised += goal_active_on(habit, day);
+            if days_since_last_completion.is_none() {
+                days_since_last_completion = Some(days_back);
+            }
+        } else {
+            empty_days += 1;
+        }
+        day = day.minus_days(1);
+        days_back += 1;
+    }
+
+    let (growths, lightenings) = goal_moves(habit);
+
+    HabitRecap {
+        days_done,
+        empty_days,
+        minutes_practised,
+        growths,
+        lightenings,
+        message: message_for(days_since_last_completion),
+    }
+}
+
+fn goal_moves(habit: &Habit) -> (usize, usize) {
+    let steps = habit.step_history().changes();
+    let (mut growths, mut lightenings) = (0usize, 0usize);
+    for pair in steps.windows(2) {
+        let previous = pair[0].goal().value();
+        let next = pair[1].goal().value();
+        if next > previous {
+            growths += 1;
+        } else if next < previous {
+            lightenings += 1;
+        }
+    }
+    (growths, lightenings)
+}
+
+fn message_for(days_since_last_completion: Option<usize>) -> RecapMessage {
+    let Some(days) = days_since_last_completion else {
+        return RecapMessage::FreshStart;
+    };
+    if days >= RESTING_AFTER_DAYS {
+        return RecapMessage::Resting;
+    }
+    RecapMessage::Growing
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        GetHabitDetail, HabitDetail, HabitRecap, HabitState, PracticeDay, RecapMessage,
-    };
+    use super::{GetHabitDetail, HabitDetail, HabitRecap, HabitState, PracticeDay, RecapMessage};
     use crate::habit_management::domain::goal::Goal;
     use crate::habit_management::domain::habit::Habit;
     use crate::habit_management::domain::habit_id::HabitId;
@@ -440,5 +492,31 @@ mod tests {
 
         assert_eq!(recap.days_done, 12);
         assert_eq!(recap.empty_days, 18);
+    }
+
+    // @scenario: habit-stats/S1
+    #[test]
+    fn a_brand_new_habits_recap_counts_its_single_day() {
+        let cases: Vec<(bool, usize, usize)> = vec![(false, 0, 1), (true, 1, 0)];
+
+        for (done_today, expected_done, expected_empty) in cases {
+            let repository = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = Habit::new(
+                HabitId::new("h-1").unwrap(),
+                HabitTitle::new("Read one page".to_string()).unwrap(),
+                Goal::new(5).unwrap(),
+                LocalDate::from_epoch_day(TODAY),
+            );
+            if done_today {
+                habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+            }
+            repository.save(&habit);
+            let query = get_habit_detail_over(repository);
+
+            let recap = query.handle("h-1").unwrap().recap;
+
+            assert_eq!(recap.days_done, expected_done);
+            assert_eq!(recap.empty_days, expected_empty);
+        }
     }
 }
