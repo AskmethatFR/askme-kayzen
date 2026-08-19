@@ -42,6 +42,7 @@ pub fn HabitDetail(id: String) -> Element {
                         p { class: "eyebrow", "Ajuster, à votre rythme" }
                         button {
                             class: "btn btn-block",
+                            aria_label: "Passer à {habit.next_goal_up} min · {habit.title}",
                             onclick: {
                                 let services = services.clone();
                                 let id = id.clone();
@@ -51,6 +52,7 @@ pub fn HabitDetail(id: String) -> Element {
                         }
                         button {
                             class: "btn btn-block",
+                            aria_label: "Alléger à {habit.next_goal_down} min · {habit.title}",
                             onclick: {
                                 let services = services.clone();
                                 let id = id.clone();
@@ -67,6 +69,7 @@ pub fn HabitDetail(id: String) -> Element {
 
                         button {
                             class: "btn btn-block",
+                            aria_label: "Mettre en pause, sans culpabilité · {habit.title}",
                             onclick: {
                                 let services = services.clone();
                                 let id = id.clone();
@@ -77,6 +80,7 @@ pub fn HabitDetail(id: String) -> Element {
 
                         button {
                             class: "btn btn-block",
+                            aria_label: "L'ancrer · elle est devenue naturelle · {habit.title}",
                             onclick: {
                                 let services = services.clone();
                                 let id = id.clone();
@@ -98,6 +102,7 @@ pub fn HabitDetail(id: String) -> Element {
 
                         button {
                             class: "btn btn-primary btn-block",
+                            aria_label: "La reprendre · {habit.title}",
                             onclick: {
                                 let services = services.clone();
                                 let id = id.clone();
@@ -162,6 +167,7 @@ fn anchor_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::views::click_harness::Screen;
     use dioxus::history::{MemoryHistory, provide_history_context};
     use kayzen_core::habit_management::domain::goal::Goal;
     use kayzen_core::habit_management::domain::habit::Habit;
@@ -325,6 +331,71 @@ mod tests {
         let mut vdom = VirtualDom::new(root);
         vdom.rebuild_in_place();
         dioxus_ssr::render(&vdom)
+    }
+
+    #[test]
+    fn clicking_grow_raises_the_goal_and_re_renders_the_dose() {
+        let mut screen = Screen::open(RootAtKnownHabit);
+
+        screen.click("Passer à 6 min · Lire une page");
+
+        let html = screen.html();
+        assert!(
+            html.contains("chaque jour · 6 min"),
+            "expected the raised goal to appear after the click, got: {html}"
+        );
+    }
+
+    #[test]
+    fn clicking_lighten_lowers_the_goal_and_re_renders_the_dose() {
+        let mut screen = Screen::open(RootAtKnownHabit);
+
+        screen.click("Alléger à 4 min · Lire une page");
+
+        let html = screen.html();
+        assert!(
+            html.contains("chaque jour · 4 min"),
+            "expected the lowered goal to appear after the click, got: {html}"
+        );
+    }
+
+    #[test]
+    fn clicking_pause_re_renders_the_paused_banner() {
+        let mut screen = Screen::open(RootAtKnownHabit);
+
+        screen.click("Mettre en pause, sans culpabilité · Lire une page");
+
+        let html = screen.html();
+        assert!(
+            html.contains("en pause · 5 min"),
+            "expected the paused banner after the click, got: {html}"
+        );
+    }
+
+    #[test]
+    fn clicking_anchor_re_renders_the_anchored_banner() {
+        let mut screen = Screen::open(RootAtKnownHabit);
+
+        screen.click("L'ancrer · elle est devenue naturelle · Lire une page");
+
+        let html = screen.html();
+        assert!(
+            html.contains("ancrée · 5 min"),
+            "expected the anchored banner after the click, got: {html}"
+        );
+    }
+
+    #[test]
+    fn clicking_la_reprendre_re_renders_the_active_dose() {
+        let mut screen = Screen::open(RootAtPausedHabit);
+
+        screen.click("La reprendre · Lire une page");
+
+        let html = screen.html();
+        assert!(
+            html.contains("chaque jour · 5 min"),
+            "expected the active dose to re-render after the click, got: {html}"
+        );
     }
 
     #[test]

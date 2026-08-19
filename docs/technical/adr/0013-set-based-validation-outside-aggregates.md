@@ -31,6 +31,7 @@ answers:
 decided_in:
   - "2026-08-17 drop-habit-board refactor (human ruling on the invariant test)"
   - "2026-08-17 PR 2 guard-lifecycle-transitions (the counter-example landed; the symmetry table)"
+  - "2026-08-18 slice 7 readmit-habit cycle (the standing MUST's first application lands)"
 ---
 
 # ADR 0013 — Set-based validation lives outside aggregates
@@ -256,8 +257,12 @@ first transition since `AddHabit` that increases the count.
   the write (see the escalation trigger).
 - **MUST**: when a *transition* increases the size of a set some rule bounds, re-apply that
   set check **in the use case**, before the transition and before the single write. The
-  aggregate guard is not a substitute — it cannot see the set. This is the standing
-  obligation on slice 7's `ReadmitHabit` ([[adr-0007-habit-lifecycle-aggregate]] AD-9).
-- **Out of scope**: readmission (slice 7); ~~the transition-table guard (PR 2)~~ **— landed
+  aggregate guard is not a substitute — it cannot see the set. **LANDED 2026-08-18 (slice 7)**
+  — `ReadmitHabit` is the second use case applying this, with the same predicate
+  (`state() != Anchored`), the same duplicate-before-capacity precedence, and the same
+  one-write/refusal-leaves-nothing contract ([[adr-0007-habit-lifecycle-aggregate]] AD-9,
+  discharged). The predicate now serves three sites — the `AddHabit`/`ReadmitHabit` caps and
+  the read-side footer (`ListAnchoredHabits.in_daily_life`) — and is still never mirrored.
+- **Out of scope**: ~~readmission (slice 7)~~ **— landed 2026-08-18, see the LANDED note above**; ~~the transition-table guard (PR 2)~~ **— landed
   2026-08-17, see the counter-example section**; persistence, and the
   conditional-write/unique-index question it will force.

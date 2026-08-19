@@ -2787,6 +2787,7 @@ name = "kayzen-app"
 version = "0.1.0"
 dependencies = [
  "dioxus",
+ "dioxus-html",
  "dioxus-ssr",
  "getrandom 0.2.17",
  "kayzen-core",

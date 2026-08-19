@@ -42,7 +42,7 @@ pub fn Today() -> Element {
                         }
                         button {
                             class: if habit.done_today { "target is-done" } else { "target" },
-                            aria_label: if habit.done_today { "Fait aujourd'hui" } else { "Marquer comme fait" },
+                            aria_label: if habit.done_today { "Fait aujourd'hui · {habit.title}" } else { "Marquer comme fait · {habit.title}" },
                             onclick: {
                                 let services = services.clone();
                                 let id = habit.id.clone();
@@ -68,6 +68,7 @@ pub fn Today() -> Element {
                             }
                             button {
                                 class: "resume-link",
+                                aria_label: "Reprendre · {habit.title}",
                                 onclick: {
                                     let services = services.clone();
                                     let id = habit.id.clone();
@@ -120,6 +121,7 @@ fn mark_done_and_relist(services: &Services, id: &str) -> TodayHabits {
 mod tests {
     use crate::composition::Services;
     use crate::route::Route;
+    use crate::views::click_harness::Screen;
     use dioxus::prelude::*;
     use kayzen_core::habit_management::domain::goal::Goal;
     use kayzen_core::habit_management::domain::habit::Habit;
@@ -224,6 +226,40 @@ mod tests {
     }
 
     #[test]
+    fn clicking_mark_done_stamps_the_habit_and_grows_the_done_tally() {
+        let mut screen = Screen::open(RootWithUndoneHabit);
+
+        screen.click("Marquer comme fait · Read one page");
+
+        let html = screen.html();
+        assert!(
+            html.contains("target is-done"),
+            "expected the target to be stamped after the click, got: {html}"
+        );
+        assert!(
+            html.contains("1 sur 1 ·"),
+            "expected the tally to count the freshly-done habit, got: {html}"
+        );
+    }
+
+    #[test]
+    fn clicking_reprendre_moves_the_habit_out_of_the_paused_zone() {
+        let mut screen = Screen::open(RootWithActiveAndPausedHabit);
+
+        screen.click("Reprendre · Move a little");
+
+        let html = screen.html();
+        assert!(
+            !html.contains("En pause"),
+            "expected the paused zone to disappear once its only habit resumes, got: {html}"
+        );
+        assert!(
+            html.contains("0 sur 2 ·"),
+            "expected the resumed habit to join the active tally, got: {html}"
+        );
+    }
+
+    #[test]
     fn today_renders_board_habits_through_the_wiring() {
         let html = render(RootWithUndoneHabit);
 
@@ -241,6 +277,10 @@ mod tests {
         assert!(
             html.contains("target is-done"),
             "expected the done target to be stamped, got: {html}"
+        );
+        assert!(
+            html.contains(r#"aria-label="Fait aujourd&#39;hui · Read one page""#),
+            "expected the aria-label to name which habit is stamped, got: {html}"
         );
     }
 

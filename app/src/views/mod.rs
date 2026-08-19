@@ -1,5 +1,7 @@
 mod add_habit;
 mod anchored;
+#[cfg(test)]
+mod click_harness;
 mod habit_detail;
 mod not_found;
 mod ritual;

@@ -15,6 +15,7 @@ getrandom = { version = "0.2", features = ["js"] }
 
 [dev-dependencies]
 dioxus-ssr = "0.7"
+dioxus-html = { version = "0.7", features = ["serialize"] }
 
 [features]
 default = ["web"]
