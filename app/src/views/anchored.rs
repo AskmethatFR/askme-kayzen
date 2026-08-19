@@ -407,4 +407,33 @@ mod tests {
         assert_eq!(refusal_message(ReadmitHabitError::HabitNotFound), None);
         assert_eq!(refusal_message(ReadmitHabitError::NotAnchored), None);
     }
+
+    #[test]
+    fn the_ancrees_row_wraps_the_habit_name_in_the_habit_body_layout_wrapper() {
+        let html = render(RootAtAnchoredScreen);
+
+        assert!(
+            html.contains(
+                r#"<div class="habit-body"><span class="habit-name">Lire une page</span></div>"#
+            ),
+            "expected the habit name wrapped in the house habit-body layout element \
+             (see today.rs), got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_refusal_note_renders_inside_the_habit_body_wrapper_not_as_a_flex_row_sibling() {
+        let mut screen = Screen::open(RootAtAnchoredScreenWithFullDailyLife);
+
+        screen.click("La remettre dans mon quotidien · Lire une page");
+
+        let html = screen.html();
+        let message =
+            "Le quotidien est complet · pour la remettre, ancrez-en une autre d&#39;abord";
+        assert!(
+            html.contains(&format!(r#"<p class="quiet-note">{message}</p></div><button"#)),
+            "expected the refusal note nested inside the habit-body wrapper, closed before \
+             the readmit button — not a direct child of the flex habit-row, got: {html}"
+        );
+    }
 }
