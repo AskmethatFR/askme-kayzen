@@ -11,7 +11,7 @@ habitudes actives (**3 max visibles, 5 max au total**). Chaque ligne : icône, n
 La liste est **triée par déclencheur** pour épouser le fil de la journée.
 
 **Gestes**
-- Taper la cible → validé (l'encre se remplit + petit éclat cyan/magenta).
+- Taper la cible → validé (la cible se remplit d'accent cyan + petit éclat cyan).
 - Taper la ligne → détail.
 - « + Ajouter une toute petite habitude » en bas.
 - Liens : « Voir comment je grandis · cette semaine » ; « Mes habitudes ancrées · N »
@@ -68,7 +68,7 @@ Minuteur doux de 60 s : anneau de progression, cercle qui « respire », décomp
 
 ## Ancrées — les acquises (archive)
 
-Les habitudes ancrées, hors quotidien. Icône **sceau magenta** (pas de texte).
+Les habitudes ancrées, hors quotidien.
 - Suivi léger : les 7 derniers jours en points.
 - « La remettre dans mon quotidien » (désarchive, si une place est libre).
 - Pied : « Vous suivez N / 5 habitudes en parallèle. »
