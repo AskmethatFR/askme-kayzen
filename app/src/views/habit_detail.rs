@@ -507,6 +507,40 @@ mod tests {
         }
     }
 
+    // Six pairwise-distinct values, one per HabitRecap field plus the current
+    // goal — mirrors get_habit_detail's field-integrity fixture, one layer up.
+    fn services_with_a_habit_with_six_pairwise_distinct_recap_figures() -> Services {
+        let today = LocalDate::from_epoch_day(20_006);
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock(today));
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Lire une page".to_string()).unwrap(),
+            Goal::new(10).unwrap(),
+            LocalDate::from_epoch_day(20_000),
+        );
+        habit.grow(LocalDate::from_epoch_day(20_001));
+        habit.grow(LocalDate::from_epoch_day(20_002));
+        habit.lighten(LocalDate::from_epoch_day(20_003));
+        habit.toggle_done(LocalDate::from_epoch_day(20_000));
+        habit.toggle_done(LocalDate::from_epoch_day(20_001));
+        habit.toggle_done(LocalDate::from_epoch_day(20_004));
+        habit.toggle_done(today);
+        repository.save(&habit);
+        Services::with_repository_and_clock(repository, clock)
+    }
+
+    #[component]
+    fn RootAtHabitWithSixPairwiseDistinctRecapFigures() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_a_habit_with_six_pairwise_distinct_recap_figures);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
     #[component]
     fn RootAtPausedHabit() -> Element {
         use_hook(|| {
@@ -544,6 +578,16 @@ mod tests {
         let mut vdom = VirtualDom::new(root);
         vdom.rebuild_in_place();
         dioxus_ssr::render(&vdom)
+    }
+
+    // Asserts the figure and its label sit adjacent, as the SAME field: a
+    // `contains(number) && contains(word)` pair passes even when the numbers
+    // and words belong to two DIFFERENT rows swapped with each other. This
+    // checks the actual rendered adjacency, so a field swap fails it.
+    fn figure_pair(html: &str, figure: impl std::fmt::Display, label: &str) -> bool {
+        html.contains(&format!(
+            "<span class=\"recap-figure\">{figure}</span><span class=\"recap-label\">{label}</span>"
+        ))
     }
 
     #[test]
@@ -862,11 +906,11 @@ mod tests {
         let html = render(RootAtThirtyDayHabitDoneTwelve);
 
         assert!(
-            html.contains("12") && html.contains("réalisés"),
+            figure_pair(&html, 12, "réalisés"),
             "expected 12 days done to be shown, got: {html}"
         );
         assert!(
-            html.contains("18") && html.contains("autres jours"),
+            figure_pair(&html, 18, "autres jours"),
             "expected the 18 days without practice to be shown, got: {html}"
         );
         let lowercase_html = html.to_lowercase();
@@ -897,40 +941,78 @@ mod tests {
         let html = render(RootAtFloorHabitDoneToday);
 
         assert!(
-            html.contains("1 réalisé"),
+            figure_pair(&html, 1, "réalisé"),
             "expected the singular form for a single day done, got: {html}"
         );
         assert!(
-            !html.contains("1 réalisés"),
+            !figure_pair(&html, 1, "réalisés"),
             "expected no plural form for a single day done, got: {html}"
         );
     }
 
+    // @scenario: habit-stats/S2
     #[test]
     fn the_recap_shows_how_often_the_goal_moved() {
         let html = render(RootAtHabitGrownThreeTimesLightenedOnce);
 
         assert!(
-            html.contains("3") && html.contains("fois grandie"),
+            figure_pair(&html, 3, "fois grandie"),
             "expected three growths to be shown, got: {html}"
         );
         assert!(
-            html.contains("1") && html.contains("fois allégée"),
+            figure_pair(&html, 1, "fois allégée"),
             "expected one lightening to be shown, got: {html}"
         );
         assert!(
-            html.contains("Objectif : 7 min"),
+            figure_pair(&html, 7, "minutes visées"),
             "expected the current goal to be shown, got: {html}"
         );
     }
 
+    // @scenario: habit-stats/S3
     #[test]
     fn the_recap_shows_the_minutes_practised() {
         let html = render(RootAtHabitDoneTwiceAtFiveThenOnceAtSix);
 
         assert!(
-            html.contains("16") && html.contains("minutes de pratique accumulées"),
+            figure_pair(&html, 16, "minutes de pratique accumulées"),
             "expected the sixteen practised minutes to be shown, got: {html}"
+        );
+    }
+
+    // No Gherkin scenario names this field-by-field integrity (mirrors
+    // get_habit_detail's `the_recap_carries_each_figure_in_its_own_field`, one
+    // layer up: cargo-mutants never mutates rsx! markup, and a
+    // `contains(number) && contains(word)` pair passes on a swapped field just
+    // as readily as on the right one — this is exactly how B1 shipped green).
+    // Six pairwise-distinct figures make any swap observable.
+    #[test]
+    fn the_recap_view_carries_each_figure_in_its_own_field() {
+        let html = render(RootAtHabitWithSixPairwiseDistinctRecapFigures);
+
+        assert!(
+            figure_pair(&html, 4, "réalisés"),
+            "expected days_done in its own field, got: {html}"
+        );
+        assert!(
+            figure_pair(&html, 3, "autres jours"),
+            "expected empty_days in its own field, got: {html}"
+        );
+        assert!(
+            figure_pair(&html, 43, "minutes de pratique accumulées"),
+            "expected minutes_practised in its own field, got: {html}"
+        );
+        assert!(
+            figure_pair(&html, 2, "fois grandie"),
+            "expected growths in its own field, got: {html}"
+        );
+        assert!(
+            figure_pair(&html, 1, "fois allégée"),
+            "expected lightenings in its own field, got: {html}"
+        );
+        assert!(
+            figure_pair(&html, 11, "minutes visées"),
+            "expected the current goal in its own field, got: {html}"
         );
     }
 
