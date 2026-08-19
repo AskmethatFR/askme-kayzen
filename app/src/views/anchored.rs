@@ -85,6 +85,11 @@ fn refusal_message(error: ReadmitHabitError) -> Option<&'static str> {
     }
 }
 
+#[must_use]
+fn readmit_row(_services: &Services, _id: &str) -> (AnchoredScreen, Option<&'static str>) {
+    todo!()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -205,7 +210,8 @@ mod tests {
     }
 
     #[test]
-    fn readmit_and_relist_removes_the_habit_from_the_screen_and_grows_the_parallel_count() {
+    fn readmit_row_removes_the_habit_from_the_screen_grows_the_parallel_count_and_clears_the_message()
+     {
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
         repository.save(&a_habit("h-1", "Bouger un peu"));
         repository.save(&a_habit("h-2", "Boire un verre d'eau"));
@@ -214,9 +220,9 @@ mod tests {
         repository.save(&anchored);
         let services = Services::with_repository(repository);
 
-        let (result, screen) = readmit_and_relist(&services, "h-3");
+        let (screen, message) = readmit_row(&services, "h-3");
 
-        assert_eq!(result, Ok(()));
+        assert_eq!(message, None, "a successful readmit carries no refusal");
         assert!(
             screen.habits.is_empty(),
             "the readmitted habit leaves the screen"
@@ -225,7 +231,7 @@ mod tests {
     }
 
     #[test]
-    fn readmit_and_relist_keeps_the_habit_listed_on_a_refusal() {
+    fn readmit_row_keeps_the_habit_listed_and_names_the_full_daily_life_message_on_refusal() {
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
         for n in 1..=Habit::MAX_IN_DAILY_LIFE {
             repository.save(&a_habit(&format!("h-{n}"), &format!("Habit number {n}")));
@@ -235,14 +241,28 @@ mod tests {
         repository.save(&anchored);
         let services = Services::with_repository(repository);
 
-        let (result, screen) = readmit_and_relist(&services, "h-anchored");
+        let (screen, message) = readmit_row(&services, "h-anchored");
 
         assert_eq!(
-            result,
-            Err(ReadmitHabitError::DailyLifeFull {
-                max: Habit::MAX_IN_DAILY_LIFE
-            })
+            message,
+            Some("Le quotidien est complet · pour la remettre, ancrez-en une autre d'abord")
         );
+        assert_eq!(screen.habits.len(), 1, "the refused habit stays listed");
+        assert_eq!(screen.habits[0].id, "h-anchored");
+    }
+
+    #[test]
+    fn readmit_row_keeps_the_habit_listed_and_names_the_duplicate_message_on_refusal() {
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit("h-1", "lire une page"));
+        let mut anchored = a_habit("h-anchored", "Lire une page");
+        anchored.anchor().expect("a fresh habit is active");
+        repository.save(&anchored);
+        let services = Services::with_repository(repository);
+
+        let (screen, message) = readmit_row(&services, "h-anchored");
+
+        assert_eq!(message, Some("Elle est déjà dans votre quotidien"));
         assert_eq!(screen.habits.len(), 1, "the refused habit stays listed");
         assert_eq!(screen.habits[0].id, "h-anchored");
     }
