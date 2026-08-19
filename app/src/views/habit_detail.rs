@@ -817,7 +817,7 @@ mod tests {
             "expected no lighten-goal gesture on a paused habit, got: {html}"
         );
         assert!(
-            !html.contains("Faire ma minute"),
+            !html.contains("Commencer ma pratique"),
             "expected no ritual gesture on a paused habit, got: {html}"
         );
         assert!(
@@ -844,7 +844,7 @@ mod tests {
             "expected no goal-adjustment gesture on an anchored habit, got: {html}"
         );
         assert!(
-            !html.contains("Faire ma minute"),
+            !html.contains("Commencer ma pratique"),
             "expected no ritual gesture on an anchored habit, got: {html}"
         );
         assert!(
