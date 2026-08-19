@@ -82,16 +82,18 @@ pub fn Today() -> Element {
             }
 
             p { class: "tally", "{done} sur {total} · c'est déjà quelque chose." }
-            Link {
-                class: "quiet-link",
-                to: Route::Week {},
-                "Voir comment je grandis · cette semaine"
-            }
-            if today_habits.anchored_count >= 1 {
+            div { class: "footer-links",
                 Link {
                     class: "quiet-link",
-                    to: Route::Anchored {},
-                    "Mes habitudes ancrées · {today_habits.anchored_count}"
+                    to: Route::Week {},
+                    "Voir comment je grandis · cette semaine"
+                }
+                if today_habits.anchored_count >= 1 {
+                    Link {
+                        class: "quiet-link",
+                        to: Route::Anchored {},
+                        "Mes habitudes ancrées · {today_habits.anchored_count}"
+                    }
                 }
             }
             div { class: "add-cta",
