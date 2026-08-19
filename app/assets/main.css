@@ -225,6 +225,30 @@ body {
   opacity: 1;
 }
 
+/* ---- Recap zone (Detail screen) ----
+   A quiet read of the habit's whole life: figures on the left, their label
+   beside them, and one adaptive sentence that never blames. */
+.recap {
+  margin: var(--space-6) 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-rule);
+}
+.recap-figures {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.recap-figure {
+  display: inline-block;
+  min-width: 44px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink);
+}
+.recap-label {
+  color: var(--color-ink-soft);
+  font-size: 14px;
+}
+
 /* ---- Broadsheet components (for later screens) ---- */
 .btn {
   font-family: var(--font-serif);

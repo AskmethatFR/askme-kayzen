@@ -3,6 +3,7 @@ use crate::route::Route;
 use dioxus::prelude::*;
 use kayzen_core::habit_management::queries::get_habit_detail::HabitDetail as HabitDetailData;
 use kayzen_core::habit_management::queries::get_habit_detail::HabitState;
+use kayzen_core::habit_management::queries::get_habit_detail::RecapMessage;
 
 #[component]
 pub fn HabitDetail(id: String) -> Element {
@@ -28,6 +29,64 @@ pub fn HabitDetail(id: String) -> Element {
                 }
             };
 
+            let recap = {
+                let days_done_label = format!(
+                    "{} {}",
+                    habit.recap.days_done,
+                    plural(habit.recap.days_done, "réalisé", "réalisés")
+                );
+                let empty_days_label = format!(
+                    "{} {}",
+                    habit.recap.empty_days,
+                    plural(habit.recap.empty_days, "autre jour", "autres jours")
+                );
+                let minutes_label = format!(
+                    "{} {}",
+                    habit.recap.minutes_practised,
+                    plural(
+                        habit.recap.minutes_practised as usize,
+                        "minute de pratique accumulée",
+                        "minutes de pratique accumulées"
+                    )
+                );
+                let growths_label = format!("{} fois grandie", habit.recap.growths);
+                let lightenings_label = format!("{} fois allégée", habit.recap.lightenings);
+                let goal_label = format!("Objectif : {} min", habit.current_goal);
+
+                rsx! {
+                    section { class: "recap",
+                        p { class: "eyebrow", "Votre histoire" }
+                        ul { class: "recap-figures",
+                            li {
+                                span { class: "recap-figure", "{habit.recap.days_done}" }
+                                span { class: "recap-label", "{days_done_label}" }
+                            }
+                            li {
+                                span { class: "recap-figure", "{habit.recap.empty_days}" }
+                                span { class: "recap-label", "{empty_days_label}" }
+                            }
+                            li {
+                                span { class: "recap-figure", "{habit.recap.minutes_practised}" }
+                                span { class: "recap-label", "{minutes_label}" }
+                            }
+                            li {
+                                span { class: "recap-figure", "{habit.recap.growths}" }
+                                span { class: "recap-label", "{growths_label}" }
+                            }
+                            li {
+                                span { class: "recap-figure", "{habit.recap.lightenings}" }
+                                span { class: "recap-label", "{lightenings_label}" }
+                            }
+                            li {
+                                span { class: "recap-figure", "{habit.current_goal}" }
+                                span { class: "recap-label", "{goal_label}" }
+                            }
+                        }
+                        p { class: "quiet-note", "{recap_copy(habit.recap.message)}" }
+                    }
+                }
+            };
+
             match habit.state {
                 HabitState::Active => rsx! {
                     div { class: "screen",
@@ -38,6 +97,8 @@ pub fn HabitDetail(id: String) -> Element {
                         p { class: "lede", "chaque jour · {habit.current_goal} min" }
 
                         {staircase}
+
+                        {recap}
 
                         p { class: "eyebrow", "Ajuster, à votre rythme" }
                         button {
@@ -100,6 +161,8 @@ pub fn HabitDetail(id: String) -> Element {
 
                         {staircase}
 
+                        {recap}
+
                         button {
                             class: "btn btn-primary btn-block",
                             aria_label: "La reprendre · {habit.title}",
@@ -121,6 +184,8 @@ pub fn HabitDetail(id: String) -> Element {
                         p { class: "lede", "ancrée · {habit.current_goal} min" }
 
                         {staircase}
+
+                        {recap}
                     }
                 },
             }
@@ -162,6 +227,20 @@ fn resume_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
 fn anchor_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
     services.anchor_habit.execute(id).ok();
     services.get_habit_detail.handle(id)
+}
+
+#[must_use]
+fn recap_copy(message: RecapMessage) -> &'static str {
+    match message {
+        RecapMessage::FreshStart => "Un début parfait. Tout est encore devant.",
+        RecapMessage::Resting => "Elle se repose en ce moment. Elle vous attend, sans presser.",
+        RecapMessage::Growing => "Vous la faites vivre, à votre rythme.",
+    }
+}
+
+#[must_use]
+fn plural(count: usize, one: &'static str, many: &'static str) -> &'static str {
+    if count > 1 { many } else { one }
 }
 
 #[cfg(test)]
@@ -685,7 +764,9 @@ mod tests {
             "expected the 18 days without practice to be shown, got: {html}"
         );
         let lowercase_html = html.to_lowercase();
-        for forbidden in ["échec", "raté", "manqué", "perdu", "oublié", "failed", "vide"] {
+        for forbidden in [
+            "échec", "raté", "manqué", "perdu", "oublié", "failed", "vide",
+        ] {
             assert!(
                 !lowercase_html.contains(forbidden),
                 "expected no failure word in the recap, got: {html}"
