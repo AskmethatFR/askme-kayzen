@@ -944,9 +944,10 @@ mod tests {
             figure_pair(&html, 1, "fois allégée"),
             "expected one lightening to be shown, got: {html}"
         );
-        assert!(
-            !html.contains("visée"),
-            "expected the recap to no longer carry the current goal as a row, got: {html}"
+        assert_eq!(
+            html.matches("class=\"recap-figure\"").count(),
+            5,
+            "expected no sixth recap row for the current goal, got: {html}"
         );
     }
 
