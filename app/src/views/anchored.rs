@@ -28,11 +28,13 @@ pub fn Anchored() -> Element {
                         span { class: "habit-name", "{habit.title}" }
                         button {
                             class: "readmit",
+                            aria_label: "La remettre dans mon quotidien · {habit.title}",
                             onclick: {
                                 let services = services.clone();
                                 let habit_id = habit.id.clone();
                                 move |_| {
-                                    let (reloaded, message) = readmit_row(&services, &habit_id);
+                                    let (reloaded, message) =
+                                        readmit_and_relist(&services, &habit_id);
                                     screen.set(reloaded);
                                     readmit_error.set(message.map(|text| (habit_id.clone(), text)));
                                 }
@@ -68,7 +70,7 @@ fn refusal_message(error: ReadmitHabitError) -> Option<&'static str> {
 }
 
 #[must_use]
-fn readmit_row(services: &Services, id: &str) -> (AnchoredScreen, Option<&'static str>) {
+fn readmit_and_relist(services: &Services, id: &str) -> (AnchoredScreen, Option<&'static str>) {
     let message = match services.readmit_habit.execute(id) {
         Ok(()) => None,
         Err(error) => refusal_message(error),
@@ -197,10 +199,13 @@ mod tests {
     fn the_ancrees_screen_offers_to_readmit_each_anchored_habit() {
         let html = render(RootAtAnchoredScreen);
 
-        assert_eq!(
-            html.matches("La remettre dans mon quotidien").count(),
-            2,
-            "expected one readmit button per anchored habit, got: {html}"
+        assert!(
+            html.contains(r#"aria-label="La remettre dans mon quotidien · Lire une page""#),
+            "expected a readmit button named after Lire une page, got: {html}"
+        );
+        assert!(
+            html.contains(r#"aria-label="La remettre dans mon quotidien · Bouger un peu""#),
+            "expected a readmit button named after Bouger un peu, got: {html}"
         );
     }
 
@@ -220,7 +225,7 @@ mod tests {
     }
 
     #[test]
-    fn readmit_row_removes_the_habit_from_the_screen_grows_the_parallel_count_and_clears_the_message()
+    fn readmit_and_relist_removes_the_habit_from_the_screen_grows_the_parallel_count_and_clears_the_message()
      {
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
         repository.save(&a_habit("h-1", "Bouger un peu"));
@@ -230,7 +235,7 @@ mod tests {
         repository.save(&anchored);
         let services = Services::with_repository(repository);
 
-        let (screen, message) = readmit_row(&services, "h-3");
+        let (screen, message) = readmit_and_relist(&services, "h-3");
 
         assert_eq!(message, None, "a successful readmit carries no refusal");
         assert!(
@@ -241,7 +246,8 @@ mod tests {
     }
 
     #[test]
-    fn readmit_row_keeps_the_habit_listed_and_names_the_full_daily_life_message_on_refusal() {
+    fn readmit_and_relist_keeps_the_habit_listed_and_names_the_full_daily_life_message_on_refusal()
+    {
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
         for n in 1..=Habit::MAX_IN_DAILY_LIFE {
             repository.save(&a_habit(&format!("h-{n}"), &format!("Habit number {n}")));
@@ -251,7 +257,7 @@ mod tests {
         repository.save(&anchored);
         let services = Services::with_repository(repository);
 
-        let (screen, message) = readmit_row(&services, "h-anchored");
+        let (screen, message) = readmit_and_relist(&services, "h-anchored");
 
         assert_eq!(
             message,
@@ -262,7 +268,7 @@ mod tests {
     }
 
     #[test]
-    fn readmit_row_keeps_the_habit_listed_and_names_the_duplicate_message_on_refusal() {
+    fn readmit_and_relist_keeps_the_habit_listed_and_names_the_duplicate_message_on_refusal() {
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
         repository.save(&a_habit("h-1", "lire une page"));
         let mut anchored = a_habit("h-anchored", "Lire une page");
@@ -270,7 +276,7 @@ mod tests {
         repository.save(&anchored);
         let services = Services::with_repository(repository);
 
-        let (screen, message) = readmit_row(&services, "h-anchored");
+        let (screen, message) = readmit_and_relist(&services, "h-anchored");
 
         assert_eq!(message, Some("Elle est déjà dans votre quotidien"));
         assert_eq!(screen.habits.len(), 1, "the refused habit stays listed");
