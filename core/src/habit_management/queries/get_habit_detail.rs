@@ -4,6 +4,7 @@ use crate::habit_management::domain::habit::Habit;
 use crate::habit_management::domain::habit_id::HabitId;
 use crate::habit_management::domain::habit_repository::HabitRepository;
 use crate::habit_management::domain::lifecycle_state::LifecycleState;
+use crate::habit_management::domain::step_history::StepChange;
 use crate::shared::clock::Clock;
 use crate::shared::local_date::LocalDate;
 
@@ -86,6 +87,7 @@ impl GetHabitDetail {
         let id = HabitId::new(habit_id).ok()?;
         let habit = self.repository.get(&id)?;
         let today = self.clock.today();
+        let steps = habit.step_history().changes();
 
         Some(HabitDetail {
             id: habit.id().value().to_string(),
@@ -98,7 +100,7 @@ impl GetHabitDetail {
                 .map(|days_back| today.minus_days(days_back))
                 .map(|day| PracticeDay {
                     done: habit.is_done_on(day),
-                    goal: goal_active_on(&habit, day),
+                    goal: goal_active_on(&steps, day),
                 })
                 .collect(),
             state: match habit.state() {
@@ -106,7 +108,7 @@ impl GetHabitDetail {
                 LifecycleState::Paused => HabitState::Paused,
                 LifecycleState::Anchored => HabitState::Anchored,
             },
-            recap: recap_of(&habit, today),
+            recap: recap_of(&habit, &steps, today),
         })
     }
 }
@@ -120,9 +122,7 @@ impl GetHabitDetail {
 ///
 /// Indexing the first step cannot panic: `StepHistory::seeded` is its only
 /// constructor, so a history always holds at least the step it was seeded with.
-fn goal_active_on(habit: &Habit, day: LocalDate) -> u32 {
-    let steps = habit.step_history().changes();
-
+fn goal_active_on(steps: &[&StepChange], day: LocalDate) -> u32 {
     steps
         .iter()
         .rev()
@@ -132,17 +132,21 @@ fn goal_active_on(habit: &Habit, day: LocalDate) -> u32 {
         .value()
 }
 
-fn recap_of(habit: &Habit, today: LocalDate) -> HabitRecap {
+fn recap_of(habit: &Habit, steps: &[&StepChange], today: LocalDate) -> HabitRecap {
     let created_on = habit.created_on();
     let (mut days_done, mut empty_days, mut minutes_practised) = (0usize, 0usize, 0u32);
     let mut days_since_last_completion: Option<usize> = None;
 
-    let mut day = today;
+    // Clock skew (device date moved back, westward TZ change on the creation
+    // day) can put today before created_on. Clamping the walk's start to
+    // whichever is later keeps it covering at least the creation day, instead
+    // of running zero iterations and silently reading the recap as all zeros.
+    let mut day = today.max(created_on);
     let mut days_back = 0usize;
     while day >= created_on {
         if habit.is_done_on(day) {
             days_done += 1;
-            minutes_practised += goal_active_on(habit, day);
+            minutes_practised = minutes_practised.saturating_add(goal_active_on(steps, day));
             if days_since_last_completion.is_none() {
                 days_since_last_completion = Some(days_back);
             }
@@ -153,7 +157,7 @@ fn recap_of(habit: &Habit, today: LocalDate) -> HabitRecap {
         days_back += 1;
     }
 
-    let (growths, lightenings) = goal_moves(habit);
+    let (growths, lightenings) = goal_moves(steps);
 
     HabitRecap {
         days_done,
@@ -165,8 +169,7 @@ fn recap_of(habit: &Habit, today: LocalDate) -> HabitRecap {
     }
 }
 
-fn goal_moves(habit: &Habit) -> (usize, usize) {
-    let steps = habit.step_history().changes();
+fn goal_moves(steps: &[&StepChange]) -> (usize, usize) {
     let (mut growths, mut lightenings) = (0usize, 0usize);
     for pair in steps.windows(2) {
         let previous = pair[0].goal().value();
