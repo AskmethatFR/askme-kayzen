@@ -1,7 +1,7 @@
 # 5 · Style graphique
 
 Le design suit le système **Broadsheet** : du newsprint pour le web — Source Serif 4 noir
-sur papier blanc, avec les accents d'imprimerie (cyan et magenta) en petites touches
+sur papier blanc, avec l'accent d'imprimerie (cyan) en petites touches
 délibérées, comme du spot color. Hiérarchie par l'échelle du serif et le blanc, **pas de
 boîtes ni de filets**.
 
@@ -12,7 +12,6 @@ boîtes ni de filets**.
 | Fond papier | `#f3f2f2` | fond de tous les écrans |
 | Encre | `#201e1d` | texte |
 | Cyan (accent) | `#0088b0` | tout ce qui est interactif |
-| Magenta (accent 2) | `#d6006c` | second spot, rare — l'ancrage, les acquises |
 
 Chaque rôle a une rampe tonale 100–900 (générée en OKLCH). Utiliser les pas clairs (100–300)
 pour les fonds teintés et bordures, 500 comme base, 700–900 pour le texte sur fond teinté.
@@ -50,8 +49,8 @@ Ne jamais coder un hex en dur : passer par les variables `var(--color-*)`.
 ## Motifs d'interaction
 
 - Espacer les sections par du **blanc**, jamais des filets ou des cartes.
-- Validation d'une habitude : la cible ronde se remplit d'accent cyan (`kzStamp`) avec deux
-  anneaux qui se diffusent (`kzRing`) en cyan puis magenta — récompense visuelle satisfaisante.
+- Validation d'une habitude : la cible ronde se remplit d'accent cyan (`kzStamp`) avec un
+  anneau qui se diffuse (`kzRing`) — récompense visuelle satisfaisante.
 - Transition d'écran douce : léger fondu + montée (`kzUp`).
 - Rituel : cercle central qui « respire » lentement (`kzBreathe`, 8 s).
 - Chaque élément interactif : `:hover` teinté et état pressé (un pas de rampe au-delà de la
@@ -60,7 +59,7 @@ Ne jamais coder un hex en dur : passer par les variables `var(--color-*)`.
 ## Composants Broadsheet utilisés
 
 - `.btn` / `.btn-primary` / `.btn-secondary` / `.btn-block` — actions.
-- `.tag` / `.tag-accent` / `.tag-accent-2` — petites étiquettes (ex. « +2 min », « ancrée »).
+- `.tag` / `.tag-accent` — petites étiquettes (ex. « +2 min », « ancrée »).
 - `.field` + `.input` — champs de saisie (nom d'habitude, déclencheur, réflexion).
 - Rampes `--color-*`, ombres `--shadow-sm/md/lg`.
 

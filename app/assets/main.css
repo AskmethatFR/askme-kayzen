@@ -1,5 +1,5 @@
 /* Kaizen — Broadsheet design system
-   Newsprint for the web: Source Serif 4 ink on paper, cyan/magenta as spot color,
+   Newsprint for the web: Source Serif 4 ink on paper, cyan as spot color,
    hierarchy by serif scale and whitespace — no boxes, no rules-as-borders. */
 
 @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,600&display=swap');
@@ -13,8 +13,6 @@
   --color-accent: #0088b0;      /* cyan — everything interactive */
   --color-accent-100: #e0eff4;
   --color-accent-700: #045f7d;
-  --color-accent-2: #d6006c;    /* magenta — anchoring / acquired, rare */
-  --color-accent-2-100: #fbe0ed;
 
   /* Space & shape */
   --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
@@ -286,7 +284,6 @@ body {
   color: var(--color-accent-700);
 }
 .tag-accent { background: var(--color-accent-100); color: var(--color-accent-700); }
-.tag-accent-2 { background: var(--color-accent-2-100); color: var(--color-accent-2); }
 
 .field { display: block; margin-bottom: var(--space-4); }
 .input {
