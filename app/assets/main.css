@@ -319,8 +319,75 @@ body {
 .add-target:active { transform: scale(.94); }
 .add-target:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
 
+/* ---- Ritual (practice timer) ----
+   A dial doing one thing: an SVG ring whose offset is computed in Rust
+   (offset = circumference × (1 − restant / total)), a breathing circle
+   behind it, and the m:ss countdown centered on top. */
+.screen.ritual { text-align: center; }
+.ritual-dial {
+  position: relative;
+  width: 220px;
+  height: 220px;
+  margin: var(--space-6) auto;
+  display: grid;
+  place-items: center;
+}
+.ritual-breath {
+  position: absolute;
+  inset: 28px;
+  border-radius: 50%;
+  background: var(--color-accent-100);
+  animation: kzBreathe 8s ease-in-out infinite;
+}
+.ritual-ring {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.ritual-ring-track {
+  fill: none;
+  stroke: var(--color-rule);
+  stroke-width: 4;
+}
+.ritual-ring-run {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+.ritual-countdown {
+  position: relative;
+  font-size: clamp(30px, 8vw, 44px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink);
+}
+/* Invisible by design: this element's only job is to fire an
+   animationiteration event every .25s so the countdown re-reads the clock.
+   It must keep animating under prefers-reduced-motion — it moves no pixel,
+   so silencing it would freeze the countdown instead of calming the screen. */
+.ritual-tick {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+  animation: kzTick .25s linear infinite;
+}
+
 /* ---- Animations ---- */
 @keyframes kzStamp   { 0% { transform: scale(.35); opacity: 0; } 55% { transform: scale(1.12); } 100% { transform: scale(1); opacity: 1; } }
 @keyframes kzRing    { 0% { transform: scale(.55); opacity: .55; } 100% { transform: scale(2); opacity: 0; } }
 @keyframes kzUp      { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes kzBreathe { 0%, 100% { transform: scale(.86); opacity: .7; } 50% { transform: scale(1.08); opacity: 1; } }
+@keyframes kzTick     { from { opacity: 0; } to { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .screen,
+  .target.is-done .target-ink,
+  .target.is-done::after,
+  .ritual-breath {
+    animation: none;
+  }
+}

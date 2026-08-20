@@ -17,9 +17,34 @@ pub fn Ritual(id: String) -> Element {
     });
 
     match habit() {
-        None => unimplemented!(),
-        Some(habit) if habit.state == HabitState::Paused => unimplemented!(),
-        Some(habit) if habit.state == HabitState::Anchored => unimplemented!(),
+        None => rsx! {
+            div { class: "screen",
+                p { class: "lede", "Cette habitude n'est plus sur votre liste." }
+                Link { class: "quiet-link", to: Route::Today {}, "Retour à Aujourd'hui" }
+            }
+        },
+        Some(habit) if habit.state == HabitState::Paused => rsx! {
+            div { class: "screen",
+                header { class: "masthead",
+                    Link { class: "quiet-link", to: Route::Today {}, "← Aujourd'hui" }
+                }
+                h1 { class: "greeting", "{habit.title}" }
+                p { class: "quiet-note",
+                    "Cette habitude se repose en ce moment. Elle vous attend, sans presser."
+                }
+            }
+        },
+        Some(habit) if habit.state == HabitState::Anchored => rsx! {
+            div { class: "screen",
+                header { class: "masthead",
+                    Link { class: "quiet-link", to: Route::Today {}, "← Aujourd'hui" }
+                }
+                h1 { class: "greeting", "{habit.title}" }
+                p { class: "quiet-note",
+                    "Cette habitude est devenue naturelle. Elle a quitté votre quotidien."
+                }
+            }
+        },
         Some(habit) => rsx! {
             PracticeTimer {
                 id: habit.id.clone(),
@@ -60,6 +85,15 @@ fn PracticeTimer(id: String, title: String, goal_minutes: u32) -> Element {
                 }
                 div { class: "ritual-countdown", "{countdown_label(remaining)}" }
             }
+            if remaining == 0 {
+                p { class: "quiet-note", "Le temps est passé. Rien ne presse." }
+            }
+            Link {
+                class: "quiet-link",
+                to: Route::HabitDetail { id: id.clone() },
+                aria_label: "Arrêter, ce n'est pas grave · {title}",
+                "Arrêter, ce n'est pas grave"
+            }
             div {
                 class: "ritual-tick",
                 aria_hidden: "true",
@@ -71,27 +105,27 @@ fn PracticeTimer(id: String, title: String, goal_minutes: u32) -> Element {
 
 #[must_use]
 fn total_seconds(goal_minutes: u32) -> u64 {
-    unimplemented!("goal_minutes: {goal_minutes}")
+    u64::from(goal_minutes) * 60
 }
 
 #[must_use]
 fn remaining_seconds(total: u64, elapsed: Duration) -> u64 {
-    unimplemented!("total: {total}, elapsed: {elapsed:?}")
+    total.saturating_sub(elapsed.as_secs())
 }
 
 #[must_use]
 fn countdown_label(remaining: u64) -> String {
-    unimplemented!("remaining: {remaining}")
+    format!("{}:{:02}", remaining / 60, remaining % 60)
 }
 
 #[must_use]
 fn ring_circumference() -> f64 {
-    unimplemented!()
+    2.0 * std::f64::consts::PI * RING_RADIUS
 }
 
 #[must_use]
 fn ring_offset(remaining: u64, total: u64) -> f64 {
-    unimplemented!("remaining: {remaining}, total: {total}")
+    ring_circumference() * (1.0 - remaining as f64 / total as f64)
 }
 
 #[cfg(test)]
