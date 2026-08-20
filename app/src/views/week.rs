@@ -1,11 +1,38 @@
+use crate::composition::Services;
 use crate::route::Route;
 use dioxus::prelude::*;
+use kayzen_core::habit_management::queries::get_week_recap::WeekMessage;
 
 #[component]
 pub fn Week() -> Element {
+    let services = use_context::<Services>();
+    let recap = use_signal(move || services.get_week_recap.handle());
+    let recap = recap();
+    let minutes = recap.minutes_practised;
+    let figure = if minutes == 1 {
+        format!("{minutes} minute de pratique accumulée")
+    } else {
+        format!("{minutes} minutes de pratique accumulées")
+    };
+
     rsx! {
-        h1 { "Cette semaine" }
-        Link { to: Route::Today {}, "Aujourd'hui" }
+        div { class: "screen",
+            header { class: "masthead",
+                Link { class: "quiet-link", to: Route::Today {}, "← Aujourd'hui" }
+            }
+            h1 { class: "greeting", "Cette semaine" }
+            p { class: "week-figure", "{figure}" }
+            p { class: "week-word", "{week_copy(recap.message)}" }
+        }
+    }
+}
+
+#[must_use]
+fn week_copy(message: WeekMessage) -> &'static str {
+    match message {
+        WeekMessage::FreshStart => "Un début parfait. Tout est encore devant.",
+        WeekMessage::Resting => "Cette semaine se repose. Elle vous attend, sans presser.",
+        WeekMessage::Growing => "Vous avancez, à votre rythme.",
     }
 }
 

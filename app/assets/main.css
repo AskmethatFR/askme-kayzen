@@ -255,6 +255,22 @@ body {
   font-size: 14px;
 }
 
+/* ---- Week recap (Week screen) ----
+   One large figure standing for practice accumulated across every habit,
+   and one gentle word for how the week is living right now. */
+.week-figure {
+  font-size: clamp(30px, 8vw, 44px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink);
+  margin: var(--space-5) 0 var(--space-2);
+}
+.week-word {
+  font-size: 17px;
+  color: var(--color-ink-soft);
+  margin: 0;
+}
+
 /* ---- Broadsheet components (for later screens) ---- */
 .btn {
   font-family: var(--font-serif);

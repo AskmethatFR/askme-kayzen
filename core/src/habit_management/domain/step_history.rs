@@ -1,9 +1,9 @@
 use crate::habit_management::domain::goal::Goal;
 use crate::shared::local_date::LocalDate;
 
-/// One dated change to a habit's daily goal. The date is what makes a later
-/// "minutes gained since day X" query reconstructible (adr-0007) — even
-/// though nothing reads it back within this slice yet.
+/// One dated change to a habit's daily goal. The date is what makes
+/// `StepHistory::goal_on` able to reconstruct the goal in force on any past
+/// day (adr-0007).
 #[derive(Debug, Clone, PartialEq)]
 pub struct StepChange {
     on: LocalDate,
@@ -75,8 +75,12 @@ impl StepHistory {
     /// panic — `seeded` is the type's only constructor, so `first` always
     /// exists (see the type doc comment).
     pub fn goal_on(&self, day: LocalDate) -> &Goal {
-        let _ = day;
-        todo!()
+        self.rest
+            .iter()
+            .rev()
+            .find(|step| step.on() <= day)
+            .map(StepChange::goal)
+            .unwrap_or_else(|| self.first.goal())
     }
 }
 

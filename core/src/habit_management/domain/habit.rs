@@ -128,4 +128,25 @@ impl Habit {
     pub fn is_done_on(&self, day: LocalDate) -> bool {
         self.completion_history.contains(day)
     }
+
+    /// Minutes practised from creation through `today`, each completed day
+    /// weighed by the goal that was in force on it (never today's goal).
+    ///
+    /// Clock skew (device date moved back, westward TZ change on the
+    /// creation day) can put `today` before `created_on`. Clamping the
+    /// walk's start to whichever is later keeps it covering at least the
+    /// creation day, instead of running zero iterations and silently
+    /// reading the total as zero.
+    pub fn minutes_practised(&self, today: LocalDate) -> u32 {
+        let created_on = self.created_on();
+        let mut minutes = 0u32;
+        let mut day = today.max(created_on);
+        while day >= created_on {
+            if self.is_done_on(day) {
+                minutes = minutes.saturating_add(self.steps.goal_on(day).value());
+            }
+            day = day.minus_days(1);
+        }
+        minutes
+    }
 }

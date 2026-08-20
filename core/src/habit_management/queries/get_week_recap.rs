@@ -1,7 +1,13 @@
 use std::rc::Rc;
 
+use crate::habit_management::domain::habit::Habit;
 use crate::habit_management::domain::habit_repository::HabitRepository;
 use crate::shared::clock::Clock;
+use crate::shared::local_date::LocalDate;
+
+/// How many trailing days count as "recently" for the week's word (adr-0006:
+/// a rolling window ending today, never a Monday→Sunday calendar week).
+const RECENT_PRACTICE_WINDOW_DAYS: i64 = 7;
 
 #[derive(Clone)]
 pub struct GetWeekRecap {
@@ -33,8 +39,36 @@ impl GetWeekRecap {
     }
 
     pub fn handle(&self) -> WeekRecap {
-        todo!()
+        let today = self.clock.today();
+        let mut minutes_practised = 0u32;
+        let mut recently = false;
+
+        for habit in self.repository.all() {
+            minutes_practised = minutes_practised.saturating_add(habit.minutes_practised(today));
+            if practised_recently(&habit, today) {
+                recently = true;
+            }
+        }
+
+        WeekRecap {
+            minutes_practised,
+            message: message_for(minutes_practised, recently),
+        }
     }
+}
+
+fn practised_recently(habit: &Habit, today: LocalDate) -> bool {
+    (0..RECENT_PRACTICE_WINDOW_DAYS).any(|days_back| habit.is_done_on(today.minus_days(days_back)))
+}
+
+fn message_for(minutes_practised: u32, practised_recently: bool) -> WeekMessage {
+    if minutes_practised == 0 {
+        return WeekMessage::FreshStart;
+    }
+    if practised_recently {
+        return WeekMessage::Growing;
+    }
+    WeekMessage::Resting
 }
 
 #[cfg(test)]
