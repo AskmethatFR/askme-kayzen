@@ -9,6 +9,7 @@ publish.workspace = true
 kayzen-core = { path = "../core" }
 dioxus = { version = "0.7.9", features = ["router"] }
 rand = "0.8"
+web-time = "1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }
