@@ -207,6 +207,48 @@ mod tests {
         assert_eq!(recap.message, WeekMessage::Growing);
     }
 
+    // @scenario: week-recap/S4
+    #[test]
+    fn the_recent_practice_window_edge_sits_at_seven_days_back() {
+        let cases: Vec<(i64, WeekMessage)> = vec![(6, WeekMessage::Growing), (7, WeekMessage::Resting)];
+
+        for (days_back, expected) in cases {
+            let repository = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = a_habit("h-1", 5, TODAY - 20);
+            habit.toggle_done(LocalDate::from_epoch_day(TODAY - days_back));
+            repository.save(&habit);
+            let query = get_week_recap_over(repository);
+
+            let recap = query.handle();
+
+            assert_eq!(
+                recap.message, expected,
+                "a last completion {days_back} days back reads as {expected:?} — \
+                 six is still within the rolling window, seven is already outside it"
+            );
+        }
+    }
+
+    // A device clock lagging behind a habit's own creation day (westward TZ
+    // change, clock moved back) must still count the creation day's practice
+    // — never silently read it as zero (AD-2's stated hazard).
+    #[test]
+    fn a_habit_created_in_the_clocks_future_still_counts_its_creation_day() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit("h-1", 5, TODAY + 5);
+        habit.toggle_done(LocalDate::from_epoch_day(TODAY + 5));
+        repository.save(&habit);
+        let query = get_week_recap_over(repository);
+
+        let recap = query.handle();
+
+        assert_eq!(
+            recap.minutes_practised, 5,
+            "the creation day's practice must be counted even when the \
+             clock's today lags behind created_on, never read as zero"
+        );
+    }
+
     #[test]
     fn the_running_sum_saturates_instead_of_overflowing_across_habits() {
         let repository = Rc::new(InMemoryHabitRepository::new());

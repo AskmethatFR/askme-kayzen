@@ -124,6 +124,10 @@ mod tests {
             "expected the large figure to name accumulated practice, never \
              gain over the starting goal, got: {html}"
         );
+        assert!(
+            html.contains("Vous avancez"),
+            "recent practice must read the Growing word, got: {html}"
+        );
     }
 
     #[component]
@@ -188,6 +192,11 @@ mod tests {
             html.contains("Un début parfait"),
             "expected the fresh-start word, an empty start is still a start, got: {html}"
         );
+        assert!(
+            html.contains("0 minutes de pratique accumulées"),
+            "a fresh week's figure is never a bare zero — it always carries \
+             its label, got: {html}"
+        );
     }
 
     #[component]
@@ -215,6 +224,34 @@ mod tests {
         assert!(
             html.contains("Cette semaine se repose"),
             "expected a resting word naming rest, never blame, got: {html}"
+        );
+    }
+
+    #[component]
+    fn RootAtWeekScreenWithOneMinute() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| {
+            let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = a_habit("h-1", 1, TODAY);
+            habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+            repository.save(&habit);
+            services_with(repository)
+        });
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: week-recap/S1
+    #[test]
+    fn a_single_minute_reads_the_singular_form() {
+        let html = render(RootAtWeekScreenWithOneMinute);
+
+        assert!(
+            html.contains("1 minute de pratique accumulée"),
+            "one minute must read the singular form, never the plural, got: {html}"
         );
     }
 
