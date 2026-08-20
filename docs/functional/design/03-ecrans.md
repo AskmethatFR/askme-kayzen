@@ -51,11 +51,21 @@ Le cœur « Kaizen » : montrer qu'on grandit, jamais culpabiliser.
 - **Ancrer** — à l'initiative de l'utilisateur, quand il la sent acquise (aucune détection de stabilité, aucune suggestion) → la marque acquise, libère une place.
 - **« Mettre en pause, sans culpabilité »**.
 
-## Rituel d'une minute (Timer)
+## Rituel — la pratique (Timer)
 
-Minuteur doux de 60 s : anneau de progression, cercle qui « respire », décompte `m:ss`.
+Minuteur doux : anneau de progression, cercle qui « respire », décompte `m:ss`. **Il
+chronomètre l'objectif de l'habitude**, pas une durée fixe — une habitude à 5 min ouvre
+un rituel de 5 min. *(Tranché 2026-08-20 par l'owner — issue #13, question laissée
+ouverte par #12. Remplace « minuteur doux de 60 s » : le rituel n'a jamais été une minute
+pour toutes, et le libellé du bouton ayant cessé d'annoncer une durée, la dose ne pouvait
+venir que de l'habitude.)*
 - « J'ai terminé » → valide l'habitude et revient à l'accueil.
 - « Arrêter, ce n'est pas grave » / « Fermer » → revient au détail, sans validation.
+- **À zéro le minuteur s'arrête et attend.** Rien ne se valide tout seul : la validation
+  est un geste, jamais une échéance. *(Tranché 2026-08-20 — issue #13.)*
+
+*Ton :* le décompte se lit à l'écoulé, pas au tic-tac — un écran masqué qui revient
+affiche le temps réellement passé, jamais un compteur figé.
 
 ## Ajouter — une nouvelle petite habitude
 
@@ -85,7 +95,7 @@ pause(id)       → habit.paused = true ;  screen = Détail (AMENDÉ — voir ci
 resume(id)      → habit.paused = false
 add(name, icon) → habits.push(Habit { steps: vec![1], .. }) ; screen = Today
 week()          → screen = Week   // tout le récap est calculé, jamais stocké
-ritual(id)      → screen = Timer ; minuteur 60 s ;  à la fin → done_today = true
+ritual(id)      → screen = Timer ; minuteur = objectif de l'habitude (AMENDÉ — voir ci-dessous)
 anchor(id)      → habit.anchored = true  ; screen = Détail (AMENDÉ — voir ci-dessous)  // libère le siège ET le titre, par suppression de l'entrée
 unanchor(id)    → habit.anchored = false           // la remettre dans le quotidien
 set_trigger(id, texte) → habit.trigger = Some(texte)
@@ -141,6 +151,13 @@ son entrée — Q1 tient exactement tel qu'approuvé, une habitude en pause gard
 place. Ce qui change ici est seulement le mot pour l'ancrage : « compte les non
 ancrées » était le raccourci fonctionnel, l'implémentation l'obtient en supprimant
 l'entrée, pas en la filtrant à la lecture.
+
+**Le rituel ne valide plus à l'échéance.** Le dessin d'origine disait
+`ritual(id) → minuteur 60 s ; à la fin → done_today = true`. Les deux moitiés sont
+tombées le 2026-08-20 (issue #13) : le minuteur porte l'objectif de l'habitude, et
+atteindre zéro ne valide rien — il s'arrête et attend « J'ai terminé ». Valider à
+l'échéance ferait de la pratique une épreuve à réussir, quand le geste #1 dit
+« anti-échec par design » : on ne peut pas rater un rituel qu'on a choisi d'arrêter.
 
 **Ancrer ne renvoie pas à Aujourd'hui non plus.** Même décision et même raison
 que pour la mise en pause en slice 5 : le dessin d'origine disait

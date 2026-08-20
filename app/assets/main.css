@@ -319,8 +319,105 @@ body {
 .add-target:active { transform: scale(.94); }
 .add-target:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
 
+/* ---- Ritual (practice timer) ---- */
+/* Fills the viewport (min so a taller-than-viewport screen still scrolls
+   instead of clipping at the top — a fixed height + justify-content:center
+   would not degrade this way) and pins the title top while the dial and
+   the stop link share the leftover space via auto margins, so the slack
+   splits above and below instead of collecting under the fold. */
+.screen.ritual {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+.ritual-dial {
+  position: relative;
+  width: 220px;
+  height: 220px;
+  margin: auto auto var(--space-6);
+  display: grid;
+  place-items: center;
+}
+.ritual-breath {
+  position: absolute;
+  inset: 28px;
+  border-radius: 50%;
+  background: var(--color-accent-100);
+  opacity: .85;
+  animation: kzBreathe 8s ease-in-out infinite;
+}
+/* Stacked in the same grid cell (not two grid auto-rows) so the countdown
+   reads inside the ring instead of below it. */
+.ritual-ring,
+.ritual-countdown {
+  grid-area: 1 / 1;
+}
+.ritual-ring {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.ritual-ring-track {
+  fill: none;
+  stroke: var(--color-rule);
+  stroke-width: 4;
+}
+.ritual-ring-run {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+/* position: relative is the stacking lift, not decoration: it puts this
+   grid item on the z-index:auto positioned paint step alongside the
+   absolutely positioned .ritual-breath, so DOM order (this rule comes
+   after .ritual-breath) decides paint order and the digits land on top.
+   Without it, grid items paint in the earlier in-flow step and
+   .ritual-breath — painted later — covers the countdown outright. Do not
+   remove this as "redundant with grid placement" (595697e did, and it
+   silently hid the digits behind the breathing circle). */
+.ritual-countdown {
+  position: relative;
+  font-size: clamp(30px, 8vw, 44px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink);
+}
+/* Invisible by design: this element's only job is to fire an
+   animationiteration event every .25s so the countdown re-reads the clock.
+   It must keep animating under prefers-reduced-motion — it moves no pixel,
+   so silencing it would freeze the countdown instead of calming the screen. */
+.ritual-tick {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+  animation: kzTick .25s linear infinite;
+}
+
+.screen.ritual > .quiet-link {
+  margin-bottom: auto;
+}
+.screen.ritual > .btn {
+  margin-top: var(--space-4);
+}
+
 /* ---- Animations ---- */
 @keyframes kzStamp   { 0% { transform: scale(.35); opacity: 0; } 55% { transform: scale(1.12); } 100% { transform: scale(1); opacity: 1; } }
 @keyframes kzRing    { 0% { transform: scale(.55); opacity: .55; } 100% { transform: scale(2); opacity: 0; } }
 @keyframes kzUp      { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-@keyframes kzBreathe { 0%, 100% { transform: scale(.86); opacity: .7; } 50% { transform: scale(1.08); opacity: 1; } }
+@keyframes kzBreathe { 0%, 100% { transform: scale(.86); } 50% { transform: scale(1.08); } }
+@keyframes kzTick     { from { opacity: 0; } to { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .screen,
+  .target.is-done .target-ink,
+  .target.is-done::after,
+  .ritual-breath {
+    animation: none;
+  }
+}
