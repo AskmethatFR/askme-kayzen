@@ -150,11 +150,11 @@ fn complete_and_go_home(services: &Services, navigator: Navigator, id: &str) {
 }
 
 fn record_todays_practice(services: &Services, id: &str) {
-    let already_done = services
+    let not_yet_done = services
         .get_habit_detail
         .handle(id)
-        .is_some_and(|habit| habit.done_today);
-    if !already_done {
+        .is_some_and(|habit| !habit.done_today);
+    if not_yet_done {
         services.mark_done.execute(id).ok();
     }
 }
@@ -197,19 +197,31 @@ mod tests {
     use kayzen_core::habit_management::domain::habit_repository::HabitRepository;
     use kayzen_core::habit_management::domain::habit_title::HabitTitle;
     use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
-    use kayzen_core::shared::clock::{Clock, SystemClock};
+    use kayzen_core::shared::clock::Clock;
     use kayzen_core::shared::local_date::LocalDate;
     use std::rc::Rc;
 
     // `Screen::open` takes a bare `fn() -> Element` (no captures allowed), so a
-    // test that must both seed a repository AND inspect it after a click —
-    // needed here because `navigator.push` inside a harness dispatch is
-    // unproven (see the module-level trap note on `ritual/S2`) — hands the
-    // repository to the root through this thread-local rather than a closure
-    // capture. Scoped to this test module only; production code never reads it.
+    // test that must mutate the repository BETWEEN `open` and `click` (proving
+    // the completion gesture reads fresh at click time, not a mount-time
+    // snapshot) hands the repository to the root through this thread-local
+    // rather than a closure capture. Scoped to this test module only;
+    // production code never reads it.
     thread_local! {
         static SHARED_REPOSITORY: std::cell::RefCell<Option<Rc<dyn HabitRepository>>> =
             const { std::cell::RefCell::new(None) };
+    }
+
+    // Clears the thread-local on drop, including on an unwind (e.g. a panic
+    // inside `screen.click`) — a plain trailing reset after `click` would
+    // leave a stale `Some` behind if `click` itself panicked, silently
+    // poisoning whichever test runs next on this thread.
+    struct SharedRepositoryGuard;
+
+    impl Drop for SharedRepositoryGuard {
+        fn drop(&mut self) {
+            SHARED_REPOSITORY.with(|cell| *cell.borrow_mut() = None);
+        }
     }
 
     fn services_over_shared_repository() -> Services {
@@ -218,7 +230,8 @@ mod tests {
                 .clone()
                 .expect("a repository was seeded before opening the screen")
         });
-        Services::with_repository(repository)
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock(LocalDate::from_epoch_day(20_005)));
+        Services::with_repository_and_clock(repository, clock)
     }
 
     #[component]
@@ -426,18 +439,42 @@ mod tests {
     // @scenario: ritual/S2
     #[test]
     fn completing_the_practice_from_the_ritual_records_the_day_and_returns_to_aujourdhui() {
+        let mut screen = Screen::open(RootAtActiveHabitGoalFive);
+
+        screen.click("J'ai terminé · Lire une page");
+
+        let html = screen.html();
+        assert!(
+            html.contains("Vos petits pas"),
+            "expected the screen to return to Aujourd'hui after completing the practice, got: {html}"
+        );
+        assert!(
+            html.contains("target is-done"),
+            "expected today's practice to be recorded on the Aujourd'hui board, got: {html}"
+        );
+    }
+
+    // @scenario: ritual/S7
+    #[test]
+    fn the_completion_gesture_reads_the_day_at_click_time_not_at_mount() {
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
         repository.save(&a_habit_with_goal(5));
         SHARED_REPOSITORY.with(|cell| *cell.borrow_mut() = Some(Rc::clone(&repository)));
-
+        let _guard = SharedRepositoryGuard;
         let mut screen = Screen::open(RootAtActiveHabitOverSharedRepository);
+
+        // Mutated AFTER mount (the component already ran `use_hook`), BEFORE
+        // the click — a mount-time snapshot cannot see this, only a click-time
+        // read can.
+        let mut habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+        habit.toggle_done(LocalDate::from_epoch_day(20_005));
+        repository.save(&habit);
         screen.click("J'ai terminé · Lire une page");
 
-        SHARED_REPOSITORY.with(|cell| *cell.borrow_mut() = None);
         let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
         assert!(
-            habit.is_done_on(SystemClock.today()),
-            "expected the completion gesture to record today's practice"
+            habit.is_done_on(LocalDate::from_epoch_day(20_005)),
+            "expected the gesture to see the day already recorded and leave it alone"
         );
     }
 
@@ -509,6 +546,10 @@ mod tests {
             assert!(
                 !html.contains("J&#39;ai termin"),
                 "expected no completion gesture offered to a habit at rest, got: {html}"
+            );
+            assert!(
+                !html.contains("<button"),
+                "expected no button at all offered to a habit at rest, got: {html}"
             );
         }
     }
