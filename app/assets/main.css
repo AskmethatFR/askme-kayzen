@@ -345,6 +345,7 @@ body {
   inset: 28px;
   border-radius: 50%;
   background: var(--color-accent-100);
+  opacity: .85;
   animation: kzBreathe 8s ease-in-out infinite;
 }
 /* Stacked in the same grid cell (not two grid auto-rows) so the countdown
@@ -370,7 +371,16 @@ body {
   stroke-width: 4;
   stroke-linecap: round;
 }
+/* position: relative is the stacking lift, not decoration: it puts this
+   grid item on the z-index:auto positioned paint step alongside the
+   absolutely positioned .ritual-breath, so DOM order (this rule comes
+   after .ritual-breath) decides paint order and the digits land on top.
+   Without it, grid items paint in the earlier in-flow step and
+   .ritual-breath — painted later — covers the countdown outright. Do not
+   remove this as "redundant with grid placement" (595697e did, and it
+   silently hid the digits behind the breathing circle). */
 .ritual-countdown {
+  position: relative;
   font-size: clamp(30px, 8vw, 44px);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -400,7 +410,7 @@ body {
 @keyframes kzStamp   { 0% { transform: scale(.35); opacity: 0; } 55% { transform: scale(1.12); } 100% { transform: scale(1); opacity: 1; } }
 @keyframes kzRing    { 0% { transform: scale(.55); opacity: .55; } 100% { transform: scale(2); opacity: 0; } }
 @keyframes kzUp      { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-@keyframes kzBreathe { 0%, 100% { transform: scale(.86); opacity: .7; } 50% { transform: scale(1.08); opacity: 1; } }
+@keyframes kzBreathe { 0%, 100% { transform: scale(.86); } 50% { transform: scale(1.08); } }
 @keyframes kzTick     { from { opacity: 0; } to { opacity: 0; } }
 
 @media (prefers-reduced-motion: reduce) {
