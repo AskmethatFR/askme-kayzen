@@ -92,8 +92,36 @@ fn PracticeTimer(id: String, title: String, goal_minutes: u32) -> Element {
 // `remaining` values, instead of only through a real wall-clock wait.
 #[component]
 fn PracticeDial(title: String, total: u64, remaining: u64, on_tick: EventHandler<()>) -> Element {
-    let _ = (title, total, remaining, on_tick);
-    rsx! {}
+    rsx! {
+        div {
+            class: "ritual-dial",
+            role: "timer",
+            aria_label: "Minuteur · {title}",
+            div { class: "ritual-breath" }
+            svg { class: "ritual-ring", view_box: "0 0 120 120",
+                circle { class: "ritual-ring-track", r: "{RING_RADIUS}", cx: "60", cy: "60" }
+                circle {
+                    class: "ritual-ring-run",
+                    r: "{RING_RADIUS}",
+                    cx: "60",
+                    cy: "60",
+                    stroke_dasharray: "{ring_circumference()}",
+                    stroke_dashoffset: "{ring_offset(remaining, total)}",
+                }
+            }
+            div { class: "ritual-countdown", "{countdown_label(remaining)}" }
+        }
+        if remaining == 0 {
+            p { class: "quiet-note", "Le temps est passé. Rien ne presse." }
+        }
+        if remaining > 0 {
+            div {
+                class: "ritual-tick",
+                aria_hidden: "true",
+                onanimationiteration: move |_| on_tick.call(()),
+            }
+        }
+    }
 }
 
 #[must_use]

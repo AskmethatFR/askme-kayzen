@@ -48,8 +48,15 @@ impl Screen {
     }
 
     pub(crate) fn fire_animation_iteration(&mut self, listener_name: &str) {
-        let _ = listener_name;
-        unimplemented!("fire_animation_iteration: not yet built")
+        let id = self.locate_by_listener(listener_name);
+        let animation_data: SerializedAnimationData = serde_json::from_value(serde_json::json!({
+            "animation_name": "",
+            "pseudo_element": "",
+            "elapsed_time": 0.0,
+        }))
+        .expect("a well-formed synthetic animation payload");
+        let data: Rc<dyn Any> = Rc::new(PlatformEventData::new(Box::new(animation_data)));
+        self.dispatch(listener_name, id, data, false);
     }
 
     fn dispatch(&mut self, event_name: &str, id: ElementId, data: Rc<dyn Any>, bubbles: bool) {
