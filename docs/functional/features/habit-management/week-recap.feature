@@ -7,14 +7,14 @@ Feature: Read the week's practice as accumulated minutes and rhythm
   # Everything below is derived from the completion and step histories on read —
   # nothing is stored (adr-0006-cqrs-light).
 
-  @wip @scenario:S1
+  @scenario:S1
   Scenario: The large figure sums minutes practised across every habit
     Given three habits active this week, completed on 3, 2, and 1 days at 5 minutes each
     When the user opens the week screen
     Then the large figure reads "30 minutes de pratique accumulées"
     And the label names accumulated practice, never gain over the starting goal
 
-  @wip @scenario:S2
+  @scenario:S2
   Scenario: Paused and anchored habits still count in the sum
     Given a habit paused on day 3 after 4 completed days, and an anchored habit with 3 completed days
     When the user opens the week screen
@@ -22,14 +22,14 @@ Feature: Read the week's practice as accumulated minutes and rhythm
     And each still reads its own journey as a row
     And pausing or anchoring never takes lived minutes back
 
-  @wip @scenario:S3
+  @scenario:S3
   Scenario: A week with no practice reads gently
     Given the week just began and nothing has been practised yet
     When the user opens the week screen
     Then the week's word reads "Un début parfait", because an empty start is still a start
     And the screen never states a bare "0" as a verdict
 
-  @wip @scenario:S4
+  @scenario:S4
   Scenario: A week without practice is acknowledged as rest
     Given a habit practised earlier, but not once in the last seven days
     When the user opens the week screen
