@@ -210,7 +210,8 @@ mod tests {
     // @scenario: week-recap/S4
     #[test]
     fn the_recent_practice_window_edge_sits_at_seven_days_back() {
-        let cases: Vec<(i64, WeekMessage)> = vec![(6, WeekMessage::Growing), (7, WeekMessage::Resting)];
+        let cases: Vec<(i64, WeekMessage)> =
+            vec![(6, WeekMessage::Growing), (7, WeekMessage::Resting)];
 
         for (days_back, expected) in cases {
             let repository = Rc::new(InMemoryHabitRepository::new());
