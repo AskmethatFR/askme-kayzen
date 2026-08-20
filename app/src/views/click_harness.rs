@@ -56,7 +56,7 @@ impl Screen {
         }))
         .expect("a well-formed synthetic animation payload");
         let data: Rc<dyn Any> = Rc::new(PlatformEventData::new(Box::new(animation_data)));
-        self.dispatch(listener_name, id, data, false);
+        self.dispatch(listener_name, id, data, true);
     }
 
     fn dispatch(&mut self, event_name: &str, id: ElementId, data: Rc<dyn Any>, bubbles: bool) {
@@ -130,9 +130,10 @@ impl Screen {
 // - dispatches to the element registered for the named listener, running its handler
 // - no element listens for the named event -> panics naming what IS available
 // - two elements listen for the same named event -> panics as ambiguous
-// - a second dispatch on the same Screen (click then fire, or fire then fire) panics
-//   with the shared "one dispatch" message (covered by the renamed existing test below
-//   plus one more pinning the cross-method case)
+// - a second dispatch on the same Screen panics with the shared "one dispatch"
+//   message; the guard lives in the shared dispatch() so click-then-fire is
+//   covered by construction, and click-then-click / fire-then-fire below each
+//   pin one concrete instance of it
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -174,6 +175,13 @@ mod tests {
     fn locating_a_duplicated_aria_label_panics_instead_of_silently_picking_the_first() {
         let mut screen = Screen::open(RootWithDuplicateAriaLabels);
         screen.click("dup");
+    }
+
+    #[test]
+    #[should_panic(expected = "no element with aria-label")]
+    fn clicking_an_aria_label_nobody_has_panics_instead_of_silently_doing_nothing() {
+        let mut screen = Screen::open(RootWithVanishingButton);
+        screen.click("nowhere to be found");
     }
 
     #[component]

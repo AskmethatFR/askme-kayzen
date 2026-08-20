@@ -69,7 +69,7 @@ fn PracticeTimer(id: String, title: String, goal_minutes: u32) -> Element {
     rsx! {
         div { class: "screen ritual",
             h1 { class: "greeting", "{title}" }
-            PracticeDial {
+            PracticeCountdown {
                 title: title.clone(),
                 total,
                 remaining,
@@ -85,13 +85,20 @@ fn PracticeTimer(id: String, title: String, goal_minutes: u32) -> Element {
     }
 }
 
-// Owns the dial, the at-zero note and the tick sensor — everything that
-// depends only on `remaining`/`total` — and nothing that needs a mounted
-// `Router` (unlike `PracticeTimer`'s `Link`). That split is what lets tests
-// pin the at-zero branch and the live ring/countdown directly, with crafted
-// `remaining` values, instead of only through a real wall-clock wait.
+// Named for what it does, not for one of its three siblings: the dial, the
+// at-zero note and the tick sensor are all just the countdown, and none
+// alone. Everything here depends only on `remaining`/`total` and nothing
+// needs a mounted `Router` (unlike `PracticeTimer`'s `Link`) — that split is
+// what lets tests pin the at-zero branch and the live ring/countdown
+// directly, with crafted `remaining` values, instead of only through a real
+// wall-clock wait.
 #[component]
-fn PracticeDial(title: String, total: u64, remaining: u64, on_tick: EventHandler<()>) -> Element {
+fn PracticeCountdown(
+    title: String,
+    total: u64,
+    remaining: u64,
+    on_tick: EventHandler<()>,
+) -> Element {
     rsx! {
         div {
             class: "ritual-dial",
@@ -321,6 +328,10 @@ mod tests {
                 html.contains(expected_label),
                 "expected the countdown to start at the habit's own goal ({expected_label}), got: {html}"
             );
+            assert!(
+                html.contains("aria-label=\"Minuteur · Lire une page\""),
+                "expected the dial to carry the habit's own name, got: {html}"
+            );
         }
     }
 
@@ -386,7 +397,7 @@ mod tests {
         );
     }
 
-    // Test List — PracticeDial (deterministic, crafted remaining/total, no Router needed):
+    // Test List — PracticeCountdown (deterministic, crafted remaining/total, no Router needed):
     // - a partial remaining renders the countdown FROM remaining, not total
     // - a partial remaining renders the ring offset computed from remaining/total,
     //   not a hardcoded constant
@@ -397,7 +408,7 @@ mod tests {
     #[component]
     fn RootAtDialPartial() -> Element {
         rsx! {
-            PracticeDial {
+            PracticeCountdown {
                 title: "Lire une page".to_string(),
                 total: 300,
                 remaining: 210,
@@ -409,7 +420,7 @@ mod tests {
     #[component]
     fn RootAtDialZero() -> Element {
         rsx! {
-            PracticeDial {
+            PracticeCountdown {
                 title: "Lire une page".to_string(),
                 total: 300,
                 remaining: 0,
