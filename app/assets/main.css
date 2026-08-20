@@ -319,10 +319,7 @@ body {
 .add-target:active { transform: scale(.94); }
 .add-target:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
 
-/* ---- Ritual (practice timer) ----
-   A dial doing one thing: an SVG ring whose offset is computed in Rust
-   (offset = circumference × (1 − restant / total)), a breathing circle
-   behind it, and the m:ss countdown centered on top. */
+/* ---- Ritual (practice timer) ---- */
 .screen.ritual { text-align: center; }
 .ritual-dial {
   position: relative;
