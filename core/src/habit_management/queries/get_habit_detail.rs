@@ -23,6 +23,10 @@ pub struct HabitDetail {
     pub next_goal_down: u32,
     pub days: Vec<PracticeDay>,
     pub state: HabitState,
+    /// Whether today's practice is already recorded — named explicitly so the
+    /// ritual's completion gesture reads it directly, instead of any caller
+    /// having to infer it from `days`' trailing entry or its ordering.
+    pub done_today: bool,
     pub recap: HabitRecap,
 }
 
@@ -108,6 +112,7 @@ impl GetHabitDetail {
                 LifecycleState::Paused => HabitState::Paused,
                 LifecycleState::Anchored => HabitState::Anchored,
             },
+            done_today: habit.is_done_on(today),
             recap: recap_of(&habit, &steps, today),
         })
     }

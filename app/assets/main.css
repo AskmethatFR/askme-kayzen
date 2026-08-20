@@ -392,6 +392,9 @@ body {
 .screen.ritual > .quiet-link {
   margin-bottom: auto;
 }
+.screen.ritual > .btn {
+  margin-top: var(--space-4);
+}
 
 /* ---- Animations ---- */
 @keyframes kzStamp   { 0% { transform: scale(.35); opacity: 0; } 55% { transform: scale(1.12); } 100% { transform: scale(1); opacity: 1; } }

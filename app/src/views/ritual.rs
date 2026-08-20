@@ -1,6 +1,7 @@
 use crate::composition::Services;
 use crate::route::Route;
 use dioxus::prelude::*;
+use dioxus::router::Navigator;
 use kayzen_core::habit_management::queries::get_habit_detail::HabitState;
 use std::time::Duration;
 use web_time::Instant;
@@ -59,6 +60,8 @@ pub fn Ritual(id: String) -> Element {
 
 #[component]
 fn PracticeTimer(id: String, title: String, goal_minutes: u32) -> Element {
+    let services = use_context::<Services>();
+    let navigator = use_navigator();
     let started_at = use_hook(Instant::now);
     let mut now = use_signal(move || started_at);
 
@@ -74,6 +77,16 @@ fn PracticeTimer(id: String, title: String, goal_minutes: u32) -> Element {
                 total,
                 remaining,
                 on_tick: move |()| now.set(Instant::now()),
+            }
+            button {
+                class: "btn btn-primary btn-block",
+                aria_label: "J'ai terminé · {title}",
+                onclick: {
+                    let services = services.clone();
+                    let id = id.clone();
+                    move |_| complete_and_go_home(&services, navigator, &id)
+                },
+                "J'ai terminé"
             }
             Link {
                 class: "quiet-link",
@@ -119,7 +132,7 @@ fn PracticeCountdown(
             div { class: "ritual-countdown", "{countdown_label(remaining)}" }
         }
         if remaining == 0 {
-            p { class: "quiet-note", "Le temps est passé. Rien ne presse." }
+            p { class: "quiet-note", "Vous avez pris ce moment pour vous. C'est déjà beaucoup." }
         }
         if remaining > 0 {
             div {
@@ -128,6 +141,21 @@ fn PracticeCountdown(
                 onanimationiteration: move |_| on_tick.call(()),
             }
         }
+    }
+}
+
+fn complete_and_go_home(services: &Services, navigator: Navigator, id: &str) {
+    record_todays_practice(services, id);
+    navigator.push(Route::Today {});
+}
+
+fn record_todays_practice(services: &Services, id: &str) {
+    let already_done = services
+        .get_habit_detail
+        .handle(id)
+        .is_some_and(|habit| habit.done_today);
+    if !already_done {
+        services.mark_done.execute(id).ok();
     }
 }
 
