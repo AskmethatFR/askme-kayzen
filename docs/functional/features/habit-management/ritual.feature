@@ -10,6 +10,12 @@ Feature: Practise a habit for its own dose
     When the user opens its ritual
     Then the countdown starts at its goal, not at a fixed minute
 
+  @scenario:S2
+  Scenario: Completing the practice from the ritual
+    Given a ritual in progress for an active habit
+    When the user taps the completion gesture
+    Then the habit is recorded done for today and the screen returns to Aujourd'hui
+
   @scenario:S3
   Scenario: Stopping early costs nothing
     Given a ritual in progress
@@ -20,7 +26,7 @@ Feature: Practise a habit for its own dose
   Scenario: A habit at rest offers no practice
     Given a paused or anchored habit
     When its ritual address is reached by hand
-    Then the practice is not offered, because a pause is real rest and an anchored habit has left the daily list
+    Then neither the practice nor the completion gesture is offered, because a pause is real rest and an anchored habit has left the daily list
 
   @scenario:S5
   Scenario: An unknown habit lands quietly
@@ -33,3 +39,15 @@ Feature: Practise a habit for its own dose
     Given a ritual in progress
     When the screen is hidden and comes back later
     Then the countdown reflects the time that really elapsed, neither frozen nor drifted
+
+  @scenario:S7
+  Scenario: The completion gesture states a fact, it never un-marks
+    Given a habit already recorded done for today
+    When the ritual's completion gesture runs again
+    Then the day stays recorded, because completing asserts a practice, it does not toggle one
+
+  @scenario:S8
+  Scenario: At zero the screen says a gentle word, not a verdict
+    Given a ritual whose countdown has reached zero
+    When the screen is read
+    Then it speaks a gentle word for the time given and still waits for the gesture, validating nothing on its own

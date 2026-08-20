@@ -169,8 +169,50 @@ mod tests {
     use kayzen_core::habit_management::domain::habit_repository::HabitRepository;
     use kayzen_core::habit_management::domain::habit_title::HabitTitle;
     use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
+    use kayzen_core::shared::clock::{Clock, SystemClock};
     use kayzen_core::shared::local_date::LocalDate;
     use std::rc::Rc;
+
+    // `Screen::open` takes a bare `fn() -> Element` (no captures allowed), so a
+    // test that must both seed a repository AND inspect it after a click —
+    // needed here because `navigator.push` inside a harness dispatch is
+    // unproven (see the module-level trap note on `ritual/S2`) — hands the
+    // repository to the root through this thread-local rather than a closure
+    // capture. Scoped to this test module only; production code never reads it.
+    thread_local! {
+        static SHARED_REPOSITORY: std::cell::RefCell<Option<Rc<dyn HabitRepository>>> =
+            const { std::cell::RefCell::new(None) };
+    }
+
+    fn services_over_shared_repository() -> Services {
+        let repository = SHARED_REPOSITORY.with(|cell| {
+            cell.borrow()
+                .clone()
+                .expect("a repository was seeded before opening the screen")
+        });
+        Services::with_repository(repository)
+    }
+
+    #[component]
+    fn RootAtActiveHabitOverSharedRepository() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path(
+                "/habit/h-1/ritual",
+            )));
+        });
+        use_context_provider(services_over_shared_repository);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    struct FixedClock(LocalDate);
+
+    impl Clock for FixedClock {
+        fn today(&self) -> LocalDate {
+            self.0
+        }
+    }
 
     fn a_habit_with_goal(goal: u32) -> Habit {
         Habit::new(
@@ -353,6 +395,63 @@ mod tests {
         );
     }
 
+    // @scenario: ritual/S2
+    #[test]
+    fn completing_the_practice_from_the_ritual_records_the_day_and_returns_to_aujourdhui() {
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit_with_goal(5));
+        SHARED_REPOSITORY.with(|cell| *cell.borrow_mut() = Some(Rc::clone(&repository)));
+
+        let mut screen = Screen::open(RootAtActiveHabitOverSharedRepository);
+        screen.click("J'ai terminé · Lire une page");
+
+        SHARED_REPOSITORY.with(|cell| *cell.borrow_mut() = None);
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+        assert!(
+            habit.is_done_on(SystemClock.today()),
+            "expected the completion gesture to record today's practice"
+        );
+    }
+
+    // Test List — record_todays_practice (the completion gesture's guard,
+    // surrounded from both directions per the mutation table):
+    // - called twice from an empty day -> the day stays recorded (never
+    //   un-marked by a second call).
+    // - called once from an empty day -> the day becomes recorded.
+    // @scenario: ritual/S7
+    #[test]
+    fn recording_todays_practice_twice_leaves_the_day_recorded() {
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit_with_goal(5));
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock(LocalDate::from_epoch_day(20_005)));
+        let services = Services::with_repository_and_clock(Rc::clone(&repository), clock);
+
+        record_todays_practice(&services, "h-1");
+        record_todays_practice(&services, "h-1");
+
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+        assert!(
+            habit.is_done_on(LocalDate::from_epoch_day(20_005)),
+            "expected the day to stay recorded after the gesture ran twice"
+        );
+    }
+
+    #[test]
+    fn recording_todays_practice_records_it_when_the_day_is_empty() {
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit_with_goal(5));
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock(LocalDate::from_epoch_day(20_005)));
+        let services = Services::with_repository_and_clock(Rc::clone(&repository), clock);
+
+        record_todays_practice(&services, "h-1");
+
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+        assert!(
+            habit.is_done_on(LocalDate::from_epoch_day(20_005)),
+            "expected the day to be recorded after the gesture ran once on an empty day"
+        );
+    }
+
     // @scenario: ritual/S4
     #[test]
     fn a_paused_or_anchored_habit_offers_no_practice_when_its_ritual_is_reached_by_hand() {
@@ -378,6 +477,10 @@ mod tests {
             assert!(
                 !html.contains("ritual-countdown"),
                 "expected no countdown offered to a habit at rest, got: {html}"
+            );
+            assert!(
+                !html.contains("J&#39;ai termin"),
+                "expected no completion gesture offered to a habit at rest, got: {html}"
             );
         }
     }
@@ -466,15 +569,17 @@ mod tests {
         );
     }
 
+    // @scenario: ritual/S8
     #[test]
-    fn the_dial_shows_the_time_up_note_only_once_remaining_reaches_zero() {
+    fn the_dial_says_a_gentle_word_only_once_remaining_reaches_zero() {
+        let gentle_word = "Vous avez pris ce moment pour vous. C&#39;est déjà beaucoup.";
         assert!(
-            render(RootAtDialZero).contains("Le temps est passé. Rien ne presse."),
-            "expected the time's-up note at remaining == 0"
+            render(RootAtDialZero).contains(gentle_word),
+            "expected the gentle word at remaining == 0"
         );
         assert!(
-            !render(RootAtDialPartial).contains("Le temps est passé. Rien ne presse."),
-            "expected no time's-up note while time remains"
+            !render(RootAtDialPartial).contains(gentle_word),
+            "expected no gentle word while time remains"
         );
     }
 

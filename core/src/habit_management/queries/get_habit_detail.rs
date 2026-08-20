@@ -252,6 +252,7 @@ mod tests {
                 next_goal_down: 4,
                 days: seven_days(false, 5),
                 state: HabitState::Active,
+                done_today: false,
                 recap: HabitRecap {
                     days_done: 0,
                     empty_days: 11,
@@ -301,6 +302,35 @@ mod tests {
         let too_long = "h".repeat(HabitId::MAX_LEN + 1);
 
         assert_eq!(query.handle(&too_long), None);
+    }
+
+    // Test List — done_today (the ritual's completion-gesture guard reads
+    // this field, so it is surrounded from both directions):
+    // - today not recorded -> done_today is false.
+    // - today recorded -> done_today is true.
+    #[test]
+    fn the_detail_reports_the_habit_as_not_done_when_today_is_not_recorded() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit());
+        let query = get_habit_detail_over(Rc::clone(&repository));
+
+        let result = query.handle("h-1");
+
+        assert_eq!(result.map(|detail| detail.done_today), Some(false));
+    }
+
+    #[test]
+    fn the_detail_reports_the_habit_as_done_when_today_is_recorded() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock::new(LocalDate::from_epoch_day(TODAY)));
+        let mut habit = a_habit();
+        habit.toggle_done(clock.today());
+        repository.save(&habit);
+        let query = GetHabitDetail::new(Rc::clone(&repository) as Rc<dyn HabitRepository>, clock);
+
+        let result = query.handle("h-1");
+
+        assert_eq!(result.map(|detail| detail.done_today), Some(true));
     }
 
     // Test List — the practice staircase (@feature:practice-staircase). One bar
