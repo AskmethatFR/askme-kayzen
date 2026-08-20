@@ -320,12 +320,23 @@ body {
 .add-target:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
 
 /* ---- Ritual (practice timer) ---- */
-.screen.ritual { text-align: center; }
+/* Fills the viewport (min so a taller-than-viewport screen still scrolls
+   instead of clipping at the top — a fixed height + justify-content:center
+   would not degrade this way) and pins the title top while the dial and
+   the stop link share the leftover space via auto margins, so the slack
+   splits above and below instead of collecting under the fold. */
+.screen.ritual {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
 .ritual-dial {
   position: relative;
   width: 220px;
   height: 220px;
-  margin: var(--space-6) auto;
+  margin: auto auto var(--space-6);
   display: grid;
   place-items: center;
 }
@@ -335,6 +346,12 @@ body {
   border-radius: 50%;
   background: var(--color-accent-100);
   animation: kzBreathe 8s ease-in-out infinite;
+}
+/* Stacked in the same grid cell (not two grid auto-rows) so the countdown
+   reads inside the ring instead of below it. */
+.ritual-ring,
+.ritual-countdown {
+  grid-area: 1 / 1;
 }
 .ritual-ring {
   position: relative;
@@ -354,7 +371,6 @@ body {
   stroke-linecap: round;
 }
 .ritual-countdown {
-  position: relative;
   font-size: clamp(30px, 8vw, 44px);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -371,6 +387,10 @@ body {
   opacity: 0;
   pointer-events: none;
   animation: kzTick .25s linear infinite;
+}
+
+.screen.ritual > .quiet-link {
+  margin-bottom: auto;
 }
 
 /* ---- Animations ---- */
