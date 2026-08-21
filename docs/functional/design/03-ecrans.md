@@ -52,11 +52,17 @@ Le cœur « Kaizen » : montrer qu'on grandit, jamais culpabiliser.
 - Titre + résumé (« passée de 2 à 4 min, tout doucement »).
 - **Déclencheur** : champ texte libre + chips « après une habitude ancrée » (habit stacking).
 - **Escalier de pratique** — une barre par jour sur les **7 derniers jours**. Le jour fait
-  est plein, à la hauteur de l'objectif actif ce jour-là ; le jour non fait est **la même
-  barre en opacité faible** — jamais un trou, jamais du rouge. On y lit deux choses à la
-  fois : si on continue (la suite des barres) et si l'effort monte, descend ou tient (leur
-  profil). *(Amendé 2026-07-27 par l'owner — voir `[[lifecycle-backlog]]` slice 3b. Remplace
-  « une barre par étape de `steps` » : l'escalier dessine la pratique, pas l'intention.)*
+  est plein, le jour non fait est **la même barre en opacité faible** — jamais un trou,
+  jamais du rouge. On y lit deux choses à la fois : si on continue (la suite des barres) et
+  si l'effort monte, descend ou tient (leur profil). Chaque barre tient sa hauteur de
+  l'objectif actif ce jour-là, **relativement au plus haut objectif de la fenêtre** : le jour
+  le plus haut remplit l'escalier, les autres suivent en proportion. Le profil est donc
+  intact — la normalisation préserve les rapports — mais deux semaines d'une même habitude,
+  l'une à 5 min et l'autre à 30, dessinent le même escalier ; on n'en voit jamais qu'une à la
+  fois. *(Amendé 2026-07-27 par l'owner — voir `[[lifecycle-backlog]]` slice 3b. Remplace
+  « une barre par étape de `steps` » : l'escalier dessine la pratique, pas l'intention.
+  Hauteurs relatives tranchées 2026-08-21 par l'owner : en absolu, une barre débordait de
+  l'escalier dès 10 minutes d'objectif.)*
 - ~~**Calendrier** en points, sans chiffres.~~ **Supprimé du détail** (2026-07-27) — l'escalier
   de pratique porte déjà fait/pas-fait par jour, plus la hauteur d'effort que les points
   n'avaient pas. Deux dessins pour la même information contredisent la sobriété de l'écran.
