@@ -27,8 +27,7 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT" || exit 2
 
-CLAUDE_HOME="${CLAUDE_HOME:-$HOME/.claude}"
-SCENARIO_AUDIT="$CLAUDE_HOME/lib/scenario_audit.py"
+SCENARIO_AUDIT="$ROOT/scripts/vendor/scenario_audit.py"
 
 WORK_CLASS="${1:-}"
 BASE_REF="${2:-}"
@@ -84,7 +83,7 @@ doc_anchors() {
 
 scenario_gate() {
     if [ ! -f "$SCENARIO_AUDIT" ]; then
-        echo "scenario gate not found at $SCENARIO_AUDIT (set CLAUDE_HOME)" >&2
+        echo "scenario gate not found at $SCENARIO_AUDIT (vendored copy missing)" >&2
         return 2
     fi
     python3 "$SCENARIO_AUDIT" --root "$ROOT" \
