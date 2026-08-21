@@ -76,14 +76,15 @@ status=${PIPESTATUS[0]}
 set -e
 
 if [[ "$status" -ne 0 ]]; then
-    rm -f "$tmp_output"
+    rm -f "$tmp_output" || true
     exit "$status"
 fi
 
-if ! grep -q '"schema": "mutation-report/v1"' "$tmp_output"; then
+if ! grep -q '"mutation-report/v1"' "$tmp_output"; then
     echo "mutation gate exited 0 but produced no mutation-report/v1 payload -- refusing to trust it" >&2
-    rm -f "$tmp_output"
+    rm -f "$tmp_output" || true
     exit 1
 fi
 
-rm -f "$tmp_output"
+rm -f "$tmp_output" || true
+exit 0

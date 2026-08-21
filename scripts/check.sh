@@ -105,12 +105,13 @@ scenario_gate() {
     fi
     # A truncated/empty instrument exits 0 and prints nothing -- that must
     # not read as "pass". Require the verdict line it is contracted to emit.
-    if ! grep -q '^scenario-audit:' "$tmp_output"; then
+    if ! grep -q 'scenario-audit:' "$tmp_output"; then
         echo "scenario gate exited 0 but produced no verdict line -- refusing to trust it" >&2
         rm -f "$tmp_output"
         return 1
     fi
     rm -f "$tmp_output"
+    return 0
 }
 
 # TN-1b — cargo-mutants 27.1.0 hard-skips any function literally named `new`

@@ -21,6 +21,9 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          # Relies on the repo being public: the unauthenticated `git fetch
+          # origin` below needs no token. Going private breaks that fetch,
+          # not this line -- re-add a token there, not here.
           persist-credentials: false
 
       - name: Refuse a PR not targeting main
