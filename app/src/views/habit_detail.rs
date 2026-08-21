@@ -227,9 +227,10 @@ fn plural(count: usize, one: &'static str, many: &'static str) -> &'static str {
 
 /// Each day's bar height relative to its own window's tallest goal
 /// (adr-0010: core returns numbers, the view decides how to draw them) —
-/// never an absolute minute value. Mirrors `week::step_ratios` (owner
-/// ruling, 2026-08-21): the staircase draws one habit's own trajectory, so
-/// there is no cross-habit comparison to lose. `unwrap_or(1)` only guards an
+/// never an absolute minute value. Same normalization as the one the Week
+/// screen uses (owner ruling, 2026-08-21): the staircase draws one habit's
+/// own trajectory, so there is no cross-habit comparison to lose.
+/// `unwrap_or(1)` only guards an
 /// empty slice; `days` always holds `WINDOW_DAYS` entries in practice, so it
 /// never actually influences a returned ratio.
 #[must_use]
@@ -590,7 +591,8 @@ mod tests {
     /// Ordered list of every `--day-ratio: N` value found in the rendered
     /// HTML, parsed as `f64`, in document order — lets a test pin the
     /// staircase's normalized bar heights and their order, not just the bar
-    /// count (mirrors `week::step_bar_ratios`).
+    /// count (same normalization the Week screen uses, owner ruling,
+    /// 2026-08-21).
     fn day_bar_ratios(html: &str) -> Vec<f64> {
         const NEEDLE: &str = "--day-ratio: ";
         html.match_indices(NEEDLE)
@@ -1098,10 +1100,11 @@ mod tests {
 
     // Test List — staircase bar-height normalization (fix/practice-staircase-
     // overflow, owner ruling 2026-08-21). Each bar's height is relative to
-    // its own window's tallest goal, never an absolute minute value (mirrors
-    // the Week screen's step_ratios, 9bcf00e). No scenario in
-    // practice-staircase.feature names normalization directly — it is a
-    // rendering concern the feature's Given/When/Then are silent on — so
+    // its own window's tallest goal, never an absolute minute value (the
+    // same normalization the Week screen uses — owner ruling, 2026-08-21).
+    // No scenario in practice-staircase.feature names normalization
+    // directly — it is a rendering concern the feature's Given/When/Then
+    // are silent on — so
     // these tests are left unanchored, each with a comment stating why.
     // - a flat window (goal never changed) normalizes every bar to 1.0.
     // - a window whose goal grew mid-way normalizes on the window's own
@@ -1109,6 +1112,11 @@ mod tests {
     // - a window whose maximum sits mid-history (grown then lightened, not
     //   the last day) still normalizes on that maximum, never on the current
     //   goal — no bar may exceed its container.
+    // - a purely descending window (lightened once, maximum on the first
+    //   day only) still normalizes on that first-day maximum.
+    // - a window whose maximum sits on the last day only (grown today, the
+    //   single most common gesture right before opening the staircase)
+    //   still normalizes on that last-day maximum.
 
     // Unanchored: no scenario names normalization; S5 (window is seven days)
     // is already pinned by the day-bar count tests above. RootAtKnownHabit's
@@ -1228,6 +1236,115 @@ mod tests {
             "expected the window's own maximum (6, reached on days 3-4) to \
              normalize every bar, not the current goal (5, which the window \
              lightened back down to), got: {html}"
+        );
+    }
+
+    fn services_with_a_habit_lightened_early_in_window() -> Services {
+        let today = LocalDate::from_epoch_day(20_020);
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock(today));
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Lire une page".to_string()).unwrap(),
+            Goal::new(6).unwrap(),
+            LocalDate::from_epoch_day(20_000),
+        );
+        habit.lighten(LocalDate::from_epoch_day(20_015));
+        repository.save(&habit);
+        Services::with_repository_and_clock(repository, clock)
+    }
+
+    #[component]
+    fn RootAtHabitLightenedEarlyInWindow() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_a_habit_lightened_early_in_window);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // Unanchored: see the Test List comment above. Window is 20_014..=20_020;
+    // the habit starts at goal 6 and lighten(20_015) lowers it to 5 from
+    // that day onward, so only the first day (20_014) keeps the starting
+    // goal — the window's own maximum sits on the first day alone, a
+    // purely descending profile. A `.max()` taken over
+    // `days.iter().skip(1)` would miss it entirely and overflow the first
+    // bar's container.
+    #[test]
+    fn a_window_only_lightened_normalizes_on_its_first_day() {
+        let html = render(RootAtHabitLightenedEarlyInWindow);
+
+        let ratios = day_bar_ratios(&html);
+        assert!(
+            ratios.iter().all(|&ratio| ratio <= 1.0),
+            "no bar may exceed its container: {ratios:?}"
+        );
+        assert_eq!(
+            ratios,
+            vec![
+                1.0,
+                5.0 / 6.0,
+                5.0 / 6.0,
+                5.0 / 6.0,
+                5.0 / 6.0,
+                5.0 / 6.0,
+                5.0 / 6.0
+            ],
+            "expected the first day's goal (6) to normalize every bar, got: {html}"
+        );
+    }
+
+    fn services_with_a_habit_grown_on_the_last_day() -> Services {
+        let today = LocalDate::from_epoch_day(20_020);
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock(today));
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Lire une page".to_string()).unwrap(),
+            Goal::new(5).unwrap(),
+            LocalDate::from_epoch_day(20_000),
+        );
+        habit.grow(LocalDate::from_epoch_day(20_020));
+        repository.save(&habit);
+        Services::with_repository_and_clock(repository, clock)
+    }
+
+    #[component]
+    fn RootAtHabitGrownOnTheLastDay() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_a_habit_grown_on_the_last_day);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // Unanchored: see the Test List comment above. Window is 20_014..=20_020;
+    // the habit starts at goal 5 and grow(20_020) raises it to 6 only from
+    // today — the window's own maximum sits on the last day alone, the most
+    // common gesture right before opening the staircase.
+    // `a_window_grown_mid_way_normalizes_ascending_to_its_own_maximum`
+    // places the maximum on the last THREE days and does not discriminate
+    // this narrower case.
+    #[test]
+    fn a_window_grown_on_its_last_day_normalizes_on_that_last_day() {
+        let html = render(RootAtHabitGrownOnTheLastDay);
+
+        assert_eq!(
+            day_bar_ratios(&html),
+            vec![
+                5.0 / 6.0,
+                5.0 / 6.0,
+                5.0 / 6.0,
+                5.0 / 6.0,
+                5.0 / 6.0,
+                5.0 / 6.0,
+                1.0
+            ],
+            "expected the last day's raised goal (6) to normalize every bar, got: {html}"
         );
     }
 }
