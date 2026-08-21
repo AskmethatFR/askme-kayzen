@@ -1,4 +1,4 @@
-# 4 · Les sept gestes Kaizen
+# 4 · Les six gestes Kaizen
 
 1. **Le rituel de la minute** (kaizen 一分間) — « Commencer ma pratique » : un minuteur
    doux avec respiration, réglé sur **l'objectif de l'habitude**. Le principe n'est pas la
@@ -22,9 +22,11 @@
 5. **Standardiser avant d'améliorer** — quand l'utilisateur **sent** une habitude acquise, il
    la marque *ancrée* (à son initiative, aucune détection de stabilité) : elle rejoint les
    acquises et sert de base (déclencheur) pour en faire grandir d'autres.
-6. **La réflexion hebdo** (hansei) — une seule question douce dans le récap semaine, une
-   réponse d'un mot ou rien. Observer sans juger.
-7. **Le mot de la semaine** — une phrase courte, non chiffrée, qui clôt le récap.
+6. **Le mot de la semaine** — une phrase courte, non chiffrée, qui clôt le récap.
+   *(Amendé 2026-08-21 — issue #23. La réflexion hebdo (hansei) était le geste 6 : une
+   question douce et une réponse d'un mot. Elle est retirée — le récap semaine est
+   **informatif et en lecture seule**, il ne recueille aucune réponse de l'utilisateur.
+   Observer sans juger reste porté par le récap lui-même, qui ne chiffre ni ne reproche.)*
 
 ## La boucle
 

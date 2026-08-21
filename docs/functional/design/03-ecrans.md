@@ -40,12 +40,14 @@ Le cœur « Kaizen » : montrer qu'on grandit, jamais culpabiliser.
   aujourd'hui, un point par jour du plus ancien au plus récent, allumé dès qu'**au moins
   une** habitude a été pratiquée ce jour-là. Jamais un trou — un jour sans pratique est le
   même point, en veille.
-- **Réflexion hebdo** (hansei) : une question douce + réponse d'un mot… ou rien. *(Seul
-  élément de l'écran encore non livré — il écrit, et rien ne survit encore au redémarrage.
-  Voir issue #23.)*
 - **Le mot de la semaine** : une phrase courte, non chiffrée, dérivée du rythme.
 
 *Ton :* une habitude sans progrès lit « un début parfait », jamais « 0 ».
+
+*Lecture seule (tranché 2026-08-21 par l'owner — issue #23) :* cet écran est
+**entièrement dérivé** — aucun champ, aucun bouton, rien à y stocker. La réflexion hebdo
+(hansei) y figurait comme seul élément écrivant ; elle est **retirée du produit**, pas
+déplacée ailleurs. Le récap informe, il ne recueille rien.
 
 ## Détail — une habitude
 

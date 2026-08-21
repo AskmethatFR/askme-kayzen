@@ -17,7 +17,6 @@ struct App {
     screen: Screen,            // Today | Week | Detail(id) | Timer(id) | Add | Archive
     habits: Vec<Habit>,
     draft_name: String,        // saisie de l'écran "Ajouter"
-    reflection: String,        // le mot de la semaine (hansei), optionnel
 }
 
 impl Habit {
