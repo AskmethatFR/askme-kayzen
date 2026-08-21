@@ -313,6 +313,35 @@ mod tests {
         );
     }
 
+    // Regression (issue #30): HabitProgress deliberately carries no `id`
+    // (adr-0006), and title is NOT a unique key over the set this screen
+    // renders -- an anchored habit is exempt from the title-uniqueness check
+    // (add_habit.rs filters Anchored out before comparing), so two rows can
+    // legally share a title. Keying `.week-habit` on `habit.title` would
+    // give dioxus-core duplicate keys among siblings, which its own
+    // `diff_keyed_children` rejects with `debug_assert_eq!` the moment the
+    // screen re-renders (RootAtWeekScreen's own fixture already reproduces
+    // it: all three fixture habits share the title "Lire une page"). The
+    // assertion compiles out in release, so the failure mode there is silent
+    // row mis-association -- exactly what a key exists to prevent.
+    //
+    // Mounting alone never diffs (no "old" tree to compare against), so the
+    // defect is invisible on first render; `mark_all_dirty` + a second
+    // `render_immediate` forces the keyed-siblings diff a live re-render
+    // would take. Not observable via `dioxus_ssr::render` (SSR never reads
+    // `key`), so this asserts on "does not panic", not on rendered text --
+    // dioxus-core's own debug assertion is the oracle here, and it already
+    // discriminates the buggy key from the fixed one (see PROTOCOL.md's TDD
+    // provenance check for the observed RED before this test's fix commit).
+    #[test]
+    fn re_rendering_the_week_screen_does_not_panic_on_same_titled_habits() {
+        let mut vdom = VirtualDom::new(RootAtWeekScreen);
+        vdom.rebuild_in_place();
+
+        vdom.mark_all_dirty();
+        vdom.render_immediate(&mut dioxus_core::NoOpMutations);
+    }
+
     /// Ordered list of every `--step-ratio: N` value found in the rendered
     /// HTML, parsed as `f64`, in document order — lets a test pin the
     /// mini-curve's normalized bar heights and their order, not just the
