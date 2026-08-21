@@ -38,6 +38,18 @@ pub struct HabitProgress {
     pub steps: Vec<u32>,
 }
 
+impl HabitProgress {
+    fn for_habit(habit: &Habit) -> HabitProgress {
+        let changes = habit.step_history().changes();
+        HabitProgress {
+            title: habit.title().value().to_string(),
+            starting_goal: changes[0].goal().value(),
+            current_goal: habit.current_goal(),
+            steps: changes.iter().map(|change| change.goal().value()).collect(),
+        }
+    }
+}
+
 /// How the week is living right now, as the recap says it — a DTO-side enum
 /// (adr-0006: a domain-shaped choice crosses as an enum, never a bool, and the
 /// French words live in the view, never in core).
@@ -55,27 +67,38 @@ impl GetWeekRecap {
 
     pub fn handle(&self) -> WeekRecap {
         let today = self.clock.today();
-        let mut minutes_practised = 0u32;
-        let mut recently = false;
+        let habits = self.repository.all();
 
-        for habit in self.repository.all() {
+        let mut minutes_practised = 0u32;
+        for habit in &habits {
             minutes_practised = minutes_practised.saturating_add(habit.minutes_practised(today));
-            if practised_recently(&habit, today) {
-                recently = true;
-            }
         }
+
+        let rhythm = rhythm_for(&habits, today);
+        let recently = rhythm.iter().any(|&practised| practised);
 
         WeekRecap {
             minutes_practised,
-            habits: Vec::new(),
-            rhythm: Vec::new(),
+            habits: habits.iter().map(HabitProgress::for_habit).collect(),
+            rhythm,
             message: message_for(minutes_practised, recently),
         }
     }
 }
 
-fn practised_recently(habit: &Habit, today: LocalDate) -> bool {
-    (0..RECENT_PRACTICE_WINDOW_DAYS).any(|days_back| habit.is_done_on(today.minus_days(days_back)))
+/// One dot per day over the rolling window ending today, oldest first, lit
+/// when at least one habit was practised that day (AD-4: presence, never a
+/// density/ratio — `LifecycleState` carries no history, so a denominator
+/// taken from today's habit set would rewrite the past whenever the user
+/// pauses or anchors something).
+fn rhythm_for(habits: &[Habit], today: LocalDate) -> Vec<bool> {
+    (0..RECENT_PRACTICE_WINDOW_DAYS)
+        .rev()
+        .map(|days_back| {
+            let day = today.minus_days(days_back);
+            habits.iter().any(|habit| habit.is_done_on(day))
+        })
+        .collect()
 }
 
 fn message_for(minutes_practised: u32, practised_recently: bool) -> WeekMessage {

@@ -23,6 +23,28 @@ pub fn Week() -> Element {
             h1 { class: "greeting", "Cette semaine" }
             p { class: "week-figure", "{figure}" }
             p { class: "week-word", "{week_copy(recap.message)}" }
+
+            div { class: "rhythm", "aria-label": "Votre rythme sur les sept derniers jours",
+                for practised in recap.rhythm.iter() {
+                    span { class: if *practised { "rhythm-dot is-practised" } else { "rhythm-dot" } }
+                }
+            }
+
+            div { class: "week-habits",
+                for habit in recap.habits.iter() {
+                    div { class: "week-habit",
+                        p { class: "week-habit-title", "{habit.title}" }
+                        p { class: "week-habit-journey", "{habit.starting_goal} → {habit.current_goal} min" }
+                        div {
+                            class: "week-curve",
+                            "aria-label": "Trajectoire de {habit.title}, de {habit.starting_goal} à {habit.current_goal} minutes",
+                            for step in habit.steps.iter() {
+                                span { class: "step-bar", style: "--step-minutes: {step}" }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
