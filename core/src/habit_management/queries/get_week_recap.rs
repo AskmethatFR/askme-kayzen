@@ -20,7 +20,22 @@ pub struct GetWeekRecap {
 #[derive(Debug, Clone, PartialEq)]
 pub struct WeekRecap {
     pub minutes_practised: u32,
+    pub habits: Vec<HabitProgress>,
+    pub rhythm: Vec<bool>,
     pub message: WeekMessage,
+}
+
+/// One habit's journey this week, whatever its lifecycle state (AD-3). No
+/// `id` and no `state`: the row carries no gesture (no link, no button, no
+/// navigation), so it needs neither — an `id` on a row is identity granted
+/// by a gesture the row does not have (adr-0006, same precedent as
+/// `AnchoredHabit`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct HabitProgress {
+    pub title: String,
+    pub starting_goal: u32,
+    pub current_goal: u32,
+    pub steps: Vec<u32>,
 }
 
 /// How the week is living right now, as the recap says it — a DTO-side enum
@@ -52,6 +67,8 @@ impl GetWeekRecap {
 
         WeekRecap {
             minutes_practised,
+            habits: Vec::new(),
+            rhythm: Vec::new(),
             message: message_for(minutes_practised, recently),
         }
     }
@@ -73,7 +90,7 @@ fn message_for(minutes_practised: u32, practised_recently: bool) -> WeekMessage 
 
 #[cfg(test)]
 mod tests {
-    use super::{GetWeekRecap, WeekMessage};
+    use super::{GetWeekRecap, HabitProgress, WeekMessage};
     use crate::habit_management::domain::goal::Goal;
     use crate::habit_management::domain::habit::Habit;
     use crate::habit_management::domain::habit_id::HabitId;
@@ -112,6 +129,15 @@ mod tests {
     //   completeness: no scenario names this arm on its own, it is the third
     //   arm the message rule already states in the tech spec).
     // - the running sum saturates across habits instead of overflowing.
+    // - each habit's row reads its journey with one bar per goal step, not
+    //   one per completed day (S5).
+    // - a brand-new, not-yet-practised habit's row still reads a journey,
+    //   starting_goal == current_goal, a single step (S7).
+    // - every habit gets a row, whatever its lifecycle state — paused and
+    //   anchored habits included (S2, row half).
+    // - the rhythm keeps one dot per day over the rolling 7-day window,
+    //   oldest first, lit when at least one habit was practised that day —
+    //   OR'd across every habit, not just the first one (S6).
 
     // @scenario: week-recap/S1
     #[test]
@@ -160,6 +186,24 @@ mod tests {
             recap.minutes_practised, 35,
             "4 days at 5 min from the paused habit plus 3 from the anchored \
              one — pausing or anchoring never takes lived minutes back"
+        );
+        assert_eq!(
+            recap.habits.len(),
+            2,
+            "each habit still reads its own journey as a row, whatever its \
+             lifecycle state"
+        );
+        assert!(
+            recap.habits.iter().all(|habit| habit
+                == &HabitProgress {
+                    title: "Lire une page".to_string(),
+                    starting_goal: 5,
+                    current_goal: 5,
+                    steps: vec![5],
+                }),
+            "neither pausing nor anchoring must filter a habit out of its own \
+             row or change how its journey reads: got {:?}",
+            recap.habits
         );
     }
 
@@ -263,5 +307,82 @@ mod tests {
         let recap = query.handle();
 
         assert_eq!(recap.minutes_practised, u32::MAX);
+    }
+
+    // @scenario: week-recap/S5
+    #[test]
+    fn each_habit_shows_its_journey_with_one_bar_per_goal_step() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit("h-1", 3, TODAY - 6);
+        habit.grow(LocalDate::from_epoch_day(TODAY - 4));
+        habit.grow(LocalDate::from_epoch_day(TODAY - 2));
+        for days_back in 0..4 {
+            habit.toggle_done(LocalDate::from_epoch_day(TODAY - days_back));
+        }
+        repository.save(&habit);
+        let query = get_week_recap_over(repository);
+
+        let recap = query.handle();
+
+        assert_eq!(recap.habits.len(), 1);
+        assert_eq!(
+            recap.habits[0],
+            HabitProgress {
+                title: "Lire une page".to_string(),
+                starting_goal: 3,
+                current_goal: 5,
+                steps: vec![3, 4, 5],
+            },
+            "three goal steps were recorded but four days were completed — \
+             the curve must draw one bar per step (3), not one per completed \
+             day (4)"
+        );
+    }
+
+    // @scenario: week-recap/S7
+    #[test]
+    fn a_brand_new_habit_already_shows_its_journey() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit("h-1", 5, TODAY));
+        let query = get_week_recap_over(repository);
+
+        let recap = query.handle();
+
+        assert_eq!(recap.habits.len(), 1);
+        assert_eq!(
+            recap.habits[0],
+            HabitProgress {
+                title: "Lire une page".to_string(),
+                starting_goal: 5,
+                current_goal: 5,
+                steps: vec![5],
+            },
+            "an empty start is still a start — a single step, its starting \
+             and current goal equal"
+        );
+    }
+
+    // @scenario: week-recap/S6
+    #[test]
+    fn the_rhythm_keeps_one_dot_per_day_lit_when_any_habit_was_practised() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit_a = a_habit("h-1", 5, TODAY - 6);
+        habit_a.toggle_done(LocalDate::from_epoch_day(TODAY - 6));
+        habit_a.toggle_done(LocalDate::from_epoch_day(TODAY - 2));
+        repository.save(&habit_a);
+        let mut habit_b = a_habit("h-2", 5, TODAY - 6);
+        habit_b.toggle_done(LocalDate::from_epoch_day(TODAY - 4));
+        repository.save(&habit_b);
+        let query = get_week_recap_over(repository);
+
+        let recap = query.handle();
+
+        assert_eq!(
+            recap.rhythm,
+            vec![true, false, true, false, true, false, false],
+            "seven dots, oldest first, lit on any day at least one habit was \
+             practised — day one and five come from h-1, day three from h-2, \
+             so the dot must be OR'd across every habit, not just the first"
+        );
     }
 }

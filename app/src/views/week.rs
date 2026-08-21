@@ -105,14 +105,18 @@ mod tests {
         }
     }
 
-    // Test List — Week screen render (@feature:week-recap, S1-S4 in scope this
-    // slice; S5-S7's per-habit row and rhythm dots are task 3/4):
+    // Test List — Week screen render (@feature:week-recap):
     // - the figure states minutes practised across every habit (S1).
     // - paused and anchored habits still count toward the figure (S2, sum half
     //   only — see get_week_recap.rs's test of the same name for the split).
     // - a fresh week reads its gentle word (S3).
     // - a week without recent practice reads rest, without blame (S4).
     // - the masthead back-link returns to Aujourd'hui.
+    // - each habit's row reads its journey, one bar per goal step, not one
+    //   per completed day (S5).
+    // - a brand-new, not-yet-practised habit's row still reads a journey (S7).
+    // - the rhythm row shows seven dots, oldest first, lit on practiced days
+    //   and faint on the rest, never a gap (S6).
 
     // @scenario: week-recap/S1
     #[test]
@@ -262,6 +266,143 @@ mod tests {
         assert!(
             html.contains(r#"href="/""#) && html.contains("Aujourd&#39;hui"),
             "expected the masthead back-link idiom to Aujourd'hui, got: {html}"
+        );
+    }
+
+    /// Ordered list of every `--step-minutes: N` value found in the rendered
+    /// HTML, in document order — lets a test pin the mini-curve's bar order,
+    /// not just its bar count.
+    fn step_bar_minutes(html: &str) -> Vec<&str> {
+        const NEEDLE: &str = "--step-minutes: ";
+        html.match_indices(NEEDLE)
+            .map(|(index, _)| {
+                let start = index + NEEDLE.len();
+                let end = html[start..]
+                    .find([';', '"'])
+                    .map(|offset| start + offset)
+                    .unwrap_or(html.len());
+                &html[start..end]
+            })
+            .collect()
+    }
+
+    /// Ordered list of whether each `.rhythm-dot` carries `is-practised`, in
+    /// document order — lets a test pin the rhythm row's day order, not just
+    /// how many dots are lit.
+    fn rhythm_dot_states(html: &str) -> Vec<bool> {
+        const NEEDLE: &str = "class=\"";
+        html.match_indices(NEEDLE)
+            .filter_map(|(index, _)| {
+                let start = index + NEEDLE.len();
+                let end = start + html[start..].find('"')?;
+                let class = &html[start..end];
+                class
+                    .starts_with("rhythm-dot")
+                    .then(|| class.contains("is-practised"))
+            })
+            .collect()
+    }
+
+    #[component]
+    fn RootAtWeekScreenWithAGrowingHabit() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| {
+            let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = a_habit("h-1", 3, TODAY - 6);
+            habit.grow(LocalDate::from_epoch_day(TODAY - 4));
+            habit.grow(LocalDate::from_epoch_day(TODAY - 2));
+            for days_back in 0..4 {
+                habit.toggle_done(LocalDate::from_epoch_day(TODAY - days_back));
+            }
+            repository.save(&habit);
+            services_with(repository)
+        });
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: week-recap/S5
+    #[test]
+    fn each_habit_row_reads_its_journey_with_one_bar_per_goal_step() {
+        let html = render(RootAtWeekScreenWithAGrowingHabit);
+
+        assert!(
+            html.contains("3 → 5 min"),
+            "expected the row to read the starting and current goal, got: {html}"
+        );
+        assert_eq!(
+            step_bar_minutes(&html),
+            vec!["3", "4", "5"],
+            "expected one bar per goal step (three steps were recorded), not \
+             one per completed day (four), got: {html}"
+        );
+    }
+
+    #[component]
+    fn RootAtWeekScreenWithAFreshHabit() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| {
+            let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+            repository.save(&a_habit("h-1", 5, TODAY));
+            services_with(repository)
+        });
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: week-recap/S7
+    #[test]
+    fn a_brand_new_habit_already_shows_its_journey_on_the_week_screen() {
+        let html = render(RootAtWeekScreenWithAFreshHabit);
+
+        assert!(
+            html.contains("5 → 5 min"),
+            "expected an empty start to still read as a start, got: {html}"
+        );
+        assert_eq!(
+            step_bar_minutes(&html),
+            vec!["5"],
+            "expected a single bar for a not-yet-grown habit, got: {html}"
+        );
+    }
+
+    #[component]
+    fn RootAtWeekScreenWithARhythm() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| {
+            let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+            let mut habit_a = a_habit("h-1", 5, TODAY - 6);
+            habit_a.toggle_done(LocalDate::from_epoch_day(TODAY - 6));
+            habit_a.toggle_done(LocalDate::from_epoch_day(TODAY - 2));
+            repository.save(&habit_a);
+            let mut habit_b = a_habit("h-2", 5, TODAY - 6);
+            habit_b.toggle_done(LocalDate::from_epoch_day(TODAY - 4));
+            repository.save(&habit_b);
+            services_with(repository)
+        });
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: week-recap/S6
+    #[test]
+    fn the_rhythm_row_shows_seven_dots_lit_on_practiced_days_only() {
+        let html = render(RootAtWeekScreenWithARhythm);
+
+        assert_eq!(
+            rhythm_dot_states(&html),
+            vec![true, false, true, false, true, false, false],
+            "expected seven dots, oldest first, lit only on days at least \
+             one habit was practised, faint on the rest — never a gap, got: {html}"
         );
     }
 }
