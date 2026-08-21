@@ -34,8 +34,8 @@ pub fn Week() -> Element {
             }
 
             div { class: "week-habits",
-                for habit in recap.habits.iter() {
-                    div { key: "{habit.title}", class: "week-habit",
+                for (row_offset, habit) in recap.habits.iter().enumerate() {
+                    div { key: "{row_offset}", class: "week-habit",
                         p { class: "week-habit-title", "{habit.title}" }
                         p { class: "week-habit-journey", "{habit.starting_goal} → {habit.current_goal} min" }
                         div {
