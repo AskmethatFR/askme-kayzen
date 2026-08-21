@@ -3,6 +3,7 @@ use crate::route::Route;
 use dioxus::prelude::*;
 use kayzen_core::habit_management::queries::get_habit_detail::HabitDetail as HabitDetailData;
 use kayzen_core::habit_management::queries::get_habit_detail::HabitState;
+use kayzen_core::habit_management::queries::get_habit_detail::PracticeDay;
 use kayzen_core::habit_management::queries::get_habit_detail::RecapMessage;
 
 #[component]
@@ -20,10 +21,10 @@ pub fn HabitDetail(id: String) -> Element {
                 div {
                     class: "staircase",
                     "aria-label": "Vos sept derniers jours, objectif actuel {habit.current_goal} minutes",
-                    for day in habit.days.iter() {
+                    for (day, ratio) in habit.days.iter().zip(day_ratios(&habit.days)) {
                         span {
                             class: if day.done { "day-bar is-done" } else { "day-bar" },
-                            style: "--day-minutes: {day.goal}",
+                            style: "--day-ratio: {ratio}",
                         }
                     }
                 }
@@ -222,6 +223,21 @@ fn recap_copy(message: RecapMessage) -> &'static str {
 #[must_use]
 fn plural(count: usize, one: &'static str, many: &'static str) -> &'static str {
     if count > 1 { many } else { one }
+}
+
+/// Each day's bar height relative to its own window's tallest goal
+/// (adr-0010: core returns numbers, the view decides how to draw them) —
+/// never an absolute minute value. Mirrors `week::step_ratios` (owner
+/// ruling, 2026-08-21): the staircase draws one habit's own trajectory, so
+/// there is no cross-habit comparison to lose. `unwrap_or(1)` only guards an
+/// empty slice; `days` always holds `WINDOW_DAYS` entries in practice, so it
+/// never actually influences a returned ratio.
+#[must_use]
+fn day_ratios(days: &[PracticeDay]) -> Vec<f64> {
+    let window_max = days.iter().map(|day| day.goal).max().unwrap_or(1) as f64;
+    days.iter()
+        .map(|day| day.goal as f64 / window_max)
+        .collect()
 }
 
 #[cfg(test)]

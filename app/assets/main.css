@@ -218,10 +218,14 @@ body {
   height: 64px;
   margin: var(--space-5) 0 var(--space-6);
 }
+/* Height is normalized to the window's own maximum goal (--day-ratio, 0..1),
+   never an absolute minute value: floor 8px + up to 56px of ratio exactly
+   fills the 64px .staircase container (8 + 56 = 64), so the tallest bar
+   always reaches the top and no bar can overflow by construction. */
 .day-bar {
   width: 14px;
   min-height: 8px;
-  height: calc(var(--day-minutes, 1) * 6px + 8px);
+  height: calc(8px + var(--day-ratio, 1) * 56px);
   background: var(--color-rule);
   border-radius: var(--radius) var(--radius) 0 0;
   opacity: 0.35;
