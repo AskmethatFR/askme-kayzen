@@ -161,6 +161,10 @@ mod tests {
     // - the rhythm keeps one dot per day over the rolling 7-day window,
     //   oldest first, lit when at least one habit was practised that day —
     //   OR'd across every habit, not just the first one (S6).
+    // - an empty repository (a new user, before any habit exists) never
+    //   panics: no rows, all seven rhythm dots unlit, message FreshStart.
+    //   Unanchored — no scenario in week-recap.feature names this boundary;
+    //   authoring one is the PM's lane, not the developer's.
 
     // @scenario: week-recap/S1
     #[test]
@@ -407,5 +411,23 @@ mod tests {
              practised — day one and five come from h-1, day three from h-2, \
              so the dot must be OR'd across every habit, not just the first"
         );
+    }
+
+    // Unanchored: characterizes the empty-repository boundary (a new user
+    // opening the Week screen before creating any habit), which no scenario
+    // in week-recap.feature names. Behaviour was already correct before this
+    // test — it pins it so a future `for_habit`/indexing change cannot break
+    // it silently.
+    #[test]
+    fn an_empty_repository_reads_as_a_fresh_start_with_no_rows() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let query = get_week_recap_over(repository);
+
+        let recap = query.handle();
+
+        assert_eq!(recap.minutes_practised, 0);
+        assert!(recap.habits.is_empty(), "got {:?}", recap.habits);
+        assert_eq!(recap.rhythm, vec![false; 7]);
+        assert_eq!(recap.message, WeekMessage::FreshStart);
     }
 }
