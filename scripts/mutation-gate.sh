@@ -27,6 +27,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GATE="$ROOT/scripts/vendor/mutation_gate.py"
 
+# shellcheck source=scripts/verify-instrument.sh
+source "$ROOT/scripts/verify-instrument.sh"
+
 WORK_CLASS="${1:-}"
 BASE_REF="${2:-}"
 
@@ -48,13 +51,39 @@ if [[ ! -f "$GATE" ]]; then
     exit 2
 fi
 
+if ! verify_vendored_instrument "$ROOT/scripts/vendor" "mutation_gate.py"; then
+    echo "mutation gate failed provenance verification, refusing to run" >&2
+    exit 2
+fi
+
 if ! cargo mutants --version >/dev/null 2>&1; then
     echo "cargo-mutants is not installed: cargo install cargo-mutants --locked" >&2
     exit 2
 fi
 
-exec python3 "$GATE" \
+# Not `exec`: a truncated/empty instrument would exit 0 with no output and
+# tail-calling it would hand that straight back as a silent pass. Captured
+# and checked for the mutation-report/v1 payload it is contracted to emit,
+# same defense as the scenario gate's verdict-line check.
+tmp_output="$(mktemp)"
+set +e
+python3 "$GATE" \
     --root "$ROOT" \
     --work-class "$WORK_CLASS" \
     --base-ref "$BASE_REF" \
-    --json
+    --json | tee "$tmp_output"
+status=${PIPESTATUS[0]}
+set -e
+
+if [[ "$status" -ne 0 ]]; then
+    rm -f "$tmp_output"
+    exit "$status"
+fi
+
+if ! grep -q '"schema": "mutation-report/v1"' "$tmp_output"; then
+    echo "mutation gate exited 0 but produced no mutation-report/v1 payload -- refusing to trust it" >&2
+    rm -f "$tmp_output"
+    exit 1
+fi
+
+rm -f "$tmp_output"
