@@ -144,6 +144,35 @@ mod tests {
         }
     }
 
+    // The shared title lives at THIS fixture's own site, not borrowed from
+    // a_habit -- a_habit hardcoding "Lire une page" for every caller is a
+    // coincidence of a shared helper, not a property this regression test
+    // may depend on (issue #30 retry-2: an edit to a_habit alone must never
+    // silently defuse the collision below).
+    const SHARED_TITLE: &str = "Lire une page";
+
+    #[component]
+    fn RootAtWeekScreenWithTwoRowsSharingATitle() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| {
+            let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+            for id in ["h-1", "h-2"] {
+                repository.save(&Habit::new(
+                    HabitId::new(id).unwrap(),
+                    HabitTitle::new(SHARED_TITLE.to_string()).unwrap(),
+                    Goal::new(5).unwrap(),
+                    LocalDate::from_epoch_day(TODAY - 6),
+                ));
+            }
+            services_with(repository)
+        });
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
     // Test List — Week screen render (@feature:week-recap):
     // - the figure states minutes practised across every habit (S1).
     // - paused and anchored habits still count toward the figure (S2, sum half
@@ -320,23 +349,34 @@ mod tests {
     // legally share a title. Keying `.week-habit` on `habit.title` would
     // give dioxus-core duplicate keys among siblings, which its own
     // `diff_keyed_children` rejects with `debug_assert_eq!` the moment the
-    // screen re-renders (RootAtWeekScreen's own fixture already reproduces
-    // it: all three fixture habits share the title "Lire une page"). The
-    // assertion compiles out in release, so the failure mode there is silent
-    // row mis-association -- exactly what a key exists to prevent.
+    // screen re-renders. The assertion compiles out in release, so the
+    // failure mode there is silent row mis-association -- exactly what a
+    // key exists to prevent.
     //
     // Mounting alone never diffs (no "old" tree to compare against), so the
     // defect is invisible on first render; `mark_all_dirty` + a second
     // `render_immediate` forces the keyed-siblings diff a live re-render
     // would take. Not observable via `dioxus_ssr::render` (SSR never reads
     // `key`), so this asserts on "does not panic", not on rendered text --
-    // dioxus-core's own debug assertion is the oracle here, and it already
-    // discriminates the buggy key from the fixed one (see PROTOCOL.md's TDD
-    // provenance check for the observed RED before this test's fix commit).
+    // dioxus-core's own debug assertion is the oracle here.
+    //
+    // The fixture spells the collision at its own site rather than
+    // inheriting it from `a_habit` (retry-2: an unrelated edit to `a_habit`
+    // must not silently defuse this), and the precondition assertion below
+    // makes that premise fail loudly, not vacuously, if it ever stops
+    // holding.
     #[test]
     fn re_rendering_the_week_screen_does_not_panic_on_same_titled_habits() {
-        let mut vdom = VirtualDom::new(RootAtWeekScreen);
+        let mut vdom = VirtualDom::new(RootAtWeekScreenWithTwoRowsSharingATitle);
         vdom.rebuild_in_place();
+
+        let html = dioxus_ssr::render(&vdom);
+        assert!(
+            html.matches(&format!(r#"week-habit-title">{SHARED_TITLE}"#))
+                .count()
+                >= 2,
+            "this regression test only means anything while two rows share a title, got: {html}"
+        );
 
         vdom.mark_all_dirty();
         vdom.render_immediate(&mut dioxus_core::NoOpMutations);
