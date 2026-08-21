@@ -23,4 +23,12 @@ impl CompletionHistory {
     pub fn contains(&self, day: LocalDate) -> bool {
         self.0.contains(&day)
     }
+
+    /// The completed days within `from..=to`, inclusive on both ends. Walks
+    /// the recorded completions rather than the calendar, so the cost is
+    /// bounded by how much was actually practised, never by the span between
+    /// the two dates.
+    pub fn between(&self, from: LocalDate, to: LocalDate) -> impl Iterator<Item = LocalDate> + '_ {
+        self.0.range(from..=to).copied()
+    }
 }

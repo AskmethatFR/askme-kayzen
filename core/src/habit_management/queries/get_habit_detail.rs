@@ -104,7 +104,7 @@ impl GetHabitDetail {
                 .map(|days_back| today.minus_days(days_back))
                 .map(|day| PracticeDay {
                     done: habit.is_done_on(day),
-                    goal: goal_active_on(&steps, day),
+                    goal: habit.step_history().goal_on(day).value(),
                 })
                 .collect(),
             state: match habit.state() {
@@ -118,28 +118,9 @@ impl GetHabitDetail {
     }
 }
 
-/// The goal a habit was aiming at on `day`: the last step dated on or before it.
-///
-/// A day older than the habit itself falls back to the goal it started on. The
-/// bar is faint there anyway, and standing it at zero would punch exactly the
-/// hole the faint bar exists to avoid — an empty start is still a start
-/// (practice-staircase/S6).
-///
-/// Indexing the first step cannot panic: `StepHistory::seeded` is its only
-/// constructor, so a history always holds at least the step it was seeded with.
-fn goal_active_on(steps: &[&StepChange], day: LocalDate) -> u32 {
-    steps
-        .iter()
-        .rev()
-        .find(|step| step.on() <= day)
-        .unwrap_or(&steps[0])
-        .goal()
-        .value()
-}
-
 fn recap_of(habit: &Habit, steps: &[&StepChange], today: LocalDate) -> HabitRecap {
     let created_on = habit.created_on();
-    let (mut days_done, mut empty_days, mut minutes_practised) = (0usize, 0usize, 0u32);
+    let (mut days_done, mut empty_days) = (0usize, 0usize);
     let mut days_since_last_completion: Option<usize> = None;
 
     // Clock skew (device date moved back, westward TZ change on the creation
@@ -151,7 +132,6 @@ fn recap_of(habit: &Habit, steps: &[&StepChange], today: LocalDate) -> HabitReca
     while day >= created_on {
         if habit.is_done_on(day) {
             days_done += 1;
-            minutes_practised = minutes_practised.saturating_add(goal_active_on(steps, day));
             if days_since_last_completion.is_none() {
                 days_since_last_completion = Some(days_back);
             }
@@ -161,6 +141,7 @@ fn recap_of(habit: &Habit, steps: &[&StepChange], today: LocalDate) -> HabitReca
         day = day.minus_days(1);
         days_back += 1;
     }
+    let minutes_practised = habit.minutes_practised(today);
 
     let (growths, lightenings) = goal_moves(steps);
 

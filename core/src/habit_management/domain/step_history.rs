@@ -1,9 +1,9 @@
 use crate::habit_management::domain::goal::Goal;
 use crate::shared::local_date::LocalDate;
 
-/// One dated change to a habit's daily goal. The date is what makes a later
-/// "minutes gained since day X" query reconstructible (adr-0007) — even
-/// though nothing reads it back within this slice yet.
+/// One dated change to a habit's daily goal. The date is what makes
+/// `StepHistory::goal_on` able to reconstruct the goal in force on any past
+/// day (adr-0007).
 #[derive(Debug, Clone, PartialEq)]
 pub struct StepChange {
     on: LocalDate,
@@ -69,6 +69,19 @@ impl StepHistory {
         }
         self.rest.push(StepChange::new(on, goal));
     }
+
+    /// The goal that was in force on `day`: the last step dated on or before
+    /// it, falling back to the seeded one. Indexing the seeded step cannot
+    /// panic — `seeded` is the type's only constructor, so `first` always
+    /// exists (see the type doc comment).
+    pub fn goal_on(&self, day: LocalDate) -> &Goal {
+        self.rest
+            .iter()
+            .rev()
+            .find(|step| step.on() <= day)
+            .map(StepChange::goal)
+            .unwrap_or_else(|| self.first.goal())
+    }
 }
 
 #[cfg(test)]
@@ -101,5 +114,68 @@ mod tests {
 
         assert_eq!(history.changes().len(), 2);
         assert_eq!(history.current(), &Goal::new(6).unwrap());
+    }
+
+    // Test List — StepHistory::goal_on (published contract: called directly by
+    // GetHabitDetail via `step_history()`, and by Habit::minutes_practised —
+    // test-ddd-tactical Entry Gate, same shape as `record` above):
+    // - a day older than the seeded step falls back to the seeded goal.
+    // - a day exactly on the seeded step's date returns the seeded goal.
+    // - a day after a later recorded step returns that step's goal.
+    // - a day between two recorded steps returns the earlier one still in force.
+    // - several applicable steps -> returns the most recent one in force.
+
+    #[test]
+    fn a_day_older_than_the_seeded_step_falls_back_to_the_seeded_goal() {
+        let history = a_history();
+
+        let goal = history.goal_on(LocalDate::from_epoch_day(19_999));
+
+        assert_eq!(goal, &Goal::new(5).unwrap());
+    }
+
+    #[test]
+    fn a_day_exactly_on_the_seeded_steps_date_returns_the_seeded_goal() {
+        let history = a_history();
+
+        let goal = history.goal_on(LocalDate::from_epoch_day(20_000));
+
+        assert_eq!(goal, &Goal::new(5).unwrap());
+    }
+
+    #[test]
+    fn a_day_after_a_later_recorded_step_returns_that_steps_goal() {
+        let mut history = a_history();
+        history.record(LocalDate::from_epoch_day(20_003), Goal::new(6).unwrap());
+
+        let goal = history.goal_on(LocalDate::from_epoch_day(20_005));
+
+        assert_eq!(goal, &Goal::new(6).unwrap());
+    }
+
+    #[test]
+    fn a_day_between_two_recorded_steps_returns_the_earlier_one_still_in_force() {
+        let mut history = a_history();
+        history.record(LocalDate::from_epoch_day(20_003), Goal::new(6).unwrap());
+        history.record(LocalDate::from_epoch_day(20_010), Goal::new(7).unwrap());
+
+        let goal = history.goal_on(LocalDate::from_epoch_day(20_005));
+
+        assert_eq!(
+            goal,
+            &Goal::new(6).unwrap(),
+            "day 20_005 sits after the 20_003 step but before the 20_010 one"
+        );
+    }
+
+    #[test]
+    fn several_applicable_steps_return_the_most_recent_one_in_force() {
+        let mut history = a_history();
+        history.record(LocalDate::from_epoch_day(20_003), Goal::new(6).unwrap());
+        history.record(LocalDate::from_epoch_day(20_010), Goal::new(7).unwrap());
+
+        let goal = history.goal_on(LocalDate::from_epoch_day(20_020));
+
+        assert_eq!(goal, &Goal::new(7).unwrap());
     }
 }

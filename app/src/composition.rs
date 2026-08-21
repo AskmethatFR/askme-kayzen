@@ -3,6 +3,7 @@ use std::rc::Rc;
 use kayzen_core::habit_management::domain::habit_repository::HabitRepository;
 use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
 use kayzen_core::habit_management::queries::get_habit_detail::GetHabitDetail;
+use kayzen_core::habit_management::queries::get_week_recap::GetWeekRecap;
 use kayzen_core::habit_management::queries::list_anchored_habits::ListAnchoredHabits;
 use kayzen_core::habit_management::queries::list_board_habits::ListBoardHabits;
 use kayzen_core::habit_management::use_cases::add_habit::AddHabit;
@@ -31,6 +32,7 @@ pub struct Services {
     pub mark_done: MarkDone,
     pub add_habit: AddHabit,
     pub get_habit_detail: GetHabitDetail,
+    pub get_week_recap: GetWeekRecap,
     pub grow_goal: GrowGoal,
     pub lighten_goal: LightenGoal,
     pub pause_habit: PauseHabit,
@@ -76,6 +78,7 @@ impl Services {
             ),
             mark_done: MarkDone::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
             get_habit_detail: GetHabitDetail::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
+            get_week_recap: GetWeekRecap::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
             grow_goal: GrowGoal::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
             lighten_goal: LightenGoal::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
             pause_habit: PauseHabit::new(Rc::clone(&habit_repository)),
