@@ -21,8 +21,11 @@ pub fn HabitDetail(id: String) -> Element {
                 div {
                     class: "staircase",
                     "aria-label": "Vos sept derniers jours, objectif actuel {habit.current_goal} minutes",
-                    for (day, ratio) in habit.days.iter().zip(day_ratios(&habit.days)) {
+                    for (day_offset, (day, ratio)) in
+                        habit.days.iter().zip(day_ratios(&habit.days)).enumerate()
+                    {
                         span {
+                            key: "{day_offset}",
                             class: if day.done { "day-bar is-done" } else { "day-bar" },
                             style: "--day-ratio: {ratio}",
                         }

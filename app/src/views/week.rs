@@ -25,21 +25,25 @@ pub fn Week() -> Element {
             p { class: "week-word", "{week_copy(recap.message)}" }
 
             div { class: "rhythm", "aria-label": "Votre rythme sur les sept derniers jours",
-                for practised in recap.rhythm.iter() {
-                    span { class: if *practised { "rhythm-dot is-practised" } else { "rhythm-dot" } }
+                for (day_offset, practised) in recap.rhythm.iter().enumerate() {
+                    span {
+                        key: "{day_offset}",
+                        class: if *practised { "rhythm-dot is-practised" } else { "rhythm-dot" },
+                    }
                 }
             }
 
             div { class: "week-habits",
                 for habit in recap.habits.iter() {
-                    div { class: "week-habit",
+                    div { key: "{habit.title}", class: "week-habit",
                         p { class: "week-habit-title", "{habit.title}" }
                         p { class: "week-habit-journey", "{habit.starting_goal} → {habit.current_goal} min" }
                         div {
                             class: "week-curve",
                             "aria-label": "Trajectoire de {habit.title}, de {habit.starting_goal} à {habit.current_goal} minutes",
-                            for ratio in step_ratios(&habit.steps) {
-                                span { class: "step-bar", style: "--step-ratio: {ratio}" }
+                            for (step_offset, ratio) in step_ratios(&habit.steps).into_iter().enumerate()
+                            {
+                                span { key: "{step_offset}", class: "step-bar", style: "--step-ratio: {ratio}" }
                             }
                         }
                     }

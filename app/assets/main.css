@@ -326,12 +326,18 @@ body {
 /* Height is normalized to the row's own maximum step (--step-ratio, 0..1),
    never an absolute minute value: floor 6px + up to 26px of ratio exactly
    fills the 32px .week-curve container (6 + 26 = 32), so the tallest bar
-   always reaches the top and no bar can overflow by construction. */
+   always reaches the top and no bar can overflow by construction.
+   Colour: --color-ink-soft, never --color-accent (issue #30) -- the accent
+   means "practised" everywhere else it appears (.target.is-done,
+   .day-bar.is-done, .rhythm-dot.is-practised); this curve encodes the goal
+   trajectory, not practice, so it must not borrow that meaning. ink-soft is
+   the same quiet tone the empty .target::before dot already uses for "not
+   yet done", and it still reads clearly against --color-paper. */
 .step-bar {
   width: 10px;
   min-height: 6px;
   height: calc(6px + var(--step-ratio, 1) * 26px);
-  background: var(--color-accent);
+  background: var(--color-ink-soft);
   border-radius: var(--radius) var(--radius) 0 0;
   opacity: 0.7;
 }
