@@ -152,6 +152,9 @@ mod tests {
     //   own maximum step, never an absolute minute value (owner decision,
     //   2026-08-21: relative progression, not absolute effort).
     // - a brand-new, not-yet-practised habit's row still reads a journey (S7).
+    // - a row lightened back down (its maximum step sits mid-history, not
+    //   last) still normalizes on that row's own maximum, never on its
+    //   current goal — no bar may exceed its container.
     // - the rhythm row shows seven dots, oldest first, lit on practiced days
     //   and faint on the rest, never a gap (S6).
 
@@ -411,6 +414,47 @@ mod tests {
             vec![1.0],
             "expected a single bar for a not-yet-grown habit, drawn at its \
              row's own maximum, got: {html}"
+        );
+    }
+
+    #[component]
+    fn RootAtWeekScreenWithALightenedHabit() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| {
+            let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = a_habit("h-1", 5, TODAY - 6);
+            habit.grow(LocalDate::from_epoch_day(TODAY - 4));
+            habit.lighten(LocalDate::from_epoch_day(TODAY - 2));
+            repository.save(&habit);
+            services_with(repository)
+        });
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // Unanchored: no scenario in week-recap.feature names a lightened row —
+    // S5 only covers growing. `LightenGoal` is a delivered, wired use case
+    // (issue #13), so a history whose maximum step sits mid-row, not last,
+    // is reachable today; this test pins the boundary the normalization
+    // rule (`step_ratios`, above) must hold on it.
+    #[test]
+    fn a_lightened_row_still_normalizes_on_its_own_maximum_step() {
+        let html = render(RootAtWeekScreenWithALightenedHabit);
+
+        let ratios = step_bar_ratios(&html);
+        assert!(
+            ratios.iter().all(|&ratio| ratio <= 1.0),
+            "no bar may exceed its container: {ratios:?}"
+        );
+        assert_eq!(
+            ratios,
+            vec![5.0 / 6.0, 1.0, 5.0 / 6.0],
+            "expected the row's own maximum step (6, reached mid-history) to \
+             normalize every bar, not the current goal (5, which the row \
+             lightened back down to), got: {html}"
         );
     }
 
