@@ -5,9 +5,10 @@ use crate::habit_management::domain::habit_repository::HabitRepository;
 use crate::shared::clock::Clock;
 use crate::shared::local_date::LocalDate;
 
-/// How many trailing days count as "recently" for the week's word (adr-0006:
-/// a rolling window ending today, never a Monday→Sunday calendar week).
-const RECENT_PRACTICE_WINDOW_DAYS: i64 = 7;
+/// The rolling window: both the word's *recently* and the rhythm row's dot
+/// count read it (adr-0006: a rolling window ending today, never a
+/// Monday→Sunday calendar week).
+const ROLLING_WINDOW_DAYS: i64 = 7;
 
 #[derive(Clone)]
 pub struct GetWeekRecap {
@@ -92,7 +93,7 @@ impl GetWeekRecap {
 /// taken from today's habit set would rewrite the past whenever the user
 /// pauses or anchors something).
 fn rhythm_for(habits: &[Habit], today: LocalDate) -> Vec<bool> {
-    (0..RECENT_PRACTICE_WINDOW_DAYS)
+    (0..ROLLING_WINDOW_DAYS)
         .rev()
         .map(|days_back| {
             let day = today.minus_days(days_back);
