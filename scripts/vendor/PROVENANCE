@@ -1,1 +1,2 @@
 452c311ae5de9a924d3b7b89b9e45f43cb857b607d001955aedaba23be7fc929  scenario_audit.py  ~/.claude/lib/scenario_audit.py  2026-08-21
+6321b221c9c5ba3a7b9466a9d64856979d0ca3004a9e5bf08d62df7c23d9c5d1  mutation_gate.py  ~/.claude/lib/mutation_gate.py  2026-08-21
