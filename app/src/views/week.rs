@@ -38,8 +38,8 @@ pub fn Week() -> Element {
                         div {
                             class: "week-curve",
                             "aria-label": "Trajectoire de {habit.title}, de {habit.starting_goal} à {habit.current_goal} minutes",
-                            for step in habit.steps.iter() {
-                                span { class: "step-bar", style: "--step-minutes: {step}" }
+                            for ratio in step_ratios(&habit.steps) {
+                                span { class: "step-bar", style: "--step-ratio: {ratio}" }
                             }
                         }
                     }
@@ -47,6 +47,19 @@ pub fn Week() -> Element {
             }
         }
     }
+}
+
+/// Each bar's height relative to its own row's tallest step (adr-0010: core
+/// returns numbers, the view decides how to draw them) — never an absolute
+/// minute value. The owner's call: a 2→3 habit and a 30→32 habit draw the
+/// same shape, because the row shows relative progression, not absolute
+/// effort. `unwrap_or(1)` only guards an empty slice; `steps` is never empty
+/// in practice (`HabitProgress::for_habit` always seeds at least one step),
+/// so it never actually influences a returned ratio.
+#[must_use]
+fn step_ratios(steps: &[u32]) -> Vec<f64> {
+    let row_max = steps.iter().copied().max().unwrap_or(1) as f64;
+    steps.iter().map(|&step| step as f64 / row_max).collect()
 }
 
 #[must_use]

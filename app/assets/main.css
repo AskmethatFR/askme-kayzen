@@ -319,10 +319,14 @@ body {
   gap: var(--space-1);
   height: 32px;
 }
+/* Height is normalized to the row's own maximum step (--step-ratio, 0..1),
+   never an absolute minute value: floor 6px + up to 26px of ratio exactly
+   fills the 32px .week-curve container (6 + 26 = 32), so the tallest bar
+   always reaches the top and no bar can overflow by construction. */
 .step-bar {
   width: 10px;
   min-height: 6px;
-  height: calc(var(--step-minutes, 1) * 4px + 6px);
+  height: calc(6px + var(--step-ratio, 1) * 26px);
   background: var(--color-accent);
   border-radius: var(--radius) var(--radius) 0 0;
   opacity: 0.7;
