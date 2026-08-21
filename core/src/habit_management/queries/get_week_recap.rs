@@ -5,9 +5,10 @@ use crate::habit_management::domain::habit_repository::HabitRepository;
 use crate::shared::clock::Clock;
 use crate::shared::local_date::LocalDate;
 
-/// How many trailing days count as "recently" for the week's word (adr-0006:
-/// a rolling window ending today, never a Monday→Sunday calendar week).
-const RECENT_PRACTICE_WINDOW_DAYS: i64 = 7;
+/// The rolling window: both the word's *recently* and the rhythm row's dot
+/// count read it (adr-0006: a rolling window ending today, never a
+/// Monday→Sunday calendar week).
+const ROLLING_WINDOW_DAYS: i64 = 7;
 
 #[derive(Clone)]
 pub struct GetWeekRecap {
@@ -20,7 +21,34 @@ pub struct GetWeekRecap {
 #[derive(Debug, Clone, PartialEq)]
 pub struct WeekRecap {
     pub minutes_practised: u32,
+    pub habits: Vec<HabitProgress>,
+    pub rhythm: Vec<bool>,
     pub message: WeekMessage,
+}
+
+/// One habit's journey this week, whatever its lifecycle state (AD-3). No
+/// `id` and no `state`: the row carries no gesture (no link, no button, no
+/// navigation), so it needs neither — an `id` on a row is identity granted
+/// by a gesture the row does not have (adr-0006, same precedent as
+/// `AnchoredHabit`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct HabitProgress {
+    pub title: String,
+    pub starting_goal: u32,
+    pub current_goal: u32,
+    pub steps: Vec<u32>,
+}
+
+impl HabitProgress {
+    fn for_habit(habit: &Habit) -> HabitProgress {
+        let changes = habit.step_history().changes();
+        HabitProgress {
+            title: habit.title().value().to_string(),
+            starting_goal: changes[0].goal().value(),
+            current_goal: habit.current_goal(),
+            steps: changes.iter().map(|change| change.goal().value()).collect(),
+        }
+    }
 }
 
 /// How the week is living right now, as the recap says it — a DTO-side enum
@@ -40,25 +68,38 @@ impl GetWeekRecap {
 
     pub fn handle(&self) -> WeekRecap {
         let today = self.clock.today();
-        let mut minutes_practised = 0u32;
-        let mut recently = false;
+        let habits = self.repository.all();
 
-        for habit in self.repository.all() {
+        let mut minutes_practised = 0u32;
+        for habit in &habits {
             minutes_practised = minutes_practised.saturating_add(habit.minutes_practised(today));
-            if practised_recently(&habit, today) {
-                recently = true;
-            }
         }
+
+        let rhythm = rhythm_for(&habits, today);
+        let recently = rhythm.iter().any(|&practised| practised);
 
         WeekRecap {
             minutes_practised,
+            habits: habits.iter().map(HabitProgress::for_habit).collect(),
+            rhythm,
             message: message_for(minutes_practised, recently),
         }
     }
 }
 
-fn practised_recently(habit: &Habit, today: LocalDate) -> bool {
-    (0..RECENT_PRACTICE_WINDOW_DAYS).any(|days_back| habit.is_done_on(today.minus_days(days_back)))
+/// One dot per day over the rolling window ending today, oldest first, lit
+/// when at least one habit was practised that day (AD-4: presence, never a
+/// density/ratio — `LifecycleState` carries no history, so a denominator
+/// taken from today's habit set would rewrite the past whenever the user
+/// pauses or anchors something).
+fn rhythm_for(habits: &[Habit], today: LocalDate) -> Vec<bool> {
+    (0..ROLLING_WINDOW_DAYS)
+        .rev()
+        .map(|days_back| {
+            let day = today.minus_days(days_back);
+            habits.iter().any(|habit| habit.is_done_on(day))
+        })
+        .collect()
 }
 
 fn message_for(minutes_practised: u32, practised_recently: bool) -> WeekMessage {
@@ -73,7 +114,7 @@ fn message_for(minutes_practised: u32, practised_recently: bool) -> WeekMessage 
 
 #[cfg(test)]
 mod tests {
-    use super::{GetWeekRecap, WeekMessage};
+    use super::{GetWeekRecap, HabitProgress, WeekMessage};
     use crate::habit_management::domain::goal::Goal;
     use crate::habit_management::domain::habit::Habit;
     use crate::habit_management::domain::habit_id::HabitId;
@@ -112,6 +153,19 @@ mod tests {
     //   completeness: no scenario names this arm on its own, it is the third
     //   arm the message rule already states in the tech spec).
     // - the running sum saturates across habits instead of overflowing.
+    // - each habit's row reads its journey with one bar per goal step, not
+    //   one per completed day (S5).
+    // - a brand-new, not-yet-practised habit's row still reads a journey,
+    //   starting_goal == current_goal, a single step (S7).
+    // - every habit gets a row, whatever its lifecycle state — paused and
+    //   anchored habits included (S2, row half).
+    // - the rhythm keeps one dot per day over the rolling 7-day window,
+    //   oldest first, lit when at least one habit was practised that day —
+    //   OR'd across every habit, not just the first one (S6).
+    // - an empty repository (a new user, before any habit exists) never
+    //   panics: no rows, all seven rhythm dots unlit, message FreshStart.
+    //   Unanchored — no scenario in week-recap.feature names this boundary;
+    //   authoring one is the PM's lane, not the developer's.
 
     // @scenario: week-recap/S1
     #[test]
@@ -160,6 +214,24 @@ mod tests {
             recap.minutes_practised, 35,
             "4 days at 5 min from the paused habit plus 3 from the anchored \
              one — pausing or anchoring never takes lived minutes back"
+        );
+        assert_eq!(
+            recap.habits.len(),
+            2,
+            "each habit still reads its own journey as a row, whatever its \
+             lifecycle state"
+        );
+        assert!(
+            recap.habits.iter().all(|habit| habit
+                == &HabitProgress {
+                    title: "Lire une page".to_string(),
+                    starting_goal: 5,
+                    current_goal: 5,
+                    steps: vec![5],
+                }),
+            "neither pausing nor anchoring must filter a habit out of its own \
+             row or change how its journey reads: got {:?}",
+            recap.habits
         );
     }
 
@@ -263,5 +335,100 @@ mod tests {
         let recap = query.handle();
 
         assert_eq!(recap.minutes_practised, u32::MAX);
+    }
+
+    // @scenario: week-recap/S5
+    #[test]
+    fn each_habit_shows_its_journey_with_one_bar_per_goal_step() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit("h-1", 3, TODAY - 6);
+        habit.grow(LocalDate::from_epoch_day(TODAY - 4));
+        habit.grow(LocalDate::from_epoch_day(TODAY - 2));
+        for days_back in 0..4 {
+            habit.toggle_done(LocalDate::from_epoch_day(TODAY - days_back));
+        }
+        repository.save(&habit);
+        let query = get_week_recap_over(repository);
+
+        let recap = query.handle();
+
+        assert_eq!(recap.habits.len(), 1);
+        assert_eq!(
+            recap.habits[0],
+            HabitProgress {
+                title: "Lire une page".to_string(),
+                starting_goal: 3,
+                current_goal: 5,
+                steps: vec![3, 4, 5],
+            },
+            "three goal steps were recorded but four days were completed — \
+             the curve must draw one bar per step (3), not one per completed \
+             day (4)"
+        );
+    }
+
+    // @scenario: week-recap/S7
+    #[test]
+    fn a_brand_new_habit_already_shows_its_journey() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit("h-1", 5, TODAY));
+        let query = get_week_recap_over(repository);
+
+        let recap = query.handle();
+
+        assert_eq!(recap.habits.len(), 1);
+        assert_eq!(
+            recap.habits[0],
+            HabitProgress {
+                title: "Lire une page".to_string(),
+                starting_goal: 5,
+                current_goal: 5,
+                steps: vec![5],
+            },
+            "an empty start is still a start — a single step, its starting \
+             and current goal equal"
+        );
+    }
+
+    // @scenario: week-recap/S6
+    #[test]
+    fn the_rhythm_keeps_one_dot_per_day_lit_when_any_habit_was_practised() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit_a = a_habit("h-1", 5, TODAY - 6);
+        habit_a.toggle_done(LocalDate::from_epoch_day(TODAY - 6));
+        habit_a.toggle_done(LocalDate::from_epoch_day(TODAY - 2));
+        repository.save(&habit_a);
+        let mut habit_b = a_habit("h-2", 5, TODAY - 6);
+        habit_b.toggle_done(LocalDate::from_epoch_day(TODAY - 4));
+        repository.save(&habit_b);
+        let query = get_week_recap_over(repository);
+
+        let recap = query.handle();
+
+        assert_eq!(
+            recap.rhythm,
+            vec![true, false, true, false, true, false, false],
+            "seven dots, oldest first, lit on any day at least one habit was \
+             practised — day one and five come from h-1, day three from h-2, \
+             so the dot must be OR'd across every habit, not just the first"
+        );
+    }
+
+    // Unanchored: characterizes the empty-repository boundary (a new user
+    // opening the Week screen before creating any habit), which no scenario
+    // in week-recap.feature names. Behaviour was already correct before this
+    // test — it pins it so a future `for_habit`/indexing change cannot break
+    // it silently.
+    #[test]
+    fn an_empty_repository_reads_as_a_fresh_start_with_no_rows() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let query = get_week_recap_over(repository);
+
+        let recap = query.handle();
+
+        assert_eq!(recap.minutes_practised, 0);
+        assert!(recap.habits.is_empty(), "got {:?}", recap.habits);
+        assert_eq!(recap.rhythm, vec![false; 7]);
+        assert_eq!(recap.message, WeekMessage::FreshStart);
     }
 }

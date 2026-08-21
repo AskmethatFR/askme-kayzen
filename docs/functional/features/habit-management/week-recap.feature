@@ -36,21 +36,21 @@ Feature: Read the week's practice as accumulated minutes and rhythm
     Then the week acknowledges the rest without blaming
     And the message never frames empty days as a failure
 
-  @wip @scenario:S5
+  @scenario:S5
   Scenario: Each habit shows its journey with one bar per goal step
     Given a habit grown from 3 to 5 minutes mid-week and completed on four days
     When the user opens the week screen
     Then that habit's row reads "3 → 5 min"
     And its mini-curve draws one bar per goal step, not one per day
 
-  @wip @scenario:S6
+  @scenario:S6
   Scenario: The rhythm keeps one dot per day, faint when no practice
     Given the last seven days, with practice on days 1, 3, and 5 only
     When the user opens the week screen
     Then the rhythm row shows seven dots, lit on practiced days and faint on others
     And a day without practice keeps its dot faint, never a gap, never red
 
-  @wip @scenario:S7
+  @scenario:S7
   Scenario: A brand-new habit already shows its journey
     Given a habit created today at 5 minutes and not yet practised
     When the user opens the week screen

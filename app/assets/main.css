@@ -271,6 +271,67 @@ body {
   margin: 0;
 }
 
+/* ---- Rhythm row (Week screen) ----
+   One dot per day over the rolling seven-day window, oldest first. Presence,
+   never density: a day without practice keeps its dot at the same faint
+   opacity idiom as .day-bar — present, never a gap, never a warning. */
+.rhythm {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 var(--space-2);
+}
+.rhythm-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-rule);
+  opacity: 0.35;
+}
+.rhythm-dot.is-practised {
+  background: var(--color-accent);
+  opacity: 1;
+}
+
+/* ---- Habit journey rows (Week screen) ----
+   Every habit gets a row, whatever its lifecycle state — no gesture, no id.
+   Each mini-curve draws one bar per recorded goal step, never one per day:
+   the week's rhythm row above already draws the seven days once. */
+.week-habits {
+  margin-top: var(--space-5);
+}
+.week-habit {
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--color-rule);
+}
+.week-habit-title {
+  font-weight: 600;
+  margin: 0;
+}
+.week-habit-journey {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-soft);
+  margin: 2px 0 var(--space-2);
+}
+.week-curve {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-1);
+  height: 32px;
+}
+/* Height is normalized to the row's own maximum step (--step-ratio, 0..1),
+   never an absolute minute value: floor 6px + up to 26px of ratio exactly
+   fills the 32px .week-curve container (6 + 26 = 32), so the tallest bar
+   always reaches the top and no bar can overflow by construction. */
+.step-bar {
+  width: 10px;
+  min-height: 6px;
+  height: calc(6px + var(--step-ratio, 1) * 26px);
+  background: var(--color-accent);
+  border-radius: var(--radius) var(--radius) 0 0;
+  opacity: 0.7;
+}
+
 /* ---- Broadsheet components (for later screens) ---- */
 .btn {
   font-family: var(--font-serif);

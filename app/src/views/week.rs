@@ -23,8 +23,43 @@ pub fn Week() -> Element {
             h1 { class: "greeting", "Cette semaine" }
             p { class: "week-figure", "{figure}" }
             p { class: "week-word", "{week_copy(recap.message)}" }
+
+            div { class: "rhythm", "aria-label": "Votre rythme sur les sept derniers jours",
+                for practised in recap.rhythm.iter() {
+                    span { class: if *practised { "rhythm-dot is-practised" } else { "rhythm-dot" } }
+                }
+            }
+
+            div { class: "week-habits",
+                for habit in recap.habits.iter() {
+                    div { class: "week-habit",
+                        p { class: "week-habit-title", "{habit.title}" }
+                        p { class: "week-habit-journey", "{habit.starting_goal} → {habit.current_goal} min" }
+                        div {
+                            class: "week-curve",
+                            "aria-label": "Trajectoire de {habit.title}, de {habit.starting_goal} à {habit.current_goal} minutes",
+                            for ratio in step_ratios(&habit.steps) {
+                                span { class: "step-bar", style: "--step-ratio: {ratio}" }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
+}
+
+/// Each bar's height relative to its own row's tallest step (adr-0010: core
+/// returns numbers, the view decides how to draw them) — never an absolute
+/// minute value. The owner's call: a 2→3 habit and a 30→32 habit draw the
+/// same shape, because the row shows relative progression, not absolute
+/// effort. `unwrap_or(1)` only guards an empty slice; `steps` is never empty
+/// in practice (`HabitProgress::for_habit` always seeds at least one step),
+/// so it never actually influences a returned ratio.
+#[must_use]
+fn step_ratios(steps: &[u32]) -> Vec<f64> {
+    let row_max = steps.iter().copied().max().unwrap_or(1) as f64;
+    steps.iter().map(|&step| step as f64 / row_max).collect()
 }
 
 #[must_use]
@@ -105,14 +140,23 @@ mod tests {
         }
     }
 
-    // Test List — Week screen render (@feature:week-recap, S1-S4 in scope this
-    // slice; S5-S7's per-habit row and rhythm dots are task 3/4):
+    // Test List — Week screen render (@feature:week-recap):
     // - the figure states minutes practised across every habit (S1).
     // - paused and anchored habits still count toward the figure (S2, sum half
     //   only — see get_week_recap.rs's test of the same name for the split).
     // - a fresh week reads its gentle word (S3).
     // - a week without recent practice reads rest, without blame (S4).
     // - the masthead back-link returns to Aujourd'hui.
+    // - each habit's row reads its journey, one bar per goal step, not one
+    //   per completed day (S5), each bar's height normalized to that row's
+    //   own maximum step, never an absolute minute value (owner decision,
+    //   2026-08-21: relative progression, not absolute effort).
+    // - a brand-new, not-yet-practised habit's row still reads a journey (S7).
+    // - a row lightened back down (its maximum step sits mid-history, not
+    //   last) still normalizes on that row's own maximum, never on its
+    //   current goal — no bar may exceed its container.
+    // - the rhythm row shows seven dots, oldest first, lit on practiced days
+    //   and faint on the rest, never a gap (S6).
 
     // @scenario: week-recap/S1
     #[test]
@@ -262,6 +306,189 @@ mod tests {
         assert!(
             html.contains(r#"href="/""#) && html.contains("Aujourd&#39;hui"),
             "expected the masthead back-link idiom to Aujourd'hui, got: {html}"
+        );
+    }
+
+    /// Ordered list of every `--step-ratio: N` value found in the rendered
+    /// HTML, parsed as `f64`, in document order — lets a test pin the
+    /// mini-curve's normalized bar heights and their order, not just the
+    /// bar count.
+    fn step_bar_ratios(html: &str) -> Vec<f64> {
+        const NEEDLE: &str = "--step-ratio: ";
+        html.match_indices(NEEDLE)
+            .map(|(index, _)| {
+                let start = index + NEEDLE.len();
+                let end = html[start..]
+                    .find([';', '"'])
+                    .map(|offset| start + offset)
+                    .unwrap_or(html.len());
+                html[start..end]
+                    .parse()
+                    .expect("--step-ratio must render a valid f64")
+            })
+            .collect()
+    }
+
+    /// Ordered list of whether each `.rhythm-dot` carries `is-practised`, in
+    /// document order — lets a test pin the rhythm row's day order, not just
+    /// how many dots are lit.
+    fn rhythm_dot_states(html: &str) -> Vec<bool> {
+        const NEEDLE: &str = "class=\"";
+        html.match_indices(NEEDLE)
+            .filter_map(|(index, _)| {
+                let start = index + NEEDLE.len();
+                let end = start + html[start..].find('"')?;
+                let class = &html[start..end];
+                class
+                    .starts_with("rhythm-dot")
+                    .then(|| class.contains("is-practised"))
+            })
+            .collect()
+    }
+
+    #[component]
+    fn RootAtWeekScreenWithAGrowingHabit() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| {
+            let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = a_habit("h-1", 3, TODAY - 6);
+            habit.grow(LocalDate::from_epoch_day(TODAY - 4));
+            habit.grow(LocalDate::from_epoch_day(TODAY - 2));
+            for days_back in 0..4 {
+                habit.toggle_done(LocalDate::from_epoch_day(TODAY - days_back));
+            }
+            repository.save(&habit);
+            services_with(repository)
+        });
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: week-recap/S5
+    #[test]
+    fn each_habit_row_reads_its_journey_with_one_bar_per_goal_step() {
+        let html = render(RootAtWeekScreenWithAGrowingHabit);
+
+        assert!(
+            html.contains("3 → 5 min"),
+            "expected the row to read the starting and current goal, got: {html}"
+        );
+        assert_eq!(
+            step_bar_ratios(&html),
+            vec![0.6, 0.8, 1.0],
+            "expected one bar per goal step (three steps were recorded), not \
+             one per completed day (four), each normalized to the row's own \
+             maximum (5) so the tallest bar reads 1.0, got: {html}"
+        );
+    }
+
+    #[component]
+    fn RootAtWeekScreenWithAFreshHabit() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| {
+            let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+            repository.save(&a_habit("h-1", 5, TODAY));
+            services_with(repository)
+        });
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: week-recap/S7
+    #[test]
+    fn a_brand_new_habit_already_shows_its_journey_on_the_week_screen() {
+        let html = render(RootAtWeekScreenWithAFreshHabit);
+
+        assert!(
+            html.contains("5 → 5 min"),
+            "expected an empty start to still read as a start, got: {html}"
+        );
+        assert_eq!(
+            step_bar_ratios(&html),
+            vec![1.0],
+            "expected a single bar for a not-yet-grown habit, drawn at its \
+             row's own maximum, got: {html}"
+        );
+    }
+
+    #[component]
+    fn RootAtWeekScreenWithALightenedHabit() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| {
+            let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = a_habit("h-1", 5, TODAY - 6);
+            habit.grow(LocalDate::from_epoch_day(TODAY - 4));
+            habit.lighten(LocalDate::from_epoch_day(TODAY - 2));
+            repository.save(&habit);
+            services_with(repository)
+        });
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // Unanchored: no scenario in week-recap.feature names a lightened row —
+    // S5 only covers growing. `LightenGoal` is a delivered, wired use case
+    // (issue #13), so a history whose maximum step sits mid-row, not last,
+    // is reachable today; this test pins the boundary the normalization
+    // rule (`step_ratios`, above) must hold on it.
+    #[test]
+    fn a_lightened_row_still_normalizes_on_its_own_maximum_step() {
+        let html = render(RootAtWeekScreenWithALightenedHabit);
+
+        let ratios = step_bar_ratios(&html);
+        assert!(
+            ratios.iter().all(|&ratio| ratio <= 1.0),
+            "no bar may exceed its container: {ratios:?}"
+        );
+        assert_eq!(
+            ratios,
+            vec![5.0 / 6.0, 1.0, 5.0 / 6.0],
+            "expected the row's own maximum step (6, reached mid-history) to \
+             normalize every bar, not the current goal (5, which the row \
+             lightened back down to), got: {html}"
+        );
+    }
+
+    #[component]
+    fn RootAtWeekScreenWithARhythm() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| {
+            let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+            let mut habit_a = a_habit("h-1", 5, TODAY - 6);
+            habit_a.toggle_done(LocalDate::from_epoch_day(TODAY - 6));
+            habit_a.toggle_done(LocalDate::from_epoch_day(TODAY - 2));
+            repository.save(&habit_a);
+            let mut habit_b = a_habit("h-2", 5, TODAY - 6);
+            habit_b.toggle_done(LocalDate::from_epoch_day(TODAY - 4));
+            repository.save(&habit_b);
+            services_with(repository)
+        });
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: week-recap/S6
+    #[test]
+    fn the_rhythm_row_shows_seven_dots_lit_on_practiced_days_only() {
+        let html = render(RootAtWeekScreenWithARhythm);
+
+        assert_eq!(
+            rhythm_dot_states(&html),
+            vec![true, false, true, false, true, false, false],
+            "expected seven dots, oldest first, lit only on days at least \
+             one habit was practised, faint on the rest — never a gap, got: {html}"
         );
     }
 }

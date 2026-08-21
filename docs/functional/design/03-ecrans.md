@@ -22,11 +22,28 @@ La liste est **triée par déclencheur** pour épouser le fil de la journée.
 ## Cette semaine — l'amélioration continue
 
 Le cœur « Kaizen » : montrer qu'on grandit, jamais culpabiliser.
-- Un **grand chiffre** = minutes gagnées depuis les débuts (somme de `current − steps[0]`).
-- Par habitude : l'évolution « 2 → 4 min » avec une mini-courbe (une barre par étape).
-- Le **rythme des 7 derniers jours** en points neutres.
-- **Réflexion hebdo** (hansei) : une question douce + réponse d'un mot… ou rien.
-- **Le mot de la semaine** : une phrase courte, non chiffrée.
+- Un **grand chiffre** = les minutes **vécues** : la somme, sur toutes les habitudes, de
+  l'objectif en vigueur chaque jour pratiqué. *(Corrigé 2026-08-20 — issue #22. Remplace
+  « minutes gagnées depuis les débuts (somme de `current − steps[0]`) » : un gain sur
+  l'objectif de départ affiche « 0 » à qui pratique fidèlement sans jamais grandir, ce que
+  le ton de l'écran interdit. Même règle que le récap du détail, voir `[[habit-stats]]`.)*
+- Par habitude : l'évolution « 2 → 4 min » avec une mini-courbe, **une barre par étape
+  d'objectif** — l'intention, pas la pratique. Les hauteurs sont **relatives à la ligne** :
+  la plus grande étape de la ligne remplit la courbe, les autres suivent en proportion.
+  Une habitude 2 → 3 et une habitude 30 → 32 dessinent donc la même forme, et c'est voulu :
+  la ligne annonce une progression, pas un volume d'effort. *(Tranché 2026-08-21 par
+  l'owner — issue #22. Remplace des hauteurs absolues, qui débordaient de la courbe dès
+  7 minutes d'objectif et rendaient trois barres identiques sur une habitude déjà grande.
+  L'escalier du détail garde ses hauteurs absolues : lui profile l'effort, la comparaison
+  y est le sujet.)*
+- Le **rythme des 7 derniers jours** en points neutres : une fenêtre glissante finissant
+  aujourd'hui, un point par jour du plus ancien au plus récent, allumé dès qu'**au moins
+  une** habitude a été pratiquée ce jour-là. Jamais un trou — un jour sans pratique est le
+  même point, en veille.
+- **Réflexion hebdo** (hansei) : une question douce + réponse d'un mot… ou rien. *(Seul
+  élément de l'écran encore non livré — il écrit, et rien ne survit encore au redémarrage.
+  Voir issue #23.)*
+- **Le mot de la semaine** : une phrase courte, non chiffrée, dérivée du rythme.
 
 *Ton :* une habitude sans progrès lit « un début parfait », jamais « 0 ».
 
