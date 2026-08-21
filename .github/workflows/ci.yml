@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ github.event_name == 'pull_request' && 30 || 20 }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          # Relies on the repo being public: the unauthenticated `git fetch
+          # origin` below needs no token. Going private breaks that fetch,
+          # not this line -- re-add a token there, not here.
+          persist-credentials: false
+
+      - name: Refuse a PR not targeting main
+        if: github.event_name == 'pull_request' && github.event.pull_request.base.ref != 'main'
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          echo "refusing: this PR's base branch is '$BASE_REF', not main — no fallback base-ref" >&2
+          exit 1
+
+      # Pinned so a toolchain update is a reviewable diff, never a silent
+      # drift between a developer's machine and the runner.
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: "1.97.0"
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # ref: alone does not guarantee origin/main exists locally, even at
+      # fetch-depth: 0 — fetched explicitly so the merge-base below has
+      # something to resolve against. No --depth here: git rejects
+      # `--depth 0` (fatal since 2.32.0), and fetch-depth: 0 above already
+      # de-shallowed the clone — this fetch only needs to materialise the
+      # refs/remotes/origin/main ref itself.
+      - name: Fetch main
+        if: github.event_name == 'pull_request'
+        run: git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+
+      - name: Resolve the mutation gate's base-ref
+        if: github.event_name == 'pull_request'
+        id: base_ref
+        run: |
+          BASE="$(git merge-base origin/main HEAD)"
+          if [ -z "$BASE" ]; then
+            echo "no defensible base-ref: this slice's branch does not descend from origin/main" >&2
+            exit 1
+          fi
+          echo "base-ref: $BASE"
+          git log --oneline -1 "$BASE"
+          echo "sha=$BASE" >> "$GITHUB_OUTPUT"
+
+      # Pinned to the exact version ADR-0009's recorded blind spots
+      # (L1-bis, L2, L4, L5, the `fn new` hard-skip) were measured against.
+      - name: Install cargo-mutants
+        if: github.event_name == 'pull_request'
+        uses: taiki-e/install-action@a2a5f6e99e1a31540baa0468acfa302cff0f359f # v2.86.4
+        with:
+          tool: cargo-mutants@27.1.0
+
+      - name: Gates (pull request)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ steps.base_ref.outputs.sha }}
+        run: scripts/check.sh new-feature "$BASE_SHA"
+
+      - name: Gates (push to main)
+        if: github.event_name != 'pull_request'
+        run: scripts/check.sh

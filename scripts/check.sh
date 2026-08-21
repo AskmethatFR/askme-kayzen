@@ -27,8 +27,10 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT" || exit 2
 
-CLAUDE_HOME="${CLAUDE_HOME:-$HOME/.claude}"
-SCENARIO_AUDIT="$CLAUDE_HOME/lib/scenario_audit.py"
+# shellcheck source=scripts/verify-instrument.sh
+source "$ROOT/scripts/verify-instrument.sh"
+
+SCENARIO_AUDIT="$ROOT/scripts/vendor/scenario_audit.py"
 
 WORK_CLASS="${1:-}"
 BASE_REF="${2:-}"
@@ -84,11 +86,32 @@ doc_anchors() {
 
 scenario_gate() {
     if [ ! -f "$SCENARIO_AUDIT" ]; then
-        echo "scenario gate not found at $SCENARIO_AUDIT (set CLAUDE_HOME)" >&2
+        echo "scenario gate not found at $SCENARIO_AUDIT (vendored copy missing)" >&2
         return 2
     fi
+    if ! verify_vendored_instrument "$ROOT/scripts/vendor" "scenario_audit.py"; then
+        echo "scenario gate failed provenance verification, refusing to run" >&2
+        return 2
+    fi
+
+    local tmp_output
+    tmp_output="$(mktemp)"
     python3 "$SCENARIO_AUDIT" --root "$ROOT" \
-        --tests-root core/src --tests-root app/src
+        --tests-root core/src --tests-root app/src | tee "$tmp_output"
+    local status=${PIPESTATUS[0]}
+    if [ "$status" -ne 0 ]; then
+        rm -f "$tmp_output"
+        return "$status"
+    fi
+    # A truncated/empty instrument exits 0 and prints nothing -- that must
+    # not read as "pass". Require the verdict line it is contracted to emit.
+    if ! grep -q 'scenario-audit:' "$tmp_output"; then
+        echo "scenario gate exited 0 but produced no verdict line -- refusing to trust it" >&2
+        rm -f "$tmp_output"
+        return 1
+    fi
+    rm -f "$tmp_output"
+    return 0
 }
 
 # TN-1b — cargo-mutants 27.1.0 hard-skips any function literally named `new`
