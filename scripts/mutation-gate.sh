@@ -16,16 +16,16 @@
 # The diff is `git diff <base-ref>...`, so it covers COMMITTED work only:
 # commit the slice before running the gate on it.
 #
-# The gate itself lives in ~/.claude/lib/mutation_gate.py: it produces the diff
-# patch, runs cargo-mutants against it, and normalises the outcome into a
-# mutation-report/v1 JSON. quick-change is advisory, fix-bug and new-feature
-# block on a survivor.
+# The gate itself lives in scripts/vendor/mutation_gate.py, a pinned copy of
+# the operator's own instrument (see scripts/vendor/PROVENANCE): it produces
+# the diff patch, runs cargo-mutants against it, and normalises the outcome
+# into a mutation-report/v1 JSON. quick-change is advisory, fix-bug and
+# new-feature block on a survivor.
 
 set -euo pipefail
 
-CLAUDE_HOME="${CLAUDE_HOME:-$HOME/.claude}"
-GATE="$CLAUDE_HOME/lib/mutation_gate.py"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+GATE="$ROOT/scripts/vendor/mutation_gate.py"
 
 WORK_CLASS="${1:-}"
 BASE_REF="${2:-}"
@@ -44,7 +44,7 @@ if [[ -z "$BASE_REF" ]]; then
 fi
 
 if [[ ! -f "$GATE" ]]; then
-    echo "mutation gate not found at $GATE (set CLAUDE_HOME)" >&2
+    echo "mutation gate not found at $GATE (vendored copy missing)" >&2
     exit 2
 fi
 
