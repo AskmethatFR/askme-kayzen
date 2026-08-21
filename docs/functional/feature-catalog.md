@@ -2,7 +2,7 @@
 
 > Functional node (owner: pm). What the product does today, in business terms, with the acceptance that pins each behavior. Technical rationale lives in [[architecture-overview]] and [[adr-0001-validation-by-construction]].
 
-> The acceptance tables below are mirrored as spec-only Gherkin in `docs/functional/features/habit-management/`: F-1 → [[add-habit]]. Delivered since: [[today-habit-list]], [[mark-done]], [[adjust-goal]], [[practice-staircase]], [[pause-resume]], [[anchor-habit]], [[readmit-habit]] and [[habit-stats]]. Every scenario there resolves to a test through its `// @scenario:` anchor (`scenario_audit.py`).
+> The acceptance tables below are mirrored as spec-only Gherkin in `docs/functional/features/habit-management/`: F-1 → [[add-habit]]. Delivered since: [[today-habit-list]], [[mark-done]], [[adjust-goal]], [[practice-staircase]], [[pause-resume]], [[anchor-habit]], [[readmit-habit]], [[habit-stats]], [[ritual]] and [[week-recap]]. Every scenario there resolves to a test through its `// @scenario:` anchor (`scenario_audit.py`).
 
 ## F-1 — Add a habit to my daily life
 
@@ -135,9 +135,30 @@ Everything is **derived on read** from the two dated histories (completions + st
 | A habit created today and not yet done | The user opens its recap | The message reads « Un début parfait », because an empty start is still a start |
 | A habit created today and not yet done | The user opens its recap | It reads « 0 réalisé · 1 autre jour » — the recap counts the day it was created |
 
+## F-9 — Read the week as continuous improvement
+
+The Week screen answers one question — *am I growing?* — and is forbidden from answering it with blame. It is a **reading, nothing on it is a gesture**, and it reports on the whole daily life at once rather than habit by habit.
+
+It opens on a **large figure: the minutes actually lived** — every completed day, counted against the goal in force on that day, summed across every habit. Never a gain over the starting goal: someone who practises faithfully for months without ever growing has lived hundreds of minutes, and a gain figure would tell them « 0 ». Pausing or anchoring a habit never takes its lived minutes back — the past is not rewritten by what the daily life looks like today, so **every habit counts, whatever its state**.
+
+Under it, **one row per habit**: its title, its `starting → current` line, and a mini-curve of one bar per recorded goal step. The curve draws the **intention** (each goal change), not the practice — the Detail screen's staircase already draws the practice (F-5). Bar heights are **relative to their own row**, so a row announces a shape of progression, not a volume of effort; two habits at very different scales read alike, and that is the point. A habit that has never been practised still draws its single starting bar.
+
+Then the **rhythm**: a rolling seven-day window ending today, oldest day first, one dot per day, lit when **at least one** habit was practised that day. Never a gap and never a hole — an unpractised day is the same dot, in standby. **The week's word is derived from that same rhythm**, so the two can never disagree: a week with no practice at all rests (« Elle se repose en ce moment »), a week that never began is a perfect start (« Un début parfait »), and any other week grows.
+
+**Acceptance (pinned by tests in `core/src/habit_management/queries/get_week_recap.rs` and `app/src/views/week.rs`, mirrored as [[week-recap]]):**
+
+| Given | When | Then |
+|---|---|---|
+| Habits practised over several weeks, some paused, one anchored | The user opens the week | The large figure counts every lived minute, whatever each habit's state |
+| A daily life where nothing was ever practised | The user opens the week | It reads « Un début parfait », never a bare « 0 » as a verdict |
+| A habit grown from 2 to 4 minutes | The user opens the week | Its row reads « 2 → 4 » and draws one bar per goal step, not one per completed day |
+| A brand-new habit, never practised | The user opens the week | Its row still draws its journey — a single bar — because an empty start is still a start |
+| Two habits, each practised on a different day of the window | The user opens the week | Both days are lit — a day is lit when *any* habit was practised, not only the first |
+| A window with unpractised days | The user opens the week | Those days show a dim dot, never a gap and never a mark of failure |
+
 ## Not available yet (deliberate — manual development resumes from here)
 
 - **Nothing survives a restart**: every store is in-memory (`InMemoryHabitRepository`), and the Today screen is seeded with three demo habits at startup. No persistence adapter exists yet.
-- Four of the six screens act: **Today** (list + mark done + the paused zone + the Ancrées link), **Add**, **Detail** (adjust the goal, read the practice staircase, pause/resume, anchor), and **Ancrées** (list + count only — see F-7). Ritual and Week are routed stubs.
+- All six screens act. **Today** (list + mark done + the paused zone + the Ancrées link), **Add**, **Detail** (adjust the goal, read the practice staircase, pause/resume, anchor), **Ancrées** (list + count only — see F-7), **Ritual** ([[ritual]], issue #13) and **Week** ([[week-recap]], issue #22). The Week screen's weekly reflection is the one part still missing — it writes, and nothing survives a restart yet (issue #23).
 - Anchoring is now two-way: the Ancrées screen offers « La remettre dans mon quotidien » on each anchored habit (`[[readmit-habit]]`, slice 7), refusable on a full daily life (« Le quotidien est complet · pour la remettre, ancrez-en une autre d'abord ») or on a title already retaken (« Elle est déjà dans votre quotidien »). The screen's parallel-count footer « Vous suivez N / 5 habitudes en parallèle » is shipped; its per-habit dots remain deferred (see F-7). The recap ([[habit-stats]], slice 8) is shipped — see F-8.
 - The multi-step *request* → *create-on-request* flow is **gone** (slice 6): habit creation is one gesture via `AddHabit`, one write, no published events.
