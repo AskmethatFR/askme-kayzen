@@ -50,6 +50,10 @@ is measured. It blocks on `fix-bug` and `new-feature`, and is advisory on
 `quick-change`. Rationale and known blind spots:
 [`docs/technical/adr/0009-quality-gates.md`](docs/technical/adr/0009-quality-gates.md).
 
+CI runs `scripts/check.sh` on every PR and on `main`. The PR run additionally computes
+the merge-base against `main` and uses it as the mutation gate's base-ref. The gate
+implementations are pinned under `scripts/vendor/`, refreshed only by an explicit commit.
+
 ## Documentation
 
 `docs/` is a graph, not a folder: [`docs/INDEX.md`](docs/INDEX.md) is the table, and the
