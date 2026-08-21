@@ -135,7 +135,9 @@ mod tests {
     // - a week without recent practice reads rest, without blame (S4).
     // - the masthead back-link returns to Aujourd'hui.
     // - each habit's row reads its journey, one bar per goal step, not one
-    //   per completed day (S5).
+    //   per completed day (S5), each bar's height normalized to that row's
+    //   own maximum step, never an absolute minute value (owner decision,
+    //   2026-08-21: relative progression, not absolute effort).
     // - a brand-new, not-yet-practised habit's row still reads a journey (S7).
     // - the rhythm row shows seven dots, oldest first, lit on practiced days
     //   and faint on the rest, never a gap (S6).
@@ -291,11 +293,12 @@ mod tests {
         );
     }
 
-    /// Ordered list of every `--step-minutes: N` value found in the rendered
-    /// HTML, in document order — lets a test pin the mini-curve's bar order,
-    /// not just its bar count.
-    fn step_bar_minutes(html: &str) -> Vec<&str> {
-        const NEEDLE: &str = "--step-minutes: ";
+    /// Ordered list of every `--step-ratio: N` value found in the rendered
+    /// HTML, parsed as `f64`, in document order — lets a test pin the
+    /// mini-curve's normalized bar heights and their order, not just the
+    /// bar count.
+    fn step_bar_ratios(html: &str) -> Vec<f64> {
+        const NEEDLE: &str = "--step-ratio: ";
         html.match_indices(NEEDLE)
             .map(|(index, _)| {
                 let start = index + NEEDLE.len();
@@ -303,7 +306,9 @@ mod tests {
                     .find([';', '"'])
                     .map(|offset| start + offset)
                     .unwrap_or(html.len());
-                &html[start..end]
+                html[start..end]
+                    .parse()
+                    .expect("--step-ratio must render a valid f64")
             })
             .collect()
     }
@@ -356,10 +361,11 @@ mod tests {
             "expected the row to read the starting and current goal, got: {html}"
         );
         assert_eq!(
-            step_bar_minutes(&html),
-            vec!["3", "4", "5"],
+            step_bar_ratios(&html),
+            vec![0.6, 0.8, 1.0],
             "expected one bar per goal step (three steps were recorded), not \
-             one per completed day (four), got: {html}"
+             one per completed day (four), each normalized to the row's own \
+             maximum (5) so the tallest bar reads 1.0, got: {html}"
         );
     }
 
@@ -388,9 +394,10 @@ mod tests {
             "expected an empty start to still read as a start, got: {html}"
         );
         assert_eq!(
-            step_bar_minutes(&html),
-            vec!["5"],
-            "expected a single bar for a not-yet-grown habit, got: {html}"
+            step_bar_ratios(&html),
+            vec![1.0],
+            "expected a single bar for a not-yet-grown habit, drawn at its \
+             row's own maximum, got: {html}"
         );
     }
 
