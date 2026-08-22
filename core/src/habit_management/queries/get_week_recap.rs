@@ -107,9 +107,13 @@ fn rhythm_for(habits: &[Habit], today: LocalDate) -> Vec<bool> {
         .collect()
 }
 
-// RED scaffold — replaced by the real rolling-window fold in the GREEN commit.
-fn practised_recently(_habit: &Habit, _today: LocalDate) -> bool {
-    false
+/// Practised at least once in the rolling window ending today (same window,
+/// same constant, as `rhythm_for`). A dedicated function, not inlined into
+/// `for_habit`: `HabitProgress` derives no `Default`, so cargo-mutants
+/// classes `for_habit` itself `unviable` and measures nothing there — a
+/// distinct `-> bool` function receives viable mutants the tests above kill.
+fn practised_recently(habit: &Habit, today: LocalDate) -> bool {
+    (0..ROLLING_WINDOW_DAYS).any(|days_back| habit.is_done_on(today.minus_days(days_back)))
 }
 
 fn message_for(minutes_practised: u32, practised_recently: bool) -> WeekMessage {
