@@ -18,15 +18,6 @@ struct SnapshotV1 {
     habits: Vec<HabitRecord>,
 }
 
-/// Read only far enough to decide whether the rest of the payload is worth
-/// parsing at all — an unknown version is refused before a single
-/// `HabitRecord` is touched, matching "takes the same path, without being
-/// parsed" for the versioning behaviour.
-#[derive(Deserialize)]
-struct VersionProbe {
-    v: u32,
-}
-
 #[derive(Serialize, Deserialize)]
 struct HabitRecord {
     id: String,
@@ -53,11 +44,24 @@ enum StateRecord {
 /// wire form. `encode` never fails (it only ever serializes data this crate
 /// already validated); `decode` is all-or-nothing — one unparsable field
 /// discards the whole payload rather than admitting a partially-rebuilt
-/// habit.
+/// habit. `pub(crate)`-visible module only (see `mod.rs`): this being a
+/// public constructor of `Vec<Habit>` from an arbitrary string would have
+/// made every `pub(crate)` on the domain rehydration constructors it calls
+/// pointless — a second, wider door next to `AddHabit` (adr-0010).
 pub struct HabitSnapshotCodec;
 
 impl HabitSnapshotCodec {
     const VERSION: u32 = 1;
+
+    /// Above this, a stored payload is refused before a single byte is
+    /// handed to `serde_json` — Security's F-4: `load()` gives an S2 file
+    /// adapter no way to say "too big", so nothing bounded a `fs::read_to_string`
+    /// of an arbitrary size (measured: 14.9 MB / 2,000,000 completions parsed
+    /// whole). 4 MB leaves two orders of magnitude above adr-0007 FUT-1's
+    /// modelled *organic* growth (~24 bytes per grow/lighten round trip) —
+    /// that figure never answered a payload that *arrives* already holding a
+    /// million steps.
+    pub(crate) const MAX_PAYLOAD_BYTES: usize = 4 * 1024 * 1024;
 
     pub fn encode(habits: &[Habit]) -> String {
         let snapshot = SnapshotV1 {
@@ -69,16 +73,25 @@ impl HabitSnapshotCodec {
         )
     }
 
-    /// `None` covers every unreadable shape alike: invalid JSON, a missing
-    /// field, an unknown `v`, or a stored value that no longer parses through
-    /// its VO constructor — the caller cannot tell which, and does not need
-    /// to; every case reads as "start from an empty board".
+    /// `None` covers every unreadable shape alike: oversized, invalid JSON, a
+    /// missing field, an unknown `v`, or a stored value that no longer
+    /// parses through its VO constructor — the caller cannot tell which, and
+    /// does not need to; every case reads as "start from an empty board".
+    ///
+    /// Parses the wire form exactly once: `serde_json` still has to walk
+    /// every byte to build `SnapshotV1` regardless of `v`, so a second,
+    /// version-only pass bought no early exit — only a doubled cost on a
+    /// large payload. What an unknown version *does* skip is the next,
+    /// domain-level pass: `decode_habit` never runs, so no stored field is
+    /// pushed through a VO constructor.
     pub fn decode(payload: &str) -> Option<Vec<Habit>> {
-        let probe: VersionProbe = serde_json::from_str(payload).ok()?;
-        if probe.v != Self::VERSION {
+        if payload.len() > Self::MAX_PAYLOAD_BYTES {
             return None;
         }
         let snapshot: SnapshotV1 = serde_json::from_str(payload).ok()?;
+        if snapshot.v != Self::VERSION {
+            return None;
+        }
         snapshot
             .habits
             .into_iter()
@@ -111,6 +124,14 @@ impl HabitSnapshotCodec {
         }
     }
 
+    /// Rejects a non-monotone `steps` order (Security F-6): `StepHistory::goal_on`
+    /// scans from the end for the last step on-or-before a queried day, which
+    /// only answers correctly if the steps are chronologically ordered. A
+    /// stored payload could carry them out of order (hand-edited, or an older
+    /// writer bug); rejecting it here — rather than silently sorting — keeps
+    /// the same all-or-nothing stance already taken for every other
+    /// structurally-broken field, instead of rewriting what was stored into
+    /// an order it never held.
     fn decode_habit(record: HabitRecord) -> Option<Habit> {
         let id = HabitId::new(&record.id).ok()?;
         let title = HabitTitle::new(record.title).ok()?;
@@ -118,20 +139,25 @@ impl HabitSnapshotCodec {
         let mut steps = record.steps.into_iter();
         let first = steps.next()?;
         let first_goal = Goal::new(first.goal).ok()?;
+        let first_on = LocalDate::parse_stored(first.on)?;
         let mut rest = Vec::new();
+        let mut previous_on = first_on;
         for step in steps {
             let goal = Goal::new(step.goal).ok()?;
-            rest.push((LocalDate::from_epoch_day(step.on), goal));
+            let on = LocalDate::parse_stored(step.on)?;
+            if on <= previous_on {
+                return None;
+            }
+            previous_on = on;
+            rest.push((on, goal));
         }
-        let step_history =
-            StepHistory::rehydrate(LocalDate::from_epoch_day(first.on), first_goal, rest);
+        let step_history = StepHistory::rehydrate(first_on, first_goal, rest);
 
-        let completion_history = CompletionHistory::rehydrate(
-            record
-                .completions
-                .into_iter()
-                .map(LocalDate::from_epoch_day),
-        );
+        let mut completion_dates = Vec::with_capacity(record.completions.len());
+        for day in record.completions {
+            completion_dates.push(LocalDate::parse_stored(day)?);
+        }
+        let completion_history = CompletionHistory::rehydrate(completion_dates);
 
         Some(Habit::rehydrate(
             id,

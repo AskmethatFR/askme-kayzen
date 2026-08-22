@@ -10,7 +10,7 @@ pub mod domain {
 }
 
 pub mod infrastructure {
-    pub mod habit_snapshot_codec;
+    pub(crate) mod habit_snapshot_codec;
     pub mod in_memory_habit_repository;
     pub mod persistent_habit_repository;
     pub mod snapshot_store;
