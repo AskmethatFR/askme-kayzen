@@ -190,6 +190,9 @@ mod tests {
     //   current goal — no bar may exceed its container.
     // - the rhythm row shows seven dots, oldest first, lit on practiced days
     //   and faint on the rest, never a gap (S6).
+    // - a habit practised in the rolling window draws its mini-curve's bars
+    //   with is-practised; a habit not practised in the window draws its
+    //   bars without it, and gets nothing else added (S8).
 
     // @scenario: week-recap/S1
     #[test]
@@ -562,6 +565,55 @@ mod tests {
             vec![true, false, true, false, true, false, false],
             "expected seven dots, oldest first, lit only on days at least \
              one habit was practised, faint on the rest — never a gap, got: {html}"
+        );
+    }
+
+    #[component]
+    fn RootAtWeekScreenWithAPractisedAndAnUnpractisedHabit() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| {
+            let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+            let mut practised = a_habit("h-1", 5, TODAY - 6);
+            practised.toggle_done(LocalDate::from_epoch_day(TODAY));
+            repository.save(&practised);
+            repository.save(&a_habit("h-2", 5, TODAY));
+            services_with(repository)
+        });
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    /// Ordered list of whether each `.step-bar` carries `is-practised`, in
+    /// document order — mirrors `rhythm_dot_states`, reading the class
+    /// attribute rather than counting bars.
+    fn step_bar_practised_states(html: &str) -> Vec<bool> {
+        const NEEDLE: &str = "class=\"";
+        html.match_indices(NEEDLE)
+            .filter_map(|(index, _)| {
+                let start = index + NEEDLE.len();
+                let end = start + html[start..].find('"')?;
+                let class = &html[start..end];
+                class
+                    .starts_with("step-bar")
+                    .then(|| class.contains("is-practised"))
+            })
+            .collect()
+    }
+
+    // @scenario: week-recap/S8
+    #[test]
+    fn a_practised_rows_curve_reads_in_the_accent_an_unpractised_rows_does_not() {
+        let html = render(RootAtWeekScreenWithAPractisedAndAnUnpractisedHabit);
+
+        assert_eq!(
+            step_bar_practised_states(&html),
+            vec![true, false],
+            "expected the practised habit's row to draw its bar with \
+             is-practised and the unpractised habit's row to draw its bar \
+             without it, got: {html}"
         );
     }
 }
