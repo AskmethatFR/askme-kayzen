@@ -18,7 +18,7 @@ Feature: A habit persists across app restarts
     When the app is closed and relaunched
     Then the completion history carries the mark for today
 
-  @scenario:S3 @wip
+  @scenario:S3
   Scenario: A first launch shows an empty daily life, with no seed
     Given the app is launched for the first time
     Then the board shows an empty daily life
