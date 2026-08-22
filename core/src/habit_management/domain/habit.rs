@@ -22,6 +22,7 @@ pub enum HabitError {
     GoalTooSmall { min: u32 },
     TitleLength { min: usize, max: usize },
     IdLength { min: usize, max: usize },
+    IdCharset,
 }
 
 impl fmt::Display for HabitError {
@@ -35,6 +36,9 @@ impl fmt::Display for HabitError {
             }
             HabitError::IdLength { min, max } => {
                 write!(f, "an id size must be between {min} and {max} characters")
+            }
+            HabitError::IdCharset => {
+                write!(f, "an id may only contain letters, digits, and dashes")
             }
         }
     }

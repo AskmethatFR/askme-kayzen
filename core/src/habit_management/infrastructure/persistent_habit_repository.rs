@@ -292,6 +292,24 @@ mod tests {
         assert_eq!(quarantine.load(), Some(payload.to_string()));
     }
 
+    // Retry 2 on #34 (adr-0010 trigger #7): confirms the codec's
+    // HabitId::new(&record.id).ok()? call needs no change of its own — the
+    // charset rule now enforced at the domain boundary already propagates
+    // onto this same all-or-nothing/quarantine path, by test rather than by
+    // inspection.
+    #[test]
+    fn a_stored_id_containing_a_path_separator_yields_zero_habits_and_is_quarantined() {
+        let payload = r#"{"v":1,"habits":[{"id":"h/1","title":"Read one page","state":"Active","steps":[{"on":20000,"goal":3}],"completions":[]}]}"#;
+        let store: Rc<dyn SnapshotStore> = Rc::new(InMemorySnapshotStore::seeded(payload));
+        let quarantine: Rc<dyn SnapshotStore> = Rc::new(InMemorySnapshotStore::empty());
+
+        let repository =
+            PersistentHabitRepository::hydrated_from(Rc::clone(&store), Rc::clone(&quarantine));
+
+        assert_eq!(repository.all(), Vec::new());
+        assert_eq!(quarantine.load(), Some(payload.to_string()));
+    }
+
     #[test]
     fn a_stored_step_history_with_two_consecutive_steps_at_the_same_goal_is_normalised_on_read() {
         let payload = r#"{"v":1,"habits":[{"id":"h-1","title":"Read one page","state":"Active","steps":[{"on":20000,"goal":3},{"on":20003,"goal":3}],"completions":[]}]}"#;
