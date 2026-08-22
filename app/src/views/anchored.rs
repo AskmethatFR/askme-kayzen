@@ -24,7 +24,7 @@ pub fn Anchored() -> Element {
             h1 { class: "greeting", "Ancrées" }
             ul { class: "habit-list",
                 for habit in screen().habits {
-                    li { class: "habit-row",
+                    li { key: "{habit.id}", class: "habit-row",
                         div { class: "habit-body",
                             span { class: "habit-name", "{habit.title}" }
                             if let Some((_, message)) = readmit_error()

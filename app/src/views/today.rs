@@ -31,7 +31,7 @@ pub fn Today() -> Element {
             p { class: "eyebrow", "Vos petits pas" }
             ul { class: "habit-list",
                 for habit in today_habits.active {
-                    li { class: "habit-row",
+                    li { key: "{habit.id}", class: "habit-row",
                         div { class: "habit-body",
                             Link {
                                 class: "habit-name",
@@ -58,7 +58,7 @@ pub fn Today() -> Element {
                 p { class: "eyebrow", "En pause · aucune pression" }
                 ul { class: "habit-list",
                     for habit in today_habits.paused {
-                        li { class: "habit-row is-paused",
+                        li { key: "{habit.id}", class: "habit-row is-paused",
                             div { class: "habit-body",
                                 Link {
                                     class: "habit-name",

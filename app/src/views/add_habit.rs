@@ -54,7 +54,7 @@ pub fn AddHabit() -> Element {
             p { class: "eyebrow", "Quelques idées déjà prêtes" }
             ul { class: "habit-list",
                 for idea in ideas() {
-                    li { class: "habit-row",
+                    li { key: "{idea}", class: "habit-row",
                         div { class: "habit-body",
                             div { class: "idea-name", "{idea}" }
                             div { class: "habit-meta", "5 min par jour" }

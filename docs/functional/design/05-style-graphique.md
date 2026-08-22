@@ -11,13 +11,22 @@ boîtes ni de filets**.
 | --- | --- | --- |
 | Fond papier | `#f3f2f2` | fond de tous les écrans |
 | Encre | `#201e1d` | texte |
-| Cyan (accent) | `#0088b0` | tout ce qui est interactif |
+| Cyan (accent) | `#0088b0` | l'interactif, et le fait d'avoir pratiqué |
 
 Chaque rôle a une rampe tonale 100–900 (générée en OKLCH). Utiliser les pas clairs (100–300)
 pour les fonds teintés et bordures, 500 comme base, 700–900 pour le texte sur fond teinté.
 Ne jamais coder un hex en dur : passer par les variables `var(--color-*)`.
 
 **Règle :** ne pas utiliser les deux accents dans un même petit composant.
+
+**Règle — l'accent ne dit qu'une chose (tranché 2026-08-21 par l'owner, issue #30) :** en
+dehors de l'interactif, le cyan signifie **« pratiqué »**, et rien d'autre. Un élément qui
+n'encode pas une pratique ne le porte pas, même s'il est visuellement important. La
+mini-courbe du récap semaine en est le contre-exemple qui a coûté un bug : elle encode la
+*trajectoire d'objectif*, pas la pratique, et le cyan la faisait lire comme validée sur une
+habitude jamais faite. Elle est passée en tonalité neutre. Avant de peindre en accent,
+poser la question : *est-ce que cet élément affirme que l'utilisateur a pratiqué ?* — non
+⇒ tonalité neutre.
 
 ## Typographie
 
