@@ -22,11 +22,21 @@ Ne jamais coder un hex en dur : passer par les variables `var(--color-*)`.
 **Règle — l'accent ne dit qu'une chose (tranché 2026-08-21 par l'owner, issue #30) :** en
 dehors de l'interactif, le cyan signifie **« pratiqué »**, et rien d'autre. Un élément qui
 n'encode pas une pratique ne le porte pas, même s'il est visuellement important. La
-mini-courbe du récap semaine en est le contre-exemple qui a coûté un bug : elle encode la
-*trajectoire d'objectif*, pas la pratique, et le cyan la faisait lire comme validée sur une
-habitude jamais faite. Elle est passée en tonalité neutre. Avant de peindre en accent,
-poser la question : *est-ce que cet élément affirme que l'utilisateur a pratiqué ?* — non
-⇒ tonalité neutre.
+mini-courbe du récap semaine a coûté un bug dans les deux sens : le cyan y était allumé en
+permanence, donc une habitude jamais faite se lisait comme validée (#30) ; puis, éteint en
+permanence, il ne disait plus rien de la pratique (#32). Elle porte maintenant l'accent
+**quand, et seulement quand, l'habitude a été pratiquée dans la fenêtre**. Avant de peindre
+en accent, poser la question : *est-ce que cet élément affirme que l'utilisateur a
+pratiqué ?* — non ⇒ tonalité neutre.
+
+**Règle — la couleur ne porte jamais un signal toute seule (tranché 2026-08-22 par l'owner,
+issue #32) :** un état qui ne se distingue que par la teinte n'existe pas pour un lecteur
+daltonien, sur un écran en niveaux de gris, ou à l'impression. Le contraste qui compte est
+celui de l'**état allumé contre l'état éteint**, pas celui de chacun contre le papier : la
+mini-courbe passait ses deux états à 3:1 contre le papier tout en ne les séparant que de
+**1,12:1** l'un de l'autre. Tout signal chromatique se double donc d'un indice de forme —
+la présence ou l'absence d'un élément, jamais deux nuances du même. Les points de rythme et
+l'escalier du détail ont encore ce défaut ; il attend une passe d'accessibilité dédiée.
 
 ## Typographie
 
