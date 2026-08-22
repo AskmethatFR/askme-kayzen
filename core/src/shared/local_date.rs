@@ -17,4 +17,11 @@ impl LocalDate {
     pub fn minus_days(self, days: i64) -> LocalDate {
         LocalDate(self.0 - days)
     }
+
+    /// The raw epoch-day integer, for the persistence codec's serialized form
+    /// only. `pub(crate)`, not `pub`: `kayzen-app` still never sees the
+    /// representation, so this does not reopen the arithmetic concern above.
+    pub(crate) fn epoch_day(&self) -> i64 {
+        self.0
+    }
 }

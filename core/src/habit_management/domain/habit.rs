@@ -62,6 +62,29 @@ impl Habit {
         }
     }
 
+    /// Reconstructs a habit from already-parsed value objects and an
+    /// already-rebuilt history, for the persistence codec only. `pub(crate)`,
+    /// never `pub`: `kayzen-app` must not gain a second door onto `Habit`
+    /// construction next to `AddHabit` (adr-0010's single-door rule). Named
+    /// `rehydrate` rather than `new` so cargo-mutants — which hard-skips any
+    /// method literally called `new` — can still measure this path
+    /// (adr-0009).
+    pub(crate) fn rehydrate(
+        id: HabitId,
+        title: HabitTitle,
+        steps: StepHistory,
+        completion_history: CompletionHistory,
+        state: LifecycleState,
+    ) -> Habit {
+        Habit {
+            id,
+            title,
+            steps,
+            completion_history,
+            state,
+        }
+    }
+
     pub fn id(&self) -> &HabitId {
         &self.id
     }
@@ -76,6 +99,12 @@ impl Habit {
     }
     pub fn step_history(&self) -> &StepHistory {
         &self.steps
+    }
+    /// `pub(crate)`: the persistence codec's only way to enumerate completion
+    /// dates for serialization. `kayzen-app` keeps reading through
+    /// `is_done_on`.
+    pub(crate) fn completion_history(&self) -> &CompletionHistory {
+        &self.completion_history
     }
     pub fn created_on(&self) -> LocalDate {
         self.steps.started_on()

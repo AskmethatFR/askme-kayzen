@@ -24,6 +24,20 @@ impl CompletionHistory {
         self.0.contains(&day)
     }
 
+    /// Every completed day, for the persistence codec's serialized form only.
+    /// `pub(crate)`: `kayzen-app` reaches completion state through
+    /// `is_done_on`, never by enumerating the set directly.
+    pub(crate) fn dates(&self) -> impl Iterator<Item = LocalDate> + '_ {
+        self.0.iter().copied()
+    }
+
+    /// Rebuilds a completion set from already-parsed dates, deduplicating
+    /// through the set itself rather than `toggle`'s flip semantics — a
+    /// stored payload with a duplicate date must not cancel it out.
+    pub(crate) fn rehydrate(dates: impl IntoIterator<Item = LocalDate>) -> CompletionHistory {
+        CompletionHistory(dates.into_iter().collect())
+    }
+
     /// The completed days within `from..=to`, inclusive on both ends. Walks
     /// the recorded completions rather than the calendar, so the cost is
     /// bounded by how much was actually practised, never by the span between
