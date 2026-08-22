@@ -609,12 +609,16 @@ mod tests {
     /// byte-for-byte that a row gained (or did not gain) anything beyond
     /// its bars, not just whether one class token is present.
     fn nth_week_curve_html(html: &str, occurrence: usize) -> &str {
-        const OPEN: &str = "<div class=\"week-curve";
         const CLOSE: &str = "</div>";
-        let start = html
-            .match_indices(OPEN)
-            .nth(occurrence)
+        let mut starts: Vec<usize> = html
+            .match_indices("<div class=\"week-curve\"")
+            .chain(html.match_indices("<div class=\"week-curve "))
             .map(|(index, _)| index)
+            .collect();
+        starts.sort_unstable();
+        let start = starts
+            .get(occurrence)
+            .copied()
             .expect("fewer .week-curve rows rendered than expected");
         let end = html[start..]
             .find(CLOSE)
