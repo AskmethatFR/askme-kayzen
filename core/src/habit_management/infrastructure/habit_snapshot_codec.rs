@@ -64,8 +64,9 @@ impl HabitSnapshotCodec {
             v: Self::VERSION,
             habits: habits.iter().map(Self::encode_habit).collect(),
         };
-        serde_json::to_string(&snapshot)
-            .expect("a snapshot built entirely from already-validated domain values always serializes")
+        serde_json::to_string(&snapshot).expect(
+            "a snapshot built entirely from already-validated domain values always serializes",
+        )
     }
 
     /// `None` covers every unreadable shape alike: invalid JSON, a missing
@@ -78,7 +79,11 @@ impl HabitSnapshotCodec {
             return None;
         }
         let snapshot: SnapshotV1 = serde_json::from_str(payload).ok()?;
-        snapshot.habits.into_iter().map(Self::decode_habit).collect()
+        snapshot
+            .habits
+            .into_iter()
+            .map(Self::decode_habit)
+            .collect()
     }
 
     fn encode_habit(habit: &Habit) -> HabitRecord {
@@ -122,7 +127,10 @@ impl HabitSnapshotCodec {
             StepHistory::rehydrate(LocalDate::from_epoch_day(first.on), first_goal, rest);
 
         let completion_history = CompletionHistory::rehydrate(
-            record.completions.into_iter().map(LocalDate::from_epoch_day),
+            record
+                .completions
+                .into_iter()
+                .map(LocalDate::from_epoch_day),
         );
 
         Some(Habit::rehydrate(
