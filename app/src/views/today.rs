@@ -12,6 +12,9 @@ pub fn Today() -> Element {
     });
 
     let today_habits = habits();
+    let is_empty_board = today_habits.active.is_empty()
+        && today_habits.paused.is_empty()
+        && today_habits.anchored_count == 0;
     let total = today_habits.active.len();
     let done = today_habits
         .active
@@ -26,81 +29,96 @@ pub fn Today() -> Element {
                 span { class: "tag tag-accent", "Kaizen" }
             }
             h1 { class: "greeting", "Bonjour." }
-            p { class: "lede", "Un seul petit pas suffit pour aujourd'hui." }
 
-            p { class: "eyebrow", "Vos petits pas" }
-            ul { class: "habit-list",
-                for habit in today_habits.active {
-                    li { key: "{habit.id}", class: "habit-row",
-                        div { class: "habit-body",
-                            Link {
-                                class: "habit-name",
-                                to: Route::HabitDetail { id: habit.id.clone() },
-                                "{habit.title}"
-                            }
-                            div { class: "habit-meta", "chaque jour · {habit.minutes} min" }
-                        }
-                        button {
-                            class: if habit.done_today { "target is-done" } else { "target" },
-                            aria_label: if habit.done_today { "Fait aujourd'hui · {habit.title}" } else { "Marquer comme fait · {habit.title}" },
-                            onclick: {
-                                let services = services.clone();
-                                let id = habit.id.clone();
-                                move |_| habits.set(mark_done_and_relist(&services, &id))
-                            },
-                            span { class: "target-ink" }
+            if is_empty_board {
+                div { class: "empty-state",
+                    p { class: "lede", "Rien pour l'instant. Et c'est très bien." }
+                    p { class: "lede", "Une seule toute petite habitude suffit pour commencer." }
+                    div { class: "add-cta",
+                        Link {
+                            class: "quiet-link",
+                            to: Route::AddHabit {},
+                            "+ Ajouter une toute petite habitude"
                         }
                     }
                 }
-            }
+            } else {
+                p { class: "lede", "Un seul petit pas suffit pour aujourd'hui." }
 
-            if !today_habits.paused.is_empty() {
-                p { class: "eyebrow", "En pause · aucune pression" }
+                p { class: "eyebrow", "Vos petits pas" }
                 ul { class: "habit-list",
-                    for habit in today_habits.paused {
-                        li { key: "{habit.id}", class: "habit-row is-paused",
+                    for habit in today_habits.active {
+                        li { key: "{habit.id}", class: "habit-row",
                             div { class: "habit-body",
                                 Link {
                                     class: "habit-name",
                                     to: Route::HabitDetail { id: habit.id.clone() },
                                     "{habit.title}"
                                 }
+                                div { class: "habit-meta", "chaque jour · {habit.minutes} min" }
                             }
                             button {
-                                class: "resume-link",
-                                aria_label: "Reprendre · {habit.title}",
+                                class: if habit.done_today { "target is-done" } else { "target" },
+                                aria_label: if habit.done_today { "Fait aujourd'hui · {habit.title}" } else { "Marquer comme fait · {habit.title}" },
                                 onclick: {
                                     let services = services.clone();
                                     let id = habit.id.clone();
-                                    move |_| habits.set(resume_and_relist(&services, &id))
+                                    move |_| habits.set(mark_done_and_relist(&services, &id))
                                 },
-                                "Reprendre"
+                                span { class: "target-ink" }
                             }
                         }
                     }
                 }
-            }
 
-            p { class: "tally", "{done} sur {total} · c'est déjà quelque chose." }
-            div { class: "footer-links",
-                Link {
-                    class: "quiet-link",
-                    to: Route::Week {},
-                    "Voir comment je grandis · cette semaine"
-                }
-                if today_habits.anchored_count >= 1 {
-                    Link {
-                        class: "quiet-link",
-                        to: Route::Anchored {},
-                        "Mes habitudes ancrées · {today_habits.anchored_count}"
+                if !today_habits.paused.is_empty() {
+                    p { class: "eyebrow", "En pause · aucune pression" }
+                    ul { class: "habit-list",
+                        for habit in today_habits.paused {
+                            li { key: "{habit.id}", class: "habit-row is-paused",
+                                div { class: "habit-body",
+                                    Link {
+                                        class: "habit-name",
+                                        to: Route::HabitDetail { id: habit.id.clone() },
+                                        "{habit.title}"
+                                    }
+                                }
+                                button {
+                                    class: "resume-link",
+                                    aria_label: "Reprendre · {habit.title}",
+                                    onclick: {
+                                        let services = services.clone();
+                                        let id = habit.id.clone();
+                                        move |_| habits.set(resume_and_relist(&services, &id))
+                                    },
+                                    "Reprendre"
+                                }
+                            }
+                        }
                     }
                 }
-            }
-            div { class: "add-cta",
-                Link {
-                    class: "quiet-link",
-                    to: Route::AddHabit {},
-                    "+ Ajouter une toute petite habitude"
+
+                p { class: "tally", "{done} sur {total} · c'est déjà quelque chose." }
+                div { class: "footer-links",
+                    Link {
+                        class: "quiet-link",
+                        to: Route::Week {},
+                        "Voir comment je grandis · cette semaine"
+                    }
+                    if today_habits.anchored_count >= 1 {
+                        Link {
+                            class: "quiet-link",
+                            to: Route::Anchored {},
+                            "Mes habitudes ancrées · {today_habits.anchored_count}"
+                        }
+                    }
+                }
+                div { class: "add-cta",
+                    Link {
+                        class: "quiet-link",
+                        to: Route::AddHabit {},
+                        "+ Ajouter une toute petite habitude"
+                    }
                 }
             }
         }
@@ -158,6 +176,10 @@ mod tests {
         Services::with_repository(repository)
     }
 
+    fn services_with_no_habit() -> Services {
+        Services::with_repository(Rc::new(InMemoryHabitRepository::new()))
+    }
+
     fn services_with_one_habit_done_today() -> Services {
         let clock: Rc<dyn Clock> = Rc::new(FixedClock(LocalDate::from_epoch_day(20_005)));
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
@@ -192,6 +214,14 @@ mod tests {
     #[component]
     fn RootWithUndoneHabit() -> Element {
         use_context_provider(services_with_one_undone_habit);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootWithNoHabit() -> Element {
+        use_context_provider(services_with_no_habit);
         rsx! {
             Router::<Route> {}
         }
@@ -375,6 +405,57 @@ mod tests {
         assert!(
             !section.contains("Mes habitudes ancr"),
             "expected no Ancrées link inside the wrapper when nothing is anchored, got: {section}"
+        );
+    }
+
+    // @scenario: persistence/S3
+    // @scenario: today-habit-list/S4
+    #[test]
+    fn an_empty_board_shows_the_invitation_and_hides_the_tally_heading_and_week_link() {
+        let html = render(RootWithNoHabit);
+
+        assert!(
+            html.contains("Rien pour l&#39;instant. Et c&#39;est très bien.")
+                && html.contains("Une seule toute petite habitude suffit pour commencer."),
+            "expected the empty-state invitation copy, got: {html}"
+        );
+        assert!(
+            html.contains("+ Ajouter une toute petite habitude"),
+            "expected the add-habit gesture to be offered, got: {html}"
+        );
+        let interactive_elements = html.matches("<a ").count() + html.matches("<button").count();
+        assert_eq!(
+            interactive_elements, 1,
+            "expected the add-habit gesture to be the only interactive element, got: {html}"
+        );
+        assert!(
+            !html.contains("Vos petits pas"),
+            "expected the habit-list eyebrow to be hidden, got: {html}"
+        );
+        assert!(
+            !html.contains("class=\"tally\""),
+            "expected no tally on an empty board, got: {html}"
+        );
+        assert!(
+            !html.contains("Voir comment je grandis"),
+            "expected the week link to be hidden on an empty board, got: {html}"
+        );
+    }
+
+    // B4 / Dev-B F2: the previous assertion checked for a raw apostrophe
+    // ("Rien pour l'instant"), but dioxus_ssr HTML-escapes it to `&#39;`
+    // (proven by the sibling assertion at :418) — the needle was never
+    // present whatever the view did, so this test could not fail. Asserting
+    // on the `empty-state` class names the branch itself instead of a copy
+    // string, so it survives future copy edits and cannot be fooled by
+    // escaping.
+    #[test]
+    fn a_board_with_a_habit_does_not_render_the_empty_state() {
+        let html = render(RootWithUndoneHabit);
+
+        assert!(
+            !html.contains(r#"class="empty-state""#),
+            "expected the empty-state branch to stay absent once a habit exists, got: {html}"
         );
     }
 
