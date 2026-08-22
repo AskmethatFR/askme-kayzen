@@ -56,3 +56,11 @@ Feature: Read the week's practice as accumulated minutes and rhythm
     When the user opens the week screen
     Then that habit's row reads "5 → 5 min" with a single bar
     And an empty start is still a start
+
+  @scenario:S8
+  Scenario: A habit practised in the rolling window reads its curve in the accent
+    Given one habit practised at least once in the last seven days, and one not practised at all
+    When the user opens the week screen
+    Then the practised habit's mini-curve reads in the accent, which says "practised"
+    And the unpractised habit's curve keeps the neutral tone, with nothing added
+    And no counter, no mark of absence: the recap informs, it never reproaches

@@ -39,11 +39,15 @@ pub fn Week() -> Element {
                         p { class: "week-habit-title", "{habit.title}" }
                         p { class: "week-habit-journey", "{habit.starting_goal} → {habit.current_goal} min" }
                         div {
-                            class: "week-curve",
+                            class: if habit.practised_recently { "week-curve is-practised" } else { "week-curve" },
                             "aria-label": "Trajectoire de {habit.title}, de {habit.starting_goal} à {habit.current_goal} minutes",
                             for (step_offset, ratio) in step_ratios(&habit.steps).into_iter().enumerate()
                             {
-                                span { key: "{step_offset}", class: "step-bar", style: "--step-ratio: {ratio}" }
+                                span {
+                                    key: "{step_offset}",
+                                    class: if habit.practised_recently { "step-bar is-practised" } else { "step-bar" },
+                                    style: "--step-ratio: {ratio}",
+                                }
                             }
                         }
                     }
@@ -190,6 +194,9 @@ mod tests {
     //   current goal — no bar may exceed its container.
     // - the rhythm row shows seven dots, oldest first, lit on practiced days
     //   and faint on the rest, never a gap (S6).
+    // - a habit practised in the rolling window draws its mini-curve's bars
+    //   with is-practised; a habit not practised in the window draws its
+    //   bars without it, and gets nothing else added (S8).
 
     // @scenario: week-recap/S1
     #[test]
@@ -402,21 +409,29 @@ mod tests {
             .collect()
     }
 
-    /// Ordered list of whether each `.rhythm-dot` carries `is-practised`, in
-    /// document order — lets a test pin the rhythm row's day order, not just
-    /// how many dots are lit.
-    fn rhythm_dot_states(html: &str) -> Vec<bool> {
+    /// Ordered list of whether each element whose `class` starts with
+    /// `prefix` also carries `is-practised`, in document order. Matches the
+    /// exact class token (`prefix` alone, or `prefix` followed by a space
+    /// and more classes) rather than a raw string prefix, so `"step-bar"`
+    /// never matches a future `"step-bar-label"`.
+    fn class_states(html: &str, prefix: &str) -> Vec<bool> {
         const NEEDLE: &str = "class=\"";
+        let with_space = format!("{prefix} ");
         html.match_indices(NEEDLE)
             .filter_map(|(index, _)| {
                 let start = index + NEEDLE.len();
                 let end = start + html[start..].find('"')?;
                 let class = &html[start..end];
-                class
-                    .starts_with("rhythm-dot")
+                (class == prefix || class.starts_with(&with_space))
                     .then(|| class.contains("is-practised"))
             })
             .collect()
+    }
+
+    /// Lets a test pin the rhythm row's day order, not just how many dots
+    /// are lit.
+    fn rhythm_dot_states(html: &str) -> Vec<bool> {
+        class_states(html, "rhythm-dot")
     }
 
     #[component]
@@ -562,6 +577,81 @@ mod tests {
             vec![true, false, true, false, true, false, false],
             "expected seven dots, oldest first, lit only on days at least \
              one habit was practised, faint on the rest — never a gap, got: {html}"
+        );
+    }
+
+    #[component]
+    fn RootAtWeekScreenWithAPractisedAndAnUnpractisedHabit() -> Element {
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| {
+            let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+            let mut practised = a_habit("h-1", 5, TODAY - 6);
+            practised.toggle_done(LocalDate::from_epoch_day(TODAY));
+            repository.save(&practised);
+            repository.save(&a_habit("h-2", 5, TODAY));
+            services_with(repository)
+        });
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    /// Mirrors `rhythm_dot_states`, reading the `.step-bar` class attribute
+    /// rather than counting bars.
+    fn step_bar_practised_states(html: &str) -> Vec<bool> {
+        class_states(html, "step-bar")
+    }
+
+    /// The exact `<div class="week-curve...">...</div>` markup of the
+    /// `occurrence`-th row's curve, in document order — lets a test assert
+    /// byte-for-byte that a row gained (or did not gain) anything beyond
+    /// its bars, not just whether one class token is present.
+    fn nth_week_curve_html(html: &str, occurrence: usize) -> &str {
+        const CLOSE: &str = "</div>";
+        let mut starts: Vec<usize> = html
+            .match_indices("<div class=\"week-curve\"")
+            .chain(html.match_indices("<div class=\"week-curve "))
+            .map(|(index, _)| index)
+            .collect();
+        starts.sort_unstable();
+        let start = starts
+            .get(occurrence)
+            .copied()
+            .expect("fewer .week-curve rows rendered than expected");
+        let end = html[start..]
+            .find(CLOSE)
+            .map(|offset| start + offset + CLOSE.len())
+            .expect(".week-curve div must close");
+        &html[start..end]
+    }
+
+    // @scenario: week-recap/S8
+    #[test]
+    fn a_practised_rows_curve_reads_in_the_accent_an_unpractised_rows_does_not() {
+        let html = render(RootAtWeekScreenWithAPractisedAndAnUnpractisedHabit);
+
+        assert_eq!(
+            step_bar_practised_states(&html),
+            vec![true, false],
+            "expected the practised habit's row to draw its bar with \
+             is-practised and the unpractised habit's row to draw its bar \
+             without it, got: {html}"
+        );
+        assert_eq!(
+            class_states(&html, "week-curve"),
+            vec![true, false],
+            "expected the practised row's curve container to carry the \
+             is-practised socle cue and the unpractised row's not to, \
+             got: {html}"
+        );
+        assert_eq!(
+            nth_week_curve_html(&html, 1),
+            r#"<div class="week-curve" aria-label="Trajectoire de Lire une page, de 5 à 5 minutes"><span class="step-bar" style="--step-ratio: 1"></span></div>"#,
+            "the unpractised row must gain nothing beyond its bars — no \
+             counter, no mark of absence, byte-identical to its pre-#32 \
+             rendering"
         );
     }
 }

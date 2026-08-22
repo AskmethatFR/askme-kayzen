@@ -327,8 +327,11 @@ body {
    never an absolute minute value: floor 6px + up to 26px of ratio exactly
    fills the 32px .week-curve container (6 + 26 = 32), so the tallest bar
    always reaches the top and no bar can overflow by construction.
-   Neutral, never the accent: the accent is reserved for "practised", and
-   this curve encodes the goal trajectory, not practice. */
+   Two channels on this curve, both deliberate: height always encodes the
+   goal trajectory; colour additionally encodes "practised" when the row's
+   .week-curve carries is-practised (see below) — never the other way
+   round, and never on its own (SC 1.4.1: a socle backs the colour, see
+   .week-curve.is-practised). */
 .step-bar {
   width: 10px;
   min-height: 6px;
@@ -336,6 +339,36 @@ body {
   background: var(--color-ink-soft);
   border-radius: var(--radius) var(--radius) 0 0;
   opacity: 0.8; /* composited 3.26:1 on --color-paper -- SC 1.4.11 floor is 3:1; 0.7 gives 2.73:1 and fails */
+}
+/* Practised at least once in the rolling window: colour carries the signal,
+   height keeps carrying the goal trajectory (two channels, one bar). */
+.step-bar.is-practised {
+  background: var(--color-accent);
+  opacity: 1; /* composited 3.65:1 on --color-paper -- SC 1.4.11 floor is 3:1; 0.8 gives 2.80:1 and fails */
+}
+/* The colour-only signal above fails state-vs-state contrast: neutral
+   .step-bar (--color-ink-soft @0.8) against accent .step-bar.is-practised
+   (@1.0) composite to only 1.12:1 -- invisible to a deuteranope/protanope
+   and on any greyscale or B&W-printed render (SC 1.4.1, Use of Color). The
+   socle is a shape cue that does not depend on hue.
+   An absolutely-positioned ::after, not a border: .week-curve's own height
+   (32px) already exactly fits the tallest bar (see the comment above
+   .step-bar), so a border-bottom would grow the box under border-box and
+   clip that bar by its own width instead of sitting under it. Being out
+   of flow (CSS 2.1 Appendix E), it paints over the bars' bottom 2px
+   rather than under them -- invisible today only because both are
+   --color-accent at opacity: 1. */
+.week-curve.is-practised {
+  position: relative;
+}
+.week-curve.is-practised::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--color-accent);
 }
 
 /* ---- Broadsheet components (for later screens) ---- */

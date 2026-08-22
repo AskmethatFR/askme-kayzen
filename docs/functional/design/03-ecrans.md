@@ -28,8 +28,16 @@ Le cœur « Kaizen » : montrer qu'on grandit, jamais culpabiliser.
   l'objectif de départ affiche « 0 » à qui pratique fidèlement sans jamais grandir, ce que
   le ton de l'écran interdit. Même règle que le récap du détail, voir `[[habit-stats]]`.)*
 - Par habitude : l'évolution « 2 → 4 min » avec une mini-courbe, **une barre par étape
-  d'objectif** — l'intention, pas la pratique. Les hauteurs sont **relatives à la ligne** :
-  la plus grande étape de la ligne remplit la courbe, les autres suivent en proportion.
+  d'objectif**. Les hauteurs sont **relatives à la ligne** : la plus grande étape de la
+  ligne remplit la courbe, les autres suivent en proportion.
+  *(Amendé 2026-08-22 — issue #32.)* La courbe porte désormais **deux canaux** : la
+  **hauteur** dit la trajectoire d'objectif, la **couleur** dit si l'habitude a été
+  pratiquée dans la fenêtre glissante. Elle disait auparavant « l'intention, pas la
+  pratique » — vrai de la hauteur, faux depuis que la couleur parle. Une habitude
+  pratiquée porte l'accent et un socle sous sa courbe ; une habitude non pratiquée garde
+  la tonalité neutre et **ne reçoit rien de plus** : pas de compteur, pas de marque
+  d'absence. Le socle existe parce que la teinte seule ne se voit pas en niveaux de gris
+  ni en vision daltonienne.
   Une habitude 2 → 3 et une habitude 30 → 32 dessinent donc la même forme, et c'est voulu :
   la ligne annonce une progression, pas un volume d'effort. *(Tranché 2026-08-21 par
   l'owner — issue #22. Remplace des hauteurs absolues, qui débordaient de la courbe dès
