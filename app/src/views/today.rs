@@ -423,9 +423,14 @@ mod tests {
             html.contains("+ Ajouter une toute petite habitude"),
             "expected the add-habit gesture to be offered, got: {html}"
         );
+        let interactive_elements = html.matches("<a ").count() + html.matches("<button").count();
+        assert_eq!(
+            interactive_elements, 1,
+            "expected the add-habit gesture to be the only interactive element, got: {html}"
+        );
         assert!(
             !html.contains("Vos petits pas"),
-            "expected the practice-staircase heading to be hidden, got: {html}"
+            "expected the habit-list eyebrow to be hidden, got: {html}"
         );
         assert!(
             !html.contains("class=\"tally\""),
@@ -437,13 +442,20 @@ mod tests {
         );
     }
 
+    // B4 / Dev-B F2: the previous assertion checked for a raw apostrophe
+    // ("Rien pour l'instant"), but dioxus_ssr HTML-escapes it to `&#39;`
+    // (proven by the sibling assertion at :418) — the needle was never
+    // present whatever the view did, so this test could not fail. Asserting
+    // on the `empty-state` class names the branch itself instead of a copy
+    // string, so it survives future copy edits and cannot be fooled by
+    // escaping.
     #[test]
     fn a_board_with_a_habit_does_not_render_the_empty_state() {
         let html = render(RootWithUndoneHabit);
 
         assert!(
-            !html.contains("Rien pour l'instant"),
-            "expected the empty-state invitation to stay absent once a habit exists, got: {html}"
+            !html.contains(r#"class="empty-state""#),
+            "expected the empty-state branch to stay absent once a habit exists, got: {html}"
         );
     }
 

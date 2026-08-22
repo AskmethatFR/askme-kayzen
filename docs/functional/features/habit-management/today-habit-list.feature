@@ -30,4 +30,4 @@ Feature: List the board habits for today
     Then the board displays the empty-state greeting
     And it shows the call to action « Rien pour l'instant. Et c'est très bien. Une seule toute petite habitude suffit pour commencer. »
     And the add-habit gesture is the only interactive element
-    And the day's tally, the practice staircase heading, and the week link are hidden
+    And the day's tally, the habit-list heading, and the week link are hidden
