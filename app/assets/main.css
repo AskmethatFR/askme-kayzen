@@ -337,6 +337,12 @@ body {
   border-radius: var(--radius) var(--radius) 0 0;
   opacity: 0.8; /* composited 3.26:1 on --color-paper -- SC 1.4.11 floor is 3:1; 0.7 gives 2.73:1 and fails */
 }
+/* Practised at least once in the rolling window: colour carries the signal,
+   height keeps carrying the goal trajectory (two channels, one bar). */
+.step-bar.is-practised {
+  background: var(--color-accent);
+  opacity: 1; /* composited 3.65:1 on --color-paper -- SC 1.4.11 floor is 3:1; 0.8 gives 2.80:1 and fails */
+}
 
 /* ---- Broadsheet components (for later screens) ---- */
 .btn {

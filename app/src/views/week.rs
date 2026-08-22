@@ -43,7 +43,11 @@ pub fn Week() -> Element {
                             "aria-label": "Trajectoire de {habit.title}, de {habit.starting_goal} à {habit.current_goal} minutes",
                             for (step_offset, ratio) in step_ratios(&habit.steps).into_iter().enumerate()
                             {
-                                span { key: "{step_offset}", class: "step-bar", style: "--step-ratio: {ratio}" }
+                                span {
+                                    key: "{step_offset}",
+                                    class: if habit.practised_recently { "step-bar is-practised" } else { "step-bar" },
+                                    style: "--step-ratio: {ratio}",
+                                }
                             }
                         }
                     }
