@@ -39,7 +39,7 @@ pub fn Week() -> Element {
                         p { class: "week-habit-title", "{habit.title}" }
                         p { class: "week-habit-journey", "{habit.starting_goal} → {habit.current_goal} min" }
                         div {
-                            class: "week-curve",
+                            class: if habit.practised_recently { "week-curve is-practised" } else { "week-curve" },
                             "aria-label": "Trajectoire de {habit.title}, de {habit.starting_goal} à {habit.current_goal} minutes",
                             for (step_offset, ratio) in step_ratios(&habit.steps).into_iter().enumerate()
                             {
