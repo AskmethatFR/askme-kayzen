@@ -44,15 +44,7 @@ pub struct Services {
 
 impl Services {
     pub fn new() -> Self {
-        let services = Self::with_repository(Rc::new(InMemoryHabitRepository::new()));
-
-        // TODO: remove this demo seed once the AddHabit screen lets the user
-        // create habits themselves.
-        for title in ["Lire une page", "Bouger un peu", "Respirer"] {
-            let _ = services.add_habit.execute(title.to_string(), STARTING_GOAL);
-        }
-
-        services
+        Self::with_repository(Rc::new(InMemoryHabitRepository::new()))
     }
 
     /// Wires every service over a caller-provided habit store, resolving
@@ -88,5 +80,21 @@ impl Services {
             list_anchored_habits: ListAnchoredHabits::new(Rc::clone(&habit_repository)),
             add_habit: AddHabit::new(habit_repository, Rc::new(UuidGenerator), clock),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Services;
+
+    #[test]
+    fn new_creates_no_habit() {
+        let services = Services::new();
+
+        let board = services.list_board_habits.handle();
+
+        assert_eq!(board.active, Vec::new());
+        assert_eq!(board.paused, Vec::new());
+        assert_eq!(board.anchored_count, 0);
     }
 }
