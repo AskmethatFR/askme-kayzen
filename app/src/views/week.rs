@@ -409,21 +409,29 @@ mod tests {
             .collect()
     }
 
-    /// Ordered list of whether each `.rhythm-dot` carries `is-practised`, in
-    /// document order — lets a test pin the rhythm row's day order, not just
-    /// how many dots are lit.
-    fn rhythm_dot_states(html: &str) -> Vec<bool> {
+    /// Ordered list of whether each element whose `class` starts with
+    /// `prefix` also carries `is-practised`, in document order. Matches the
+    /// exact class token (`prefix` alone, or `prefix` followed by a space
+    /// and more classes) rather than a raw string prefix, so `"step-bar"`
+    /// never matches a future `"step-bar-label"`.
+    fn class_states(html: &str, prefix: &str) -> Vec<bool> {
         const NEEDLE: &str = "class=\"";
+        let with_space = format!("{prefix} ");
         html.match_indices(NEEDLE)
             .filter_map(|(index, _)| {
                 let start = index + NEEDLE.len();
                 let end = start + html[start..].find('"')?;
                 let class = &html[start..end];
-                class
-                    .starts_with("rhythm-dot")
+                (class == prefix || class.starts_with(&with_space))
                     .then(|| class.contains("is-practised"))
             })
             .collect()
+    }
+
+    /// Lets a test pin the rhythm row's day order, not just how many dots
+    /// are lit.
+    fn rhythm_dot_states(html: &str) -> Vec<bool> {
+        class_states(html, "rhythm-dot")
     }
 
     #[component]
@@ -590,21 +598,29 @@ mod tests {
         }
     }
 
-    /// Ordered list of whether each `.step-bar` carries `is-practised`, in
-    /// document order — mirrors `rhythm_dot_states`, reading the class
-    /// attribute rather than counting bars.
+    /// Mirrors `rhythm_dot_states`, reading the `.step-bar` class attribute
+    /// rather than counting bars.
     fn step_bar_practised_states(html: &str) -> Vec<bool> {
-        const NEEDLE: &str = "class=\"";
-        html.match_indices(NEEDLE)
-            .filter_map(|(index, _)| {
-                let start = index + NEEDLE.len();
-                let end = start + html[start..].find('"')?;
-                let class = &html[start..end];
-                class
-                    .starts_with("step-bar")
-                    .then(|| class.contains("is-practised"))
-            })
-            .collect()
+        class_states(html, "step-bar")
+    }
+
+    /// The exact `<div class="week-curve...">...</div>` markup of the
+    /// `occurrence`-th row's curve, in document order — lets a test assert
+    /// byte-for-byte that a row gained (or did not gain) anything beyond
+    /// its bars, not just whether one class token is present.
+    fn nth_week_curve_html(html: &str, occurrence: usize) -> &str {
+        const OPEN: &str = "<div class=\"week-curve";
+        const CLOSE: &str = "</div>";
+        let start = html
+            .match_indices(OPEN)
+            .nth(occurrence)
+            .map(|(index, _)| index)
+            .expect("fewer .week-curve rows rendered than expected");
+        let end = html[start..]
+            .find(CLOSE)
+            .map(|offset| start + offset + CLOSE.len())
+            .expect(".week-curve div must close");
+        &html[start..end]
     }
 
     // @scenario: week-recap/S8
@@ -618,6 +634,20 @@ mod tests {
             "expected the practised habit's row to draw its bar with \
              is-practised and the unpractised habit's row to draw its bar \
              without it, got: {html}"
+        );
+        assert_eq!(
+            class_states(&html, "week-curve"),
+            vec![true, false],
+            "expected the practised row's curve container to carry the \
+             is-practised socle cue and the unpractised row's not to, \
+             got: {html}"
+        );
+        assert_eq!(
+            nth_week_curve_html(&html, 1),
+            r#"<div class="week-curve" aria-label="Trajectoire de Lire une page, de 5 à 5 minutes"><span class="step-bar" style="--step-ratio: 1"></span></div>"#,
+            "the unpractised row must gain nothing beyond its bars — no \
+             counter, no mark of absence, byte-identical to its pre-#32 \
+             rendering"
         );
     }
 }
