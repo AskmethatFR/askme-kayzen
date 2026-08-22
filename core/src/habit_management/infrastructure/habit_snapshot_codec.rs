@@ -124,14 +124,19 @@ impl HabitSnapshotCodec {
         }
     }
 
-    /// Rejects a non-monotone `steps` order (Security F-6): `StepHistory::goal_on`
-    /// scans from the end for the last step on-or-before a queried day, which
-    /// only answers correctly if the steps are chronologically ordered. A
-    /// stored payload could carry them out of order (hand-edited, or an older
-    /// writer bug); rejecting it here — rather than silently sorting — keeps
-    /// the same all-or-nothing stance already taken for every other
-    /// structurally-broken field, instead of rewriting what was stored into
-    /// an order it never held.
+    /// Rejects a decreasing `steps` order, but accepts a tie (Security F-6,
+    /// corrected after a Security-confirmed regression on the first
+    /// predicate): `StepHistory::goal_on` scans from the end for the last
+    /// step on-or-before a queried day, which only needs the steps to be
+    /// non-decreasing — a tie resolves to the last step at that date, which
+    /// already agrees with `current() = rest.last()`. `record`
+    /// (step_history.rs) has no date guard, so creating a habit and growing
+    /// its goal the same day legitimately produces two steps sharing one
+    /// `on`; the original strict `on <= previous_on` rejected that happy
+    /// path and quarantined the whole snapshot. A genuine decrease (hand-
+    /// edited, or an older writer bug) is still rejected — rather than
+    /// silently sorted — keeping the same all-or-nothing stance taken for
+    /// every other structurally-broken field.
     fn decode_habit(record: HabitRecord) -> Option<Habit> {
         let id = HabitId::new(&record.id).ok()?;
         let title = HabitTitle::new(record.title).ok()?;
@@ -145,7 +150,7 @@ impl HabitSnapshotCodec {
         for step in steps {
             let goal = Goal::new(step.goal).ok()?;
             let on = LocalDate::parse_stored(step.on)?;
-            if on <= previous_on {
+            if on < previous_on {
                 return None;
             }
             previous_on = on;

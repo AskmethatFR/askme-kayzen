@@ -279,8 +279,30 @@ mod tests {
     // held, the same all-or-nothing stance already taken for every other
     // structurally-broken field (B1's out-of-range date, the unknown-version
     // case) rather than a quiet best-effort repair.
+    // Security confirmation on retry-2 delta 7b3e28b..a91468e: `record` has
+    // no date guard (step_history.rs:66-70) and `GrowGoal::execute` passes
+    // `clock.today()`, so creating a habit and growing its goal the same day
+    // legitimately produces two steps sharing one `on` — a tie, not a
+    // decrease (practice-staircase/S3, "three taps on grandir", the same
+    // day). `goal_on` already answers a tie correctly (`.rev().find` returns
+    // the last step at that date, agreeing with `current() = rest.last()`),
+    // so the invariant is non-decreasing, not strictly increasing. The
+    // previous `on <= previous_on` predicate rejected the tie and sent the
+    // whole snapshot to quarantine on the happy path.
     #[test]
-    fn a_stored_step_history_with_out_of_order_dates_yields_zero_habits_and_is_quarantined() {
+    fn a_habit_grown_on_its_own_creation_day_round_trips_with_the_grown_goal() {
+        let store: Rc<dyn SnapshotStore> = Rc::new(InMemorySnapshotStore::empty());
+        let mut habit = a_habit("h-1");
+        habit.grow(LocalDate::from_epoch_day(20_000));
+        repository_over(Rc::clone(&store)).save(&habit);
+
+        let reopened = repository_over(Rc::clone(&store));
+
+        assert_eq!(reopened.get(&HabitId::new("h-1").unwrap()), Some(habit));
+    }
+
+    #[test]
+    fn a_stored_step_history_with_a_decreasing_date_yields_zero_habits_and_is_quarantined() {
         let payload = r#"{"v":1,"habits":[{"id":"h-1","title":"Read one page","state":"Active","steps":[{"on":20010,"goal":3},{"on":20000,"goal":5}],"completions":[]}]}"#;
         let store: Rc<dyn SnapshotStore> = Rc::new(InMemorySnapshotStore::seeded(payload));
         let quarantine: Rc<dyn SnapshotStore> = Rc::new(InMemorySnapshotStore::empty());
