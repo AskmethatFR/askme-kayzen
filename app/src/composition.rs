@@ -93,8 +93,6 @@ mod tests {
 
         let board = services.list_board_habits.handle();
 
-        assert_eq!(board.active, Vec::new());
-        assert_eq!(board.paused, Vec::new());
-        assert_eq!(board.anchored_count, 0);
+        assert!(board.is_empty());
     }
 }

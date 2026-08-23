@@ -12,15 +12,13 @@ pub fn Today() -> Element {
     });
 
     let today_habits = habits();
-    let is_empty_board = today_habits.active.is_empty()
-        && today_habits.paused.is_empty()
-        && today_habits.anchored_count == 0;
     let total = today_habits.active.len();
     let done = today_habits
         .active
         .iter()
         .filter(|habit| habit.done_today)
         .count();
+    let has_anchored_habits = today_habits.has_anchored_habits();
 
     rsx! {
         div { class: "screen",
@@ -30,7 +28,7 @@ pub fn Today() -> Element {
             }
             h1 { class: "greeting", "Bonjour." }
 
-            if is_empty_board {
+            if today_habits.is_empty() {
                 div { class: "empty-state",
                     p { class: "lede", "Rien pour l'instant. Et c'est très bien." }
                     p { class: "lede", "Une seule toute petite habitude suffit pour commencer." }
@@ -105,7 +103,7 @@ pub fn Today() -> Element {
                         to: Route::Week {},
                         "Voir comment je grandis · cette semaine"
                     }
-                    if today_habits.anchored_count >= 1 {
+                    if has_anchored_habits {
                         Link {
                             class: "quiet-link",
                             to: Route::Anchored {},
