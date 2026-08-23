@@ -333,19 +333,24 @@ mod tests {
     }
 
     // @scenario: persistence/S5
+    //
+    // Only pins `repository.is_none()`. A prior version of this test also
+    // asserted a fresh temp path stayed absent, but that path was never
+    // passed to `platform_habit_repository_from` — `Option::map` on `None`
+    // never runs its closure, so no `FileSnapshotStore` is ever built and
+    // "touches no disk" held by construction, not by anything this test
+    // exercised. S5's "nothing is written to disk" is pinned by the
+    // `is_none()` assertion below (no repository built ⇒ nothing to write
+    // through) together with `load_over_an_absent_path_attempts_no_rename`
+    // in `file_snapshot_store.rs`, which proves the store itself creates no
+    // directory when there is nothing to preserve.
     #[test]
-    fn platform_habit_repository_from_none_builds_no_repository_and_touches_no_disk() {
-        let would_be_data_dir = unused_temp_dir();
-
+    fn platform_habit_repository_from_none_builds_no_repository() {
         let repository = platform_habit_repository_from(None);
 
         assert!(
             repository.is_none(),
             "no data directory means no repository can be built"
-        );
-        assert!(
-            !would_be_data_dir.exists(),
-            "expected nothing written to disk when there is no data directory"
         );
     }
 }
