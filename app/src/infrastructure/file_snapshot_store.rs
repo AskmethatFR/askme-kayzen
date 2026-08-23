@@ -289,6 +289,41 @@ mod tests {
         assert_eq!(store.load(), None);
     }
 
+    // Reproduces the pre-fix bug: `open_for_load(&self.path).ok()?` exited
+    // via `?` on ANY open error, including one that means "the file is
+    // there but I could not read it" (EACCES) — routing it around
+    // `refuse()` and losing the only copy with no quarantine. Skipped when
+    // running as root: root ignores the mode bit entirely and the open
+    // would succeed, making this test assert nothing.
+    #[cfg(unix)]
+    #[test]
+    fn an_existing_but_unopenable_primary_is_quarantined_instead_of_silently_dropped() {
+        use std::os::unix::fs::PermissionsExt;
+
+        if unsafe { libc::geteuid() } == 0 {
+            return;
+        }
+        let dir = unused_temp_path();
+        fs::create_dir_all(&dir).expect("temp dir must be creatable");
+        let path = dir.join("habits.json");
+        fs::write(&path, "unreadable-content").expect("temp file must be writable");
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o000))
+            .expect("permissions must be settable");
+
+        let store = FileSnapshotStore::at(path.clone());
+        assert_eq!(store.load(), None);
+
+        assert!(
+            !path.exists(),
+            "expected the unopenable primary moved away, not left in place"
+        );
+        assert_eq!(
+            fs::read(dir.join("habits.json.refused")).ok(),
+            Some(b"unreadable-content".to_vec()),
+            "expected the unreadable primary's bytes preserved at the quarantine sibling"
+        );
+    }
+
     #[cfg(unix)]
     #[test]
     fn load_over_a_fifo_refuses_promptly_instead_of_blocking() {
