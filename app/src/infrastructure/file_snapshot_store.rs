@@ -496,6 +496,69 @@ mod tests {
         );
     }
 
+    // A `.refused` slot occupied by a directory (never produced by this
+    // code, but user data can end up anywhere) must not be destroyed to
+    // make room for a fresh refusal — `remove_dir_all` on it would take a
+    // user's manual backups with it. The occupant's own content must
+    // survive the eviction in some recoverable form.
+    #[test]
+    fn a_stale_quarantine_directorys_contents_survive_the_refusal_that_evicts_it() {
+        let dir = unused_temp_path();
+        fs::create_dir_all(&dir).expect("temp dir must be creatable");
+        let path = dir.join("habits.json");
+        let file = fs::File::create(&path).expect("temp file must be creatable");
+        file.set_len(FileSnapshotStore::MAX_PAYLOAD_BYTES + 1)
+            .expect("sparse file must be extendable");
+        let stale_quarantine = dir.join("habits.json.refused");
+        fs::create_dir_all(stale_quarantine.join("2026-01"))
+            .expect("nested stale content must be creatable");
+        fs::write(
+            stale_quarantine.join("2026-01").join("backup-a.json"),
+            "my-manual-backup",
+        )
+        .expect("nested stale file must be writable");
+        fs::write(stale_quarantine.join("README.txt"), "my manual backups")
+            .expect("stale readme must be writable");
+
+        let store = FileSnapshotStore::at(path.clone());
+        assert_eq!(store.load(), None);
+
+        assert!(
+            stale_quarantine.is_file(),
+            "expected the fixed .refused slot to hold the fresh refusal"
+        );
+        let survivors: Vec<_> = fs::read_dir(&dir)
+            .expect("container dir must be readable")
+            .filter_map(Result::ok)
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("habits.json.refused.")
+            })
+            .collect();
+        assert_eq!(
+            survivors.len(),
+            1,
+            "expected exactly one evicted copy of the stale occupant, found: {survivors:?}"
+        );
+        let evicted = survivors[0].path();
+        assert!(
+            evicted.is_dir(),
+            "expected the evicted occupant to still be a directory"
+        );
+        assert_eq!(
+            fs::read_to_string(evicted.join("README.txt")).ok(),
+            Some("my manual backups".to_string()),
+            "expected the stale occupant's own file preserved verbatim"
+        );
+        assert_eq!(
+            fs::read_to_string(evicted.join("2026-01").join("backup-a.json")).ok(),
+            Some("my-manual-backup".to_string()),
+            "expected the stale occupant's nested content preserved verbatim"
+        );
+    }
+
     // @law: NAME_MAX is 255 bytes on ext4, APFS and tmpfs alike -- a
     // filename just under it accepts a plain write, but the same name plus
     // this store's temp-file suffix crosses it, failing every attempt with
