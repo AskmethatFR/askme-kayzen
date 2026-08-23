@@ -168,7 +168,10 @@ fn open_for_load(path: &Path) -> std::io::Result<fs::File> {
 fn create_owner_only_dir(dir: &Path) -> std::io::Result<()> {
     use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 
-    fs::DirBuilder::new().recursive(true).mode(0o700).create(dir)?;
+    fs::DirBuilder::new()
+        .recursive(true)
+        .mode(0o700)
+        .create(dir)?;
     fs::set_permissions(dir, fs::Permissions::from_mode(0o700))
 }
 
@@ -193,7 +196,10 @@ fn write_owner_only_new_file(path: &Path, payload: &str) -> std::io::Result<()> 
 
 #[cfg(not(unix))]
 fn write_owner_only_new_file(path: &Path, payload: &str) -> std::io::Result<()> {
-    let mut file = fs::OpenOptions::new().write(true).create_new(true).open(path)?;
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)?;
     file.write_all(payload.as_bytes())?;
     file.sync_all()
 }
@@ -292,7 +298,10 @@ mod tests {
         let c_path = std::ffi::CString::new(path.to_str().expect("temp path must be utf-8"))
             .expect("temp path must have no interior nul");
         let mkfifo_result = unsafe { libc::mkfifo(c_path.as_ptr(), 0o600) };
-        assert_eq!(mkfifo_result, 0, "mkfifo must succeed for this test to mean anything");
+        assert_eq!(
+            mkfifo_result, 0,
+            "mkfifo must succeed for this test to mean anything"
+        );
 
         let store = FileSnapshotStore::at(path);
 
@@ -376,7 +385,10 @@ mod tests {
         let store = FileSnapshotStore::at(path.clone());
         assert_eq!(store.load(), None);
 
-        assert!(!path.exists(), "expected the primary moved away, not left in place");
+        assert!(
+            !path.exists(),
+            "expected the primary moved away, not left in place"
+        );
         assert_eq!(
             fs::read(dir.join("habits.json.refused")).ok(),
             Some(vec![0x00u8, 0xff, 0xfe, 0x41, 0x42]),
