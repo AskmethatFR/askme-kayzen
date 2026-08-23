@@ -13,6 +13,10 @@ web-time = "1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }
+web-sys = { version = "0.3", features = ["Window", "Storage"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+dirs = "6"
 
 [dev-dependencies]
 dioxus-ssr = "0.7"

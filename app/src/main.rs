@@ -1,6 +1,7 @@
 use dioxus::prelude::*;
 
 mod composition;
+mod infrastructure;
 mod route;
 mod views;
 
