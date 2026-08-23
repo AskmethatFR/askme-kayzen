@@ -555,6 +555,66 @@ mod tests {
         );
     }
 
+    // A directory deliberately protected by the user at 0o500 (no write
+    // bit) must stay exactly as protected, not get "tightened" into
+    // 0o700 — which would silently grant this app write access the user
+    // never gave it. mode & 0o077 is already 0 here (no group/other bits),
+    // so nothing should be touched at all.
+    #[cfg(unix)]
+    #[test]
+    fn save_never_loosens_a_directory_protected_below_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = unused_temp_path();
+        fs::create_dir_all(&dir).expect("temp dir must be creatable");
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o500))
+            .expect("permissions must be settable");
+        let path = dir.join("habits.json");
+
+        FileSnapshotStore::at(path).save("payload");
+
+        let dir_mode = fs::metadata(&dir).unwrap().permissions().mode() & 0o777;
+        assert_eq!(
+            dir_mode, 0o500,
+            "expected a directory protected below owner-only left exactly as the user set it"
+        );
+    }
+
+    // A parent directory that is itself a symlink to a directory shared
+    // with other things (e.g. a backup tool) must never have its target's
+    // mode rewritten — only the final path component is inspected, and a
+    // symlink there means "do nothing to the permissions", not "follow and
+    // tighten what it points at".
+    #[cfg(unix)]
+    #[test]
+    fn save_does_not_change_the_mode_of_a_symlinked_parents_target() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let target = unused_temp_path();
+        fs::create_dir_all(&target).expect("target dir must be creatable");
+        fs::set_permissions(&target, fs::Permissions::from_mode(0o755))
+            .expect("permissions must be settable");
+        fs::write(target.join("thesis.txt"), "shared-content")
+            .expect("shared file must be writable");
+        let link_container = unused_temp_path();
+        fs::create_dir_all(&link_container).expect("link container must be creatable");
+        let link = link_container.join("data");
+        std::os::unix::fs::symlink(&target, &link).expect("symlink must be creatable");
+        let path = link.join("habits.json");
+
+        FileSnapshotStore::at(path).save("payload");
+
+        let target_mode = fs::metadata(&target).unwrap().permissions().mode() & 0o777;
+        assert_eq!(
+            target_mode, 0o755,
+            "expected the symlink's target left at its original, shared mode"
+        );
+        assert!(
+            target.join("thesis.txt").exists(),
+            "expected the unrelated shared file left untouched"
+        );
+    }
+
     #[test]
     fn a_successful_save_leaves_no_temp_file_behind() {
         let dir = unused_temp_path();
