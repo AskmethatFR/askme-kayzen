@@ -172,11 +172,32 @@ fn open_for_load(path: &Path) -> std::io::Result<fs::File> {
 fn create_owner_only_dir(dir: &Path) -> std::io::Result<()> {
     use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 
+    if let Ok(metadata) = fs::symlink_metadata(dir) {
+        if metadata.file_type().is_symlink() {
+            return Ok(());
+        }
+        return tighten_to_owner_only(dir, metadata.permissions().mode());
+    }
     fs::DirBuilder::new()
         .recursive(true)
         .mode(0o700)
         .create(dir)?;
-    fs::set_permissions(dir, fs::Permissions::from_mode(0o700))
+    let mode = fs::symlink_metadata(dir)?.permissions().mode();
+    tighten_to_owner_only(dir, mode)
+}
+
+/// Removes group/other permission bits when present, and does nothing
+/// otherwise — never grants a bit the directory did not already have.
+/// Owner bits and any bits above the permission triplet (setuid/setgid/
+/// sticky) are left exactly as found.
+#[cfg(unix)]
+fn tighten_to_owner_only(dir: &Path, mode: u32) -> std::io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    if mode & 0o077 == 0 {
+        return Ok(());
+    }
+    fs::set_permissions(dir, fs::Permissions::from_mode(mode & !0o077))
 }
 
 #[cfg(not(unix))]
