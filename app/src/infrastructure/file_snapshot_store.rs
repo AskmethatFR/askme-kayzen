@@ -138,13 +138,31 @@ fn quarantine_refused_file(primary_path: &Path, quarantine_path: &Path) {
 fn clear_quarantine_slot(path: &Path) {
     match fs::symlink_metadata(path) {
         Ok(metadata) if metadata.is_dir() => {
-            let _ = fs::remove_dir_all(path);
+            let _ = fs::rename(path, stale_occupant_sibling(path));
         }
         Ok(_) => {
             let _ = fs::remove_file(path);
         }
         Err(_) => {}
     }
+}
+
+/// A fresh name on every call, never reused — where a directory occupying
+/// the fixed quarantine slot is moved aside instead of being
+/// `remove_dir_all`'d. This code never puts a directory at that slot
+/// itself (`quarantine_refused_file` only ever moves a regular file
+/// there), so a directory found there is always something else's data —
+/// evicting it must not destroy it.
+fn stale_occupant_sibling(path: &Path) -> PathBuf {
+    static STALE_OCCUPANT_COUNTER: AtomicU64 = AtomicU64::new(0);
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0);
+    let unique = STALE_OCCUPANT_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let mut sibling = path.as_os_str().to_os_string();
+    sibling.push(format!(".stale-{nanos}-{unique}"));
+    PathBuf::from(sibling)
 }
 
 #[cfg(unix)]
