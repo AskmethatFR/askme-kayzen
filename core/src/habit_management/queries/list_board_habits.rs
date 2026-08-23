@@ -40,11 +40,11 @@ pub struct TodayHabits {
 
 impl TodayHabits {
     pub fn is_empty(&self) -> bool {
-        unimplemented!()
+        self.active.is_empty() && self.paused.is_empty() && self.anchored_count == 0
     }
 
     pub fn has_anchored_habits(&self) -> bool {
-        unimplemented!()
+        self.anchored_count > 0
     }
 }
 
