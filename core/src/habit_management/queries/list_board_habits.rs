@@ -296,7 +296,11 @@ mod tests {
     fn is_empty_reflects_each_axis_independently() {
         type Setup = fn(&InMemoryHabitRepository);
         let cases: Vec<(&str, Setup, bool)> = vec![
-            ("no habits at all", |_repository: &InMemoryHabitRepository| {}, true),
+            (
+                "no habits at all",
+                |_repository: &InMemoryHabitRepository| {},
+                true,
+            ),
             (
                 "one active habit only",
                 |repository: &InMemoryHabitRepository| {
