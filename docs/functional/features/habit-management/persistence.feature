@@ -34,7 +34,7 @@ Feature: A habit persists across app restarts
 
   @scenario:S5
   Scenario: No durable place to store habits refuses to start, loudly
-    Given the platform offers no durable place to store habits
+    Given the native platform (desktop or mobile) offers no durable place to store habits
     When the app is launched
     Then a calm explanation is shown instead of the board
     And nothing is written to disk
