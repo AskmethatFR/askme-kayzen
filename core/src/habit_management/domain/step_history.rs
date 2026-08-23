@@ -70,6 +70,24 @@ impl StepHistory {
         self.rest.push(StepChange::new(on, goal));
     }
 
+    /// Rebuilds a history from already-parsed dates and goals, for the
+    /// persistence codec only. Routed through `seeded` + `record` rather than
+    /// a raw `{first, rest}` literal, so a stored payload carrying two
+    /// consecutive steps at the same goal — never producible through `record`
+    /// itself, but reachable in a hand-edited or older-format file — is
+    /// normalised on read instead of reproducing the violation.
+    pub(crate) fn rehydrate(
+        first_on: LocalDate,
+        first_goal: Goal,
+        rest: Vec<(LocalDate, Goal)>,
+    ) -> StepHistory {
+        let mut history = StepHistory::seeded(first_on, first_goal);
+        for (on, goal) in rest {
+            history.record(on, goal);
+        }
+        history
+    }
+
     /// The goal that was in force on `day`: the last step dated on or before
     /// it, falling back to the seeded one. Indexing the seeded step cannot
     /// panic — `seeded` is the type's only constructor, so `first` always
