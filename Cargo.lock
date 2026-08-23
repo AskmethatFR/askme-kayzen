@@ -2789,10 +2789,13 @@ dependencies = [
  "dioxus",
  "dioxus-html",
  "dioxus-ssr",
+ "dirs",
  "getrandom 0.2.17",
  "kayzen-core",
+ "libc",
  "rand 0.8.7",
  "serde_json",
+ "web-sys",
  "web-time",
 ]
 
