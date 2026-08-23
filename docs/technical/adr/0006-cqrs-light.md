@@ -3,7 +3,7 @@ id: "adr-0006-cqrs-light"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-08-17"
+updated: "2026-08-23"
 relations:
   related:
     - "architecture-overview"
@@ -200,11 +200,20 @@ No stored counter, no second pass, no second query for a number: this node's fou
 (*all derived display data is computed on read*) covers it, and it is recorded here only
 because a counter is the classic place a projection quietly appears.
 
-The placement matters for the same reason the slice-5 partition did. The condition
-*« N >= 1 »* is a rendering choice and stays in the view; the **tally itself** is state, and
-state that lives in `queries/**` is inside `.cargo/mutants.toml`'s perimeter while the view
-is excluded by design ([[adr-0009-quality-gates]]). Filtering anchored habits out of both
-`active` and `paused` in that same pass is what keeps *Aujourd'hui*'s « X sur Y » — which
+The placement matters for the same reason the slice-5 partition did. The tally **and the
+predicate that decides whether the link appears at all** are both state, and state that
+lives in `queries/**` is inside `.cargo/mutants.toml`'s perimeter while the view is
+excluded by design ([[adr-0009-quality-gates]]).
+
+> **Stale sentence struck, 2026-08-23 (#34).** This paragraph read *« the condition
+> « N >= 1 » is a rendering choice and stays in the view »*. That was a placement note
+> subordinate to this node's MUST — *keep a rule that decides what a screen shows inside
+> the query, never in the view* — and it contradicted it, because whether a zone appears
+> **is** what a screen shows. #34 moved the predicate onto the DTO, where the MUST always
+> put it. Nothing was decided: the sentence misapplied a rule that never changed, so it is
+> corrected rather than superseded.
+
+Filtering anchored habits out of both `active` and `paused` in that same pass is what keeps *Aujourd'hui*'s « X sur Y » — which
 is `active.len()` — correct by construction rather than by discipline.
 
 ---

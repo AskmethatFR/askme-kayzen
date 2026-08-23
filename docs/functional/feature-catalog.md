@@ -156,9 +156,30 @@ Then the **rhythm**: a rolling seven-day window ending today, oldest day first, 
 | Two habits, each practised on a different day of the window | The user opens the week | Both days are lit — a day is lit when *any* habit was practised, not only the first |
 | A window with unpractised days | The user opens the week | Those days show a dim dot, never a gap and never a mark of failure |
 
+## F-10 — What I do stays mine, across closings
+
+The app is worth using only if closing it costs nothing. A habit added, a day marked done, a goal grown — all of it is there again at the next launch, with no gesture asked of the user to make it so. There is no save button, because saving is not something a practitioner should have to think about.
+
+A **first** launch shows a genuine empty daily life and its invitation — never a demo habit. What the user sees is always their own life, from the very first second.
+
+When the stored data cannot be read — a file written by an older version, a truncated write, an edit made by hand — the board simply **starts empty**, and the unreadable data is **set aside** rather than discarded, before anything can overwrite it. A format bug costs a recoverable loss, never a silent one. The user is not asked to repair anything and is never shown an error for it.
+
+When the device offers **no durable place at all** to keep habits, the app **refuses to start** and says so plainly, rather than running as though it were saving. That refusal is deliberate: an app that quietly forgets is worse than an app that admits it cannot remember. This holds on desktop and mobile; on the web the same protection is not yet in place (see *Not available yet*).
+
+**Acceptance (pinned by tests in `app/src/composition.rs`, `app/src/main.rs` and `app/src/views/data_unavailable.rs`, mirrored as [[persistence]]):**
+
+| Given | When | Then |
+|---|---|---|
+| A habit added, then the app closed | The user opens the app again | The habit is there, with its goal |
+| A habit marked done today, then the app closed | The user opens the app again | It still reads as done today |
+| A device that has never run the app | The user opens the app | An empty daily life and its invitation — never a demo habit |
+| Stored data that cannot be read | The user opens the app | An empty daily life, no error, and the unreadable data set aside |
+| A device offering no durable place to store habits | The user opens the app | A calm explanation instead of the board, and nothing written anywhere |
+
 ## Not available yet (deliberate — manual development resumes from here)
 
-- **Nothing survives a restart**: every store is in-memory (`InMemoryHabitRepository`), and the Today screen is seeded with three demo habits at startup. No persistence adapter exists yet.
+- **On the web, an unreachable browser store is indistinguishable from an empty one**: in private browsing, or with storage disabled, every save is a silent no-op and the board looks like it works until the page is reloaded. The refusal that protects desktop and mobile (F-10) does not fire there yet, which is why its scenario is scoped to the native platform.
+- **No Android build yet** — the device's own data directory has still to be resolved through the platform (issue #35), and no store listing, signing key or account exists (issue #28).
 - All six screens act. **Today** (list + mark done + the paused zone + the Ancrées link), **Add**, **Detail** (adjust the goal, read the practice staircase, pause/resume, anchor), **Ancrées** (list + count only — see F-7), **Ritual** ([[ritual]], issue #13) and **Week** ([[week-recap]], issue #22). The Week screen is complete as a **read-only** screen: its weekly reflection (hansei) was dropped from the product on 2026-08-21 by owner ruling (issue #23, closed as won't-do) — the week recap informs, it collects nothing, so no screen writes anything but habits.
 - Anchoring is now two-way: the Ancrées screen offers « La remettre dans mon quotidien » on each anchored habit (`[[readmit-habit]]`, slice 7), refusable on a full daily life (« Le quotidien est complet · pour la remettre, ancrez-en une autre d'abord ») or on a title already retaken (« Elle est déjà dans votre quotidien »). The screen's parallel-count footer « Vous suivez N / 5 habitudes en parallèle » is shipped; its per-habit dots remain deferred (see F-7). The recap ([[habit-stats]], slice 8) is shipped — see F-8.
 - The multi-step *request* → *create-on-request* flow is **gone** (slice 6): habit creation is one gesture via `AddHabit`, one write, no published events.
