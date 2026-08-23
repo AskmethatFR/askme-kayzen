@@ -98,7 +98,17 @@ impl Services {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn platform_habit_repository() -> Option<PersistentHabitRepository> {
-    default_data_dir().map(|dir| persistent_habit_repository_at(&dir))
+    platform_habit_repository_from(default_data_dir())
+}
+
+/// The exact wiring `platform_habit_repository()` performs, with the
+/// resolved data directory injected — the seam a test needs to prove that
+/// `None` (no durable place to store habits) never reaches
+/// `persistent_habit_repository_at`, the only place a `FileSnapshotStore`
+/// gets built and could touch disk.
+#[cfg(not(target_arch = "wasm32"))]
+fn platform_habit_repository_from(data_dir: Option<PathBuf>) -> Option<PersistentHabitRepository> {
+    data_dir.map(|dir| persistent_habit_repository_at(&dir))
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -320,5 +330,22 @@ mod tests {
     #[test]
     fn resolve_data_dir_is_none_when_the_platform_has_no_data_directory() {
         assert_eq!(resolve_data_dir(None), None);
+    }
+
+    // @scenario: persistence/S5
+    #[test]
+    fn platform_habit_repository_from_none_builds_no_repository_and_touches_no_disk() {
+        let would_be_data_dir = unused_temp_dir();
+
+        let repository = platform_habit_repository_from(None);
+
+        assert!(
+            repository.is_none(),
+            "no data directory means no repository can be built"
+        );
+        assert!(
+            !would_be_data_dir.exists(),
+            "expected nothing written to disk when there is no data directory"
+        );
     }
 }
