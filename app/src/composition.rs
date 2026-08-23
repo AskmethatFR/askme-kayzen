@@ -51,9 +51,13 @@ impl Services {
     /// time, never at runtime) decorating `InMemoryHabitRepository`, so a
     /// habit added and a completion recorded both survive closing and
     /// reopening the app. No seed: whatever the store holds is the whole
-    /// board, including nothing.
-    pub fn new() -> Self {
-        Self::with_repository(Rc::new(platform_habit_repository()))
+    /// board, including nothing. `None` when the platform offers no durable
+    /// place to keep habits at all (desktop/mobile only — `dirs::data_dir()`
+    /// returned `None`, most notably on Android until #35 supplies its path
+    /// via JNI) — the caller renders a refusal screen instead of pretending
+    /// to save.
+    pub fn new() -> Option<Self> {
+        Some(Self::with_repository(Rc::new(platform_habit_repository()?)))
     }
 
     /// Wires every service over a caller-provided habit store, resolving
@@ -93,15 +97,18 @@ impl Services {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn platform_habit_repository() -> PersistentHabitRepository {
-    persistent_habit_repository_at(&default_data_dir())
+fn platform_habit_repository() -> Option<PersistentHabitRepository> {
+    default_data_dir().map(|dir| persistent_habit_repository_at(&dir))
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn default_data_dir() -> PathBuf {
-    dirs::data_dir()
-        .unwrap_or_else(std::env::temp_dir)
-        .join("kayzen")
+fn default_data_dir() -> Option<PathBuf> {
+    resolve_data_dir(dirs::data_dir())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn resolve_data_dir(candidate: Option<PathBuf>) -> Option<PathBuf> {
+    candidate.map(|dir| dir.join("kayzen"))
 }
 
 /// The exact wiring `platform_habit_repository()` performs, with the
@@ -119,13 +126,13 @@ fn persistent_habit_repository_at(dir: &Path) -> PersistentHabitRepository {
 }
 
 #[cfg(target_arch = "wasm32")]
-fn platform_habit_repository() -> PersistentHabitRepository {
+fn platform_habit_repository() -> Option<PersistentHabitRepository> {
     use crate::infrastructure::local_storage_snapshot_store::LocalStorageSnapshotStore;
 
-    PersistentHabitRepository::hydrated_from(
+    Some(PersistentHabitRepository::hydrated_from(
         Rc::new(LocalStorageSnapshotStore::at("kayzen.habits.v1")),
-        Rc::new(LocalStorageSnapshotStore::at("kayzen.habits.unreadable")),
-    )
+        Rc::new(LocalStorageSnapshotStore::at("kayzen.habits.unreadable.v1")),
+    ))
 }
 
 #[cfg(test)]
@@ -155,11 +162,11 @@ mod tests {
     /// and this suite must never write there.
     fn unused_temp_dir() -> PathBuf {
         let unique = COUNTER.fetch_add(1, Ordering::Relaxed);
-        std::env::temp_dir().join(format!(
-            "kayzen-composition-test-{}-{}",
-            std::process::id(),
-            unique
-        ))
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system clock must be after the epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!("kayzen-composition-test-{nanos}-{unique}"))
     }
 
     #[test]
@@ -245,11 +252,73 @@ mod tests {
         );
     }
 
+    // @scenario: persistence/S4
+    #[test]
+    fn an_oversized_primary_file_is_preserved_at_a_refused_sibling_before_the_next_save_overwrites_it()
+     {
+        use crate::infrastructure::file_snapshot_store::FileSnapshotStore;
+
+        let dir = unused_temp_dir();
+        fs::create_dir_all(&dir).expect("temp dir must be creatable");
+        let primary = dir.join("habits.json");
+        let file = fs::File::create(&primary).expect("temp file must be creatable");
+        file.set_len(FileSnapshotStore::MAX_PAYLOAD_BYTES + 1)
+            .expect("sparse file must be extendable");
+
+        let services = Services::with_repository(Rc::new(persistent_habit_repository_at(&dir)));
+        assert!(
+            services.list_board_habits.handle().is_empty(),
+            "an oversized primary must hydrate to an empty board, not a crash"
+        );
+        services
+            .add_habit
+            .execute("Boire de l'eau".to_string(), STARTING_GOAL)
+            .expect("an empty board has room for one habit");
+
+        assert!(
+            fs::metadata(&primary)
+                .map(|m| m.len() <= FileSnapshotStore::MAX_PAYLOAD_BYTES)
+                .unwrap_or(false),
+            "expected the fresh save to replace the primary with a small snapshot"
+        );
+        assert!(
+            dir.join("habits.json.refused").exists(),
+            "expected the oversized original preserved at a sibling path"
+        );
+    }
+
     #[test]
     fn default_data_dir_is_named_kayzen() {
-        assert_eq!(
-            default_data_dir().file_name(),
-            Some(std::ffi::OsStr::new("kayzen"))
+        let dir = default_data_dir().expect("CI platforms always resolve a data directory");
+
+        assert_eq!(dir.file_name(), Some(std::ffi::OsStr::new("kayzen")));
+    }
+
+    #[test]
+    fn default_data_dir_stays_within_the_platforms_data_directory() {
+        let dir = default_data_dir().expect("CI platforms always resolve a data directory");
+
+        assert!(
+            dir.starts_with(
+                dirs::data_dir().expect("CI platforms always resolve a data directory")
+            ),
+            "expected the resolved directory to live under the platform's own data directory, got {dir:?}"
         );
+    }
+
+    #[test]
+    fn resolve_data_dir_appends_kayzen_to_the_given_directory() {
+        let base = PathBuf::from("/some/base");
+
+        assert_eq!(
+            resolve_data_dir(Some(base.clone())),
+            Some(base.join("kayzen"))
+        );
+    }
+
+    // @scenario: persistence/S5
+    #[test]
+    fn resolve_data_dir_is_none_when_the_platform_has_no_data_directory() {
+        assert_eq!(resolve_data_dir(None), None);
     }
 }

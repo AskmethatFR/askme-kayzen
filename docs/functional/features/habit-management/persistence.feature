@@ -31,3 +31,10 @@ Feature: A habit persists across app restarts
     Then the board shows an empty daily life
     And the unreadable data is set aside
     And no crash occurs
+
+  @scenario:S5
+  Scenario: No durable place to store habits refuses to start, loudly
+    Given the platform offers no durable place to store habits
+    When the app is launched
+    Then a calm explanation is shown instead of the board
+    And nothing is written to disk
