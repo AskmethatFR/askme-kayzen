@@ -80,7 +80,11 @@ impl FileSnapshotStore {
 
 impl SnapshotStore for FileSnapshotStore {
     fn load(&self) -> Option<String> {
-        let file = open_for_load(&self.path).ok()?;
+        let file = match open_for_load(&self.path) {
+            Ok(file) => file,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return None,
+            Err(_) => return self.refuse(),
+        };
         let metadata = match file.metadata() {
             Ok(metadata) => metadata,
             Err(_) => return self.refuse(),
@@ -317,8 +321,18 @@ mod tests {
             !path.exists(),
             "expected the unopenable primary moved away, not left in place"
         );
+        let quarantined = dir.join("habits.json.refused");
+        assert!(
+            quarantined.is_file(),
+            "expected the unopenable primary preserved at the quarantine sibling"
+        );
+        // rename() carries the mode along, so the quarantined copy is still
+        // 0o000 — restore access before reading it back, exactly like an
+        // operator recovering the file would have to.
+        fs::set_permissions(&quarantined, fs::Permissions::from_mode(0o600))
+            .expect("permissions must be restorable on the quarantined copy");
         assert_eq!(
-            fs::read(dir.join("habits.json.refused")).ok(),
+            fs::read(&quarantined).ok(),
             Some(b"unreadable-content".to_vec()),
             "expected the unreadable primary's bytes preserved at the quarantine sibling"
         );
