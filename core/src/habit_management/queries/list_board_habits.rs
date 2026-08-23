@@ -38,6 +38,16 @@ pub struct TodayHabits {
     pub anchored_count: usize,
 }
 
+impl TodayHabits {
+    pub fn is_empty(&self) -> bool {
+        unimplemented!()
+    }
+
+    pub fn has_anchored_habits(&self) -> bool {
+        unimplemented!()
+    }
+}
+
 impl ListBoardHabits {
     pub fn new(repository: Rc<dyn HabitRepository>, clock: Rc<dyn Clock>) -> Self {
         ListBoardHabits { repository, clock }
@@ -280,5 +290,79 @@ mod tests {
             }]
         );
         assert_eq!(result.paused, Vec::new());
+    }
+
+    #[test]
+    fn is_empty_reflects_each_axis_independently() {
+        type Setup = fn(&InMemoryHabitRepository);
+        let cases: Vec<(&str, Setup, bool)> = vec![
+            ("no habits at all", |_repository: &InMemoryHabitRepository| {}, true),
+            (
+                "one active habit only",
+                |repository: &InMemoryHabitRepository| {
+                    repository.save(&a_habit());
+                },
+                false,
+            ),
+            (
+                "one paused habit only",
+                |repository: &InMemoryHabitRepository| {
+                    let mut habit = a_habit();
+                    habit.pause().expect("a fresh habit is active");
+                    repository.save(&habit);
+                },
+                false,
+            ),
+            (
+                "one anchored habit only",
+                |repository: &InMemoryHabitRepository| {
+                    let mut habit = a_habit();
+                    habit.anchor().expect("a fresh habit is active");
+                    repository.save(&habit);
+                },
+                false,
+            ),
+        ];
+
+        for (label, setup, expected) in cases {
+            let repository = Rc::new(InMemoryHabitRepository::new());
+            setup(&repository);
+            let query = list_over(Rc::clone(&repository));
+
+            let result = query.handle();
+
+            assert_eq!(result.is_empty(), expected, "case: {label}");
+        }
+    }
+
+    #[test]
+    fn has_anchored_habits_reflects_the_anchored_count_boundary() {
+        type Setup = fn(&InMemoryHabitRepository);
+        let cases: Vec<(&str, Setup, bool)> = vec![
+            (
+                "zero anchored habits",
+                |_repository: &InMemoryHabitRepository| {},
+                false,
+            ),
+            (
+                "exactly one anchored habit",
+                |repository: &InMemoryHabitRepository| {
+                    let mut anchored = a_habit();
+                    anchored.anchor().expect("a fresh habit is active");
+                    repository.save(&anchored);
+                },
+                true,
+            ),
+        ];
+
+        for (label, setup, expected) in cases {
+            let repository = Rc::new(InMemoryHabitRepository::new());
+            setup(&repository);
+            let query = list_over(Rc::clone(&repository));
+
+            let result = query.handle();
+
+            assert_eq!(result.has_anchored_habits(), expected, "case: {label}");
+        }
     }
 }
