@@ -1,4 +1,5 @@
 use crate::composition::Services;
+use crate::i18n::{tr, tr_key};
 use crate::route::Route;
 use dioxus::prelude::*;
 use kayzen_core::habit_management::queries::get_habit_detail::HabitDetail as HabitDetailData;
@@ -20,7 +21,7 @@ pub fn HabitDetail(id: String) -> Element {
             let staircase = rsx! {
                 div {
                     class: "staircase",
-                    "aria-label": "Vos sept derniers jours, objectif actuel {habit.current_goal} minutes",
+                    "aria-label": tr!("staircase-aria", goal: habit.current_goal as i64),
                     for (day_offset, (day, ratio)) in
                         habit.days.iter().zip(day_ratios(&habit.days)).enumerate()
                     {
@@ -34,17 +35,16 @@ pub fn HabitDetail(id: String) -> Element {
             };
 
             let recap = {
-                let days_done_label = plural(habit.recap.days_done, "réalisé", "réalisés");
-                let empty_days_label = plural(habit.recap.empty_days, "autre jour", "autres jours");
-                let minutes_label = plural(
-                    habit.recap.minutes_practised as usize,
-                    "minute de pratique accumulée",
-                    "minutes de pratique accumulées",
-                );
+                let days_done_label =
+                    tr!("recap-days-done-label", count: habit.recap.days_done as i64);
+                let empty_days_label =
+                    tr!("recap-empty-days-label", count: habit.recap.empty_days as i64);
+                let minutes_label =
+                    tr!("recap-minutes-label", count: habit.recap.minutes_practised as i64);
 
                 rsx! {
                     section { class: "recap",
-                        p { class: "eyebrow", "Votre histoire" }
+                        p { class: "eyebrow", {tr!("recap-eyebrow")} }
                         ul { class: "recap-figures",
                             li {
                                 span { class: "recap-figure", "{habit.recap.days_done}" }
@@ -60,14 +60,14 @@ pub fn HabitDetail(id: String) -> Element {
                             }
                             li {
                                 span { class: "recap-figure", "{habit.recap.growths}" }
-                                span { class: "recap-label", "fois grandie" }
+                                span { class: "recap-label", {tr!("recap-growths-label")} }
                             }
                             li {
                                 span { class: "recap-figure", "{habit.recap.lightenings}" }
-                                span { class: "recap-label", "fois allégée" }
+                                span { class: "recap-label", {tr!("recap-lightenings-label")} }
                             }
                         }
-                        p { class: "quiet-note", "{recap_copy(habit.recap.message)}" }
+                        p { class: "quiet-note", {tr_key(recap_copy_key(habit.recap.message))} }
                     }
                 }
             };
@@ -76,73 +76,73 @@ pub fn HabitDetail(id: String) -> Element {
                 HabitState::Active => rsx! {
                     div { class: "screen",
                         header { class: "masthead",
-                            Link { class: "quiet-link", to: Route::Today {}, "← Aujourd'hui" }
+                            Link { class: "quiet-link", to: Route::Today {}, {tr!("masthead-back-to-today")} }
                         }
                         h1 { class: "greeting", "{habit.title}" }
-                        p { class: "lede", "chaque jour · {habit.current_goal} min" }
+                        p { class: "lede", {tr!("habit-detail-active-dose", goal: habit.current_goal as i64)} }
 
                         {staircase}
 
                         {recap}
 
-                        p { class: "eyebrow", "Ajuster, à votre rythme" }
+                        p { class: "eyebrow", {tr!("adjust-goal-eyebrow")} }
                         button {
                             class: "btn btn-block",
-                            aria_label: "Passer à {habit.next_goal_up} min · {habit.title}",
+                            aria_label: tr!("grow-goal-aria", goal: habit.next_goal_up as i64, title: habit.title.clone()),
                             onclick: {
                                 let services = services.clone();
                                 let id = id.clone();
                                 move |_| detail.set(grow_and_reload(&services, &id))
                             },
-                            "Passer à {habit.next_goal_up} min"
+                            {tr!("grow-goal-label", goal: habit.next_goal_up as i64)}
                         }
                         button {
                             class: "btn btn-block",
-                            aria_label: "Alléger à {habit.next_goal_down} min · {habit.title}",
+                            aria_label: tr!("lighten-goal-aria", goal: habit.next_goal_down as i64, title: habit.title.clone()),
                             onclick: {
                                 let services = services.clone();
                                 let id = id.clone();
                                 move |_| detail.set(lighten_and_reload(&services, &id))
                             },
-                            "Alléger à {habit.next_goal_down} min"
+                            {tr!("lighten-goal-label", goal: habit.next_goal_down as i64)}
                         }
 
                         Link {
                             class: "btn btn-primary btn-block",
                             to: Route::Ritual { id: habit.id.clone() },
-                            "Commencer ma pratique"
+                            {tr!("start-ritual-label")}
                         }
 
                         button {
                             class: "btn btn-block",
-                            aria_label: "Mettre en pause, sans culpabilité · {habit.title}",
+                            aria_label: tr!("pause-habit-aria", title: habit.title.clone()),
                             onclick: {
                                 let services = services.clone();
                                 let id = id.clone();
                                 move |_| detail.set(pause_and_reload(&services, &id))
                             },
-                            "Mettre en pause, sans culpabilité"
+                            {tr!("pause-habit-label")}
                         }
 
                         button {
                             class: "btn btn-block",
-                            aria_label: "L'ancrer · elle est devenue naturelle · {habit.title}",
+                            aria_label: tr!("anchor-habit-aria", title: habit.title.clone()),
                             onclick: {
                                 let services = services.clone();
                                 let id = id.clone();
                                 move |_| detail.set(anchor_and_reload(&services, &id))
                             },
-                            "L'ancrer · elle est devenue naturelle"
+                            {tr!("anchor-habit-label")}
                         }
                     }
                 },
                 HabitState::Paused => rsx! {
                     div { class: "screen",
                         header { class: "masthead",
-                            Link { class: "quiet-link", to: Route::Today {}, "← Aujourd'hui" }
+                            Link { class: "quiet-link", to: Route::Today {}, {tr!("masthead-back-to-today")} }
                         }
                         h1 { class: "greeting", "{habit.title}" }
-                        p { class: "lede", "en pause · {habit.current_goal} min" }
+                        p { class: "lede", {tr!("habit-detail-paused-dose", goal: habit.current_goal as i64)} }
 
                         {staircase}
 
@@ -150,23 +150,23 @@ pub fn HabitDetail(id: String) -> Element {
 
                         button {
                             class: "btn btn-primary btn-block",
-                            aria_label: "La reprendre · {habit.title}",
+                            aria_label: tr!("resume-habit-aria", title: habit.title.clone()),
                             onclick: {
                                 let services = services.clone();
                                 let id = id.clone();
                                 move |_| detail.set(resume_and_reload(&services, &id))
                             },
-                            "La reprendre"
+                            {tr!("resume-habit-label")}
                         }
                     }
                 },
                 HabitState::Anchored => rsx! {
                     div { class: "screen",
                         header { class: "masthead",
-                            Link { class: "quiet-link", to: Route::Today {}, "← Aujourd'hui" }
+                            Link { class: "quiet-link", to: Route::Today {}, {tr!("masthead-back-to-today")} }
                         }
                         h1 { class: "greeting", "{habit.title}" }
-                        p { class: "lede", "ancrée · {habit.current_goal} min" }
+                        p { class: "lede", {tr!("habit-detail-anchored-dose", goal: habit.current_goal as i64)} }
 
                         {staircase}
 
@@ -177,8 +177,8 @@ pub fn HabitDetail(id: String) -> Element {
         }
         None => rsx! {
             div { class: "screen",
-                p { class: "lede", "Cette habitude n'est plus sur votre liste." }
-                Link { class: "quiet-link", to: Route::Today {}, "Retour à Aujourd'hui" }
+                p { class: "lede", {tr!("habit-not-found-message")} }
+                Link { class: "quiet-link", to: Route::Today {}, {tr!("habit-not-found-back-link")} }
             }
         },
     }
@@ -215,17 +215,12 @@ fn anchor_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
 }
 
 #[must_use]
-fn recap_copy(message: RecapMessage) -> &'static str {
+fn recap_copy_key(message: RecapMessage) -> &'static str {
     match message {
-        RecapMessage::FreshStart => "Un début parfait. Tout est encore devant.",
-        RecapMessage::Resting => "Elle se repose en ce moment. Elle vous attend, sans presser.",
-        RecapMessage::Growing => "Vous la faites vivre, à votre rythme.",
+        RecapMessage::FreshStart => "recap-message-fresh-start",
+        RecapMessage::Resting => "recap-message-resting",
+        RecapMessage::Growing => "recap-message-growing",
     }
-}
-
-#[must_use]
-fn plural(count: usize, one: &'static str, many: &'static str) -> &'static str {
-    if count > 1 { many } else { one }
 }
 
 /// Each day's bar height relative to its own window's tallest goal
@@ -247,8 +242,10 @@ fn day_ratios(days: &[PracticeDay]) -> Vec<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::i18n::use_locale_for_tests_as;
     use crate::views::click_harness::Screen;
     use dioxus::history::{MemoryHistory, provide_history_context};
+    use dioxus_i18n::unic_langid::langid;
     use kayzen_core::habit_management::domain::goal::Goal;
     use kayzen_core::habit_management::domain::habit::Habit;
     use kayzen_core::habit_management::domain::habit_id::HabitId;
@@ -325,6 +322,7 @@ mod tests {
 
     #[component]
     fn RootAtHabitDoneTenOfLastFourteenDays() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
         });
@@ -336,6 +334,7 @@ mod tests {
 
     #[component]
     fn RootAtKnownHabit() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
         });
@@ -347,6 +346,7 @@ mod tests {
 
     #[component]
     fn RootAtUnknownHabit() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/missing")));
         });
@@ -391,6 +391,7 @@ mod tests {
 
     #[component]
     fn RootAtThirtyDayHabitDoneTwelve() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
         });
@@ -453,6 +454,7 @@ mod tests {
 
     #[component]
     fn RootAtHabitRestingForTenDays() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
         });
@@ -477,6 +479,7 @@ mod tests {
 
     #[component]
     fn RootAtBrandNewHabit() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
         });
@@ -488,6 +491,7 @@ mod tests {
 
     #[component]
     fn RootAtHabitDoneTwiceAtFiveThenOnceAtSix() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
         });
@@ -499,6 +503,7 @@ mod tests {
 
     #[component]
     fn RootAtHabitGrownThreeTimesLightenedOnce() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
         });
@@ -533,6 +538,7 @@ mod tests {
 
     #[component]
     fn RootAtHabitWithFivePairwiseDistinctRecapFigures() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
         });
@@ -544,6 +550,7 @@ mod tests {
 
     #[component]
     fn RootAtPausedHabit() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
         });
@@ -555,6 +562,7 @@ mod tests {
 
     #[component]
     fn RootAtAnchoredHabit() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
         });
@@ -566,6 +574,7 @@ mod tests {
 
     #[component]
     fn RootAtFloorHabitDoneToday() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
         });
@@ -1154,6 +1163,7 @@ mod tests {
 
     #[component]
     fn RootAtHabitGrownMidWindow() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
         });
@@ -1197,6 +1207,7 @@ mod tests {
 
     #[component]
     fn RootAtHabitGrownThenLightenedMidWindow() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
         });
@@ -1259,6 +1270,7 @@ mod tests {
 
     #[component]
     fn RootAtHabitLightenedEarlyInWindow() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
         });
@@ -1316,6 +1328,7 @@ mod tests {
 
     #[component]
     fn RootAtHabitGrownOnTheLastDay() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
         });
@@ -1348,6 +1361,67 @@ mod tests {
                 1.0
             ],
             "expected the last day's raised goal (6) to normalize every bar, got: {html}"
+        );
+    }
+
+    // @algo: fluent-rs resolves a Fluent select expression by trying a
+    // NumberLiteral variant key before computing the CLDR plural category —
+    // undocumented in this crate's code. French CLDR's `one` covers {0,1},
+    // so recap-minutes-label carries no `[0]` override in fr.ftl.
+    #[component]
+    fn RecapMinutesLabelAtZeroOneTwoFr() -> Element {
+        crate::i18n::use_locale_for_tests();
+        rsx! {
+            p { "0:" {tr!("recap-minutes-label", count: 0i64)} }
+            p { "1:" {tr!("recap-minutes-label", count: 1i64)} }
+            p { "2:" {tr!("recap-minutes-label", count: 2i64)} }
+        }
+    }
+
+    #[component]
+    fn RecapMinutesLabelAtZeroOneTwoEn() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        rsx! {
+            p { "0:" {tr!("recap-minutes-label", count: 0i64)} }
+            p { "1:" {tr!("recap-minutes-label", count: 1i64)} }
+            p { "2:" {tr!("recap-minutes-label", count: 2i64)} }
+        }
+    }
+
+    #[test]
+    fn the_minutes_label_reads_the_right_plural_form_at_zero_one_and_two_in_french() {
+        let html = render(RecapMinutesLabelAtZeroOneTwoFr);
+
+        assert!(
+            html.contains("<p>0:minute de pratique accumulée</p>"),
+            "expected n=0 to read the singular (French `one` covers 0, matching \
+             the old plural(count, one, many) helper's count > 1 branch), got: {html}"
+        );
+        assert!(
+            html.contains("<p>1:minute de pratique accumulée</p>"),
+            "expected n=1 to read the singular, got: {html}"
+        );
+        assert!(
+            html.contains("<p>2:minutes de pratique accumulées</p>"),
+            "expected n=2 to read the plural, got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_minutes_label_reads_the_right_plural_form_at_zero_one_and_two_in_english() {
+        let html = render(RecapMinutesLabelAtZeroOneTwoEn);
+
+        assert!(
+            html.contains("<p>0:minutes practised</p>"),
+            "expected n=0 to read the plural (English `other` covers 0), got: {html}"
+        );
+        assert!(
+            html.contains("<p>1:minute practised</p>"),
+            "expected n=1 to read the singular, got: {html}"
+        );
+        assert!(
+            html.contains("<p>2:minutes practised</p>"),
+            "expected n=2 to read the plural, got: {html}"
         );
     }
 }
