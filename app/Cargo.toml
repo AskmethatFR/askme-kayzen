@@ -21,6 +21,10 @@ dirs = "6"
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+ndk-context = "0.1"
+
 [dev-dependencies]
 dioxus-ssr = "0.7"
 dioxus-html = { version = "0.7", features = ["serialize"] }

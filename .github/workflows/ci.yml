@@ -15,7 +15,7 @@ concurrency:
 jobs:
   gates:
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ github.event_name == 'pull_request' && 30 || 20 }}
+    timeout-minutes: ${{ github.event_name == 'pull_request' && 40 || 20 }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -40,6 +40,7 @@ jobs:
         with:
           toolchain: "1.97.0"
           components: rustfmt, clippy
+          targets: aarch64-linux-android
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:

@@ -52,9 +52,10 @@ impl Services {
     /// habit added and a completion recorded both survive closing and
     /// reopening the app. No seed: whatever the store holds is the whole
     /// board, including nothing. `None` when the platform offers no durable
-    /// place to keep habits at all (desktop/mobile only — `dirs::data_dir()`
-    /// returned `None`, most notably on Android until #35 supplies its path
-    /// via JNI) — the caller renders a refusal screen instead of pretending
+    /// place to keep habits at all (desktop/mobile only — neither
+    /// `dirs::data_dir()` nor, on Android, `Context.getFilesDir()` over JNI
+    /// resolved a usable directory) — the caller renders a refusal screen
+    /// instead of pretending
     /// to save.
     pub fn new() -> Option<Self> {
         Some(Self::with_repository(Rc::new(platform_habit_repository()?)))
@@ -111,14 +112,31 @@ fn platform_habit_repository_from(data_dir: Option<PathBuf>) -> Option<Persisten
     data_dir.map(|dir| persistent_habit_repository_at(&dir))
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+/// Android has no `HOME`/`XDG_DATA_HOME`, so `dirs::data_dir()` (which
+/// routes Android through its Linux/XDG lookup) always returns `None`
+/// there. `Context.getFilesDir()` over JNI is Android's own answer to the
+/// same question.
+#[cfg(target_os = "android")]
+fn default_data_dir() -> Option<PathBuf> {
+    resolve_data_dir(crate::infrastructure::android_files_dir::files_dir())
+}
+
+#[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
 fn default_data_dir() -> Option<PathBuf> {
     resolve_data_dir(dirs::data_dir())
 }
 
+/// The one place either platform arm's candidate is turned into policy: a
+/// candidate that is empty or relative is no durable place either — an
+/// empty path names nothing, and a relative one would resolve against the
+/// process's CWD rather than any platform-supplied location — so both are
+/// refused here, once, for every platform (adr-0016, "Degrade loudly, or
+/// not at all").
 #[cfg(not(target_arch = "wasm32"))]
 fn resolve_data_dir(candidate: Option<PathBuf>) -> Option<PathBuf> {
-    candidate.map(|dir| dir.join("kayzen"))
+    candidate
+        .filter(|dir| dir.is_absolute())
+        .map(|dir| dir.join("kayzen"))
 }
 
 /// The exact wiring `platform_habit_repository()` performs, with the
@@ -304,6 +322,7 @@ mod tests {
         assert_eq!(dir.file_name(), Some(std::ffi::OsStr::new("kayzen")));
     }
 
+    #[cfg(not(target_os = "android"))]
     #[test]
     fn default_data_dir_stays_within_the_platforms_data_directory() {
         let dir = default_data_dir().expect("CI platforms always resolve a data directory");
@@ -330,6 +349,19 @@ mod tests {
     #[test]
     fn resolve_data_dir_is_none_when_the_platform_has_no_data_directory() {
         assert_eq!(resolve_data_dir(None), None);
+    }
+
+    // @scenario: persistence/S5
+    #[test]
+    fn resolve_data_dir_is_none_for_an_empty_candidate() {
+        assert_eq!(resolve_data_dir(Some(PathBuf::from(""))), None);
+    }
+
+    // @scenario: persistence/S5
+    #[test]
+    fn resolve_data_dir_is_none_for_a_relative_candidate_because_joining_it_would_resolve_against_the_process_cwd()
+     {
+        assert_eq!(resolve_data_dir(Some(PathBuf::from("files/kayzen"))), None);
     }
 
     // @scenario: persistence/S5
