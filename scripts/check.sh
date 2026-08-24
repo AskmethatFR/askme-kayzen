@@ -84,6 +84,42 @@ doc_anchors() {
     return "$missing"
 }
 
+# Lints the Android arm the way `lints` above lints the default target: a
+# typo inside `#[cfg(target_os = "android")]` code compiles clean today and
+# is caught by nothing else in this file, because no gate here ever builds
+# for that target.
+#
+# What this proves, and what it does not:
+#   - compiles and lints cleanly for one ABI (aarch64-linux-android) with
+#     the `mobile` feature set, `web`'s default disabled;
+#   - it never LINKS and never EXECUTES, so a missing NDK symbol or any
+#     runtime failure is invisible to it;
+#   - JNI method signature strings (e.g. "()Ljava/io/File;") are resolved
+#     at runtime by the JVM, not by rustc or clippy — a typo in one of
+#     those strings compiles clean here and only fails on a real device.
+#     That is the largest residual risk on this platform arm, and no
+#     compile-only gate can close it;
+#   - armv7-linux-androideabi and x86_64-linux-android are not built, only
+#     aarch64-linux-android.
+#   The bar this gate meets is "a clean cross-target build plus manual
+#   verification, stated as such and never presented as coverage" — see
+#   docs/technical/architecture.md's own wording for the web arm.
+#
+# `--no-default-features` is mandatory: the default `web` feature pulls in
+# `dioxus/web`, which does not compile for Android. `clippy`/`check` stop
+# before linking, so no NDK and no `WRY_ANDROID_*` env var is required —
+# wry's Kotlin-generation build step is gated behind
+# `WRY_ANDROID_KOTLIN_FILES_OUT_DIR`, which stays unset here.
+android_cross_target() {
+    if ! rustup target list --installed | grep -qx aarch64-linux-android; then
+        echo "missing Rust target: rustup target add aarch64-linux-android" >&2
+        return 2
+    fi
+    cargo clippy --target aarch64-linux-android -p kayzen-app \
+        --no-default-features --features mobile --all-targets --quiet \
+        -- -D warnings
+}
+
 scenario_gate() {
     if [ ! -f "$SCENARIO_AUDIT" ]; then
         echo "scenario gate not found at $SCENARIO_AUDIT (vendored copy missing)" >&2
@@ -172,6 +208,7 @@ new_constructor_advisory() {
 
 run_gate "formatting" cargo fmt --check
 run_gate "lints" cargo clippy --all-targets --quiet -- -D warnings
+run_gate "android cross-target" android_cross_target
 run_gate "tests" cargo test --quiet
 run_gate "scenarios" scenario_gate
 run_gate "doc anchors" doc_anchors
