@@ -333,6 +333,24 @@ mod tests {
     }
 
     // @scenario: persistence/S5
+    #[test]
+    fn resolve_data_dir_is_none_for_an_empty_candidate() {
+        assert_eq!(resolve_data_dir(Some(PathBuf::from(""))), None);
+    }
+
+    // @scenario: persistence/S5
+    //
+    // Named for why, not just what: a relative candidate is refused rather
+    // than joined, because joining it would resolve against the process's
+    // current working directory instead of any platform-supplied location —
+    // exactly the "somewhere else" adr-0016 refuses to invent.
+    #[test]
+    fn resolve_data_dir_is_none_for_a_relative_candidate_because_joining_it_would_resolve_against_the_process_cwd()
+     {
+        assert_eq!(resolve_data_dir(Some(PathBuf::from("files/kayzen"))), None);
+    }
+
+    // @scenario: persistence/S5
     //
     // Only pins `repository.is_none()`. A prior version of this test also
     // asserted a fresh temp path stayed absent, but that path was never
