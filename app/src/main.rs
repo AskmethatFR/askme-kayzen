@@ -1,11 +1,13 @@
 use dioxus::prelude::*;
 
 mod composition;
+mod i18n;
 mod infrastructure;
 mod route;
 mod views;
 
 use composition::Services;
+use dioxus_i18n::prelude::use_init_i18n;
 use route::Route;
 use views::DataUnavailable;
 
@@ -18,6 +20,7 @@ fn main() {
 
 #[component]
 fn App() -> Element {
+    use_init_i18n(i18n::config);
     // Dependency injection, Dioxus-style: provide the composition root once at the
     // top of the tree; every child screen reads it with `use_context::<Services>()`.
     let services = use_hook(Services::new);
@@ -65,6 +68,7 @@ mod tests {
 
     #[component]
     fn AppWithAvailableServices() -> Element {
+        crate::i18n::use_locale_for_tests();
         app_shell(Some(Services::with_repository(Rc::new(
             InMemoryHabitRepository::new(),
         ))))
@@ -72,6 +76,7 @@ mod tests {
 
     #[component]
     fn AppWithUnavailableServices() -> Element {
+        crate::i18n::use_locale_for_tests();
         app_shell(None)
     }
 
