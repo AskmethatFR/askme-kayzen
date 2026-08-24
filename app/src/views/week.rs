@@ -1,4 +1,5 @@
 use crate::composition::Services;
+use crate::i18n::{tr, tr_key};
 use crate::route::Route;
 use dioxus::prelude::*;
 use kayzen_core::habit_management::queries::get_week_recap::WeekMessage;
@@ -8,23 +9,18 @@ pub fn Week() -> Element {
     let services = use_context::<Services>();
     let recap = use_signal(move || services.get_week_recap.handle());
     let recap = recap();
-    let minutes = recap.minutes_practised;
-    let figure = if minutes == 1 {
-        format!("{minutes} minute de pratique accumulée")
-    } else {
-        format!("{minutes} minutes de pratique accumulées")
-    };
+    let figure = tr!("week-minutes-practised", minutes: recap.minutes_practised as i64);
 
     rsx! {
         div { class: "screen",
             header { class: "masthead",
-                Link { class: "quiet-link", to: Route::Today {}, "← Aujourd'hui" }
+                Link { class: "quiet-link", to: Route::Today {}, {tr!("masthead-back-to-today")} }
             }
-            h1 { class: "greeting", "Cette semaine" }
+            h1 { class: "greeting", {tr!("week-heading")} }
             p { class: "week-figure", "{figure}" }
-            p { class: "week-word", "{week_copy(recap.message)}" }
+            p { class: "week-word", {tr_key(week_copy_key(recap.message))} }
 
-            div { class: "rhythm", "aria-label": "Votre rythme sur les sept derniers jours",
+            div { class: "rhythm", "aria-label": tr!("week-rhythm-aria"),
                 for (day_offset, practised) in recap.rhythm.iter().enumerate() {
                     span {
                         key: "{day_offset}",
@@ -40,7 +36,12 @@ pub fn Week() -> Element {
                         p { class: "week-habit-journey", "{habit.starting_goal} → {habit.current_goal} min" }
                         div {
                             class: if habit.practised_recently { "week-curve is-practised" } else { "week-curve" },
-                            "aria-label": "Trajectoire de {habit.title}, de {habit.starting_goal} à {habit.current_goal} minutes",
+                            "aria-label": tr!(
+                                "week-curve-aria",
+                                title: habit.title.clone(),
+                                starting_goal: habit.starting_goal as i64,
+                                current_goal: habit.current_goal as i64
+                            ),
                             for (step_offset, ratio) in step_ratios(&habit.steps).into_iter().enumerate()
                             {
                                 span {
@@ -71,20 +72,22 @@ fn step_ratios(steps: &[u32]) -> Vec<f64> {
 }
 
 #[must_use]
-fn week_copy(message: WeekMessage) -> &'static str {
+fn week_copy_key(message: WeekMessage) -> &'static str {
     match message {
-        WeekMessage::FreshStart => "Un début parfait. Tout est encore devant.",
-        WeekMessage::Resting => "Cette semaine se repose. Elle vous attend, sans presser.",
-        WeekMessage::Growing => "Vous avancez, à votre rythme.",
+        WeekMessage::FreshStart => "week-message-fresh-start",
+        WeekMessage::Resting => "week-message-resting",
+        WeekMessage::Growing => "week-message-growing",
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::composition::Services;
+    use crate::i18n::{tr, use_locale_for_tests_as};
     use crate::route::Route;
     use dioxus::history::{MemoryHistory, provide_history_context};
     use dioxus::prelude::*;
+    use dioxus_i18n::unic_langid::langid;
     use kayzen_core::habit_management::domain::goal::Goal;
     use kayzen_core::habit_management::domain::habit::Habit;
     use kayzen_core::habit_management::domain::habit_id::HabitId;
@@ -129,6 +132,7 @@ mod tests {
 
     #[component]
     fn RootAtWeekScreen() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
         });
@@ -157,6 +161,7 @@ mod tests {
 
     #[component]
     fn RootAtWeekScreenWithTwoRowsSharingATitle() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
         });
@@ -216,6 +221,7 @@ mod tests {
 
     #[component]
     fn RootAtWeekScreenWithPausedAndAnchoredHabits() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
         });
@@ -254,6 +260,7 @@ mod tests {
 
     #[component]
     fn RootAtFreshWeekScreen() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
         });
@@ -285,6 +292,7 @@ mod tests {
 
     #[component]
     fn RootAtRestingWeekScreen() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
         });
@@ -313,6 +321,7 @@ mod tests {
 
     #[component]
     fn RootAtWeekScreenWithOneMinute() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
         });
@@ -436,6 +445,7 @@ mod tests {
 
     #[component]
     fn RootAtWeekScreenWithAGrowingHabit() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
         });
@@ -475,6 +485,7 @@ mod tests {
 
     #[component]
     fn RootAtWeekScreenWithAFreshHabit() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
         });
@@ -507,6 +518,7 @@ mod tests {
 
     #[component]
     fn RootAtWeekScreenWithALightenedHabit() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
         });
@@ -548,6 +560,7 @@ mod tests {
 
     #[component]
     fn RootAtWeekScreenWithARhythm() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
         });
@@ -582,6 +595,7 @@ mod tests {
 
     #[component]
     fn RootAtWeekScreenWithAPractisedAndAnUnpractisedHabit() -> Element {
+        crate::i18n::use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
         });
@@ -652,6 +666,66 @@ mod tests {
             "the unpractised row must gain nothing beyond its bars — no \
              counter, no mark of absence, byte-identical to its pre-#32 \
              rendering"
+        );
+    }
+
+    // @algo: fluent-rs resolves a Fluent select expression by trying a
+    // NumberLiteral variant key (fr.ftl's `[0]`) before computing the CLDR
+    // plural category — undocumented in this crate's code.
+    #[component]
+    fn WeekMinutesPractisedAtZeroOneTwoFr() -> Element {
+        crate::i18n::use_locale_for_tests();
+        rsx! {
+            p { {tr!("week-minutes-practised", minutes: 0i64)} }
+            p { {tr!("week-minutes-practised", minutes: 1i64)} }
+            p { {tr!("week-minutes-practised", minutes: 2i64)} }
+        }
+    }
+
+    #[component]
+    fn WeekMinutesPractisedAtZeroOneTwoEn() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        rsx! {
+            p { {tr!("week-minutes-practised", minutes: 0i64)} }
+            p { {tr!("week-minutes-practised", minutes: 1i64)} }
+            p { {tr!("week-minutes-practised", minutes: 2i64)} }
+        }
+    }
+
+    #[test]
+    fn the_week_figure_reads_the_right_plural_form_at_zero_one_and_two_in_french() {
+        let html = render(WeekMinutesPractisedAtZeroOneTwoFr);
+
+        assert!(
+            html.contains("<p>0 minutes de pratique accumulées</p>"),
+            "expected n=0 to read the plural — the D1 divergence from \
+             recap-minutes-label, got: {html}"
+        );
+        assert!(
+            html.contains("<p>1 minute de pratique accumulée</p>"),
+            "expected n=1 to read the singular, got: {html}"
+        );
+        assert!(
+            html.contains("<p>2 minutes de pratique accumulées</p>"),
+            "expected n=2 to read the plural, got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_week_figure_reads_the_right_plural_form_at_zero_one_and_two_in_english() {
+        let html = render(WeekMinutesPractisedAtZeroOneTwoEn);
+
+        assert!(
+            html.contains("<p>0 minutes practised</p>"),
+            "expected n=0 to read the plural (English `other` covers 0), got: {html}"
+        );
+        assert!(
+            html.contains("<p>1 minute practised</p>"),
+            "expected n=1 to read the singular, got: {html}"
+        );
+        assert!(
+            html.contains("<p>2 minutes practised</p>"),
+            "expected n=2 to read the plural, got: {html}"
         );
     }
 }
