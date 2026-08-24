@@ -33,6 +33,39 @@ cargo test --workspace   # every test, both crates
 cd app && dx serve       # the web app (cargo install dioxus-cli)
 ```
 
+## Android (local, unsigned)
+
+```bash
+scripts/android-deploy.sh   # build, install and launch on the device plugged in over USB
+```
+
+The script is the whole procedure: it checks the toolchain, builds the debug app from
+the `mobile` feature, installs it and launches it. Nothing is signed and no keystore is
+involved — this is the "see it on my own screen" path, not a release one.
+
+The one-time setup it expects, and why each version is pinned where it is:
+
+| Piece | Value | Why |
+|---|---|---|
+| Android SDK | `~/Library/Android/sdk` | `ANDROID_HOME`; `sdkmanager` comes from the `android-commandlinetools` cask |
+| NDK | `25.2.9519653` (r25c) | the version Dioxus 0.7 documents, and the one Rust targets for `aarch64-linux-android` |
+| CMake | `3.22.1` | installed alongside the NDK, from the SDK |
+| JDK | 17 | the Android Gradle Plugin runs on 17; a newer JDK on `PATH` is not a substitute |
+| Rust target | `aarch64-linux-android` | every current device; add the other three for emulators |
+
+```bash
+brew install --cask android-commandlinetools
+sdkmanager --sdk_root="$ANDROID_HOME" --install "ndk;25.2.9519653" "cmake;3.22.1"
+rustup target add aarch64-linux-android
+```
+
+On an Apple-silicon Mac the r25 toolchain binaries are x86_64, so Rosetta 2 runs them.
+
+The device needs USB debugging on, and *Install via USB* on Xiaomi/HyperOS. Even then
+the phone asks to confirm the first install of each build: `adb` reports
+`INSTALL_FAILED_USER_RESTRICTED` if the prompt is not accepted in time, and re-running
+the script is the fix.
+
 ## Gates
 
 ```bash
