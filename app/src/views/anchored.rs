@@ -1,4 +1,5 @@
 use crate::composition::Services;
+use crate::i18n::{tr, tr_key};
 use crate::route::Route;
 use dioxus::prelude::*;
 use kayzen_core::habit_management::domain::habit::Habit;
@@ -12,31 +13,31 @@ pub fn Anchored() -> Element {
         let services = services.clone();
         move || services.list_anchored_habits.handle()
     });
-    let count = screen().habits.len();
-    let max = Habit::MAX_IN_DAILY_LIFE;
+    let count = screen().habits.len() as i64;
+    let max = Habit::MAX_IN_DAILY_LIFE as i64;
     let mut readmit_error: Signal<Option<(String, &'static str)>> = use_signal(|| None);
 
     rsx! {
         div { class: "screen",
             header { class: "masthead",
-                Link { class: "quiet-link", to: Route::Today {}, "← Aujourd'hui" }
+                Link { class: "quiet-link", to: Route::Today {}, {tr!("masthead-back-to-today")} }
             }
-            h1 { class: "greeting", "Ancrées" }
+            h1 { class: "greeting", {tr!("anchored-heading")} }
             ul { class: "habit-list",
                 for habit in screen().habits {
                     li { key: "{habit.id}", class: "habit-row",
                         div { class: "habit-body",
                             span { class: "habit-name", "{habit.title}" }
-                            if let Some((_, message)) = readmit_error()
+                            if let Some((_, message_key)) = readmit_error()
                                 .as_ref()
                                 .filter(|(row_id, _)| row_id == &habit.id)
                             {
-                                p { class: "quiet-note", "{message}" }
+                                p { class: "quiet-note", {tr_key(message_key)} }
                             }
                         }
                         button {
                             class: "readmit",
-                            aria_label: "La remettre dans mon quotidien · {habit.title}",
+                            aria_label: tr!("anchored-readmit-aria", title: habit.title.clone()),
                             onclick: {
                                 let services = services.clone();
                                 let habit_id = habit.id.clone();
@@ -44,29 +45,25 @@ pub fn Anchored() -> Element {
                                     let (reloaded, message) =
                                         readmit_and_relist(&services, &habit_id);
                                     screen.set(reloaded);
-                                    readmit_error.set(message.map(|text| (habit_id.clone(), text)));
+                                    readmit_error.set(message.map(|key| (habit_id.clone(), key)));
                                 }
                             },
-                            "La remettre dans mon quotidien"
+                            {tr!("anchored-readmit-label")}
                         }
                     }
                 }
             }
-            p { class: "tally", "{count} · devenues naturelles" }
-            p { class: "tally",
-                "Vous suivez {screen().in_daily_life} / {max} habitudes en parallèle"
-            }
+            p { class: "tally", {tr!("anchored-count-tally", count: count)} }
+            p { class: "tally", {tr!("anchored-daily-life-tally", count: screen().in_daily_life as i64, max: max)} }
         }
     }
 }
 
 #[must_use]
-fn refusal_message(error: ReadmitHabitError) -> Option<&'static str> {
+fn refusal_message_key(error: ReadmitHabitError) -> Option<&'static str> {
     match error {
-        ReadmitHabitError::DailyLifeFull { .. } => {
-            Some("Le quotidien est complet · pour la remettre, ancrez-en une autre d'abord")
-        }
-        ReadmitHabitError::DuplicateHabit => Some("Elle est déjà dans votre quotidien"),
+        ReadmitHabitError::DailyLifeFull { .. } => Some("anchored-refusal-full"),
+        ReadmitHabitError::DuplicateHabit => Some("anchored-refusal-duplicate"),
         ReadmitHabitError::HabitNotFound | ReadmitHabitError::NotAnchored => None,
     }
 }
@@ -75,7 +72,7 @@ fn refusal_message(error: ReadmitHabitError) -> Option<&'static str> {
 fn readmit_and_relist(services: &Services, id: &str) -> (AnchoredScreen, Option<&'static str>) {
     let message = match services.readmit_habit.execute(id) {
         Ok(()) => None,
-        Err(error) => refusal_message(error),
+        Err(error) => refusal_message_key(error),
     };
     let screen = services.list_anchored_habits.handle();
     (screen, message)
@@ -85,6 +82,7 @@ fn readmit_and_relist(services: &Services, id: &str) -> (AnchoredScreen, Option<
 mod tests {
     use super::*;
     use crate::composition::Services;
+    use crate::i18n::use_locale_for_tests;
     use crate::views::click_harness::Screen;
     use dioxus::history::{MemoryHistory, provide_history_context};
     use kayzen_core::habit_management::domain::goal::Goal;
@@ -134,6 +132,7 @@ mod tests {
 
     #[component]
     fn RootAtAnchoredScreen() -> Element {
+        use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/anchored")));
         });
@@ -145,6 +144,7 @@ mod tests {
 
     #[component]
     fn RootAtAnchoredScreenWithDailyLife() -> Element {
+        use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/anchored")));
         });
@@ -179,6 +179,7 @@ mod tests {
 
     #[component]
     fn RootAtAnchoredScreenWithFullDailyLife() -> Element {
+        use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/anchored")));
         });
@@ -190,6 +191,7 @@ mod tests {
 
     #[component]
     fn RootAtAnchoredScreenWithDuplicateTitle() -> Element {
+        use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/anchored")));
         });
@@ -201,6 +203,7 @@ mod tests {
 
     #[component]
     fn RootAtEmptyAnchoredScreen() -> Element {
+        use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path("/anchored")));
         });
@@ -362,12 +365,9 @@ mod tests {
         repository.save(&anchored);
         let services = Services::with_repository(repository);
 
-        let (screen, message) = readmit_and_relist(&services, "h-anchored");
+        let (screen, message_key) = readmit_and_relist(&services, "h-anchored");
 
-        assert_eq!(
-            message,
-            Some("Le quotidien est complet · pour la remettre, ancrez-en une autre d'abord")
-        );
+        assert_eq!(message_key, Some("anchored-refusal-full"));
         assert_eq!(screen.habits.len(), 1, "the refused habit stays listed");
         assert_eq!(screen.habits[0].id, "h-anchored");
     }
@@ -381,33 +381,33 @@ mod tests {
         repository.save(&anchored);
         let services = Services::with_repository(repository);
 
-        let (screen, message) = readmit_and_relist(&services, "h-anchored");
+        let (screen, message_key) = readmit_and_relist(&services, "h-anchored");
 
-        assert_eq!(message, Some("Elle est déjà dans votre quotidien"));
+        assert_eq!(message_key, Some("anchored-refusal-duplicate"));
         assert_eq!(screen.habits.len(), 1, "the refused habit stays listed");
         assert_eq!(screen.habits[0].id, "h-anchored");
     }
 
     #[test]
-    fn a_full_daily_life_refusal_names_the_exact_quiet_message() {
+    fn a_full_daily_life_refusal_names_the_exact_catalogue_key() {
         assert_eq!(
-            refusal_message(ReadmitHabitError::DailyLifeFull { max: 5 }),
-            Some("Le quotidien est complet · pour la remettre, ancrez-en une autre d'abord")
+            refusal_message_key(ReadmitHabitError::DailyLifeFull { max: 5 }),
+            Some("anchored-refusal-full")
         );
     }
 
     #[test]
-    fn a_duplicate_title_refusal_names_the_exact_quiet_message() {
+    fn a_duplicate_title_refusal_names_the_exact_catalogue_key() {
         assert_eq!(
-            refusal_message(ReadmitHabitError::DuplicateHabit),
-            Some("Elle est déjà dans votre quotidien")
+            refusal_message_key(ReadmitHabitError::DuplicateHabit),
+            Some("anchored-refusal-duplicate")
         );
     }
 
     #[test]
     fn an_unreachable_refusal_renders_no_message() {
-        assert_eq!(refusal_message(ReadmitHabitError::HabitNotFound), None);
-        assert_eq!(refusal_message(ReadmitHabitError::NotAnchored), None);
+        assert_eq!(refusal_message_key(ReadmitHabitError::HabitNotFound), None);
+        assert_eq!(refusal_message_key(ReadmitHabitError::NotAnchored), None);
     }
 
     #[test]

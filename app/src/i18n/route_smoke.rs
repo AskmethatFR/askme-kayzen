@@ -74,3 +74,30 @@ fn every_route_under_every_carried_locale_renders_with_no_fluent_or_bidi_residue
         }
     }
 }
+
+fn french_markers() -> [&'static str; 7] {
+    [
+        "Aujourd'hui",
+        "habitude",
+        "chaque jour",
+        "pratique",
+        "Reprendre",
+        "Ajouter",
+        "Désolé",
+    ]
+}
+
+// @scenario: language/S4
+#[test]
+fn every_route_under_english_carries_no_french_marker() {
+    for path in every_route() {
+        let html = render_route(path, langid!("en"));
+
+        for marker in french_markers() {
+            assert!(
+                !html.contains(marker),
+                "expected no French marker {marker:?} in {path} under English, got: {html}"
+            );
+        }
+    }
+}

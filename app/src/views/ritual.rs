@@ -1,4 +1,5 @@
 use crate::composition::Services;
+use crate::i18n::tr;
 use crate::route::Route;
 use dioxus::prelude::*;
 use dioxus::router::Navigator;
@@ -20,31 +21,27 @@ pub fn Ritual(id: String) -> Element {
     match habit {
         None => rsx! {
             div { class: "screen",
-                p { class: "lede", "Cette habitude n'est plus sur votre liste." }
-                Link { class: "quiet-link", to: Route::Today {}, "Retour à Aujourd'hui" }
+                p { class: "lede", {tr!("ritual-not-found-message")} }
+                Link { class: "quiet-link", to: Route::Today {}, {tr!("ritual-not-found-back-link")} }
             }
         },
         Some(habit) => match habit.state {
             HabitState::Paused => rsx! {
                 div { class: "screen",
                     header { class: "masthead",
-                        Link { class: "quiet-link", to: Route::Today {}, "← Aujourd'hui" }
+                        Link { class: "quiet-link", to: Route::Today {}, {tr!("masthead-back-to-today")} }
                     }
                     h1 { class: "greeting", "{habit.title}" }
-                    p { class: "quiet-note",
-                        "Cette habitude se repose en ce moment. Elle vous attend, sans presser."
-                    }
+                    p { class: "quiet-note", {tr!("ritual-paused-message")} }
                 }
             },
             HabitState::Anchored => rsx! {
                 div { class: "screen",
                     header { class: "masthead",
-                        Link { class: "quiet-link", to: Route::Today {}, "← Aujourd'hui" }
+                        Link { class: "quiet-link", to: Route::Today {}, {tr!("masthead-back-to-today")} }
                     }
                     h1 { class: "greeting", "{habit.title}" }
-                    p { class: "quiet-note",
-                        "Cette habitude est devenue naturelle. Elle a quitté votre quotidien."
-                    }
+                    p { class: "quiet-note", {tr!("ritual-anchored-message")} }
                 }
             },
             HabitState::Active => rsx! {
@@ -80,19 +77,19 @@ fn PracticeTimer(id: String, title: String, goal_minutes: u32) -> Element {
             }
             button {
                 class: "btn btn-primary btn-block",
-                aria_label: "J'ai terminé · {title}",
+                aria_label: tr!("ritual-complete-aria", title: title.clone()),
                 onclick: {
                     let services = services.clone();
                     let id = id.clone();
                     move |_| complete_and_go_home(&services, navigator, &id)
                 },
-                "J'ai terminé"
+                {tr!("ritual-complete-label")}
             }
             Link {
                 class: "quiet-link",
                 to: Route::HabitDetail { id: id.clone() },
-                aria_label: "Arrêter, ce n'est pas grave · {title}",
-                "Arrêter, ce n'est pas grave"
+                aria_label: tr!("ritual-stop-aria", title: title.clone()),
+                {tr!("ritual-stop-label")}
             }
         }
     }
@@ -116,7 +113,7 @@ fn PracticeCountdown(
         div {
             class: "ritual-dial",
             role: "timer",
-            aria_label: "Minuteur · {title}",
+            aria_label: tr!("ritual-timer-aria", title: title.clone()),
             div { class: "ritual-breath" }
             svg { class: "ritual-ring", view_box: "0 0 120 120",
                 circle { class: "ritual-ring-track", r: "{RING_RADIUS}", cx: "60", cy: "60" }
@@ -132,7 +129,7 @@ fn PracticeCountdown(
             div { class: "ritual-countdown", "{countdown_label(remaining)}" }
         }
         if remaining == 0 {
-            p { class: "quiet-note", "Vous avez pris ce moment pour vous. C'est déjà beaucoup." }
+            p { class: "quiet-note", {tr!("ritual-gentle-word")} }
         }
         if remaining > 0 {
             div {
@@ -237,6 +234,7 @@ mod tests {
 
     #[component]
     fn RootAtActiveHabitOverSharedRepository() -> Element {
+        use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path(
                 "/habit/h-1/ritual",
@@ -287,6 +285,7 @@ mod tests {
 
     #[component]
     fn RootAtActiveHabitGoalThree() -> Element {
+        use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path(
                 "/habit/h-1/ritual",
@@ -316,6 +315,7 @@ mod tests {
 
     #[component]
     fn RootAtPausedHabitRitual() -> Element {
+        use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path(
                 "/habit/h-1/ritual",
@@ -329,6 +329,7 @@ mod tests {
 
     #[component]
     fn RootAtAnchoredHabitRitual() -> Element {
+        use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path(
                 "/habit/h-1/ritual",
@@ -342,6 +343,7 @@ mod tests {
 
     #[component]
     fn RootAtUnknownHabitRitual() -> Element {
+        use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path(
                 "/habit/missing/ritual",
@@ -581,6 +583,7 @@ mod tests {
 
     #[component]
     fn RootAtDialPartial() -> Element {
+        use_locale_for_tests();
         rsx! {
             PracticeCountdown {
                 title: "Lire une page".to_string(),
@@ -593,6 +596,7 @@ mod tests {
 
     #[component]
     fn RootAtDialZero() -> Element {
+        use_locale_for_tests();
         rsx! {
             PracticeCountdown {
                 title: "Lire une page".to_string(),

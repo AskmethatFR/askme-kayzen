@@ -22,7 +22,7 @@ Feature: The app speaks the language of the device it runs on
     When the app is launched
     Then every screen reads in French
 
-  @scenario:S4 @wip
+  @scenario:S4
   Scenario: A screen never mixes two languages
     Given the device reports an English locale
     When any screen is opened
