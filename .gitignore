@@ -4,5 +4,6 @@
 /mutants.out
 /mutants.out.old
 /.mutation-gate
+/.claude/worktrees/
 AGENTS.md
 app/assets/AGENTS.md

@@ -90,8 +90,7 @@ doc_anchors() {
 # for that target.
 #
 # What this proves, and what it does not:
-#   - compiles and lints cleanly for one ABI (aarch64-linux-android) with
-#     the `mobile` feature set, `web`'s default disabled;
+#   - compiles and lints cleanly;
 #   - it never LINKS and never EXECUTES, so a missing NDK symbol or any
 #     runtime failure is invisible to it;
 #   - JNI method signature strings (e.g. "()Ljava/io/File;") are resolved
@@ -99,8 +98,6 @@ doc_anchors() {
 #     those strings compiles clean here and only fails on a real device.
 #     That is the largest residual risk on this platform arm, and no
 #     compile-only gate can close it;
-#   - armv7-linux-androideabi and x86_64-linux-android are not built, only
-#     aarch64-linux-android.
 #   The bar this gate meets is "a clean cross-target build plus manual
 #   verification, stated as such and never presented as coverage" — see
 #   docs/technical/architecture.md's own wording for the web arm.

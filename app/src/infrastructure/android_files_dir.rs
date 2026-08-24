@@ -23,6 +23,16 @@
 //! must stay `attach_current_thread_permanently`, never the guard-returning
 //! `attach_current_thread`: the guard detaches on drop, which would
 //! invalidate the local references wry holds on this same thread.
+//!
+//! # `jni`'s null defensiveness
+//! @law: a null `getFilesDir()` is handled safely below only because `jni`
+//! checks it for us — `JValueGen::l()` returns `Ok` for a null `jobject`
+//! (jni-0.21.1/src/wrapper/objects/jvalue.rs:121-126) and `call_method`'s own
+//! `non_null!` (jni-0.21.1/src/wrapper/jnienv.rs:1370) turns that into
+//! `Err(NullPtr)`. Switching a call in this file to the documented
+//! `_unchecked` variants (`call_method_unchecked`, `get_string_unchecked`)
+//! would silently drop that check and turn a null return into undefined
+//! behaviour.
 
 use std::path::PathBuf;
 
@@ -34,7 +44,9 @@ use jni::objects::{JObject, JString};
 /// fails. Total — never panics, never falls back to another location, never
 /// `unwrap`s.
 pub fn files_dir() -> Option<PathBuf> {
-    let context = std::panic::catch_unwind(ndk_context::android_context).ok()?;
+    let context = std::panic::catch_unwind(ndk_context::android_context)
+        .inspect_err(|_| eprintln!("android_files_dir: ndk_context::android_context() panicked"))
+        .ok()?;
 
     let vm_ptr = context.vm();
     let activity_ptr = context.context();
@@ -43,8 +55,23 @@ pub fn files_dir() -> Option<PathBuf> {
         return None;
     }
 
-    let vm = unsafe { JavaVM::from_raw(vm_ptr.cast()) }.ok()?;
-    let mut env = vm.attach_current_thread_permanently().ok()?;
+    // SAFETY: `vm_ptr` is the pointer tao itself stored via
+    // `vm.get_java_vm_pointer()` when it created this context
+    // (tao-0.34.8/src/platform_impl/android/ndk_glue.rs:221). It is
+    // null-checked above and, redundantly, again inside `JavaVM::from_raw`.
+    let vm = unsafe { JavaVM::from_raw(vm_ptr.cast()) }
+        .inspect_err(|_| eprintln!("android_files_dir: JavaVM::from_raw() failed"))
+        .ok()?;
+    let mut env = vm
+        .attach_current_thread_permanently()
+        .inspect_err(|_| eprintln!("android_files_dir: attach_current_thread_permanently() failed"))
+        .ok()?;
+
+    // @law: see the matching check on the error path below — applies here
+    // too, on entry, before any other JNI call is made.
+    if env.exception_check().unwrap_or(false) {
+        let _ = env.exception_clear();
+    }
 
     // @law: `activity_ptr` is tao's own global ref to the activity
     // (`ndk_glue.rs`, `activity.as_obj().as_raw()`). It is wrapped here only
@@ -62,8 +89,11 @@ pub fn files_dir() -> Option<PathBuf> {
             // pending exception (jni-0.21.1/src/wrapper/macros.rs:84). The
             // JVM aborts the process on the next JNI call made with one
             // still pending, and wry makes such calls constantly — so a
-            // failure here must be cleared before returning `None`, or a
-            // refusal screen becomes a crash.
+            // failure here, and any exception left pending by whatever ran
+            // on this thread before `files_dir` was entered (checked on
+            // entry, above, right after attaching), must be cleared before
+            // another JNI call is made, or a refusal screen becomes a
+            // crash.
             if env.exception_check().unwrap_or(false) {
                 let _ = env.exception_describe();
                 let _ = env.exception_clear();

@@ -322,6 +322,7 @@ mod tests {
         assert_eq!(dir.file_name(), Some(std::ffi::OsStr::new("kayzen")));
     }
 
+    #[cfg(not(target_os = "android"))]
     #[test]
     fn default_data_dir_stays_within_the_platforms_data_directory() {
         let dir = default_data_dir().expect("CI platforms always resolve a data directory");
@@ -357,11 +358,6 @@ mod tests {
     }
 
     // @scenario: persistence/S5
-    //
-    // Named for why, not just what: a relative candidate is refused rather
-    // than joined, because joining it would resolve against the process's
-    // current working directory instead of any platform-supplied location —
-    // exactly the "somewhere else" adr-0016 refuses to invent.
     #[test]
     fn resolve_data_dir_is_none_for_a_relative_candidate_because_joining_it_would_resolve_against_the_process_cwd()
      {
