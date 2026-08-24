@@ -3,7 +3,7 @@ id: "architecture-overview"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-08-23"
+updated: "2026-08-24"
 relations:
   related:
     - "adr-0011-one-public-method-per-use-case"
@@ -19,6 +19,7 @@ relations:
     - "adr-0009-quality-gates"
     - "adr-0010-crate-boundary-trust-boundary"
     - "adr-0016-snapshot-store-persistence"
+    - "adr-0017-platform-location-adapter"
 answers:
   - "Where is the trust boundary, and where does a raw URL segment become a domain type?"
   - "Which screens are wired to a use case today, and which are still stubs?"
@@ -40,6 +41,7 @@ answers:
   - "Do the lifecycle transitions refuse, and can any of them break the 5-seat cap?"
   - "Do habits survive closing the app, and which layer knows where they are kept?"
   - "What does the app do when the platform offers no durable place to store anything?"
+  - "Where does a platform-specific location come from when the path-lookup crate has none, and what guards that arm?"
 decided_in:
   - "LOCAL-1"
   - "LOCAL-2"
@@ -50,12 +52,13 @@ decided_in:
   - "2026-08-11 slice 6 anchor-habit cycle"
   - "2026-08-17 drop-habit-board refactor (HabitBoard + outbox deleted; adr-0013)"
   - "#34 — 2026-08-23 persistence slices 1 and 2 (adr-0016; adr-0010 trigger #7 fired)"
+  - "#40 — 2026-08-24 Android data directory (adr-0017)"
 ---
 
 # Habit Management — Architecture Overview
 
 > **One-liner**: Two-crate Cargo workspace — pure domain lib `kayzen-core` / Dioxus shell `kayzen-app` — single bounded context `habit_management`, hexagonal layering, **one aggregate (`Habit`)**, where habit creation is **one use case performing one write** and the cross-habit rules are **set-based validation read live from `HabitRepository`**, not aggregate invariants ([[adr-0013-set-based-validation-outside-aggregates]]). Nothing is published: there is no event, no outbox, no dispatcher.
-> **Links**: [[adr-0013-set-based-validation-outside-aggregates]] (**the shape of the write side** — invariant vs set-based validation, and why `HabitBoard` was deleted), [[adr-0001-validation-by-construction]] (invariant model), [[adr-0002-habitboard-stateful-aggregate]] (**superseded** — the deleted board), [[adr-0003-two-crate-workspace]] (workspace split & dependency rule enforcement), [[adr-0004-routing-flat-enum]] (app-shell routing skeleton), [[adr-0007-habit-lifecycle-aggregate]] (`Habit` promoted to the lifecycle aggregate root), [[adr-0008-goal-based-dose-user-paced-progression]] (single `Goal` VO + user-paced progression, no suggestion), [[adr-0010-crate-boundary-trust-boundary]] (the crate boundary is the trust boundary — where a primitive becomes a domain type), [[adr-0009-quality-gates]] (what the two gates prove, and the five named blind spots that limit them — `fn new`, L1-bis views, L2, L3, L4 `match` arms), [[adr-0011-one-public-method-per-use-case]] (the application layer's unit of responsibility — one public method, and the duplication that is deliberately kept), [[adr-0012-synchronous-cross-aggregate-coordination]] (**superseded / void** — the two-aggregate coordination the board forced).
+> **Links**: [[adr-0013-set-based-validation-outside-aggregates]] (**the shape of the write side** — invariant vs set-based validation, and why `HabitBoard` was deleted), [[adr-0001-validation-by-construction]] (invariant model), [[adr-0002-habitboard-stateful-aggregate]] (**superseded** — the deleted board), [[adr-0003-two-crate-workspace]] (workspace split & dependency rule enforcement), [[adr-0004-routing-flat-enum]] (app-shell routing skeleton), [[adr-0007-habit-lifecycle-aggregate]] (`Habit` promoted to the lifecycle aggregate root), [[adr-0008-goal-based-dose-user-paced-progression]] (single `Goal` VO + user-paced progression, no suggestion), [[adr-0010-crate-boundary-trust-boundary]] (the crate boundary is the trust boundary — where a primitive becomes a domain type), [[adr-0009-quality-gates]] (what the two gates prove, and the five named blind spots that limit them — `fn new`, L1-bis views, L2, L3, L4 `match` arms), [[adr-0011-one-public-method-per-use-case]] (the application layer's unit of responsibility — one public method, and the duplication that is deliberately kept), [[adr-0012-synchronous-cross-aggregate-coordination]] (**superseded / void** — the two-aggregate coordination the board forced), [[adr-0017-platform-location-adapter]] (where a platform-specific location comes from, and what the gate guarding that arm does *not* measure).
 
 ## Workspace layout (since LOCAL-3 — settled in [[adr-0003-two-crate-workspace]])
 
@@ -183,6 +186,7 @@ Do not build these speculatively; each requires a new decision cycle.
 - **MUST NOT**: introduce trait abstractions without a second consumer. *(The LOCAL-1 half of this MUST NOT — "no direct-creation command use case" — is **withdrawn**: a direct-creation use case is exactly what `AddHabit` is, and the board-driven indirection it forbade is the mistake [[adr-0013-set-based-validation-outside-aggregates]] corrects.)*
 - **MUST NOT**: make `PartialEq` on `HabitTitle` case-insensitive — `matches` is the business comparison.
 - **MUST**: keep persistence an **adapter concern** — no use case, query or domain type may learn where habits are kept, and no port grows a method to serve it ([[adr-0016-snapshot-store-persistence]]).
+- **MUST**: obtain a platform-specific *location* from a `#[cfg(target_os)]` adapter that answers `Option<PathBuf>` and **holds no policy** — every rule about that value stays in the composition root's single, host-tested implementation, and a failure on the platform call is absorbed into `None`, which may resolve to nothing but the refusal ([[adr-0017-platform-location-adapter]]).
 - **MUST**: treat a value read back from storage as user-supplied input, through the same single door as a value typed by a user ([[adr-0010-crate-boundary-trust-boundary]] trigger #7).
 - **Out of scope**: any UI beyond the wired screens.
 
@@ -201,5 +205,5 @@ Do not build these speculatively; each requires a new decision cycle.
 - [ ] **`match`-based rules are invisible to the mutation gate** ([[adr-0009-quality-gates]] L4). The Today partition and the `LifecycleState → HabitState` mapping each received zero viable mutants. The compiler guarantees exhaustiveness; only a deliberate test guarantees each arm is right. Applies to every state-driven branch slices 6–8 will add.
 - [ ] **The paused-habit gating lives in the view only** — `GrowGoal` / `LightenGoal` / the Ritual route accept a paused habit (the ritual *screen* refuses in words since 2026-08-20; the query it calls does not). Slice 6 extends the same shape to anchored habits: the domain refuses nothing ([[adr-0007-habit-lifecycle-aggregate]] AD-4), so an anchored habit's id is still accepted by every gesture use case and only the screens withhold them. Deliberate under the current threat model; it must land at the use-case entry point *together with* the ownership check when the multi-user trigger fires ([[adr-0010-crate-boundary-trust-boundary]] trigger 2).
 - [x] ~~**A partial anchor is not recoverable by the user, only by replay** — if the process dies between `AnchorHabit`'s two saves…~~ **VOID 2026-08-17**: `AnchorHabit::execute` performs one write, so there is no interval and no partial state. The persistence question it deferred is inherited, sharpened, by [[adr-0013-set-based-validation-outside-aggregates]]'s escalation trigger.
-- [ ] **Persistence follow-ons (#34), the single home for all four.** (a) The **web arm has no automated coverage at all** — there is no wasm test runner here, and faking a browser would only prove the fake; the bar met instead is a clean cross-target build plus manual verification, stated as such and never presented as coverage. (b) **On web, an unreachable store is indistinguishable from an empty one** (private browsing, storage disabled): every save is a silent no-op and the board looks correct until a reload — which is why `persistence/S5` is scoped to the native platform (owner ruling: follow-on). (c) The **`SnapshotStore` error channel** — the accepted cost and the exact condition that reopens it are [[adr-0016-snapshot-store-persistence]]'s own escalation trigger; do not re-derive them here. (d) **Android's data directory resolves to nothing** under the current path lookup and must come from JNI `getFilesDir()` — **#35**; until it lands, Android meets the refusal screen rather than a silent fallback.
+- [ ] **Persistence follow-ons (#34), the single home for all four.** (a) The **web arm has no automated coverage at all** — there is no wasm test runner here, and faking a browser would only prove the fake; the bar met instead is a clean cross-target build plus manual verification, stated as such and never presented as coverage. (b) **On web, an unreachable store is indistinguishable from an empty one** (private browsing, storage disabled): every save is a silent no-op and the board looks correct until a reload — which is why `persistence/S5` is scoped to the native platform (owner ruling: follow-on). (c) The **`SnapshotStore` error channel** — the accepted cost and the exact condition that reopens it are [[adr-0016-snapshot-store-persistence]]'s own escalation trigger; do not re-derive them here. (d) ~~**Android's data directory resolves to nothing** under the current path lookup and must come from JNI `getFilesDir()` — **#35**~~ **SETTLED 2026-08-24 (#40)** — the location comes from a `#[cfg(target_os = "android")]` adapter that answers `Option<PathBuf>` and decides nothing (`app/src/infrastructure/android_files_dir.rs`); every rule about that value stays in the composition root's single host-tested implementation, and a failure on the platform call resolves to the refusal and to nothing else ([[adr-0017-platform-location-adapter]]). **The arm inherits (a)'s bar and no more**: its cross-target gate compiles and lints, never links and never executes, so the residual risk — a JNI method signature string, resolved at runtime by the JVM and opaque to rustc and clippy — is closed only by a run on a real device. The gate states that limit where it is defined.
 - [ ] **The cap must move into the write when one of Security's three conditions fires** — async on `HabitRepository`, `Arc`/`Send` on the port, or a store shared across processes/tabs. Conditional write, a uniqueness constraint on a normalised title, or a serialisable transaction; **not** a re-read. Verbatim trigger in [[adr-0013-set-based-validation-outside-aggregates]].
