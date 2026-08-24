@@ -189,6 +189,7 @@ fn ring_offset(remaining: u64, total: u64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::i18n::use_locale_for_tests;
     use crate::views::click_harness::Screen;
     use dioxus::history::{MemoryHistory, provide_history_context};
     use kayzen_core::habit_management::domain::goal::Goal;
@@ -272,6 +273,7 @@ mod tests {
 
     #[component]
     fn RootAtActiveHabitGoalFive() -> Element {
+        use_locale_for_tests();
         use_hook(|| {
             provide_history_context(Rc::new(MemoryHistory::with_initial_path(
                 "/habit/h-1/ritual",
