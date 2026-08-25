@@ -109,27 +109,18 @@ mod tests {
         }
     }
 
-    // `AppShellWithHeadSpy` is a bare `fn() -> Element` (no captures allowed
-    // by `VirtualDom::new`), so the spy travels through this thread-local
-    // rather than a closure capture — same shape as `ritual.rs`'s
-    // `SHARED_REPOSITORY`. Scoped to this test module only; production code
-    // never reads it.
+    // @law: `VirtualDom::new` takes a bare `fn() -> Element` — no captures
+    // allowed — so `AppShellWithHeadSpy` cannot receive the spy as a closure
+    // capture. It travels through this thread-local instead, same shape as
+    // `ritual.rs`'s `SHARED_REPOSITORY`. Scoped to this test module only;
+    // production code never reads it. Typed as `Rc<dyn Document>` (the port),
+    // not `Rc<HeadElementSpy>` (one implementation of it) — the thread-local's
+    // contract is "hand a `Document` to the component".
     thread_local! {
-        // @law: this initializer is already the `const { .. }` form
-        // clippy's `missing_const_for_thread_local` asks for (`RefCell::new`
-        // is a const fn; `ritual.rs`'s `SHARED_REPOSITORY` uses the
-        // identical shape and is not flagged). The lint still fires here,
-        // but only under `--target aarch64-linux-android`, not on the host
-        // target — a target-dependent false positive on an
-        // already-compliant initializer, not a missing optimization.
-        #[allow(clippy::missing_const_for_thread_local)]
-        static SHARED_HEAD_SPY: RefCell<Option<Rc<HeadElementSpy>>> =
+        static SHARED_HEAD_SPY: RefCell<Option<Rc<dyn Document>>> =
             const { RefCell::new(None) };
     }
 
-    // Clears the thread-local on drop, including on an unwind, so a panic
-    // inside the test body can't leave a stale spy for the next test on
-    // this thread.
     struct SharedHeadSpyGuard;
 
     impl Drop for SharedHeadSpyGuard {
@@ -141,13 +132,15 @@ mod tests {
     #[component]
     fn AppShellWithHeadSpy() -> Element {
         crate::i18n::use_locale_for_tests();
-        let spy = SHARED_HEAD_SPY.with(|cell| {
+        let document = SHARED_HEAD_SPY.with(|cell| {
             cell.borrow()
                 .clone()
                 .expect("a head spy was seeded before rendering")
         });
-        use_context_provider(move || spy.clone() as Rc<dyn Document>);
-        app_shell(None)
+        use_context_provider(move || document.clone());
+        app_shell(Some(Services::with_repository(Rc::new(
+            InMemoryHabitRepository::new(),
+        ))))
     }
 
     #[component]
@@ -213,9 +206,12 @@ mod tests {
     #[test]
     fn app_shell_registers_a_viewport_meta_that_opts_into_safe_area_insets() {
         let spy = Rc::new(HeadElementSpy::default());
-        SHARED_HEAD_SPY.with(|cell| *cell.borrow_mut() = Some(spy.clone()));
+        SHARED_HEAD_SPY.with(|cell| *cell.borrow_mut() = Some(spy.clone() as Rc<dyn Document>));
         let _guard = SharedHeadSpyGuard;
 
+        // Seeded over `Some(services)` — the live-session path every real
+        // launch takes — not `None`/`DataUnavailable`, so this cannot pass
+        // by luck of which branch happens to carry the meta.
         let mut vdom = VirtualDom::new(AppShellWithHeadSpy);
         vdom.rebuild_in_place();
 
@@ -233,16 +229,32 @@ mod tests {
             .map(|element| element.attributes.clone());
 
         let viewport_meta = viewport_meta.expect(
-            "expected app_shell to register a <meta name=\"viewport\"> head element, \
-             got none",
+            "expected app_shell to register a <meta name=\"viewport\"> head element \
+             when services are available, got none",
         );
-        assert!(
-            viewport_meta
-                .iter()
-                .any(|(key, value)| key == "content" && value.contains("viewport-fit=cover")),
-            "expected the viewport meta's content to carry viewport-fit=cover so \
-             env(safe-area-inset-*) resolves to real values on Android 16, got: \
-             {viewport_meta:?}"
-        );
+        let content = viewport_meta
+            .iter()
+            .find(|(key, _)| key == "content")
+            .map(|(_, value)| value.clone())
+            .expect("expected the viewport meta to carry a content attribute");
+
+        // This runtime tag supersedes the dx-generated shell's viewport tag
+        // wholesale (Chrome/Safari/Firefox all take the last viewport tag as
+        // a unit, not a per-key merge) — so every key the shell's tag would
+        // otherwise have provided must be present here, or the device falls
+        // back to the 980px desktop-width layout viewport. Each key is
+        // pinned individually so trimming any one of them fails the test.
+        for key in [
+            "width=device-width",
+            "initial-scale=1.0",
+            "maximum-scale=1.0",
+            "user-scalable=no",
+            "viewport-fit=cover",
+        ] {
+            assert!(
+                content.contains(key),
+                "expected the viewport meta's content to carry {key}, got: {content}"
+            );
+        }
     }
 }
