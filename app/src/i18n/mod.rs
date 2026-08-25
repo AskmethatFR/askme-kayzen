@@ -23,15 +23,23 @@ pub(crate) fn strip_isolates(text: String) -> String {
         .collect()
 }
 
+/// The one place both catalogues are registered — the production `config()`
+/// and the test seam `use_locale_for_tests_as` both build on this, so a
+/// dropped `.with_locale` or a dropped `.with_fallback` here breaks every
+/// English-locale test in the suite, not just production.
+fn config_for(locale: dioxus_i18n::unic_langid::LanguageIdentifier) -> I18nConfig {
+    I18nConfig::new(locale)
+        .with_fallback(langid!("fr"))
+        .with_locale((langid!("fr"), FR))
+        .with_locale((langid!("en"), EN))
+}
+
 /// The production config: the device's own locale, `fr`/`en` catalogues,
 /// falling back to `fr`. Never called from a test — tests pin the locale
 /// deterministically through `use_locale_for_tests`/`use_locale_for_tests_as`
 /// instead of reading the real device.
 pub(crate) fn config() -> I18nConfig {
-    I18nConfig::new(detect_locale())
-        .with_fallback(langid!("fr"))
-        .with_locale((langid!("fr"), FR))
-        .with_locale((langid!("en"), EN))
+    config_for(detect_locale())
 }
 
 macro_rules! tr {
@@ -62,12 +70,7 @@ pub(crate) fn use_locale_for_tests() -> dioxus_i18n::prelude::I18n {
 pub(crate) fn use_locale_for_tests_as(
     locale: dioxus_i18n::unic_langid::LanguageIdentifier,
 ) -> dioxus_i18n::prelude::I18n {
-    dioxus_i18n::prelude::use_init_i18n(move || {
-        I18nConfig::new(locale.clone())
-            .with_fallback(langid!("fr"))
-            .with_locale((langid!("fr"), FR))
-            .with_locale((langid!("en"), EN))
-    })
+    dioxus_i18n::prelude::use_init_i18n(move || config_for(locale.clone()))
 }
 
 #[cfg(test)]
