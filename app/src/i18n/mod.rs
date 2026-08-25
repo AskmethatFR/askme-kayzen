@@ -153,7 +153,10 @@ mod tests {
         let fr = message_texts(FR, "fr.ftl");
         let en = message_texts(EN, "en.ftl");
 
-        let untranslated: Vec<&String> = fr.keys().filter(|id| fr[*id] == en[*id]).collect();
+        let untranslated: Vec<&String> = fr
+            .keys()
+            .filter(|id| en.get(*id).is_some_and(|value| value == &fr[*id]))
+            .collect();
 
         assert!(
             untranslated.is_empty(),
