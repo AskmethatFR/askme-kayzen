@@ -116,10 +116,11 @@ pub fn AddHabit() -> Element {
 mod tests {
     use super::{IDEA_KEYS, two_random_idea_keys};
     use crate::composition::{STARTING_GOAL, Services};
-    use crate::i18n::use_locale_for_tests;
+    use crate::i18n::{use_locale_for_tests, use_locale_for_tests_as};
     use crate::route::Route;
     use dioxus::history::{MemoryHistory, provide_history_context};
     use dioxus::prelude::*;
+    use dioxus_i18n::unic_langid::langid;
     use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
     use std::rc::Rc;
 
@@ -206,6 +207,45 @@ mod tests {
         assert!(
             html.contains("Ajouter, à 5 min par jour"),
             "expected the submit gesture named with its own gentle goal, got: {html}"
+        );
+    }
+
+    #[component]
+    fn RootAtAddHabitScreenAndEnglishLocale() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/add")));
+        });
+        use_context_provider(|| Services::with_repository(Rc::new(InMemoryHabitRepository::new())));
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: language/S1
+    #[test]
+    fn an_english_locale_renders_the_add_habit_screen_in_english() {
+        let html = render(RootAtAddHabitScreenAndEnglishLocale);
+
+        assert!(
+            html.contains(r#"<h1 class="greeting">A new tiny habit</h1>"#),
+            "expected the heading in English, got: {html}"
+        );
+        assert!(
+            html.contains(r#"class="eyebrow">A few ideas, ready to go<"#),
+            "expected the ready-made ideas eyebrow in English, got: {html}"
+        );
+        assert!(
+            html.contains(r#"class="eyebrow">Or your own<"#),
+            "expected the freeform-own eyebrow in English, got: {html}"
+        );
+        assert!(
+            html.contains(r#"aria-label="Habit name""#),
+            "expected the name-input aria-label in English, got: {html}"
+        );
+        assert!(
+            html.contains(">Add, at 5 min a day<"),
+            "expected the submit gesture in English, got: {html}"
         );
     }
 }
