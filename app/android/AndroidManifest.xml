@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Forked verbatim from the manifest dx v0.7.9 generates for this project
+  (target/dx/kayzen-app/debug/android/app/app/src/main/AndroidManifest.xml),
+  with two edits: a literal launcher label (see README, "Android (local,
+  unsigned)" — strings.xml is regenerated on every build, so a literal is the
+  only value that survives it) and this provenance comment. Re-diff against a
+  fresh debug build's generated manifest whenever dx is upgraded.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Default permissions -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Permissions from Dioxus.toml [permissions] section -->
+
+    <!-- Hardware features from Dioxus.toml [android] section -->
+
+    <!-- Raw manifest XML from Dioxus.toml [android.raw.manifest] -->
+    
+
+    <application android:hasCode="true" android:icon="@mipmap/ic_launcher"
+        android:extractNativeLibs="true"
+        android:allowNativeHeapPointerTagging="false"
+        android:label="Kaizen"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme"
+        
+        
+        android:networkSecurityConfig="@xml/network_security_config">
+        <activity android:configChanges="orientation|screenLayout|screenSize|keyboardHidden" android:exported="true"
+            android:label="Kaizen" android:name="dev.dioxus.main.MainActivity">
+            <meta-data android:name="android.app.lib_name" android:value="main" />
+            <meta-data android:name="android.app.func_name" android:value="ANativeActivity_onCreate" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+
+        </activity>
+
+    </application>
+</manifest>

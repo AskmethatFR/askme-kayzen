@@ -16,7 +16,7 @@ export PATH="$PATH:$ANDROID_HOME/platform-tools"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APK="$REPO_ROOT/target/dx/kayzen-app/debug/android/app/app/build/outputs/apk/debug/app-debug.apk"
-PACKAGE="com.example.KayzenApp"
+PACKAGE="com.askmethat.kayzen"
 ACTIVITY="dev.dioxus.main.MainActivity"
 
 fail() {

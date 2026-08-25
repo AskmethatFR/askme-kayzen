@@ -48,6 +48,7 @@ The one-time setup it expects, and why each version is pinned where it is:
 | Piece | Value | Why |
 |---|---|---|
 | Android SDK | `~/Library/Android/sdk` | `ANDROID_HOME`; `sdkmanager` comes from the `android-commandlinetools` cask |
+| SDK platform | `platforms;android-36` | `compile_sdk`/`target_sdk` in `app/Dioxus.toml`, aimed straight at 36 per the compileSdk-ladder decision |
 | NDK | `25.2.9519653` (r25c) | the version Dioxus 0.7 documents, and the one Rust targets for `aarch64-linux-android` |
 | CMake | `3.22.1` | installed alongside the NDK, from the SDK |
 | JDK | 17 | the Android Gradle Plugin runs on 17; a newer JDK on `PATH` is not a substitute |
@@ -55,11 +56,25 @@ The one-time setup it expects, and why each version is pinned where it is:
 
 ```bash
 brew install --cask android-commandlinetools
-sdkmanager --sdk_root="$ANDROID_HOME" --install "ndk;25.2.9519653" "cmake;3.22.1"
+sdkmanager --sdk_root="$ANDROID_HOME" --install "platforms;android-36" "ndk;25.2.9519653" "cmake;3.22.1"
 rustup target add aarch64-linux-android
 ```
 
 On an Apple-silicon Mac the r25 toolchain binaries are x86_64, so Rosetta 2 runs them.
+
+The app id is `com.askmethat.kayzen` (`app/Dioxus.toml`'s `[android] identifier`). The
+manifest at `app/android/AndroidManifest.xml` is a hand-owned fork of the one `dx`
+generates — `dx` rewrites the whole Gradle project on every build, so this is the one
+file it is told to copy in verbatim instead (`[application].android_manifest`). It
+carries the launcher label as a literal (`strings.xml` is regenerated from the crate
+name on every build, so `@string/app_name` would not survive it). Re-diff it against a
+fresh debug build's generated manifest whenever `dx` is upgraded.
+
+The build prints `WARNING: We recommend using a newer Android Gradle plugin to use
+compileSdk = 36` (AGP 8.7.0 was tested up to 35) and still succeeds — expected until
+the Gradle project's pinned AGP moves. `dx` exposes no gradle-args passthrough to add
+`android.suppressUnsupportedCompileSdk=36` from outside the generated project, so this
+is silenced only by an AGP bump, tracked separately from this repo's `compileSdk`.
 
 The device needs USB debugging on, and *Install via USB* on Xiaomi/HyperOS. Even then
 the phone asks to confirm the first install of each build: `adb` reports
