@@ -313,7 +313,7 @@ mod tests {
         );
         assert!(
             html.contains(r#"aria-label="Stop, that&#39;s okay · Lire une page""#)
-                && html.contains("Stop, that&#39;s okay"),
+                && html.contains(">Stop, that&#39;s okay<"),
             "expected the stop gesture in English, got: {html}"
         );
     }

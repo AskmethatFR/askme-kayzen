@@ -394,7 +394,7 @@ mod tests {
             "expected the recap eyebrow in English, got: {html}"
         );
         assert!(
-            html.contains("A perfect start. Everything is still ahead."),
+            html.contains(r#"class="quiet-note">A perfect start. Everything is still ahead.<"#),
             "expected the fresh-start recap message in English, got: {html}"
         );
     }

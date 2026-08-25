@@ -114,7 +114,7 @@ pub fn AddHabit() -> Element {
 
 #[cfg(test)]
 mod tests {
-    use super::{IDEA_KEYS, two_random_idea_keys};
+    use super::{IDEA_KEYS, tr_key, two_random_idea_keys};
     use crate::composition::{STARTING_GOAL, Services};
     use crate::i18n::{use_locale_for_tests, use_locale_for_tests_as};
     use crate::route::Route;
@@ -222,6 +222,29 @@ mod tests {
         }
     }
 
+    const IDEA_TEXT_EN: [&str; 20] = [
+        "Drink a glass of water",
+        "Put an object away",
+        "Write a line",
+        "Stretch",
+        "Breathe deeply",
+        "Read a page",
+        "Walk for a minute",
+        "Make your bed",
+        "Note a gratitude",
+        "Close your eyes for a minute",
+        "Water a plant",
+        "Drink a tea",
+        "Look out the window",
+        "Stand tall for a minute",
+        "Listen to a song",
+        "Tidy your desk",
+        "Meditate for a minute",
+        "Smile at someone",
+        "Say thanks",
+        "Get some air",
+    ];
+
     // @scenario: language/S1
     #[test]
     fn an_english_locale_renders_the_add_habit_screen_in_english() {
@@ -247,5 +270,30 @@ mod tests {
             html.contains(">Add, at 5 min a day<"),
             "expected the submit gesture in English, got: {html}"
         );
+    }
+
+    #[component]
+    fn RootIdeaKeysInEnglish() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        rsx! {
+            ul {
+                for key in IDEA_KEYS {
+                    li { "{tr_key(key)}" }
+                }
+            }
+        }
+    }
+
+    // @scenario: language/S1
+    #[test]
+    fn every_idea_key_translates_to_its_pinned_english_text() {
+        let html = render(RootIdeaKeysInEnglish);
+
+        for (key, expected) in IDEA_KEYS.iter().zip(IDEA_TEXT_EN.iter()) {
+            assert!(
+                html.contains(&format!("<li>{expected}</li>")),
+                "expected {key} to translate to {expected:?} in English, got: {html}"
+            );
+        }
     }
 }

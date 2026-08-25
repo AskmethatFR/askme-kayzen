@@ -177,7 +177,7 @@ mod tests {
             "expected the anchored-count tally in English, got: {html}"
         );
         assert!(
-            html.contains("You&#39;re following 0 / 5 habits in parallel"),
+            html.contains(r#"class="tally">You&#39;re following 0 / 5 habits in parallel<"#),
             "expected the daily-life tally in English, got: {html}"
         );
     }
