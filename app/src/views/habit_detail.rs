@@ -356,6 +356,50 @@ mod tests {
     }
 
     #[component]
+    fn RootAtKnownHabitAndEnglishLocale() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_one_habit);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: language/S1
+    #[test]
+    fn an_english_locale_renders_the_habit_detail_screen_in_english() {
+        let html = render(RootAtKnownHabitAndEnglishLocale);
+
+        assert!(
+            html.contains(r#"class="lede">every day · 5 min<"#),
+            "expected the active-dose lede in English, got: {html}"
+        );
+        assert!(
+            html.contains(r#"class="eyebrow">Adjust, at your own pace<"#),
+            "expected the adjust-goal eyebrow in English, got: {html}"
+        );
+        assert!(
+            html.contains(">Start my practice<"),
+            "expected the start-ritual gesture in English, got: {html}"
+        );
+        assert!(
+            html.contains(r#"aria-label="Pause, no guilt · Lire une page""#)
+                && html.contains(">Pause, no guilt<"),
+            "expected the pause gesture in English, got: {html}"
+        );
+        assert!(
+            html.contains(r#"class="eyebrow">Your story<"#),
+            "expected the recap eyebrow in English, got: {html}"
+        );
+        assert!(
+            html.contains("A perfect start. Everything is still ahead."),
+            "expected the fresh-start recap message in English, got: {html}"
+        );
+    }
+
+    #[component]
     fn RootAtUnknownHabit() -> Element {
         crate::i18n::use_locale_for_tests();
         use_hook(|| {
