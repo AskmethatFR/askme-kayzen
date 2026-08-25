@@ -186,9 +186,10 @@ fn ring_offset(remaining: u64, total: u64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::i18n::use_locale_for_tests;
+    use crate::i18n::{use_locale_for_tests, use_locale_for_tests_as};
     use crate::views::click_harness::Screen;
     use dioxus::history::{MemoryHistory, provide_history_context};
+    use dioxus_i18n::unic_langid::langid;
     use kayzen_core::habit_management::domain::goal::Goal;
     use kayzen_core::habit_management::domain::habit::Habit;
     use kayzen_core::habit_management::domain::habit_id::HabitId;
@@ -281,6 +282,40 @@ mod tests {
         rsx! {
             Router::<Route> {}
         }
+    }
+
+    #[component]
+    fn RootAtActiveHabitGoalFiveAndEnglishLocale() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path(
+                "/habit/h-1/ritual",
+            )));
+        });
+        use_context_provider(|| services_with_an_active_habit(5));
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: language/S1
+    #[test]
+    fn an_english_locale_renders_the_ritual_screen_in_english() {
+        let html = render(RootAtActiveHabitGoalFiveAndEnglishLocale);
+
+        assert!(
+            html.contains(r#"aria-label="Timer · Lire une page""#),
+            "expected the timer aria-label in English, got: {html}"
+        );
+        assert!(
+            html.contains(r#"aria-label="Done · Lire une page""#) && html.contains(">Done<"),
+            "expected the complete gesture in English, got: {html}"
+        );
+        assert!(
+            html.contains(r#"aria-label="Stop, that&#39;s okay · Lire une page""#)
+                && html.contains("Stop, that&#39;s okay"),
+            "expected the stop gesture in English, got: {html}"
+        );
     }
 
     #[component]
