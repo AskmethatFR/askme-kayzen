@@ -414,11 +414,10 @@ mod tests {
     fn every_refusal_key_resolves_in_both_catalogues() {
         let (fr_ids, en_ids) = crate::i18n::catalogue_ids();
 
-        for error in [
-            ReadmitHabitError::DailyLifeFull { max: 5 },
-            ReadmitHabitError::DuplicateHabit,
-        ] {
-            let key = refusal_message_key(error).expect("this error names a refusal key");
+        for error in ReadmitHabitError::ALL {
+            let Some(key) = refusal_message_key(error) else {
+                continue;
+            };
             assert!(fr_ids.contains(key), "expected {key} to resolve in fr.ftl");
             assert!(en_ids.contains(key), "expected {key} to resolve in en.ftl");
         }
