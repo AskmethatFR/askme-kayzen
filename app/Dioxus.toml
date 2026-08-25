@@ -1,5 +1,12 @@
 [application]
 name = "askme-kayzen"
+android_manifest = "android/AndroidManifest.xml"
 
 [web.app]
 title = "Kaizen"
+
+[android]
+identifier = "com.askmethat.kayzen"
+min_sdk = 24
+target_sdk = 36
+compile_sdk = 36
