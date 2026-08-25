@@ -572,6 +572,47 @@ mod tests {
     }
 
     #[component]
+    fn RootAtWeekScreenWithAFreshHabitAndEnglishLocale() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| {
+            let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+            repository.save(&a_habit("h-1", 5, TODAY));
+            services_with(repository)
+        });
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: language/S1
+    #[test]
+    fn an_english_locale_renders_the_week_screen_in_english() {
+        let html = render(RootAtWeekScreenWithAFreshHabitAndEnglishLocale);
+
+        assert!(
+            html.contains(r#"<h1 class="greeting">This week</h1>"#),
+            "expected the week heading in English, got: {html}"
+        );
+        assert!(
+            html.contains(r#"class="week-figure">0 minutes practised<"#),
+            "expected the accumulated-minutes figure in English, got: {html}"
+        );
+        assert!(
+            html.contains(
+                r#"class="week-word">A perfect start. Everything is still ahead.<"#
+            ),
+            "expected the fresh-start message in English, got: {html}"
+        );
+        assert!(
+            html.contains(r#"aria-label="Your rhythm over the last seven days""#),
+            "expected the rhythm aria-label in English, got: {html}"
+        );
+    }
+
+    #[component]
     fn RootAtWeekScreenWithALightenedHabit() -> Element {
         crate::i18n::use_locale_for_tests();
         use_hook(|| {
