@@ -118,6 +118,41 @@ mod tests {
         }
     }
 
+    #[test]
+    fn no_english_message_is_byte_identical_to_its_french_counterpart() {
+        let fr = message_texts(FR, "fr.ftl");
+        let en = message_texts(EN, "en.ftl");
+
+        let untranslated: Vec<&String> = fr.keys().filter(|id| fr[*id] == en[*id]).collect();
+
+        assert!(
+            untranslated.is_empty(),
+            "expected every English message to differ from its French counterpart \
+             (a partial catalogue must fail the build, never render mixed languages), \
+             found identical text for: {untranslated:?}"
+        );
+    }
+
+    fn message_texts(text: &'static str, file_name: &str) -> BTreeMap<String, String> {
+        let resource = fluent_syntax::parser::parse(text)
+            .unwrap_or_else(|(_, errors)| panic!("{file_name} failed to parse: {errors:?}"));
+
+        resource
+            .body
+            .into_iter()
+            .map(|entry| match entry {
+                fluent_syntax::ast::Entry::Message(message) => {
+                    let id = message.id.name.to_string();
+                    let wrapped = fluent_syntax::ast::Resource {
+                        body: vec![fluent_syntax::ast::Entry::Message(message)],
+                    };
+                    (id, fluent_syntax::serializer::serialize(&wrapped))
+                }
+                other => panic!("{file_name} contains a non-message entry: {other:?}"),
+            })
+            .collect()
+    }
+
     fn parse_catalogue(text: &'static str, file_name: &str) -> BTreeMap<String, BTreeSet<String>> {
         let resource = fluent_syntax::parser::parse(text)
             .unwrap_or_else(|(_, errors)| panic!("{file_name} failed to parse: {errors:?}"));
