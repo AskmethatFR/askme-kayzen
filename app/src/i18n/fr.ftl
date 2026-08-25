@@ -64,6 +64,7 @@ week-message-resting = Cette semaine se repose. Elle vous attend, sans presser.
 week-message-growing = Vous avancez, à votre rythme.
 week-rhythm-aria = Votre rythme sur les sept derniers jours
 week-curve-aria = Trajectoire de { $title }, de { $starting_goal } à { $current_goal } minutes
+week-habit-journey = { $starting_goal } → { $current_goal } min
 ritual-not-found-message = Cette habitude n'est plus sur votre liste.
 ritual-not-found-back-link = Retour à Aujourd'hui
 ritual-paused-message = Cette habitude se repose en ce moment. Elle vous attend, sans presser.

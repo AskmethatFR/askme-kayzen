@@ -33,7 +33,14 @@ pub fn Week() -> Element {
                 for (row_offset, habit) in recap.habits.iter().enumerate() {
                     div { key: "{row_offset}", class: "week-habit",
                         p { class: "week-habit-title", "{habit.title}" }
-                        p { class: "week-habit-journey", "{habit.starting_goal} → {habit.current_goal} min" }
+                        p {
+                            class: "week-habit-journey",
+                            {tr!(
+                                "week-habit-journey",
+                                starting_goal: habit.starting_goal as i64,
+                                current_goal: habit.current_goal as i64
+                            )}
+                        }
                         div {
                             class: if habit.practised_recently { "week-curve is-practised" } else { "week-curve" },
                             "aria-label": tr!(
@@ -497,6 +504,41 @@ mod tests {
             "expected one bar per goal step (three steps were recorded), not \
              one per completed day (four), each normalized to the row's own \
              maximum (5) so the tallest bar reads 1.0, got: {html}"
+        );
+    }
+
+    #[component]
+    fn RootAtWeekScreenWithAGrowingHabitInEnglish() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| {
+            let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = a_habit("h-1", 3, TODAY - 6);
+            habit.grow(LocalDate::from_epoch_day(TODAY - 4));
+            habit.grow(LocalDate::from_epoch_day(TODAY - 2));
+            for days_back in 0..4 {
+                habit.toggle_done(LocalDate::from_epoch_day(TODAY - days_back));
+            }
+            repository.save(&habit);
+            services_with(repository)
+        });
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: language/S4
+    #[test]
+    fn a_habit_row_reads_its_starting_and_current_goal_through_the_i18n_layer() {
+        let html = render(RootAtWeekScreenWithAGrowingHabitInEnglish);
+
+        assert!(
+            html.contains(r#"class="week-habit-journey">3 to 5 min<"#),
+            "expected the week-habit-journey paragraph to read the starting/current \
+             goal through the i18n layer under English, not a language-neutral \
+             literal, got: {html}"
         );
     }
 

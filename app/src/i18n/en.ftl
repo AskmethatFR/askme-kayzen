@@ -63,6 +63,7 @@ week-message-resting = This week is resting. It's here whenever you're ready, no
 week-message-growing = You're moving forward, at your own pace.
 week-rhythm-aria = Your rhythm over the last seven days
 week-curve-aria = { $title }'s journey, from { $starting_goal } to { $current_goal } minutes
+week-habit-journey = { $starting_goal } to { $current_goal } min
 ritual-not-found-message = This habit is no longer on your list.
 ritual-not-found-back-link = Back to Today
 ritual-paused-message = This habit is resting right now. It's here whenever you're ready, no rush.
