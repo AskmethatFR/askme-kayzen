@@ -265,6 +265,21 @@ mod tests {
         }
     }
 
+    #[test]
+    fn every_recap_copy_key_resolves_in_both_catalogues() {
+        let (fr_ids, en_ids) = crate::i18n::catalogue_ids();
+
+        for message in [
+            RecapMessage::FreshStart,
+            RecapMessage::Resting,
+            RecapMessage::Growing,
+        ] {
+            let key = recap_copy_key(message);
+            assert!(fr_ids.contains(key), "expected {key} to resolve in fr.ftl");
+            assert!(en_ids.contains(key), "expected {key} to resolve in en.ftl");
+        }
+    }
+
     fn a_habit() -> Habit {
         Habit::new(
             HabitId::new("h-1").unwrap(),

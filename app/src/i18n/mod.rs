@@ -73,6 +73,32 @@ pub(crate) fn use_locale_for_tests_as(
     dioxus_i18n::prelude::use_init_i18n(move || config_for(locale.clone()))
 }
 
+/// Test seam: every message id each catalogue actually defines, parsed
+/// statically (no rendering, no randomness) — the seam a view's own test
+/// module uses to prove a catalogue key it returns (an idea key, a recap/week
+/// copy key, a refusal key) resolves in both languages, instead of only
+/// discovering a typo the one render in ten thousand that happens to pick it.
+#[cfg(test)]
+pub(crate) fn catalogue_ids() -> (
+    std::collections::BTreeSet<String>,
+    std::collections::BTreeSet<String>,
+) {
+    (message_ids(FR, "fr.ftl"), message_ids(EN, "en.ftl"))
+}
+
+#[cfg(test)]
+fn message_ids(text: &'static str, file_name: &str) -> std::collections::BTreeSet<String> {
+    fluent_syntax::parser::parse(text)
+        .unwrap_or_else(|(_, errors)| panic!("{file_name} failed to parse: {errors:?}"))
+        .body
+        .into_iter()
+        .map(|entry| match entry {
+            fluent_syntax::ast::Entry::Message(message) => message.id.name.to_string(),
+            other => panic!("{file_name} contains a non-message entry: {other:?}"),
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -82,6 +82,7 @@ fn week_copy_key(message: WeekMessage) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    use super::week_copy_key;
     use crate::composition::Services;
     use crate::i18n::{tr, use_locale_for_tests_as};
     use crate::route::Route;
@@ -94,6 +95,7 @@ mod tests {
     use kayzen_core::habit_management::domain::habit_repository::HabitRepository;
     use kayzen_core::habit_management::domain::habit_title::HabitTitle;
     use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
+    use kayzen_core::habit_management::queries::get_week_recap::WeekMessage;
     use kayzen_core::shared::clock::Clock;
     use kayzen_core::shared::local_date::LocalDate;
     use std::rc::Rc;
@@ -105,6 +107,21 @@ mod tests {
     impl Clock for FixedClock {
         fn today(&self) -> LocalDate {
             self.0
+        }
+    }
+
+    #[test]
+    fn every_week_copy_key_resolves_in_both_catalogues() {
+        let (fr_ids, en_ids) = crate::i18n::catalogue_ids();
+
+        for message in [
+            WeekMessage::FreshStart,
+            WeekMessage::Resting,
+            WeekMessage::Growing,
+        ] {
+            let key = week_copy_key(message);
+            assert!(fr_ids.contains(key), "expected {key} to resolve in fr.ftl");
+            assert!(en_ids.contains(key), "expected {key} to resolve in en.ftl");
         }
     }
 
