@@ -13,6 +13,7 @@ use views::DataUnavailable;
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
+const VIEWPORT_CONTENT: &str = "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover";
 
 fn main() {
     dioxus::launch(App);
@@ -54,6 +55,7 @@ fn app_shell(services: Option<Services>) -> Element {
         },
     };
     rsx! {
+        document::Meta { name: "viewport", content: VIEWPORT_CONTENT }
         document::Link { rel: "icon", href: FAVICON }
         document::Link { rel: "stylesheet", href: MAIN_CSS }
         {content}
@@ -76,9 +78,14 @@ mod tests {
         dioxus_ssr::render(&vdom)
     }
 
+    struct RecordedHeadElement {
+        name: String,
+        attributes: Vec<(String, String)>,
+    }
+
     #[derive(Default)]
     struct HeadElementSpy {
-        head_elements: RefCell<Vec<(String, Vec<(String, String)>)>>,
+        head_elements: RefCell<Vec<RecordedHeadElement>>,
     }
 
     impl Document for HeadElementSpy {
@@ -92,13 +99,13 @@ mod tests {
             attributes: &[(&str, String)],
             _contents: Option<String>,
         ) {
-            self.head_elements.borrow_mut().push((
-                name.to_string(),
-                attributes
+            self.head_elements.borrow_mut().push(RecordedHeadElement {
+                name: name.to_string(),
+                attributes: attributes
                     .iter()
                     .map(|(key, value)| (key.to_string(), value.clone()))
                     .collect(),
-            ));
+            });
         }
     }
 
@@ -108,6 +115,14 @@ mod tests {
     // `SHARED_REPOSITORY`. Scoped to this test module only; production code
     // never reads it.
     thread_local! {
+        // @law: this initializer is already the `const { .. }` form
+        // clippy's `missing_const_for_thread_local` asks for (`RefCell::new`
+        // is a const fn; `ritual.rs`'s `SHARED_REPOSITORY` uses the
+        // identical shape and is not flagged). The lint still fires here,
+        // but only under `--target aarch64-linux-android`, not on the host
+        // target — a target-dependent false positive on an
+        // already-compliant initializer, not a missing optimization.
+        #[allow(clippy::missing_const_for_thread_local)]
         static SHARED_HEAD_SPY: RefCell<Option<Rc<HeadElementSpy>>> =
             const { RefCell::new(None) };
     }
@@ -208,13 +223,14 @@ mod tests {
             .head_elements
             .borrow()
             .iter()
-            .find(|(name, attributes)| {
-                name == "meta"
-                    && attributes
+            .find(|element| {
+                element.name == "meta"
+                    && element
+                        .attributes
                         .iter()
                         .any(|(key, value)| key == "name" && value == "viewport")
             })
-            .map(|(_, attributes)| attributes.clone());
+            .map(|element| element.attributes.clone());
 
         let viewport_meta = viewport_meta.expect(
             "expected app_shell to register a <meta name=\"viewport\"> head element, \
