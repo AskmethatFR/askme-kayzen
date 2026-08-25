@@ -158,6 +158,38 @@ mod tests {
         );
     }
 
+    #[test]
+    fn every_aria_reads_its_label_followed_by_the_title_placeholder() {
+        for (file_name, text) in [("fr.ftl", FR), ("en.ftl", EN)] {
+            let messages = message_texts(text, file_name);
+
+            for label_id in messages.keys().filter(|id| id.ends_with("-label")) {
+                let aria_id = format!("{}-aria", label_id.strip_suffix("-label").unwrap());
+                let Some(aria_serialized) = messages.get(&aria_id) else {
+                    continue;
+                };
+
+                let label_value = message_value(label_id, &messages[label_id]);
+                let aria_value = message_value(&aria_id, aria_serialized);
+                let expected = format!("{label_value} · {{ $title }}");
+
+                assert_eq!(
+                    aria_value, expected,
+                    "expected {aria_id} to read as {label_id} followed by ' · {{ $title }}' \
+                     in {file_name}, got: {aria_value:?}"
+                );
+            }
+        }
+    }
+
+    fn message_value(id: &str, serialized: &str) -> String {
+        serialized
+            .strip_prefix(&format!("{id} = "))
+            .unwrap_or(serialized)
+            .trim_end_matches('\n')
+            .to_string()
+    }
+
     fn message_texts(text: &'static str, file_name: &str) -> BTreeMap<String, String> {
         let resource = fluent_syntax::parser::parse(text)
             .unwrap_or_else(|(_, errors)| panic!("{file_name} failed to parse: {errors:?}"));
