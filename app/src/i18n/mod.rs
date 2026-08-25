@@ -94,11 +94,6 @@ mod tests {
         }
     }
 
-    // T2 / D6: `t!` already panics on a missing id or an unresolved variable
-    // (dioxus-i18n's `try_translate_with_args` treats any fluent-rs
-    // resolution error as `Err`), so this test's job is to name WHICH key
-    // is wrong statically, before anything renders — see route_smoke.rs for
-    // the live-render half of the same guarantee.
     #[test]
     fn fr_and_en_catalogues_expose_the_same_message_ids_and_the_same_variables_per_message() {
         let fr = parse_catalogue(FR, "fr.ftl");
