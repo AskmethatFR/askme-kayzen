@@ -89,7 +89,7 @@ mod tests {
     }
 
     #[component]
-    fn AppRootWithInMemoryServices() -> Element {
+    fn AppRootWithInMemoryServicesAndTheRealDeviceLocale() -> Element {
         app_root(|| {
             Some(Services::with_repository(Rc::new(
                 InMemoryHabitRepository::new(),
@@ -97,15 +97,9 @@ mod tests {
         })
     }
 
-    // Deliberately does NOT call `use_locale_for_tests` — `app_root` is what
-    // `App` itself calls, so this exercises the production `i18n::config()`
-    // for real (only the services are swapped for an in-memory store, to
-    // avoid `Services::new()`'s real disk access). Locale-agnostic on
-    // purpose: the device's actual locale under test/CI is not controlled
-    // here, only that `config()` wires a working catalogue is.
     #[test]
     fn app_wires_the_real_i18n_config_so_the_masthead_renders_a_real_translation() {
-        let html = render(AppRootWithInMemoryServices);
+        let html = render(AppRootWithInMemoryServicesAndTheRealDeviceLocale);
 
         assert!(
             html.contains("Aujourd&#39;hui") || html.contains("Today"),

@@ -153,9 +153,6 @@ mod tests {
         assert!(picks.iter().all(|key| IDEA_KEYS.contains(key)));
     }
 
-    // Static, exhaustive over all 20 keys — replaces relying on the 2-of-20
-    // random draw to ever surface a typo'd key (a wrong key makes `t!` panic;
-    // a typo QA introduced surfaced in only 1 of 10 renders).
     #[test]
     fn every_idea_key_resolves_in_both_catalogues() {
         let (fr_ids, en_ids) = crate::i18n::catalogue_ids();
