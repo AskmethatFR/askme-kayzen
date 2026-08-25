@@ -1,4 +1,5 @@
 use crate::composition::Services;
+use crate::i18n::tr;
 use crate::route::Route;
 use dioxus::prelude::*;
 use kayzen_core::habit_management::queries::list_board_habits::TodayHabits;
@@ -23,27 +24,27 @@ pub fn Today() -> Element {
     rsx! {
         div { class: "screen",
             header { class: "masthead",
-                span { class: "masthead-date", "Aujourd'hui" }
+                span { class: "masthead-date", {tr!("today-date")} }
                 span { class: "tag tag-accent", "Kaizen" }
             }
-            h1 { class: "greeting", "Bonjour." }
+            h1 { class: "greeting", {tr!("today-greeting")} }
 
             if today_habits.is_empty() {
                 div { class: "empty-state",
-                    p { class: "lede", "Rien pour l'instant. Et c'est très bien." }
-                    p { class: "lede", "Une seule toute petite habitude suffit pour commencer." }
+                    p { class: "lede", {tr!("today-empty-lede-1")} }
+                    p { class: "lede", {tr!("today-empty-lede-2")} }
                     div { class: "add-cta",
                         Link {
                             class: "quiet-link",
                             to: Route::AddHabit {},
-                            "+ Ajouter une toute petite habitude"
+                            {tr!("today-add-cta")}
                         }
                     }
                 }
             } else {
-                p { class: "lede", "Un seul petit pas suffit pour aujourd'hui." }
+                p { class: "lede", {tr!("today-lede")} }
 
-                p { class: "eyebrow", "Vos petits pas" }
+                p { class: "eyebrow", {tr!("today-eyebrow-active")} }
                 ul { class: "habit-list",
                     for habit in today_habits.active {
                         li { key: "{habit.id}", class: "habit-row",
@@ -53,11 +54,14 @@ pub fn Today() -> Element {
                                     to: Route::HabitDetail { id: habit.id.clone() },
                                     "{habit.title}"
                                 }
-                                div { class: "habit-meta", "chaque jour · {habit.minutes} min" }
+                                div {
+                                    class: "habit-meta",
+                                    {tr!("today-habit-meta", minutes: habit.minutes as i64)}
+                                }
                             }
                             button {
                                 class: if habit.done_today { "target is-done" } else { "target" },
-                                aria_label: if habit.done_today { "Fait aujourd'hui · {habit.title}" } else { "Marquer comme fait · {habit.title}" },
+                                aria_label: if habit.done_today { tr!("today-done-aria", title: habit.title.clone()) } else { tr!("today-mark-done-aria", title: habit.title.clone()) },
                                 onclick: {
                                     let services = services.clone();
                                     let id = habit.id.clone();
@@ -70,7 +74,7 @@ pub fn Today() -> Element {
                 }
 
                 if !today_habits.paused.is_empty() {
-                    p { class: "eyebrow", "En pause · aucune pression" }
+                    p { class: "eyebrow", {tr!("today-paused-eyebrow")} }
                     ul { class: "habit-list",
                         for habit in today_habits.paused {
                             li { key: "{habit.id}", class: "habit-row is-paused",
@@ -83,31 +87,34 @@ pub fn Today() -> Element {
                                 }
                                 button {
                                     class: "resume-link",
-                                    aria_label: "Reprendre · {habit.title}",
+                                    aria_label: tr!("today-resume-aria", title: habit.title.clone()),
                                     onclick: {
                                         let services = services.clone();
                                         let id = habit.id.clone();
                                         move |_| habits.set(resume_and_relist(&services, &id))
                                     },
-                                    "Reprendre"
+                                    {tr!("today-resume-label")}
                                 }
                             }
                         }
                     }
                 }
 
-                p { class: "tally", "{done} sur {total} · c'est déjà quelque chose." }
+                p {
+                    class: "tally",
+                    {tr!("today-tally", done: done as i64, total: total as i64)}
+                }
                 div { class: "footer-links",
                     Link {
                         class: "quiet-link",
                         to: Route::Week {},
-                        "Voir comment je grandis · cette semaine"
+                        {tr!("today-week-link")}
                     }
                     if has_anchored_habits {
                         Link {
                             class: "quiet-link",
                             to: Route::Anchored {},
-                            "Mes habitudes ancrées · {today_habits.anchored_count}"
+                            {tr!("today-anchored-link", count: today_habits.anchored_count as i64)}
                         }
                     }
                 }
@@ -115,7 +122,7 @@ pub fn Today() -> Element {
                     Link {
                         class: "quiet-link",
                         to: Route::AddHabit {},
-                        "+ Ajouter une toute petite habitude"
+                        {tr!("today-add-cta")}
                     }
                 }
             }
@@ -138,9 +145,11 @@ fn mark_done_and_relist(services: &Services, id: &str) -> TodayHabits {
 #[cfg(test)]
 mod tests {
     use crate::composition::Services;
+    use crate::i18n::{select_locale, use_locale_for_tests, use_locale_for_tests_as};
     use crate::route::Route;
     use crate::views::click_harness::Screen;
     use dioxus::prelude::*;
+    use dioxus_i18n::unic_langid::langid;
     use kayzen_core::habit_management::domain::goal::Goal;
     use kayzen_core::habit_management::domain::habit::Habit;
     use kayzen_core::habit_management::domain::habit_id::HabitId;
@@ -211,6 +220,7 @@ mod tests {
 
     #[component]
     fn RootWithUndoneHabit() -> Element {
+        use_locale_for_tests();
         use_context_provider(services_with_one_undone_habit);
         rsx! {
             Router::<Route> {}
@@ -219,6 +229,7 @@ mod tests {
 
     #[component]
     fn RootWithNoHabit() -> Element {
+        use_locale_for_tests();
         use_context_provider(services_with_no_habit);
         rsx! {
             Router::<Route> {}
@@ -227,6 +238,7 @@ mod tests {
 
     #[component]
     fn RootWithHabitDoneToday() -> Element {
+        use_locale_for_tests();
         use_context_provider(services_with_one_habit_done_today);
         rsx! {
             Router::<Route> {}
@@ -235,6 +247,7 @@ mod tests {
 
     #[component]
     fn RootWithActiveAndPausedHabit() -> Element {
+        use_locale_for_tests();
         use_context_provider(services_with_one_active_and_one_paused_habit);
         rsx! {
             Router::<Route> {}
@@ -243,7 +256,62 @@ mod tests {
 
     #[component]
     fn RootWithAnchoredHabit() -> Element {
+        use_locale_for_tests();
         use_context_provider(services_with_one_anchored_habit);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootWithUndoneHabitAndEnglishLocale() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        use_context_provider(services_with_one_undone_habit);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootWithNoHabitAndEnglishLocale() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        use_context_provider(services_with_no_habit);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootWithActiveAndPausedHabitAndEnglishLocale() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        use_context_provider(services_with_one_active_and_one_paused_habit);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootWithAnchoredHabitAndEnglishLocale() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        use_context_provider(services_with_one_anchored_habit);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootWithUndoneHabitAndUnsupportedLocale() -> Element {
+        use_locale_for_tests_as(select_locale(Some("de-DE")));
+        use_context_provider(services_with_one_undone_habit);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootWithUndoneHabitAndNoLocaleReported() -> Element {
+        use_locale_for_tests_as(select_locale(None));
+        use_context_provider(services_with_one_undone_habit);
         rsx! {
             Router::<Route> {}
         }
@@ -264,6 +332,100 @@ mod tests {
             .find("</div>")
             .expect("expected the footer-links wrapper to close");
         &after_open[..end]
+    }
+
+    // @scenario: language/S1
+    #[test]
+    fn an_english_locale_renders_the_active_board_in_english() {
+        let html = render(RootWithUndoneHabitAndEnglishLocale);
+
+        assert!(
+            html.contains("Today") && html.contains("Hello."),
+            "expected the masthead date and greeting in English, got: {html}"
+        );
+        assert!(
+            html.contains("Your small steps"),
+            "expected the active-habits eyebrow in English, got: {html}"
+        );
+        assert!(
+            html.contains("every day") && html.contains("4 min"),
+            "expected the habit meta line in English, got: {html}"
+        );
+        assert!(
+            html.contains(r#"aria-label="Mark as done · Read one page""#),
+            "expected the mark-done aria-label in English, got: {html}"
+        );
+        assert!(
+            html.contains("0 of 1 ·") && html.contains("that&#39;s already something."),
+            "expected the tally in English, got: {html}"
+        );
+        assert!(
+            html.contains("See how I&#39;m growing · this week"),
+            "expected the week link in English, got: {html}"
+        );
+        assert!(
+            !html.contains("Bonjour") && !html.contains("Aujourd"),
+            "expected no leftover French copy under an English locale, got: {html}"
+        );
+    }
+
+    // @scenario: language/S1
+    #[test]
+    fn an_english_locale_renders_the_empty_board_invitation_in_english() {
+        let html = render(RootWithNoHabitAndEnglishLocale);
+
+        assert!(
+            html.contains("Nothing yet. And that&#39;s perfectly fine.")
+                && html.contains("One tiny habit is enough to start."),
+            "expected the empty-state invitation in English, got: {html}"
+        );
+        assert!(
+            html.contains("+ Add a tiny habit"),
+            "expected the add-habit gesture in English, got: {html}"
+        );
+    }
+
+    // @scenario: language/S1
+    #[test]
+    fn an_english_locale_renders_the_paused_zone_and_anchored_link_in_english() {
+        let paused_html = render(RootWithActiveAndPausedHabitAndEnglishLocale);
+        assert!(
+            paused_html.contains("Paused · no pressure"),
+            "expected the paused-zone eyebrow in English, got: {paused_html}"
+        );
+        assert!(
+            paused_html.contains(r#"aria-label="Resume · Move a little""#)
+                && paused_html.contains(">Resume<"),
+            "expected the resume affordance in English, got: {paused_html}"
+        );
+
+        let anchored_html = render(RootWithAnchoredHabitAndEnglishLocale);
+        assert!(
+            anchored_html.contains("My anchored habits · 1"),
+            "expected the anchored-link copy in English, got: {anchored_html}"
+        );
+    }
+
+    // @scenario: language/S2
+    #[test]
+    fn a_locale_the_app_carries_no_catalogue_for_falls_back_to_french() {
+        let html = render(RootWithUndoneHabitAndUnsupportedLocale);
+
+        assert!(
+            html.contains("Bonjour."),
+            "expected the French greeting when the device locale isn't carried, got: {html}"
+        );
+    }
+
+    // @scenario: language/S3
+    #[test]
+    fn no_locale_reported_at_all_falls_back_to_french() {
+        let html = render(RootWithUndoneHabitAndNoLocaleReported);
+
+        assert!(
+            html.contains("Bonjour."),
+            "expected the French greeting when the device reports no locale, got: {html}"
+        );
     }
 
     #[test]

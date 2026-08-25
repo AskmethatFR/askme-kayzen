@@ -15,6 +15,17 @@ pub enum ReadmitHabitError {
     DailyLifeFull { max: usize },
 }
 
+impl ReadmitHabitError {
+    pub const ALL: [ReadmitHabitError; 4] = [
+        ReadmitHabitError::HabitNotFound,
+        ReadmitHabitError::NotAnchored,
+        ReadmitHabitError::DuplicateHabit,
+        ReadmitHabitError::DailyLifeFull {
+            max: Habit::MAX_IN_DAILY_LIFE,
+        },
+    ];
+}
+
 impl fmt::Display for ReadmitHabitError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {

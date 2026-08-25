@@ -1,34 +1,35 @@
 use crate::composition::{STARTING_GOAL, Services};
+use crate::i18n::{tr, tr_key};
 use crate::route::Route;
 use dioxus::prelude::*;
 use rand::seq::SliceRandom;
 
 /// Ready-made tiny habits, all one minute — tap one to add it without typing.
-const IDEAS: [&str; 20] = [
-    "Boire un verre d'eau",
-    "Ranger un objet",
-    "Écrire une ligne",
-    "S'étirer",
-    "Respirer profondément",
-    "Lire une page",
-    "Marcher une minute",
-    "Faire son lit",
-    "Noter une gratitude",
-    "Fermer les yeux une minute",
-    "Arroser une plante",
-    "Boire un thé",
-    "Regarder par la fenêtre",
-    "Se tenir droit une minute",
-    "Écouter une chanson",
-    "Ranger son bureau",
-    "Méditer une minute",
-    "Sourire à quelqu'un",
-    "Dire merci",
-    "Prendre l'air",
+const IDEA_KEYS: [&str; 20] = [
+    "idea-drink-water",
+    "idea-put-away-an-object",
+    "idea-write-a-line",
+    "idea-stretch",
+    "idea-breathe-deeply",
+    "idea-read-a-page",
+    "idea-walk-a-minute",
+    "idea-make-the-bed",
+    "idea-note-a-gratitude",
+    "idea-close-your-eyes-a-minute",
+    "idea-water-a-plant",
+    "idea-drink-tea",
+    "idea-look-out-the-window",
+    "idea-stand-tall-a-minute",
+    "idea-listen-to-a-song",
+    "idea-tidy-your-desk",
+    "idea-meditate-a-minute",
+    "idea-smile-at-someone",
+    "idea-say-thanks",
+    "idea-get-some-air",
 ];
 
-fn two_random_ideas() -> Vec<&'static str> {
-    IDEAS
+fn two_random_idea_keys() -> Vec<&'static str> {
+    IDEA_KEYS
         .choose_multiple(&mut rand::thread_rng(), 2)
         .copied()
         .collect()
@@ -39,54 +40,59 @@ pub fn AddHabit() -> Element {
     let services = use_context::<Services>();
     let navigator = use_navigator();
     let mut name = use_signal(String::new);
-    let ideas = use_signal(two_random_ideas);
+    let idea_keys = use_signal(two_random_idea_keys);
+    let name_label = tr!("add-habit-name-input-label");
 
     rsx! {
         div { class: "screen",
             header { class: "masthead",
-                Link { class: "quiet-link", to: Route::Today {}, "← Aujourd'hui" }
+                Link { class: "quiet-link", to: Route::Today {}, {tr!("masthead-back-to-today")} }
             }
-            h1 { class: "greeting", "Une nouvelle petite habitude" }
-            p { class: "lede",
-                "Un objectif doux : 5 minutes par jour. Moins, c'est déjà quelque chose ; plus, tant mieux."
-            }
+            h1 { class: "greeting", {tr!("add-habit-heading")} }
+            p { class: "lede", {tr!("add-habit-lede")} }
 
-            p { class: "eyebrow", "Quelques idées déjà prêtes" }
+            p { class: "eyebrow", {tr!("add-habit-ideas-eyebrow")} }
             ul { class: "habit-list",
-                for idea in ideas() {
-                    li { key: "{idea}", class: "habit-row",
-                        div { class: "habit-body",
-                            div { class: "idea-name", "{idea}" }
-                            div { class: "habit-meta", "5 min par jour" }
-                        }
-                        button {
-                            class: "add-target",
-                            aria_label: "Ajouter « {idea} »",
-                            onclick: {
-                                let services = services.clone();
-                                move |_| {
-                                    if services
-                                        .add_habit
-                                        .execute(idea.to_string(), STARTING_GOAL)
-                                        .is_ok()
-                                    {
-                                        navigator.push(Route::Today {});
-                                    }
+                for key in idea_keys() {
+                    {
+                        let label = tr_key(key);
+                        rsx! {
+                            li { key: "{key}", class: "habit-row",
+                                div { class: "habit-body",
+                                    div { class: "idea-name", "{label}" }
+                                    div { class: "habit-meta", {tr!("add-habit-idea-meta", minutes: STARTING_GOAL as i64)} }
                                 }
-                            },
-                            "+"
+                                button {
+                                    class: "add-target",
+                                    aria_label: tr!("add-habit-idea-add-aria", label: label.clone()),
+                                    onclick: {
+                                        let services = services.clone();
+                                        let label = label.clone();
+                                        move |_| {
+                                            if services
+                                                .add_habit
+                                                .execute(label.clone(), STARTING_GOAL)
+                                                .is_ok()
+                                            {
+                                                navigator.push(Route::Today {});
+                                            }
+                                        }
+                                    },
+                                    "+"
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            p { class: "eyebrow", "Ou la vôtre" }
+            p { class: "eyebrow", {tr!("add-habit-own-eyebrow")} }
             div { class: "field",
                 input {
                     class: "input",
-                    "aria-label": "Nom de l'habitude",
+                    "aria-label": "{name_label}",
                     value: "{name}",
-                    placeholder: "Nom de l'habitude",
+                    placeholder: "{name_label}",
                     oninput: move |event| name.set(event.value()),
                 }
             }
@@ -100,7 +106,7 @@ pub fn AddHabit() -> Element {
                         }
                     }
                 },
-                "Ajouter, à 5 min par jour"
+                {tr!("add-habit-submit", minutes: STARTING_GOAL as i64)}
             }
         }
     }
@@ -108,8 +114,13 @@ pub fn AddHabit() -> Element {
 
 #[cfg(test)]
 mod tests {
-    use super::{IDEAS, two_random_ideas};
+    use super::{IDEA_KEYS, tr_key, two_random_idea_keys};
     use crate::composition::{STARTING_GOAL, Services};
+    use crate::i18n::{use_locale_for_tests, use_locale_for_tests_as};
+    use crate::route::Route;
+    use dioxus::history::{MemoryHistory, provide_history_context};
+    use dioxus::prelude::*;
+    use dioxus_i18n::unic_langid::langid;
     use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
     use std::rc::Rc;
 
@@ -135,11 +146,154 @@ mod tests {
     }
 
     #[test]
-    fn two_random_ideas_are_two_distinct_ideas_from_the_list() {
-        let picks = two_random_ideas();
+    fn two_random_idea_keys_are_two_distinct_keys_from_the_list() {
+        let picks = two_random_idea_keys();
 
         assert_eq!(picks.len(), 2);
         assert_ne!(picks[0], picks[1]);
-        assert!(picks.iter().all(|idea| IDEAS.contains(idea)));
+        assert!(picks.iter().all(|key| IDEA_KEYS.contains(key)));
+    }
+
+    #[test]
+    fn every_idea_key_resolves_in_both_catalogues() {
+        let (fr_ids, en_ids) = crate::i18n::catalogue_ids();
+
+        for key in IDEA_KEYS {
+            assert!(fr_ids.contains(key), "expected {key} to resolve in fr.ftl");
+            assert!(en_ids.contains(key), "expected {key} to resolve in en.ftl");
+        }
+    }
+
+    #[component]
+    fn RootAtAddHabitScreen() -> Element {
+        use_locale_for_tests();
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/add")));
+        });
+        use_context_provider(|| Services::with_repository(Rc::new(InMemoryHabitRepository::new())));
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    fn render(root: fn() -> Element) -> String {
+        let mut vdom = VirtualDom::new(root);
+        vdom.rebuild_in_place();
+        dioxus_ssr::render(&vdom)
+    }
+
+    // @scenario: add-habit/S1
+    #[test]
+    fn opening_add_habit_offers_two_ready_made_ideas_and_a_way_to_add_your_own() {
+        let html = render(RootAtAddHabitScreen);
+
+        assert!(
+            html.contains("Une nouvelle petite habitude"),
+            "expected the gentle invitation heading, got: {html}"
+        );
+        assert!(
+            html.contains("Quelques idées déjà prêtes"),
+            "expected the ready-made ideas eyebrow, got: {html}"
+        );
+        let idea_chip_count = html.matches(r#"class="add-target""#).count();
+        assert_eq!(
+            idea_chip_count, 2,
+            "expected exactly two suggested ideas offered, got: {html}"
+        );
+        assert!(
+            html.contains("Ou la vôtre") && html.contains("Nom de l&#39;habitude"),
+            "expected the freeform way to add your own, got: {html}"
+        );
+        assert!(
+            html.contains("Ajouter, à 5 min par jour"),
+            "expected the submit gesture named with its own gentle goal, got: {html}"
+        );
+    }
+
+    #[component]
+    fn RootAtAddHabitScreenAndEnglishLocale() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/add")));
+        });
+        use_context_provider(|| Services::with_repository(Rc::new(InMemoryHabitRepository::new())));
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    const IDEA_TEXT_EN: [&str; 20] = [
+        "Drink a glass of water",
+        "Put an object away",
+        "Write a line",
+        "Stretch",
+        "Breathe deeply",
+        "Read a page",
+        "Walk for a minute",
+        "Make your bed",
+        "Note a gratitude",
+        "Close your eyes for a minute",
+        "Water a plant",
+        "Drink a tea",
+        "Look out the window",
+        "Stand tall for a minute",
+        "Listen to a song",
+        "Tidy your desk",
+        "Meditate for a minute",
+        "Smile at someone",
+        "Say thanks",
+        "Get some air",
+    ];
+
+    // @scenario: language/S1
+    #[test]
+    fn an_english_locale_renders_the_add_habit_screen_in_english() {
+        let html = render(RootAtAddHabitScreenAndEnglishLocale);
+
+        assert!(
+            html.contains(r#"<h1 class="greeting">A new tiny habit</h1>"#),
+            "expected the heading in English, got: {html}"
+        );
+        assert!(
+            html.contains(r#"class="eyebrow">A few ideas, ready to go<"#),
+            "expected the ready-made ideas eyebrow in English, got: {html}"
+        );
+        assert!(
+            html.contains(r#"class="eyebrow">Or your own<"#),
+            "expected the freeform-own eyebrow in English, got: {html}"
+        );
+        assert!(
+            html.contains(r#"aria-label="Habit name""#),
+            "expected the name-input aria-label in English, got: {html}"
+        );
+        assert!(
+            html.contains(">Add, at 5 min a day<"),
+            "expected the submit gesture in English, got: {html}"
+        );
+    }
+
+    #[component]
+    fn RootIdeaKeysInEnglish() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        rsx! {
+            ul {
+                for key in IDEA_KEYS {
+                    li { "{tr_key(key)}" }
+                }
+            }
+        }
+    }
+
+    // @scenario: language/S1
+    #[test]
+    fn every_idea_key_translates_to_its_pinned_english_text() {
+        let html = render(RootIdeaKeysInEnglish);
+
+        for (key, expected) in IDEA_KEYS.iter().zip(IDEA_TEXT_EN.iter()) {
+            assert!(
+                html.contains(&format!("<li>{expected}</li>")),
+                "expected {key} to translate to {expected:?} in English, got: {html}"
+            );
+        }
     }
 }

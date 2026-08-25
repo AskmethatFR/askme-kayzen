@@ -1,3 +1,4 @@
+use crate::i18n::tr;
 use dioxus::prelude::*;
 
 #[component]
@@ -7,10 +8,10 @@ pub fn DataUnavailable() -> Element {
             header { class: "masthead",
                 span { class: "tag tag-accent", "Kaizen" }
             }
-            h1 { class: "greeting", "Désolé." }
+            h1 { class: "greeting", {tr!("data-unavailable-title")} }
             div { class: "empty-state",
-                p { class: "lede", "Cet appareil ne propose pas d'endroit sûr où garder vos habitudes." }
-                p { class: "lede", "Rien n'a été écrit. Vous pouvez fermer l'application." }
+                p { class: "lede", {tr!("data-unavailable-lede-1")} }
+                p { class: "lede", {tr!("data-unavailable-lede-2")} }
             }
         }
     }
@@ -19,6 +20,15 @@ pub fn DataUnavailable() -> Element {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::i18n::use_locale_for_tests;
+
+    #[component]
+    fn RootAtDataUnavailable() -> Element {
+        use_locale_for_tests();
+        rsx! {
+            DataUnavailable {}
+        }
+    }
 
     fn render(root: fn() -> Element) -> String {
         let mut vdom = VirtualDom::new(root);
@@ -47,7 +57,7 @@ mod tests {
     // @scenario: persistence/S5
     #[test]
     fn the_screen_shows_a_calm_explanation_and_no_technical_wording() {
-        let html = render(DataUnavailable);
+        let html = render(RootAtDataUnavailable);
 
         assert!(
             html.contains(r#"class="lede""#),
@@ -65,7 +75,7 @@ mod tests {
     // @scenario: persistence/S5
     #[test]
     fn the_screen_does_not_blame_disk_space_for_the_refusal() {
-        let html = render(DataUnavailable);
+        let html = render(RootAtDataUnavailable);
 
         assert!(
             !html.to_lowercase().contains("espace"),
