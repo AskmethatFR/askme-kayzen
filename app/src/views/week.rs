@@ -601,9 +601,7 @@ mod tests {
             "expected the accumulated-minutes figure in English, got: {html}"
         );
         assert!(
-            html.contains(
-                r#"class="week-word">A perfect start. Everything is still ahead.<"#
-            ),
+            html.contains(r#"class="week-word">A perfect start. Everything is still ahead.<"#),
             "expected the fresh-start message in English, got: {html}"
         );
         assert!(
