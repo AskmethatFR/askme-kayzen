@@ -52,7 +52,6 @@ macro_rules! tr {
 }
 pub(crate) use tr;
 
-#[allow(dead_code)]
 pub(crate) fn tr_key(key: &str) -> String {
     strip_isolates(::dioxus_i18n::prelude::i18n().translate(key))
 }

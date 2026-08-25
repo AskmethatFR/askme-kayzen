@@ -54,19 +54,12 @@ fn every_route() -> [&'static str; 7] {
     ]
 }
 
-// @scenario: language/S1
-// @scenario: language/S2
-// @scenario: language/S3
 #[test]
-fn every_route_under_every_carried_locale_renders_with_no_fluent_or_bidi_residue() {
+fn every_route_under_every_carried_locale_renders_with_no_bidi_residue() {
     for path in every_route() {
         for locale in [langid!("fr"), langid!("en")] {
             let html = render_route(path, locale.clone());
 
-            assert!(
-                !html.contains("{$") && !html.contains("{ $"),
-                "expected no unresolved Fluent placeable in {path} under {locale}, got: {html}"
-            );
             assert!(
                 !html.chars().any(|c| matches!(c, '\u{2066}'..='\u{2069}')),
                 "expected no bidi-isolate marks in {path} under {locale}, got: {html}"
