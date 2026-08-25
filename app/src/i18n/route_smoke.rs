@@ -54,11 +54,33 @@ fn every_route() -> [&'static str; 7] {
     ]
 }
 
+fn expected_content_marker(path: &str) -> &'static str {
+    if path == "/this-route-does-not-exist" {
+        "<h1>"
+    } else {
+        r#"class="screen"#
+    }
+}
+
+fn assert_route_rendered_real_content(path: &str, html: &str) {
+    assert!(
+        !html.trim().is_empty(),
+        "expected {path} to render real content, got an empty document \
+         (a panicking screen is absorbed into an empty render, which would \
+         make every other assertion in this test vacuously true)"
+    );
+    assert!(
+        html.contains(expected_content_marker(path)),
+        "expected {path} to render its own screen content, got: {html}"
+    );
+}
+
 #[test]
 fn every_route_under_every_carried_locale_renders_with_no_bidi_residue() {
     for path in every_route() {
         for locale in [langid!("fr"), langid!("en")] {
             let html = render_route(path, locale.clone());
+            assert_route_rendered_real_content(path, &html);
 
             assert!(
                 !html.chars().any(|c| matches!(c, '\u{2066}'..='\u{2069}')),
@@ -85,6 +107,7 @@ fn french_markers() -> [&'static str; 7] {
 fn every_route_under_english_carries_no_french_marker() {
     for path in every_route() {
         let html = render_route(path, langid!("en"));
+        assert_route_rendered_real_content(path, &html);
 
         for marker in french_markers() {
             assert!(
