@@ -62,13 +62,26 @@ rustup target add aarch64-linux-android
 
 On an Apple-silicon Mac the r25 toolchain binaries are x86_64, so Rosetta 2 runs them.
 
-The app id is `com.askmethat.kayzen` (`app/Dioxus.toml`'s `[android] identifier`). The
-manifest at `app/android/AndroidManifest.xml` is a hand-owned fork of the one `dx`
+The app id is `com.askmethat.kayzen` (`app/Dioxus.toml`'s `[android] identifier`). If
+a device still carries an earlier build under the old `com.example.KayzenApp` id,
+uninstall it first — Android treats a changed applicationId as a different app, so the
+two coexist with separate `/data/data/.../files` directories instead of one upgrading
+the other.
+
+The manifest at `app/android/AndroidManifest.xml` is a hand-owned fork of the one `dx`
 generates — `dx` rewrites the whole Gradle project on every build, so this is the one
-file it is told to copy in verbatim instead (`[application].android_manifest`). It
-carries the launcher label as a literal (`strings.xml` is regenerated from the crate
-name on every build, so `@string/app_name` would not survive it). Re-diff it against a
-fresh debug build's generated manifest whenever `dx` is upgraded.
+file it is told to copy in verbatim instead (`[application].android_manifest`). Its own
+leading comment carries the exact list of edits and their rationale, including
+`android:allowBackup="false"` (owner-ruled: strict local, no Auto Backup / device
+transfer of habit data, which is otherwise the platform default and would otherwise
+include `getFilesDir()/kayzen/` — real backup/restore is a separate, later ticket).
+**Because `[application].android_manifest` replaces rather than merges, every
+manifest-shaped `Dioxus.toml` key is inert while this fork is in place** — see the
+fork's own comment for the full list. Re-diff both this file *and* the generated
+`res/xml/network_security_config.xml` against a fresh debug build whenever `dx` is
+upgraded — the config isn't forked (nothing to fork yet: no `<base-config>`, cleartext
+stays denied except to `127.0.0.1` for hot-reload), but a future `dx` changing that
+default would ship silently otherwise.
 
 The build prints `WARNING: We recommend using a newer Android Gradle plugin to use
 compileSdk = 36` (AGP 8.7.0 was tested up to 35) and still succeeds — expected until

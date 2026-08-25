@@ -1,11 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Forked verbatim from the manifest dx v0.7.9 generates for this project
+  Forked from the manifest dx v0.7.9 generates for this project
   (target/dx/kayzen-app/debug/android/app/app/src/main/AndroidManifest.xml),
-  with two edits: a literal launcher label (see README, "Android (local,
-  unsigned)" — strings.xml is regenerated on every build, so a literal is the
-  only value that survives it) and this provenance comment. Re-diff against a
-  fresh debug build's generated manifest whenever dx is upgraded.
+  with three edits: a literal launcher label on <application> and <activity>
+  (see README, "Android (local, unsigned)" — strings.xml is regenerated on
+  every build, so a literal is the only value that survives it),
+  android:allowBackup="false" on <application> (owner-ruled: strict local,
+  no Auto Backup / device transfer of habit data — see README), and this
+  provenance comment. Everything else is untouched from the generated
+  source. Re-diff against a fresh debug build's generated manifest whenever
+  dx is upgraded.
+
+  While this fork is in place, every manifest-shaped Dioxus.toml key is
+  inert: [application].android_manifest REPLACES the manifest rather than
+  merging it, so [android].permissions/.features/.lib_name/.intent_filters/
+  .queries/.foreground_service_types, [android.raw.manifest],
+  [android.application] (uses_cleartext_traffic/theme/supports_rtl/
+  large_heap), [permissions] and [deep_links] all do nothing here — no
+  build failure, no dx warning. The three comments below are template
+  vestiges carried over for diff fidelity, not extension points. Change
+  this file, not the toml.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Default permissions -->
@@ -21,6 +35,7 @@
     <application android:hasCode="true" android:icon="@mipmap/ic_launcher"
         android:extractNativeLibs="true"
         android:allowNativeHeapPointerTagging="false"
+        android:allowBackup="false"
         android:label="Kaizen"
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
