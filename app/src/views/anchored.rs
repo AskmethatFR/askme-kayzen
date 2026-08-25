@@ -82,9 +82,10 @@ fn readmit_and_relist(services: &Services, id: &str) -> (AnchoredScreen, Option<
 mod tests {
     use super::*;
     use crate::composition::Services;
-    use crate::i18n::use_locale_for_tests;
+    use crate::i18n::{use_locale_for_tests, use_locale_for_tests_as};
     use crate::views::click_harness::Screen;
     use dioxus::history::{MemoryHistory, provide_history_context};
+    use dioxus_i18n::unic_langid::langid;
     use kayzen_core::habit_management::domain::goal::Goal;
     use kayzen_core::habit_management::domain::habit::Habit;
     use kayzen_core::habit_management::domain::habit_id::HabitId;
@@ -140,6 +141,45 @@ mod tests {
         rsx! {
             Router::<Route> {}
         }
+    }
+
+    #[component]
+    fn RootAtAnchoredScreenAndEnglishLocale() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/anchored")));
+        });
+        use_context_provider(services_with_two_anchored_habits);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: language/S1
+    #[test]
+    fn an_english_locale_renders_the_anchored_screen_in_english() {
+        let html = render(RootAtAnchoredScreenAndEnglishLocale);
+
+        assert!(
+            html.contains(r#"<h1 class="greeting">Anchored</h1>"#),
+            "expected the Anchored heading in English, got: {html}"
+        );
+        assert!(
+            html.contains(">Bring it back into my daily life<"),
+            "expected the readmit gesture label in English, got: {html}"
+        );
+        assert!(
+            html.contains(r#"aria-label="Bring it back into my daily life · Lire une page""#),
+            "expected the readmit aria-label in English, got: {html}"
+        );
+        assert!(
+            html.contains(r#"class="tally">2 · became natural<"#),
+            "expected the anchored-count tally in English, got: {html}"
+        );
+        assert!(
+            html.contains("You&#39;re following 0 / 5 habits in parallel"),
+            "expected the daily-life tally in English, got: {html}"
+        );
     }
 
     #[component]
