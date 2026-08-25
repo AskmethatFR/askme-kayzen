@@ -62,8 +62,10 @@ fn app_shell(services: Option<Services>) -> Element {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
     use std::rc::Rc;
 
+    use dioxus::document::{Document, Eval};
     use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
 
     use super::*;
@@ -72,6 +74,65 @@ mod tests {
         let mut vdom = VirtualDom::new(root);
         vdom.rebuild_in_place();
         dioxus_ssr::render(&vdom)
+    }
+
+    #[derive(Default)]
+    struct HeadElementSpy {
+        head_elements: RefCell<Vec<(String, Vec<(String, String)>)>>,
+    }
+
+    impl Document for HeadElementSpy {
+        fn eval(&self, _js: String) -> Eval {
+            unimplemented!("this spy overrides create_head_element, so eval is never reached")
+        }
+
+        fn create_head_element(
+            &self,
+            name: &str,
+            attributes: &[(&str, String)],
+            _contents: Option<String>,
+        ) {
+            self.head_elements.borrow_mut().push((
+                name.to_string(),
+                attributes
+                    .iter()
+                    .map(|(key, value)| (key.to_string(), value.clone()))
+                    .collect(),
+            ));
+        }
+    }
+
+    // `AppShellWithHeadSpy` is a bare `fn() -> Element` (no captures allowed
+    // by `VirtualDom::new`), so the spy travels through this thread-local
+    // rather than a closure capture — same shape as `ritual.rs`'s
+    // `SHARED_REPOSITORY`. Scoped to this test module only; production code
+    // never reads it.
+    thread_local! {
+        static SHARED_HEAD_SPY: RefCell<Option<Rc<HeadElementSpy>>> =
+            const { RefCell::new(None) };
+    }
+
+    // Clears the thread-local on drop, including on an unwind, so a panic
+    // inside the test body can't leave a stale spy for the next test on
+    // this thread.
+    struct SharedHeadSpyGuard;
+
+    impl Drop for SharedHeadSpyGuard {
+        fn drop(&mut self) {
+            SHARED_HEAD_SPY.with(|cell| *cell.borrow_mut() = None);
+        }
+    }
+
+    #[component]
+    fn AppShellWithHeadSpy() -> Element {
+        crate::i18n::use_locale_for_tests();
+        let spy = SHARED_HEAD_SPY.with(|cell| {
+            cell.borrow()
+                .clone()
+                .expect("a head spy was seeded before rendering")
+        });
+        use_context_provider(move || spy.clone() as Rc<dyn Document>);
+        app_shell(None)
     }
 
     #[component]
@@ -131,6 +192,41 @@ mod tests {
         assert!(
             !html.contains("masthead-date"),
             "expected the Router/Today screen NOT to be rendered, got: {html}"
+        );
+    }
+
+    #[test]
+    fn app_shell_registers_a_viewport_meta_that_opts_into_safe_area_insets() {
+        let spy = Rc::new(HeadElementSpy::default());
+        SHARED_HEAD_SPY.with(|cell| *cell.borrow_mut() = Some(spy.clone()));
+        let _guard = SharedHeadSpyGuard;
+
+        let mut vdom = VirtualDom::new(AppShellWithHeadSpy);
+        vdom.rebuild_in_place();
+
+        let viewport_meta = spy
+            .head_elements
+            .borrow()
+            .iter()
+            .find(|(name, attributes)| {
+                name == "meta"
+                    && attributes
+                        .iter()
+                        .any(|(key, value)| key == "name" && value == "viewport")
+            })
+            .map(|(_, attributes)| attributes.clone());
+
+        let viewport_meta = viewport_meta.expect(
+            "expected app_shell to register a <meta name=\"viewport\"> head element, \
+             got none",
+        );
+        assert!(
+            viewport_meta
+                .iter()
+                .any(|(key, value)| key == "content" && value.contains("viewport-fit=cover")),
+            "expected the viewport meta's content to carry viewport-fit=cover so \
+             env(safe-area-inset-*) resolves to real values on Android 16, got: \
+             {viewport_meta:?}"
         );
     }
 }
