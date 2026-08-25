@@ -25,8 +25,13 @@ pub(crate) fn strip_isolates(text: String) -> String {
 
 /// The one place both catalogues are registered — the production `config()`
 /// and the test seam `use_locale_for_tests_as` both build on this, so a
-/// dropped `.with_locale` or a dropped `.with_fallback` here breaks every
-/// English-locale test in the suite, not just production.
+/// dropped `.with_locale` here breaks every English-locale test in the
+/// suite, not just production. `.with_fallback(fr)` is currently
+/// unreachable — `select_locale`'s range is only `fr`/`en`, both already
+/// registered via `.with_locale` — but it stays as the config-boundary
+/// safety net for the day `select_locale` carries a wider range (e.g. an
+/// in-app language switcher). The fallback *decision* for an unsupported
+/// device locale lives in `select_locale`, not here.
 fn config_for(locale: dioxus_i18n::unic_langid::LanguageIdentifier) -> I18nConfig {
     I18nConfig::new(locale)
         .with_fallback(langid!("fr"))
