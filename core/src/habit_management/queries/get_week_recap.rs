@@ -63,6 +63,14 @@ pub enum WeekMessage {
     Growing,
 }
 
+impl WeekMessage {
+    pub const ALL: [WeekMessage; 3] = [
+        WeekMessage::FreshStart,
+        WeekMessage::Resting,
+        WeekMessage::Growing,
+    ];
+}
+
 impl GetWeekRecap {
     pub fn new(repository: Rc<dyn HabitRepository>, clock: Rc<dyn Clock>) -> GetWeekRecap {
         GetWeekRecap { repository, clock }

@@ -78,6 +78,14 @@ pub enum RecapMessage {
     Growing,
 }
 
+impl RecapMessage {
+    pub const ALL: [RecapMessage; 3] = [
+        RecapMessage::FreshStart,
+        RecapMessage::Resting,
+        RecapMessage::Growing,
+    ];
+}
+
 /// Days without practice after which the recap speaks of rest. Seven, the only
 /// rhythm this app speaks (see WINDOW_DAYS).
 const RESTING_AFTER_DAYS: usize = 7;
