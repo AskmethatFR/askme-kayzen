@@ -1,0 +1,127 @@
+/* Kayzen — the Broadsheet system of the app, reduced to what a text page needs.
+   Same tokens as app/assets/main.css: paper, ink, cyan as the only spot colour. */
+
+@font-face {
+  font-family: 'Source Serif 4';
+  src: url('fonts/SourceSerif4Variable-Roman.woff2') format('woff2');
+  font-weight: 200 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Source Serif 4';
+  src: url('fonts/SourceSerif4Variable-Italic.woff2') format('woff2');
+  font-weight: 200 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+:root {
+  --color-paper: #f3f2f2;
+  --color-ink: #201e1d;
+  --color-ink-soft: #6f6a68;
+  --color-rule: #dcd9d7;
+  --color-accent: #0088b0;
+  --font-serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-serif);
+  font-size: 18px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.page {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 48px 24px 96px;
+}
+
+.masthead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--color-ink);
+  margin-bottom: 40px;
+}
+
+.wordmark {
+  font-size: 30px;
+  font-variation-settings: 'wght' 660, 'opsz' 60;
+  text-decoration: none;
+  color: var(--color-ink);
+}
+
+.wordmark .stamp { color: var(--color-accent); }
+
+.masthead nav {
+  font-size: 15px;
+  color: var(--color-ink-soft);
+}
+
+.masthead nav a {
+  color: var(--color-ink-soft);
+  text-decoration: none;
+  margin-left: 16px;
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.masthead nav a:hover { color: var(--color-accent); border-bottom-color: var(--color-accent); }
+
+h1 {
+  font-size: clamp(30px, 6vw, 42px);
+  line-height: 1.15;
+  font-variation-settings: 'wght' 640, 'opsz' 60;
+  margin: 0 0 8px;
+}
+
+h2 {
+  font-size: 22px;
+  font-variation-settings: 'wght' 620;
+  margin: 40px 0 8px;
+}
+
+.dateline {
+  font-size: 14px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+  margin: 0 0 32px;
+}
+
+.lede {
+  font-size: 21px;
+  font-style: italic;
+  margin: 0 0 32px;
+}
+
+p, li { margin: 0 0 14px; }
+
+ul { padding-left: 22px; }
+
+a { color: var(--color-accent); }
+
+.footer {
+  margin-top: 64px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-rule);
+  font-size: 15px;
+  color: var(--color-ink-soft);
+}
+
+.lang {
+  font-size: 15px;
+  color: var(--color-ink-soft);
+  margin: 0 0 32px;
+}

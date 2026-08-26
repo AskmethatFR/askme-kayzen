@@ -7,3 +7,6 @@
 /.claude/worktrees/
 AGENTS.md
 app/assets/AGENTS.md
+
+# Python bytecode from the store asset generators
+__pycache__/
