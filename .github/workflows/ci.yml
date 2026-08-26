@@ -162,8 +162,23 @@ jobs:
       # developer's own r25c machine still ships 4 KB -- the gate would
       # stop discriminating exactly the regression it exists to catch.
       # Licences are already accepted on the preinstalled SDK.
+      #
+      # @law: this runner preinstalls the Android command-line tools but
+      # does not put sdkmanager on PATH -- it ships under
+      # $ANDROID_HOME/cmdline-tools/latest/bin/, invoked by full path here.
       - name: Install NDK r25c
-        run: sdkmanager --sdk_root="$ANDROID_HOME" --install "ndk;25.2.9519653"
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          [ -x "$SDKMANAGER" ] || {
+            echo "sdkmanager not found at $SDKMANAGER" >&2
+            exit 1
+          }
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --install "ndk;25.2.9519653"
+          [ -d "$NDK_HOME" ] || {
+            echo "NDK did not land at $NDK_HOME after sdkmanager install" >&2
+            exit 1
+          }
 
       # The `env` context is not available in `jobs.<job_id>.env` (only
       # github/needs/strategy/matrix/vars/secrets/inputs are), and even
