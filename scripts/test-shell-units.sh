@@ -272,6 +272,24 @@ else
         rm -rf "$work"
     }
 
+    # Same contract as build_aab, but writes entries directly into the zip's
+    # central directory via Python -- a filesystem path cannot represent two
+    # entries sharing one literal name, or a name containing a raw newline,
+    # both of which a real .aab's central directory permits.
+    build_aab_raw() {
+        local aab="$1"
+        shift
+        python3 -c '
+import sys, zipfile
+aab = sys.argv[1]
+args = sys.argv[2:]
+with zipfile.ZipFile(aab, "w") as zf:
+    for i in range(0, len(args), 2):
+        with open(args[i + 1], "rb") as f:
+            zf.writestr(args[i], f.read())
+' "$aab" "$@" 2>/dev/null
+    }
+
     va() { env NDK_HOME="$SYNTH_NDK_HOME" "$VERIFY_ALIGNMENT" "$@"; }
 
     # A real 16 KB-aligned .so, compiled fresh with the exact link flags
@@ -343,6 +361,12 @@ else
         *) msg_16k="no" ;;
     esac
     assert_eq "yes" "$msg_16k" "android-verify-alignment.sh: 16 KB .so reports the alignment"
+    case "$out_16k" in
+        *"verified 1 .so entries"*) msg_16k_count="yes" ;;
+        *) msg_16k_count="no" ;;
+    esac
+    assert_eq "yes" "$msg_16k_count" \
+        "android-verify-alignment.sh: 16 KB .so reports the entry count (kills the mutant deleting the summary line)"
 
     # 7. a forged AAB carrying an entry name shaped like a glob character
     # class (base/lib/arm64-v8a/libgoo[d].so, 4 KB, malicious) alongside a
@@ -362,6 +386,59 @@ else
         *) msg_forged="no" ;;
     esac
     assert_eq "yes" "$msg_forged" "android-verify-alignment.sh: forged glob-named entry is actually inspected"
+
+    # 8. a REAL duplicate entry name: the malicious 4 KB library first, a
+    # benign 16 KB one second, both at the identical literal name.
+    # zipfile.NameToInfo is a dict keyed by name -- a name-keyed reader
+    # resolves that key to the LAST entry, so it would verify the benign
+    # second entry and never inspect the malicious first one, while still
+    # reporting success.
+    AAB_DUP="$SYNTH_ROOT/dup-name.aab"
+    build_aab_raw "$AAB_DUP" \
+        "base/lib/arm64-v8a/libmain.so" "$SYNTH_STOCK_SO" \
+        "base/lib/arm64-v8a/libmain.so" "$SYNTH_ROOT/lib16k.so"
+    err_dup="$(va "$AAB_DUP" 2>&1 1>/dev/null)"; status_dup=$?
+    assert_eq "1" "$status_dup" "android-verify-alignment.sh: duplicate-name entry exits 1"
+    case "$err_dup" in
+        *"libmain.so"*"aligned to 4096"*) msg_dup="yes" ;;
+        *) msg_dup="no" ;;
+    esac
+    assert_eq "yes" "$msg_dup" "android-verify-alignment.sh: duplicate-name entry names the malicious cause"
+
+    # 9. an entry name with an embedded newline: fnmatch's DOTALL semantics
+    # let `*` cross it, so the printed name splits into two lines each equal
+    # to a second, genuinely-benign entry's plain name. A name-keyed reader
+    # resolves both printed lines to the benign entry and never inspects the
+    # malicious newline-named one, while still reporting success.
+    AAB_NL="$SYNTH_ROOT/newline-name.aab"
+    build_aab_raw "$AAB_NL" \
+        "$(printf 'base/lib/arm64-v8a/libgood.so\nbase/lib/arm64-v8a/libgood.so')" "$SYNTH_STOCK_SO" \
+        "base/lib/arm64-v8a/libgood.so" "$SYNTH_ROOT/lib16k.so"
+    err_nl="$(va "$AAB_NL" 2>&1 1>/dev/null)"; status_nl=$?
+    assert_eq "1" "$status_nl" "android-verify-alignment.sh: newline-embedded entry name exits 1"
+    case "$err_nl" in
+        *"aligned to 4096"*) msg_nl="yes" ;;
+        *) msg_nl="no" ;;
+    esac
+    assert_eq "yes" "$msg_nl" "android-verify-alignment.sh: newline-embedded entry name is actually inspected"
+
+    # 10. the malicious 4 KB library under a SECOND ABI directory
+    # (armeabi-v7a), alongside a benign 16 KB arm64-v8a entry -- pins that
+    # every base/lib/<abi>/ directory is scanned, not only arm64-v8a. Kills
+    # a mutant narrowing the glob to "base/lib/arm64-v8a/*.so": every other
+    # case above builds arm64-v8a-only AABs and would keep passing under
+    # that narrower pattern.
+    AAB_MULTIABI="$SYNTH_ROOT/multi-abi.aab"
+    build_aab "$AAB_MULTIABI" \
+        "base/lib/arm64-v8a/lib16k.so" "$SYNTH_ROOT/lib16k.so" \
+        "base/lib/armeabi-v7a/libstock.so" "$SYNTH_STOCK_SO"
+    err_multiabi="$(va "$AAB_MULTIABI" 2>&1 1>/dev/null)"; status_multiabi=$?
+    assert_eq "1" "$status_multiabi" "android-verify-alignment.sh: second-ABI 4 KB entry exits 1"
+    case "$err_multiabi" in
+        *"armeabi-v7a/libstock.so"*"aligned to 4096"*) msg_multiabi="yes" ;;
+        *) msg_multiabi="no" ;;
+    esac
+    assert_eq "yes" "$msg_multiabi" "android-verify-alignment.sh: second-ABI 4 KB entry is scanned and named"
 
     rm -rf "$SYNTH_ROOT"
 fi
