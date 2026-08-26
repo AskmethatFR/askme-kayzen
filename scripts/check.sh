@@ -118,15 +118,9 @@ android_cross_target() {
         -- -D warnings
 }
 
-# Lints every GitHub Actions workflow. This is the gate that guards the
-# gates: a workflow YAML that references an unavailable context (e.g. `env`
-# inside `jobs.<id>.env`) fails to LOAD, not just to run -- taking every job
-# in the file down with it, `gates` included. actionlint catches this class
-# of defect in ~200ms, and this repo's own doctrine (see the header above
-# and docs/technical/adr/0009-quality-gates.md) is that a missing gate
-# implementation is refused (exit 2), never silently skipped -- "not
-# measured" must never read as "green". Follows verify-instrument.sh's own
-# exit-2-on-missing-tool precedent.
+# @law: an unavailable context (e.g. `env` inside `jobs.<id>.env`) makes a
+# workflow fail to LOAD, taking every job in the file down with it --
+# this is the gate that guards the gates.
 workflow_lint() {
     command -v actionlint >/dev/null 2>&1 \
         || { echo "actionlint not found (brew install actionlint)" >&2; return 2; }

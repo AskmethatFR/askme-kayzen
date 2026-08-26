@@ -177,12 +177,9 @@ assert_refuses "version_code_from_semver: patch over 999" -- version_code_from_s
 assert_refuses "version_code_from_semver: all-zero version" -- version_code_from_semver "0.0.0"
 assert_refuses "version_code_from_semver: leading zero" -- version_code_from_semver "01.2.3"
 
-# A component so far outside int64 that a raw `-gt 999` test(1) call errors
-# out (exit 2, read by `if` as false) used to make the guard skip itself and
-# the arithmetic wrap silently instead of refusing. The regex above now
-# rejects any component with more than 3 digits outright, before any
-# arithmetic runs, so these two must refuse cleanly like any other malformed
-# input.
+# @law: test(1) exits 2 (read by `if` as false) on an out-of-int64
+# operand -- the regex above rejects a >3-digit component before any
+# arithmetic can hit that.
 assert_refuses "version_code_from_semver: major far beyond int64" \
     -- version_code_from_semver "10000000000000000000.0.0"
 assert_refuses "version_code_from_semver: patch far beyond int64" \
