@@ -107,9 +107,13 @@ the script is the fix.
 ## Gates
 
 ```bash
-scripts/check.sh                          # fmt, clippy, tests, scenario gate, doc anchors
+scripts/check.sh                          # fmt, clippy, tests, shell units, scenario gate, doc anchors
 scripts/check.sh new-feature <base-ref>   # the above, plus the mutation gate on the committed diff
 ```
+
+The shell-units gate runs `scripts/test-shell-units.sh`, a house harness for
+`scripts/android-release-lib.sh` — the pure functions the Android release build
+(`scripts/android-bundle.sh`) relies on and cannot exercise through `cargo test`.
 
 The scenario gate is bidirectional: every Gherkin scenario in
 `docs/functional/features/` resolves to a test through a `// @scenario: <feature>/<Sn>`

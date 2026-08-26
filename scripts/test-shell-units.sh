@@ -183,6 +183,24 @@ assert_refuses "min_load_alignment: empty input" -- min_load_alignment_stdin ""
 assert_refuses "min_load_alignment: no LOAD lines" -- min_load_alignment_stdin "$DUMP_NO_LOAD"
 assert_refuses "min_load_alignment: non-numeric Align" -- min_load_alignment_stdin "$DUMP_NONNUMERIC_ALIGN"
 
+# "Could not look" (nothing to measure) and "an Align did not convert" are
+# different failures and must say so differently -- a caller reading only
+# the exit code cannot tell "no .so shipped a LOAD segment" from "this
+# dump is corrupt", so the two paths are pinned to distinct stderr text.
+no_load_says_no_load="no"
+case "$(min_load_alignment_stdin "$DUMP_NO_LOAD" 2>&1 1>/dev/null)" in
+    *"no LOAD segments"*) no_load_says_no_load="yes" ;;
+esac
+assert_eq "yes" "$no_load_says_no_load" \
+    "min_load_alignment: no-LOAD refusal names the right cause"
+
+nonnumeric_says_nonnumeric="no"
+case "$(min_load_alignment_stdin "$DUMP_NONNUMERIC_ALIGN" 2>&1 1>/dev/null)" in
+    *"does not convert to a number"*) nonnumeric_says_nonnumeric="yes" ;;
+esac
+assert_eq "yes" "$nonnumeric_says_nonnumeric" \
+    "min_load_alignment: non-numeric-Align refusal names the right cause"
+
 # --- verdict --------------------------------------------------------------
 # A harness with every case deleted still exits 0 with "0 passed, 0 failed"
 # unless this is checked explicitly -- that reads as a clean gate while
