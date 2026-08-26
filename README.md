@@ -154,13 +154,22 @@ not this one.
 ## Gates
 
 ```bash
-scripts/check.sh                          # fmt, clippy, tests, shell units, scenario gate, doc anchors
+scripts/check.sh                          # fmt, clippy, workflow lint, tests, shell units, scenario gate, doc anchors
 scripts/check.sh new-feature <base-ref>   # the above, plus the mutation gate on the committed diff
 ```
+
+Requires `actionlint` on `PATH` for the workflow-lint gate (`brew install actionlint`),
+alongside the toolchain prerequisites above — a missing `actionlint` refuses (exit 2)
+rather than silently skipping the gate, same doctrine as every other gate here.
 
 The shell-units gate runs `scripts/test-shell-units.sh`, a house harness for
 `scripts/android-release-lib.sh` — the pure functions the Android release build
 (`scripts/android-bundle.sh`) relies on and cannot exercise through `cargo test`.
+
+The workflow-lint gate runs `actionlint` over every `.github/workflows/*.yml`: a
+workflow referencing an unavailable context (e.g. `env` inside `jobs.<id>.env`) fails
+to *load*, taking every job in the file down with it — this is the one gate that
+guards the gates themselves.
 
 The scenario gate is bidirectional: every Gherkin scenario in
 `docs/functional/features/` resolves to a test through a `// @scenario: <feature>/<Sn>`

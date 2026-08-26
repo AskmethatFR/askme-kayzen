@@ -46,6 +46,14 @@ jobs:
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
+      # Runs unconditionally: scripts/check.sh's workflow-lint gate is part
+      # of the no-work-class path too, so both "Gates (pull request)" and
+      # "Gates (push to main)" below need it on PATH.
+      - name: Install actionlint
+        uses: taiki-e/install-action@a2a5f6e99e1a31540baa0468acfa302cff0f359f # v2.86.4
+        with:
+          tool: actionlint@1.7.12
+
       # ref: alone does not guarantee origin/main exists locally, even at
       # fetch-depth: 0 — fetched explicitly so the merge-base below has
       # something to resolve against. No --depth here: git rejects

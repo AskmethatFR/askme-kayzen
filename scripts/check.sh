@@ -118,6 +118,21 @@ android_cross_target() {
         -- -D warnings
 }
 
+# Lints every GitHub Actions workflow. This is the gate that guards the
+# gates: a workflow YAML that references an unavailable context (e.g. `env`
+# inside `jobs.<id>.env`) fails to LOAD, not just to run -- taking every job
+# in the file down with it, `gates` included. actionlint catches this class
+# of defect in ~200ms, and this repo's own doctrine (see the header above
+# and docs/technical/adr/0009-quality-gates.md) is that a missing gate
+# implementation is refused (exit 2), never silently skipped -- "not
+# measured" must never read as "green". Follows verify-instrument.sh's own
+# exit-2-on-missing-tool precedent.
+workflow_lint() {
+    command -v actionlint >/dev/null 2>&1 \
+        || { echo "actionlint not found (brew install actionlint)" >&2; return 2; }
+    actionlint .github/workflows/*.yml
+}
+
 # Same verdict-line contract as scenario_gate below: a house harness that
 # is missing, not executable, or exits 0 without its own "shell-units:"
 # line is never trusted as a pass.
@@ -232,6 +247,7 @@ new_constructor_advisory() {
 
 run_gate "formatting" cargo fmt --check
 run_gate "lints" cargo clippy --all-targets --quiet -- -D warnings
+run_gate "workflow lint" workflow_lint
 run_gate "android cross-target" android_cross_target
 run_gate "tests" cargo test --quiet
 run_gate "shell units" shell_unit_gate
