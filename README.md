@@ -166,7 +166,8 @@ The shell-units gate runs `scripts/test-shell-units.sh`, a house harness for
 `scripts/android-release-lib.sh` — the pure functions the Android release build
 (`scripts/android-bundle.sh`) relies on and cannot exercise through `cargo test`.
 
-The workflow-lint gate runs `actionlint` over every `.github/workflows/*.yml`: a
+The workflow-lint gate runs bare `actionlint` (auto-discovering every
+`.github/workflows/*.{yml,yaml}`, not a hand-rolled `*.yml`-only glob): a
 workflow referencing an unavailable context (e.g. `env` inside `jobs.<id>.env`) fails
 to *load*, taking every job in the file down with it — this is the one gate that
 guards the gates themselves.

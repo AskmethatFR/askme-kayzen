@@ -130,7 +130,7 @@ android_cross_target() {
 workflow_lint() {
     command -v actionlint >/dev/null 2>&1 \
         || { echo "actionlint not found (brew install actionlint)" >&2; return 2; }
-    actionlint .github/workflows/*.yml
+    actionlint
 }
 
 # Same verdict-line contract as scenario_gate below: a house harness that
