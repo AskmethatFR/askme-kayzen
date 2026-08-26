@@ -16,11 +16,8 @@ jobs:
   gates:
     runs-on: ubuntu-latest
     timeout-minutes: ${{ github.event_name == 'pull_request' && 40 || 20 }}
-    # ANDROID_HOME/NDK_HOME: this job's "shell units" gate
-    # (scripts/test-shell-units.sh) refuses (exit 2) rather than silently
-    # skipping its synthetic-AAB assertions when no local NDK r25c
-    # toolchain is reachable -- so this job must install one, same as the
-    # android-aab job below.
+    # scripts/test-shell-units.sh refuses (exit 2) without a local NDK r25c
+    # toolchain, so this job installs one below, same as android-aab.
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
@@ -83,13 +80,9 @@ jobs:
             exit 1
           }
 
-      # Not r27/r28/r29 (this runner's preinstalled NDKs): the shell-units
-      # gate's own synthetic .so fixtures are compiled against r25c to
-      # match the exact toolchain android-bundle.sh links libmain.so with
-      # (see android-aab's own "Install NDK r25c" step for why r28+ would
-      # stop discriminating the regression this build exists to catch).
-      # sdkmanager ships under $ANDROID_HOME/cmdline-tools/latest/bin/, not
-      # on PATH, on this runner image.
+      # r25c, same reason as android-aab's own "Install NDK r25c" step below.
+      # @law: sdkmanager ships under $ANDROID_HOME/cmdline-tools/latest/bin/,
+      # not on PATH, on this runner image.
       - name: Install NDK r25c
         run: |
           set -euo pipefail
@@ -159,12 +152,9 @@ jobs:
   # No keystore ever reaches this job or any PR: it proves an unsigned,
   # correctly-versioned, 16 KB-aligned AAB builds, nothing more.
   #
-  # The build and its gates still run for a fork PR (the repo is public,
-  # trigger is pull_request), but the "Upload unsigned AAB" step is
-  # skipped for one: a fork author otherwise gets a compiled artifact
-  # under this repo's own Actions namespace for code they authored. Same-
-  # repo PRs and pushes to main keep the artifact -- the S2a->S4 hand-off
-  # is a human downloading it and uploading it to Play by hand.
+  # A fork PR still runs the build and its gates, but "Upload unsigned AAB"
+  # below is skipped for one -- a fork author gets no compiled artifact
+  # under this repo's own Actions namespace.
   android-aab:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
