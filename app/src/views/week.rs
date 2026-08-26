@@ -41,20 +41,23 @@ pub fn Week() -> Element {
                                 current_goal: habit.current_goal as i64
                             )}
                         }
-                        div {
-                            class: if habit.practised_recently { "week-curve is-practised" } else { "week-curve" },
-                            "aria-label": tr!(
-                                "week-curve-aria",
-                                title: habit.title.clone(),
-                                starting_goal: habit.starting_goal as i64,
-                                current_goal: habit.current_goal as i64
-                            ),
-                            for (step_offset, ratio) in step_ratios(&habit.steps).into_iter().enumerate()
-                            {
-                                span {
-                                    key: "{step_offset}",
-                                    class: if habit.practised_recently { "step-bar is-practised" } else { "step-bar" },
-                                    style: "--step-ratio: {ratio}",
+                        if true {
+                            div {
+                                class: "week-curve",
+                                "aria-label": tr!(
+                                    "week-curve-aria",
+                                    title: habit.title.clone(),
+                                    starting_goal: habit.starting_goal as i64,
+                                    current_goal: habit.current_goal as i64,
+                                    practised_days: habit.practised_day_goals.len() as i64
+                                ),
+                                for (bar_offset, ratio) in bar_ratios(&habit.practised_day_goals).into_iter().enumerate()
+                                {
+                                    span {
+                                        key: "{bar_offset}",
+                                        class: "practice-bar",
+                                        style: "--practice-ratio: {ratio}",
+                                    }
                                 }
                             }
                         }
@@ -65,17 +68,21 @@ pub fn Week() -> Element {
     }
 }
 
-/// Each bar's height relative to its own row's tallest step (adr-0010: core
-/// returns numbers, the view decides how to draw them) — never an absolute
-/// minute value. The owner's call: a 2→3 habit and a 30→32 habit draw the
-/// same shape, because the row shows relative progression, not absolute
-/// effort. `unwrap_or(1)` only guards an empty slice; `steps` is never empty
-/// in practice (`HabitProgress::for_habit` always seeds at least one step),
-/// so it never actually influences a returned ratio.
+/// Each bar's height relative to its own row's tallest practised goal
+/// (adr-0010: core returns numbers, the view decides how to draw them) —
+/// never an absolute minute value. The owner's call: a 2→3 habit and a
+/// 30→32 habit draw the same shape, because the row shows relative
+/// progression, not absolute effort. `unwrap_or(1)` only guards an empty
+/// slice; the view never calls this on an empty `practised_day_goals` (the
+/// `.week-curve` is not rendered at all in that case), so it never actually
+/// influences a returned ratio.
 #[must_use]
-fn step_ratios(steps: &[u32]) -> Vec<f64> {
-    let row_max = steps.iter().copied().max().unwrap_or(1) as f64;
-    steps.iter().map(|&step| step as f64 / row_max).collect()
+fn bar_ratios(practised_day_goals: &[u32]) -> Vec<f64> {
+    let row_max = practised_day_goals.iter().copied().max().unwrap_or(1) as f64;
+    practised_day_goals
+        .iter()
+        .map(|&goal| goal as f64 / row_max)
+        .collect()
 }
 
 #[must_use]
@@ -209,19 +216,27 @@ mod tests {
     // - a fresh week reads its gentle word (S3).
     // - a week without recent practice reads rest, without blame (S4).
     // - the masthead back-link returns to Aujourd'hui.
-    // - each habit's row reads its journey, one bar per goal step, not one
-    //   per completed day (S5), each bar's height normalized to that row's
-    //   own maximum step, never an absolute minute value (owner decision,
-    //   2026-08-21: relative progression, not absolute effort).
-    // - a brand-new, not-yet-practised habit's row still reads a journey (S7).
-    // - a row lightened back down (its maximum step sits mid-history, not
-    //   last) still normalizes on that row's own maximum, never on its
-    //   current goal — no bar may exceed its container.
+    // - each habit's row reads its journey, one bar per day practised, not
+    //   one per recorded goal step (S5), each bar's height normalized to
+    //   that row's own maximum practised goal, never an absolute minute
+    //   value (owner decision, 2026-08-21: relative progression, not
+    //   absolute effort).
+    // - a never-practised habit's row draws no curve at all — no empty
+    //   container either — while its title and journey line still render
+    //   (S7).
+    // - a row lightened back down (its maximum practised goal sits
+    //   mid-history, not last) still normalizes on that row's own maximum,
+    //   never on its current goal — no bar may exceed its container.
     // - the rhythm row shows seven dots, oldest first, lit on practiced days
     //   and faint on the rest, never a gap (S6).
-    // - a habit practised in the rolling window draws its mini-curve's bars
-    //   with is-practised; a habit not practised in the window draws its
-    //   bars without it, and gets nothing else added (S8).
+    // - only a habit practised at least once in the rolling window draws a
+    //   curve at all; a habit not practised in the window gets nothing else
+    //   added — no counter, no mark of absence (S8).
+    // - the mini-curve reads the same rolling seven days as the rhythm: a
+    //   habit last practised six days back still draws a bar, eight days
+    //   back draws none (S9).
+    // - the curve's aria-label states how many days were practised, correct
+    //   singular/plural, in both fr and en (language/S4).
 
     // @scenario: week-recap/S1
     #[test]
@@ -418,12 +433,12 @@ mod tests {
         vdom.render_immediate(&mut dioxus_core::NoOpMutations);
     }
 
-    /// Ordered list of every `--step-ratio: N` value found in the rendered
-    /// HTML, parsed as `f64`, in document order — lets a test pin the
-    /// mini-curve's normalized bar heights and their order, not just the
-    /// bar count.
-    fn step_bar_ratios(html: &str) -> Vec<f64> {
-        const NEEDLE: &str = "--step-ratio: ";
+    /// Ordered list of every `--practice-ratio: N` value found in the
+    /// rendered HTML, parsed as `f64`, in document order — lets a test pin
+    /// the mini-curve's normalized bar heights and their order, not just
+    /// the bar count.
+    fn bar_ratios(html: &str) -> Vec<f64> {
+        const NEEDLE: &str = "--practice-ratio: ";
         html.match_indices(NEEDLE)
             .map(|(index, _)| {
                 let start = index + NEEDLE.len();
@@ -433,7 +448,7 @@ mod tests {
                     .unwrap_or(html.len());
                 html[start..end]
                     .parse()
-                    .expect("--step-ratio must render a valid f64")
+                    .expect("--practice-ratio must render a valid f64")
             })
             .collect()
     }
@@ -441,8 +456,8 @@ mod tests {
     /// Ordered list of whether each element whose `class` starts with
     /// `prefix` also carries `is-practised`, in document order. Matches the
     /// exact class token (`prefix` alone, or `prefix` followed by a space
-    /// and more classes) rather than a raw string prefix, so `"step-bar"`
-    /// never matches a future `"step-bar-label"`.
+    /// and more classes) rather than a raw string prefix, so `"rhythm-dot"`
+    /// never matches a future `"rhythm-dot-label"`.
     fn class_states(html: &str, prefix: &str) -> Vec<bool> {
         const NEEDLE: &str = "class=\"";
         let with_space = format!("{prefix} ");
@@ -487,7 +502,7 @@ mod tests {
 
     // @scenario: week-recap/S5
     #[test]
-    fn each_habit_row_reads_its_journey_with_one_bar_per_goal_step() {
+    fn each_habit_row_reads_its_journey_with_one_bar_per_day_practised() {
         let html = render(RootAtWeekScreenWithAGrowingHabit);
 
         assert!(
@@ -495,11 +510,11 @@ mod tests {
             "expected the row to read the starting and current goal, got: {html}"
         );
         assert_eq!(
-            step_bar_ratios(&html),
-            vec![0.6, 0.8, 1.0],
-            "expected one bar per goal step (three steps were recorded), not \
-             one per completed day (four), each normalized to the row's own \
-             maximum (5) so the tallest bar reads 1.0, got: {html}"
+            bar_ratios(&html),
+            vec![0.8, 1.0, 1.0, 1.0],
+            "expected one bar per day practised (four), not one per recorded \
+             goal step (three), each normalized to the row's own maximum (5) \
+             so the tallest bars read 1.0, got: {html}"
         );
     }
 
@@ -556,18 +571,17 @@ mod tests {
 
     // @scenario: week-recap/S7
     #[test]
-    fn a_brand_new_habit_already_shows_its_journey_on_the_week_screen() {
+    fn a_never_practised_habits_row_draws_no_curve_at_all() {
         let html = render(RootAtWeekScreenWithAFreshHabit);
 
         assert!(
             html.contains("5 → 5 min"),
             "expected an empty start to still read as a start, got: {html}"
         );
-        assert_eq!(
-            step_bar_ratios(&html),
-            vec![1.0],
-            "expected a single bar for a not-yet-grown habit, drawn at its \
-             row's own maximum, got: {html}"
+        assert!(
+            !html.contains("week-curve"),
+            "no day has been practised yet — the curve container itself \
+             must not render, not even empty, got: {html}"
         );
     }
 
@@ -619,8 +633,11 @@ mod tests {
         use_context_provider(|| {
             let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
             let mut habit = a_habit("h-1", 5, TODAY - 6);
+            habit.toggle_done(LocalDate::from_epoch_day(TODAY - 5));
             habit.grow(LocalDate::from_epoch_day(TODAY - 4));
+            habit.toggle_done(LocalDate::from_epoch_day(TODAY - 4));
             habit.lighten(LocalDate::from_epoch_day(TODAY - 2));
+            habit.toggle_done(LocalDate::from_epoch_day(TODAY - 2));
             repository.save(&habit);
             services_with(repository)
         });
@@ -631,14 +648,14 @@ mod tests {
 
     // Unanchored: no scenario in week-recap.feature names a lightened row —
     // S5 only covers growing. `LightenGoal` is a delivered, wired use case
-    // (issue #13), so a history whose maximum step sits mid-row, not last,
-    // is reachable today; this test pins the boundary the normalization
-    // rule (`step_ratios`, above) must hold on it.
+    // (issue #13), so a history whose maximum practised goal sits mid-row,
+    // not last, is reachable today; this test pins the boundary the
+    // normalization rule (`bar_ratios`, above) must hold on it.
     #[test]
-    fn a_lightened_row_still_normalizes_on_its_own_maximum_step() {
+    fn a_lightened_row_still_normalizes_on_its_own_maximum_practised_goal() {
         let html = render(RootAtWeekScreenWithALightenedHabit);
 
-        let ratios = step_bar_ratios(&html);
+        let ratios = bar_ratios(&html);
         assert!(
             ratios.iter().all(|&ratio| ratio <= 1.0),
             "no bar may exceed its container: {ratios:?}"
@@ -646,9 +663,9 @@ mod tests {
         assert_eq!(
             ratios,
             vec![5.0 / 6.0, 1.0, 5.0 / 6.0],
-            "expected the row's own maximum step (6, reached mid-history) to \
-             normalize every bar, not the current goal (5, which the row \
-             lightened back down to), got: {html}"
+            "expected the row's own maximum practised goal (6, reached \
+             mid-history) to normalize every bar, not the current goal (5, \
+             which the row lightened back down to), got: {html}"
         );
     }
 
@@ -706,27 +723,18 @@ mod tests {
         }
     }
 
-    /// Mirrors `rhythm_dot_states`, reading the `.step-bar` class attribute
-    /// rather than counting bars.
-    fn step_bar_practised_states(html: &str) -> Vec<bool> {
-        class_states(html, "step-bar")
-    }
-
-    /// The exact `<div class="week-curve...">...</div>` markup of the
-    /// `occurrence`-th row's curve, in document order — lets a test assert
-    /// byte-for-byte that a row gained (or did not gain) anything beyond
-    /// its bars, not just whether one class token is present.
+    /// The exact `<div class="week-curve">...</div>` markup of the
+    /// `occurrence`-th curve rendered, in document order — lets a test
+    /// assert byte-for-byte what a row's curve carries, not just whether
+    /// one class token is present. `.week-curve` never carries a second
+    /// class or variant now that a curve either draws bars or does not
+    /// render at all, so a single needle is enough.
     fn nth_week_curve_html(html: &str, occurrence: usize) -> &str {
         const CLOSE: &str = "</div>";
-        let mut starts: Vec<usize> = html
-            .match_indices("<div class=\"week-curve\"")
-            .chain(html.match_indices("<div class=\"week-curve "))
+        let start = html
+            .match_indices(r#"<div class="week-curve""#)
+            .nth(occurrence)
             .map(|(index, _)| index)
-            .collect();
-        starts.sort_unstable();
-        let start = starts
-            .get(occurrence)
-            .copied()
             .expect("fewer .week-curve rows rendered than expected");
         let end = html[start..]
             .find(CLOSE)
@@ -737,29 +745,61 @@ mod tests {
 
     // @scenario: week-recap/S8
     #[test]
-    fn a_practised_rows_curve_reads_in_the_accent_an_unpractised_rows_does_not() {
+    fn only_the_practised_habits_row_draws_a_curve() {
         let html = render(RootAtWeekScreenWithAPractisedAndAnUnpractisedHabit);
 
         assert_eq!(
-            step_bar_practised_states(&html),
-            vec![true, false],
-            "expected the practised habit's row to draw its bar with \
-             is-practised and the unpractised habit's row to draw its bar \
-             without it, got: {html}"
+            html.matches(r#"class="week-curve""#).count(),
+            1,
+            "expected exactly one .week-curve — the practised habit's — got: {html}"
         );
         assert_eq!(
-            class_states(&html, "week-curve"),
-            vec![true, false],
-            "expected the practised row's curve container to carry the \
-             is-practised socle cue and the unpractised row's not to, \
+            nth_week_curve_html(&html, 0),
+            r#"<div class="week-curve" aria-label="Trajectoire de Lire une page, de 5 à 5 minutes, 1 jour pratiqué"><span class="practice-bar" style="--practice-ratio: 1"></span></div>"#,
+            "the practised row must gain nothing beyond its bars and its \
+             enriched aria-label; the unpractised row must draw no curve at \
+             all — no counter, no mark of absence"
+        );
+    }
+
+    #[component]
+    fn RootAtWeekScreenWithHabitsAtTheWindowEdge() -> Element {
+        crate::i18n::use_locale_for_tests();
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| {
+            let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+            let mut inside_window = a_habit("h-1", 5, TODAY - 20);
+            inside_window.toggle_done(LocalDate::from_epoch_day(TODAY - 6));
+            repository.save(&inside_window);
+            let mut outside_window = a_habit("h-2", 5, TODAY - 20);
+            outside_window.toggle_done(LocalDate::from_epoch_day(TODAY - 8));
+            repository.save(&outside_window);
+            services_with(repository)
+        });
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: week-recap/S9
+    #[test]
+    fn the_mini_curve_reads_the_same_rolling_window_as_the_rhythm() {
+        let html = render(RootAtWeekScreenWithHabitsAtTheWindowEdge);
+
+        assert_eq!(
+            html.matches(r#"class="week-curve""#).count(),
+            1,
+            "a last practice six days back is still inside the rolling \
+             window and must draw a bar; eight days back is already \
+             outside it and must draw none, got: {html}"
+        );
+        assert_eq!(
+            bar_ratios(&html),
+            vec![1.0],
+            "the one habit inside the window must draw exactly one bar, \
              got: {html}"
-        );
-        assert_eq!(
-            nth_week_curve_html(&html, 1),
-            r#"<div class="week-curve" aria-label="Trajectoire de Lire une page, de 5 à 5 minutes"><span class="step-bar" style="--step-ratio: 1"></span></div>"#,
-            "the unpractised row must gain nothing beyond its bars — no \
-             counter, no mark of absence, byte-identical to its pre-#32 \
-             rendering"
         );
     }
 
@@ -820,6 +860,112 @@ mod tests {
         assert!(
             html.contains("<p>2 minutes practised</p>"),
             "expected n=2 to read the plural, got: {html}"
+        );
+    }
+
+    #[component]
+    fn RootAtWeekScreenWithOnePractisedDay() -> Element {
+        crate::i18n::use_locale_for_tests();
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| {
+            let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = a_habit("h-1", 5, TODAY - 6);
+            habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+            repository.save(&habit);
+            services_with(repository)
+        });
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootAtWeekScreenWithTwoPractisedDays() -> Element {
+        crate::i18n::use_locale_for_tests();
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| {
+            let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = a_habit("h-1", 5, TODAY - 6);
+            habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+            habit.toggle_done(LocalDate::from_epoch_day(TODAY - 1));
+            repository.save(&habit);
+            services_with(repository)
+        });
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: language/S4
+    #[test]
+    fn the_curves_aria_states_the_number_of_days_practised_in_french() {
+        let one = render(RootAtWeekScreenWithOnePractisedDay);
+        assert!(
+            one.contains("1 jour pratiqué"),
+            "expected the singular count in the curve's aria-label, got: {one}"
+        );
+
+        let two = render(RootAtWeekScreenWithTwoPractisedDays);
+        assert!(
+            two.contains("2 jours pratiqués"),
+            "expected the plural count in the curve's aria-label, got: {two}"
+        );
+    }
+
+    #[component]
+    fn RootAtWeekScreenWithOnePractisedDayInEnglish() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| {
+            let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = a_habit("h-1", 5, TODAY - 6);
+            habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+            repository.save(&habit);
+            services_with(repository)
+        });
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootAtWeekScreenWithTwoPractisedDaysInEnglish() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| {
+            let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = a_habit("h-1", 5, TODAY - 6);
+            habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+            habit.toggle_done(LocalDate::from_epoch_day(TODAY - 1));
+            repository.save(&habit);
+            services_with(repository)
+        });
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: language/S4
+    #[test]
+    fn the_curves_aria_states_the_number_of_days_practised_in_english() {
+        let one = render(RootAtWeekScreenWithOnePractisedDayInEnglish);
+        assert!(
+            one.contains("1 day practised"),
+            "expected the singular count in the curve's aria-label, got: {one}"
+        );
+
+        let two = render(RootAtWeekScreenWithTwoPractisedDaysInEnglish);
+        assert!(
+            two.contains("2 days practised"),
+            "expected the plural count in the curve's aria-label, got: {two}"
         );
     }
 }
