@@ -49,10 +49,31 @@ jobs:
       # Runs unconditionally: scripts/check.sh's workflow-lint gate is part
       # of the no-work-class path too, so both "Gates (pull request)" and
       # "Gates (push to main)" below need it on PATH.
+      #
+      # @law: taiki-e/install-action does not support actionlint at any
+      # version (absent from its own TOOLS.md), and its cargo-binstall
+      # fallback can never work either -- actionlint is a Go binary, not a
+      # crates.io crate. Installed straight from the pinned upstream
+      # release instead, digest-verified against a value pinned in this
+      # file, never against a checksums file fetched from the same place a
+      # tampered binary would come from.
       - name: Install actionlint
-        uses: taiki-e/install-action@a2a5f6e99e1a31540baa0468acfa302cff0f359f # v2.86.4
-        with:
-          tool: actionlint@1.7.12
+        env:
+          ACTIONLINT_VERSION: "1.7.12"
+          ACTIONLINT_SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+        run: |
+          set -euo pipefail
+          asset="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -sSLo "$asset" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${asset}"
+          echo "${ACTIONLINT_SHA256}  ${asset}" | sha256sum -c -
+          tar -xzf "$asset" actionlint
+          install -m 0755 actionlint /usr/local/bin/actionlint
+          installed="$(actionlint -version | head -1)"
+          [ "$installed" = "$ACTIONLINT_VERSION" ] || {
+            echo "installed actionlint reports version '$installed', expected '$ACTIONLINT_VERSION'" >&2
+            exit 1
+          }
 
       # ref: alone does not guarantee origin/main exists locally, even at
       # fetch-depth: 0 — fetched explicitly so the merge-base below has
