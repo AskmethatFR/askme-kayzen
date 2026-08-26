@@ -120,8 +120,13 @@ fn rhythm_for(habits: &[Habit], today: LocalDate) -> Vec<bool> {
 /// cargo-mutants classes `for_habit` itself `unviable` and measures nothing
 /// there — a distinct `-> Vec<u32>` function receives viable mutants the
 /// tests above kill.
-fn practised_day_goals_for(_habit: &Habit, _today: LocalDate) -> Vec<u32> {
-    Vec::new()
+fn practised_day_goals_for(habit: &Habit, today: LocalDate) -> Vec<u32> {
+    (0..ROLLING_WINDOW_DAYS)
+        .rev()
+        .map(|days_back| today.minus_days(days_back))
+        .filter(|&day| habit.is_done_on(day))
+        .map(|day| habit.step_history().goal_on(day).value())
+        .collect()
 }
 
 fn message_for(minutes_practised: u32, practised_recently: bool) -> WeekMessage {
