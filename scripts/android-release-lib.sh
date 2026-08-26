@@ -25,16 +25,12 @@ readonly REQUIRED_PAGE_ALIGNMENT=16384
 
 version_code_from_semver() {
     local version="$1"
-    if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-        echo "version_code_from_semver: '$version' is not a bare major.minor.patch (no v prefix, no -pre/+build suffix)" >&2
+    if [[ ! "$version" =~ ^(0|[1-9][0-9]{0,2})\.(0|[1-9][0-9]{0,2})\.(0|[1-9][0-9]{0,2})$ ]]; then
+        echo "version_code_from_semver: '$version' is not a bare major.minor.patch, each component 0-999 (no v prefix, no -pre/+build suffix)" >&2
         return 1
     fi
 
     local major="${BASH_REMATCH[1]}" minor="${BASH_REMATCH[2]}" patch="${BASH_REMATCH[3]}"
-    if [ "$major" -gt 999 ] || [ "$minor" -gt 999 ] || [ "$patch" -gt 999 ]; then
-        echo "version_code_from_semver: '$version' has a component over 999" >&2
-        return 1
-    fi
 
     local code=$((major * 1000000 + minor * 1000 + patch))
     if [ "$code" -eq 0 ]; then
