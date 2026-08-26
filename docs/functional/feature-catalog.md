@@ -141,7 +141,7 @@ The Week screen answers one question — *am I growing?* — and is forbidden fr
 
 It opens on a **large figure: the minutes actually lived** — every completed day, counted against the goal in force on that day, summed across every habit. Never a gain over the starting goal: someone who practises faithfully for months without ever growing has lived hundreds of minutes, and a gain figure would tell them « 0 ». Pausing or anchoring a habit never takes its lived minutes back — the past is not rewritten by what the daily life looks like today, so **every habit counts, whatever its state**.
 
-Under it, **one row per habit**: its title, its `starting → current` line, and a mini-curve of one bar per recorded goal step. The curve draws the **intention** (each goal change), not the practice — the Detail screen's staircase already draws the practice (F-5). Bar heights are **relative to their own row**, so a row announces a shape of progression, not a volume of effort; two habits at very different scales read alike, and that is the point. A habit that has never been practised still draws its single starting bar.
+Under it, **one row per habit**: its title, its `starting → current` line, and a mini-curve of **one bar per day practised** over the same rolling seven days the rhythm draws, oldest first. Each bar stands at the goal that was in force on the day it draws, so the curve says what was lived while the line says the journey. Bar heights are **relative to their own row**, so a row announces a shape of progression, not a volume of effort; two habits at very different scales read alike, and that is the point. A habit not practised in the window draws **nothing at all** — no empty curve, no counter, no mark of absence: its row keeps its title and its line, and that is the whole of what it gets.
 
 Then the **rhythm**: a rolling seven-day window ending today, oldest day first, one dot per day, lit when **at least one** habit was practised that day. Never a gap and never a hole — an unpractised day is the same dot, in standby. **The week's word is derived from that same rhythm**, so the two can never disagree: a week with no practice at all rests (« Elle se repose en ce moment »), a week that never began is a perfect start (« Un début parfait »), and any other week grows.
 
@@ -151,8 +151,9 @@ Then the **rhythm**: a rolling seven-day window ending today, oldest day first, 
 |---|---|---|
 | Habits practised over several weeks, some paused, one anchored | The user opens the week | The large figure counts every lived minute, whatever each habit's state |
 | A daily life where nothing was ever practised | The user opens the week | It reads « Un début parfait », never a bare « 0 » as a verdict |
-| A habit grown from 2 to 4 minutes | The user opens the week | Its row reads « 2 → 4 » and draws one bar per goal step, not one per completed day |
-| A brand-new habit, never practised | The user opens the week | Its row still draws its journey — a single bar — because an empty start is still a start |
+| A habit grown from 2 to 4 minutes, practised on four days of the window | The user opens the week | Its row reads « 2 → 4 » and draws four bars, one per day practised, each at the goal in force that day |
+| A brand-new habit, never practised | The user opens the week | Its row reads its journey in words, and draws no bar — an empty start is still a start, and nothing marks the absence |
+| A habit last practised six days ago, and one last practised eight days ago | The user opens the week | The first draws its bar, the second draws none — the curve reads the same seven days the rhythm draws |
 | Two habits, each practised on a different day of the window | The user opens the week | Both days are lit — a day is lit when *any* habit was practised, not only the first |
 | A window with unpractised days | The user opens the week | Those days show a dim dot, never a gap and never a mark of failure |
 

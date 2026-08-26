@@ -63,7 +63,10 @@ week-message-fresh-start = Un début parfait. Tout est encore devant.
 week-message-resting = Cette semaine se repose. Elle vous attend, sans presser.
 week-message-growing = Vous avancez, à votre rythme.
 week-rhythm-aria = Votre rythme sur les sept derniers jours
-week-curve-aria = Trajectoire de { $title }, de { $starting_goal } à { $current_goal } minutes
+week-curve-aria = Trajectoire de { $title }, de { $starting_goal } à { $current_goal } minutes, { $practised_days ->
+    [one] { $practised_days } jour pratiqué
+   *[other] { $practised_days } jours pratiqués
+}
 week-habit-journey = { $starting_goal } → { $current_goal } min
 ritual-not-found-message = Cette habitude n'est plus sur votre liste.
 ritual-not-found-back-link = Retour à Aujourd'hui
