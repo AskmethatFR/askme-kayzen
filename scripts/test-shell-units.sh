@@ -61,9 +61,9 @@ min_load_alignment_stdin() {
 
 # --- fixtures -----------------------------------------------------------
 # DUMP_REAL_4K is a verbatim `llvm-readelf -l` capture (Program Headers
-# section) of this repo's own debug libmain.so, arm64-v8a, on NDK r25c --
-# the exact command is in T2's preflight. Every LOAD segment sits at
-# Align 0x1000 (F3): this is the regression the whole ticket exists to fix.
+# section) of this repo's own debug libmain.so, arm64-v8a, on NDK r25c.
+# Every LOAD segment sits at Align 0x1000: this is the regression the whole
+# ticket exists to fix.
 DUMP_REAL_4K="$(cat <<'EOF'
 Program Headers:
   Type           Offset   VirtAddr           PhysAddr           FileSiz  MemSiz   Flg Align
@@ -83,7 +83,7 @@ EOF
 )"
 
 # Same shape, every LOAD Align raised to 0x4000 (16384) -- what the
-# alignment flag (T2) is supposed to produce.
+# alignment flag applied in scripts/android-bundle.sh is supposed to produce.
 DUMP_ALIGNED_16K="$(cat <<'EOF'
 Program Headers:
   Type           Offset   VirtAddr           PhysAddr           FileSiz  MemSiz   Flg Align
@@ -137,6 +137,13 @@ Program Headers:
 EOF
 )"
 
+# --- REQUIRED_PAGE_ALIGNMENT ------------------------------------------------
+# The one number this whole ticket exists to enforce. Pinned directly: no
+# fixture round-trip (DUMP_ALIGNED_16K below) constrains the POLICY value,
+# only the parser reading whatever value is baked into it.
+assert_eq "16384" "$REQUIRED_PAGE_ALIGNMENT" \
+    "REQUIRED_PAGE_ALIGNMENT is the 16 KB Play floor"
+
 # --- version_code_from_semver --------------------------------------------
 
 assert_eq "1000" "$(version_code_from_semver "0.1.0")" \
@@ -170,6 +177,17 @@ assert_refuses "version_code_from_semver: patch over 999" -- version_code_from_s
 assert_refuses "version_code_from_semver: all-zero version" -- version_code_from_semver "0.0.0"
 assert_refuses "version_code_from_semver: leading zero" -- version_code_from_semver "01.2.3"
 
+# A component so far outside int64 that a raw `-gt 999` test(1) call errors
+# out (exit 2, read by `if` as false) used to make the guard skip itself and
+# the arithmetic wrap silently instead of refusing. The regex above now
+# rejects any component with more than 3 digits outright, before any
+# arithmetic runs, so these two must refuse cleanly like any other malformed
+# input.
+assert_refuses "version_code_from_semver: major far beyond int64" \
+    -- version_code_from_semver "10000000000000000000.0.0"
+assert_refuses "version_code_from_semver: patch far beyond int64" \
+    -- version_code_from_semver "0.0.9223372036854775808"
+
 # --- min_load_alignment ---------------------------------------------------
 
 assert_eq "4096" "$(printf '%s' "$DUMP_REAL_4K" | min_load_alignment)" \
@@ -200,6 +218,153 @@ case "$(min_load_alignment_stdin "$DUMP_NONNUMERIC_ALIGN" 2>&1 1>/dev/null)" in
 esac
 assert_eq "yes" "$nonnumeric_says_nonnumeric" \
     "min_load_alignment: non-numeric-Align refusal names the right cause"
+
+# --- android-verify-alignment.sh (synthetic-AAB integration) --------------
+# assert_eq/assert_refuses above pin the pure functions in isolation; they
+# cannot reach this script's own file/zip handling, preflight refusals, exit
+# codes, or the `>=` threshold comparison it applies (scripts/check.sh's
+# android_cross_target grants the same tolerance to a machine without a
+# local NDK). Every case here is SKIPPED, not failed, when no local NDK r25c
+# toolchain is found.
+VERIFY_ALIGNMENT="$ROOT/scripts/android-verify-alignment.sh"
+
+locate_ndk_home() {
+    if [ -n "${NDK_HOME:-}" ] && [ -d "${NDK_HOME:-}" ]; then
+        printf '%s' "$NDK_HOME"
+        return
+    fi
+    local candidate="$HOME/Library/Android/sdk/ndk/25.2.9519653"
+    [ -d "$candidate" ] && printf '%s' "$candidate"
+}
+
+SYNTH_NDK_HOME="$(locate_ndk_home)"
+SYNTH_READELF=""
+SYNTH_CLANG=""
+SYNTH_STOCK_SO=""
+if [ -n "$SYNTH_NDK_HOME" ]; then
+    for candidate in "$SYNTH_NDK_HOME"/toolchains/llvm/prebuilt/*/bin/llvm-readelf; do
+        [ -x "$candidate" ] && SYNTH_READELF="$candidate" && break
+    done
+    for candidate in "$SYNTH_NDK_HOME"/toolchains/llvm/prebuilt/*/bin/aarch64-linux-android24-clang; do
+        [ -x "$candidate" ] && SYNTH_CLANG="$candidate" && break
+    done
+    SYNTH_STOCK_SO="$(find "$SYNTH_NDK_HOME" -path '*/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so' 2>/dev/null | head -1)"
+fi
+
+if [ -z "$SYNTH_NDK_HOME" ] || [ -z "$SYNTH_READELF" ] || [ -z "$SYNTH_CLANG" ] || [ -z "$SYNTH_STOCK_SO" ]; then
+    printf 'android-verify-alignment.sh: SKIPPED -- no local NDK r25c toolchain found (set NDK_HOME)\n' >&2
+else
+    SYNTH_ROOT="$(mktemp -d)"
+
+    # Packs $2, $4, ... into an AAB-shaped zip at $1, at literal entry names
+    # $1, $3, ... -- literal, so a bracket/glob-shaped name (see the forged
+    # case below) lands in the archive exactly as written, never expanded.
+    build_aab() {
+        local aab="$1" work
+        shift
+        work="$(mktemp -d)"
+        while [ "$#" -ge 2 ]; do
+            mkdir -p "$work/$(dirname "$1")"
+            cp "$2" "$work/$1"
+            shift 2
+        done
+        (cd "$work" && zip -q -r "$aab" .)
+        rm -rf "$work"
+    }
+
+    va() { env NDK_HOME="$SYNTH_NDK_HOME" "$VERIFY_ALIGNMENT" "$@"; }
+
+    # A real 16 KB-aligned .so, compiled fresh with the exact link flags
+    # scripts/android-bundle.sh applies to libmain.so (ALIGN_RUSTC_ARGS).
+    "$SYNTH_CLANG" -shared -o "$SYNTH_ROOT/lib16k.so" -x c - \
+        -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384 \
+        <<< 'int f(void) { return 0; }' 2>/dev/null
+
+    # 1. a real 4 KB-aligned .so (the NDK's own stock libc++_shared.so) must
+    # be refused, and the refusal must name the actual cause.
+    AAB_4K="$SYNTH_ROOT/four-k.aab"
+    build_aab "$AAB_4K" "base/lib/arm64-v8a/libstock.so" "$SYNTH_STOCK_SO"
+    err_4k="$(va "$AAB_4K" 2>&1 1>/dev/null)"; status_4k=$?
+    assert_eq "1" "$status_4k" "android-verify-alignment.sh: 4 KB .so exits 1"
+    case "$err_4k" in
+        *"aligned to 4096 bytes, needs >= 16384"*) msg_4k="yes" ;;
+        *) msg_4k="no" ;;
+    esac
+    assert_eq "yes" "$msg_4k" "android-verify-alignment.sh: 4 KB .so names the cause"
+
+    # 2. an AAB with no base/lib/*/*.so entries at all.
+    AAB_NOSO="$SYNTH_ROOT/no-so.aab"
+    build_aab "$AAB_NOSO" "META-INF/MANIFEST.MF" "$SYNTH_STOCK_SO"
+    err_noso="$(va "$AAB_NOSO" 2>&1 1>/dev/null)"; status_noso=$?
+    assert_eq "1" "$status_noso" "android-verify-alignment.sh: no .so entries exits 1"
+    case "$err_noso" in
+        *"no base/lib/"*".so entries in"*) msg_noso="yes" ;;
+        *) msg_noso="no" ;;
+    esac
+    assert_eq "yes" "$msg_noso" "android-verify-alignment.sh: no .so entries names the cause"
+
+    # 3. a missing AAB path.
+    err_missing="$(va "$SYNTH_ROOT/does-not-exist.aab" 2>&1 1>/dev/null)"; status_missing=$?
+    assert_eq "2" "$status_missing" "android-verify-alignment.sh: missing AAB exits 2"
+    case "$err_missing" in
+        *"no AAB at"*) msg_missing="yes" ;;
+        *) msg_missing="no" ;;
+    esac
+    assert_eq "yes" "$msg_missing" "android-verify-alignment.sh: missing AAB names the cause"
+
+    # 4. NDK_HOME unset.
+    err_nondk="$(env -u NDK_HOME "$VERIFY_ALIGNMENT" "$AAB_4K" 2>&1 1>/dev/null)"; status_nondk=$?
+    assert_eq "2" "$status_nondk" "android-verify-alignment.sh: NDK_HOME unset exits 2"
+    case "$err_nondk" in
+        *"no llvm-readelf under"*"NDK_HOME=<unset>"*) msg_nondk="yes" ;;
+        *) msg_nondk="no" ;;
+    esac
+    assert_eq "yes" "$msg_nondk" "android-verify-alignment.sh: NDK_HOME unset names the cause"
+
+    # 5. wrong argument count.
+    err_usage="$("$VERIFY_ALIGNMENT" 2>&1 1>/dev/null)"; status_usage=$?
+    assert_eq "2" "$status_usage" "android-verify-alignment.sh: no args exits 2"
+    case "$err_usage" in
+        *"usage: scripts/android-verify-alignment.sh <aab-path>"*) msg_usage="yes" ;;
+        *) msg_usage="no" ;;
+    esac
+    assert_eq "yes" "$msg_usage" "android-verify-alignment.sh: no args names the cause"
+
+    # 6. a real 16 KB-aligned .so must PASS. Without this case, the `>=`
+    # threshold itself could be mutated away (e.g. to `-ge 0`) and every
+    # refusal case above would still "correctly" refuse, for the wrong
+    # reason -- this is what actually discriminates that mutant.
+    AAB_16K="$SYNTH_ROOT/sixteen-k.aab"
+    build_aab "$AAB_16K" "base/lib/arm64-v8a/lib16k.so" "$SYNTH_ROOT/lib16k.so"
+    out_16k="$(va "$AAB_16K" 2>/dev/null)"; status_16k=$?
+    assert_eq "0" "$status_16k" "android-verify-alignment.sh: 16 KB .so exits 0"
+    case "$out_16k" in
+        *"16384 bytes"*) msg_16k="yes" ;;
+        *) msg_16k="no" ;;
+    esac
+    assert_eq "yes" "$msg_16k" "android-verify-alignment.sh: 16 KB .so reports the alignment"
+
+    # 7. a forged AAB carrying an entry name shaped like a glob character
+    # class (base/lib/arm64-v8a/libgoo[d].so, 4 KB, malicious) alongside a
+    # benign 16 KB one (libgood.so) must have BOTH entries actually read.
+    # `unzip -p "$AAB" "$entry"` treats the entry name as a pattern and
+    # silently returns the benign entry's bytes for the bracket-named one
+    # instead -- the malicious 4 KB library would never be inspected and
+    # the script would report success.
+    AAB_FORGED="$SYNTH_ROOT/forged.aab"
+    build_aab "$AAB_FORGED" \
+        "base/lib/arm64-v8a/libgood.so" "$SYNTH_ROOT/lib16k.so" \
+        "base/lib/arm64-v8a/libgoo[d].so" "$SYNTH_STOCK_SO"
+    err_forged="$(va "$AAB_FORGED" 2>&1 1>/dev/null)"; status_forged=$?
+    assert_eq "1" "$status_forged" "android-verify-alignment.sh: forged glob-named entry exits 1"
+    case "$err_forged" in
+        *"libgoo[d].so"*"aligned to 4096"*) msg_forged="yes" ;;
+        *) msg_forged="no" ;;
+    esac
+    assert_eq "yes" "$msg_forged" "android-verify-alignment.sh: forged glob-named entry is actually inspected"
+
+    rm -rf "$SYNTH_ROOT"
+fi
 
 # --- verdict --------------------------------------------------------------
 # A harness with every case deleted still exits 0 with "0 passed, 0 failed"
