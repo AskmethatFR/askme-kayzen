@@ -37,11 +37,12 @@ Feature: Read the week's practice as accumulated minutes and rhythm
     And the message never frames empty days as a failure
 
   @scenario:S5
-  Scenario: Each habit shows its journey with one bar per goal step
-    Given a habit grown from 3 to 5 minutes mid-week and completed on four days
+  Scenario: Each habit's mini-curve draws one bar per day practised
+    Given a habit grown from 3 to 5 minutes mid-week and practised on four of the last seven days
     When the user opens the week screen
     Then that habit's row reads "3 → 5 min"
-    And its mini-curve draws one bar per goal step, not one per day
+    And its mini-curve draws four bars, one per day practised, never one per goal step
+    And each bar stands at the goal that was in force on the day it draws
 
   @scenario:S6
   Scenario: The rhythm keeps one dot per day, faint when no practice
@@ -54,13 +55,21 @@ Feature: Read the week's practice as accumulated minutes and rhythm
   Scenario: A brand-new habit already shows its journey
     Given a habit created today at 5 minutes and not yet practised
     When the user opens the week screen
-    Then that habit's row reads "5 → 5 min" with a single bar
-    And an empty start is still a start
+    Then that habit's row reads "5 → 5 min", because an empty start is still a start
+    And its mini-curve draws nothing, because no day has been practised yet
+    And nothing is added to mark the absence
 
   @scenario:S8
-  Scenario: A habit practised in the rolling window reads its curve in the accent
+  Scenario: Only a habit practised in the rolling window draws bars
     Given one habit practised at least once in the last seven days, and one not practised at all
     When the user opens the week screen
-    Then the practised habit's mini-curve reads in the accent, which says "practised"
-    And the unpractised habit's curve keeps the neutral tone, with nothing added
+    Then the practised habit's bars read in the accent, which says "practised"
+    And the unpractised habit draws no bar at all, keeping only its title and its journey line
     And no counter, no mark of absence: the recap informs, it never reproaches
+
+  @scenario:S9
+  Scenario: The mini-curve reads the same seven days as the rhythm
+    Given one habit last practised six days ago and one last practised eight days ago
+    When the user opens the week screen
+    Then the first habit's mini-curve draws its bar, six days back being still inside the window
+    And the second habit's mini-curve draws nothing, the curve reading the same rolling seven days the rhythm draws
