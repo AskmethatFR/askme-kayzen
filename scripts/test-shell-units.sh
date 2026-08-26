@@ -222,10 +222,10 @@ assert_eq "yes" "$nonnumeric_says_nonnumeric" \
 # --- android-verify-alignment.sh (synthetic-AAB integration) --------------
 # assert_eq/assert_refuses above pin the pure functions in isolation; they
 # cannot reach this script's own file/zip handling, preflight refusals, exit
-# codes, or the `>=` threshold comparison it applies (scripts/check.sh's
-# android_cross_target grants the same tolerance to a machine without a
-# local NDK). Every case here is SKIPPED, not failed, when no local NDK r25c
-# toolchain is found.
+# codes, or the `>=` threshold comparison it applies. This whole harness
+# REFUSES (exit 2), never silently skips, when no local NDK r25c toolchain
+# is found -- same doctrine as check.sh's own android_cross_target, which
+# refuses rather than tolerating a missing Rust target.
 VERIFY_ALIGNMENT="$ROOT/scripts/android-verify-alignment.sh"
 
 locate_ndk_home() {
@@ -252,7 +252,8 @@ if [ -n "$SYNTH_NDK_HOME" ]; then
 fi
 
 if [ -z "$SYNTH_NDK_HOME" ] || [ -z "$SYNTH_READELF" ] || [ -z "$SYNTH_CLANG" ] || [ -z "$SYNTH_STOCK_SO" ]; then
-    printf 'android-verify-alignment.sh: SKIPPED -- no local NDK r25c toolchain found (set NDK_HOME)\n' >&2
+    echo "test-shell-units: no local NDK r25c toolchain found (set NDK_HOME) -- refusing rather than reporting partial coverage as a pass" >&2
+    exit 2
 else
     SYNTH_ROOT="$(mktemp -d)"
 
