@@ -57,8 +57,8 @@ Kayzen is free, with no in-app purchases and no subscription.
 | App category | Productivity |
 | Tags | habits, routine, daily wellbeing, offline |
 | Contact e-mail | ateixeira@askmethat.fr |
-| Website | the landing page published from `site/index.html` |
-| Privacy policy | the page published from `site/privacy.en.html` |
+| Website | https://askmethatfr.github.io/askme-kayzen/ |
+| Privacy policy | https://askmethatfr.github.io/askme-kayzen/privacy.en.html |
 | Phone screenshots | `store/listing/screenshots/en/` (6 files, 1080×1920) |
 | Feature graphic | `store/listing/feature-graphic-1024x500.png` |
 | Icon | `store/icon/ic_launcher-512.png` |

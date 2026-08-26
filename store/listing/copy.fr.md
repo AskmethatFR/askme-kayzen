@@ -57,8 +57,8 @@ Kayzen est gratuite, sans achat intégré et sans abonnement.
 | Catégorie d'application | Productivité |
 | Tags | habitudes, routine, bien-être quotidien, hors ligne |
 | E-mail de contact | ateixeira@askmethat.fr |
-| Site web | la page d'accueil publiée depuis `site/index.html` |
-| Politique de confidentialité | la page publiée depuis `site/privacy.fr.html` |
+| Site web | https://askmethatfr.github.io/askme-kayzen/ |
+| Politique de confidentialité | https://askmethatfr.github.io/askme-kayzen/privacy.fr.html |
 | Captures téléphone | `store/listing/screenshots/fr/` (6 fichiers 1080×1920) |
 | Feature graphic | `store/listing/feature-graphic-1024x500.png` |
 | Icône | `store/icon/ic_launcher-512.png` |

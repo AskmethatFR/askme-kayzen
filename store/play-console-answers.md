@@ -57,7 +57,8 @@ poser problème ; le repli documenté par #28 est de publier en 35 sous extensio
 
 ### Politique de confidentialité
 
-URL de la page publiée depuis `site/privacy.fr.html`, sur la branche `gh-pages`.
+**https://askmethatfr.github.io/askme-kayzen/privacy.fr.html** (anglais :
+`.../privacy.en.html`), publiée depuis `site/` par la branche orpheline `gh-pages`.
 
 > **La page doit répondre en 200 avant la soumission, et le rester.** Un 404 sur l'URL de
 > politique déclarée est une cause de suspension, pas un avertissement.
@@ -162,7 +163,7 @@ des déclarations ci-dessus fausse ou une exigence technique non satisfaite.
 | 3 | Icône non injectée dans la build | `res/` est régénéré sous `target/` à chaque build et `[android].icon` n'est pas câblé dans `dx` 0.7.9 : les fichiers de `app/android/res/` sont inertes tant qu'un mécanisme ne les copie pas |
 | 4 | `android:label` encore à `Kaizen` | Le lanceur afficherait un autre nom que la fiche (`app/android/AndroidManifest.xml:39,46`, et `title` dans `app/Dioxus.toml:6`) |
 | 4bis | Le bandeau de l'application affiche `Kaizen` en dur | `app/src/views/today.rs:28` — la marque vue à l'écran contredit la fiche, **et elle est visible sur toutes les captures** : les captures sont à régénérer après la correction (`python3 store/listing/build_screenshots.py`) |
-| 5 | Branche `gh-pages` inexistante | L'URL de politique de confidentialité déclarée renverrait un 404 |
+| ~~5~~ | ~~Branche `gh-pages` inexistante~~ | **Levé** — pages en ligne, `/docs` vérifié non servi (404) |
 | 6 | AAB aligné 16 Ko et signé | Issue #28, slices S2a et S2b |
 | 7 | `versionCode` dérivé du tag | Issue #28 ; en dur à `1` dans le gabarit, donc aucune mise à jour ne pourrait être publiée ensuite |
 
@@ -180,8 +181,8 @@ déjà couverts par l'issue #28.
 
 ## 7 · Ordre des opérations
 
-1. Lever les bloquants 1 à 4 (code) et 5 (publication du site).
-2. Vérifier que l'URL de politique répond en 200.
+1. Lever les bloquants 1 à 4 (code). Le 5 est levé : le site est en ligne.
+2. Vérifier que l'URL de politique répond toujours en 200.
 3. Produire l'AAB aligné et signé (#28 S2a, S2b).
 4. Créer l'application dans la Play Console pour `com.askmethat.kayzen`, activer Play App Signing.
 5. Déposer le premier AAB **à la main** en test interne.
