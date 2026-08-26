@@ -41,7 +41,7 @@ pub fn Week() -> Element {
                                 current_goal: habit.current_goal as i64
                             )}
                         }
-                        if true {
+                        if !habit.practised_day_goals.is_empty() {
                             div {
                                 class: "week-curve",
                                 "aria-label": tr!(
