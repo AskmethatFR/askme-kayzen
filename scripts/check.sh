@@ -31,6 +31,7 @@ cd "$ROOT" || exit 2
 source "$ROOT/scripts/verify-instrument.sh"
 
 SCENARIO_AUDIT="$ROOT/scripts/vendor/scenario_audit.py"
+SHELL_UNIT_TESTS="$ROOT/scripts/test-shell-units.sh"
 
 WORK_CLASS="${1:-}"
 BASE_REF="${2:-}"
@@ -115,6 +116,32 @@ android_cross_target() {
     cargo clippy --target aarch64-linux-android -p kayzen-app \
         --no-default-features --features mobile --all-targets --quiet \
         -- -D warnings
+}
+
+# Same verdict-line contract as scenario_gate below: a house harness that
+# is missing, not executable, or exits 0 without its own "shell-units:"
+# line is never trusted as a pass.
+shell_unit_gate() {
+    if [ ! -f "$SHELL_UNIT_TESTS" ] || [ ! -x "$SHELL_UNIT_TESTS" ]; then
+        echo "shell unit harness not found or not executable at $SHELL_UNIT_TESTS" >&2
+        return 2
+    fi
+
+    local tmp_output
+    tmp_output="$(mktemp)"
+    "$SHELL_UNIT_TESTS" | tee "$tmp_output"
+    local status=${PIPESTATUS[0]}
+    if [ "$status" -ne 0 ]; then
+        rm -f "$tmp_output"
+        return "$status"
+    fi
+    if ! grep -q 'shell-units:' "$tmp_output"; then
+        echo "shell unit gate exited 0 but produced no verdict line -- refusing to trust it" >&2
+        rm -f "$tmp_output"
+        return 1
+    fi
+    rm -f "$tmp_output"
+    return 0
 }
 
 scenario_gate() {
@@ -207,6 +234,7 @@ run_gate "formatting" cargo fmt --check
 run_gate "lints" cargo clippy --all-targets --quiet -- -D warnings
 run_gate "android cross-target" android_cross_target
 run_gate "tests" cargo test --quiet
+run_gate "shell units" shell_unit_gate
 run_gate "scenarios" scenario_gate
 run_gate "doc anchors" doc_anchors
 
