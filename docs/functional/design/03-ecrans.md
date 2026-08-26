@@ -27,17 +27,20 @@ Le cœur « Kaizen » : montrer qu'on grandit, jamais culpabiliser.
   « minutes gagnées depuis les débuts (somme de `current − steps[0]`) » : un gain sur
   l'objectif de départ affiche « 0 » à qui pratique fidèlement sans jamais grandir, ce que
   le ton de l'écran interdit. Même règle que le récap du détail, voir `[[habit-stats]]`.)*
-- Par habitude : l'évolution « 2 → 4 min » avec une mini-courbe, **une barre par étape
-  d'objectif**. Les hauteurs sont **relatives à la ligne** : la plus grande étape de la
-  ligne remplit la courbe, les autres suivent en proportion.
-  *(Amendé 2026-08-22 — issue #32.)* La courbe porte désormais **deux canaux** : la
-  **hauteur** dit la trajectoire d'objectif, la **couleur** dit si l'habitude a été
-  pratiquée dans la fenêtre glissante. Elle disait auparavant « l'intention, pas la
-  pratique » — vrai de la hauteur, faux depuis que la couleur parle. Une habitude
-  pratiquée porte l'accent et un socle sous sa courbe ; une habitude non pratiquée garde
-  la tonalité neutre et **ne reçoit rien de plus** : pas de compteur, pas de marque
-  d'absence. Le socle existe parce que la teinte seule ne se voit pas en niveaux de gris
-  ni en vision daltonienne.
+- Par habitude : l'évolution « 2 → 4 min » avec une mini-courbe, **une barre par jour
+  pratiqué** dans la fenêtre glissante de sept jours, du plus ancien au plus récent.
+  Chaque barre se tient à **l'objectif en vigueur ce jour-là**. Les hauteurs sont
+  **relatives à la ligne** : la plus grande remplit la courbe, les autres suivent en
+  proportion. Une habitude non pratiquée dans la fenêtre **ne dessine rien** — ni courbe
+  vide, ni compteur, ni marque d'absence : sa ligne garde son titre et son évolution.
+  La ligne énonce le parcours, la courbe dessine le vécu.
+  *(Corrigé 2026-08-26 — remplace « une barre par étape d'objectif », inscrit ici par
+  erreur : deux jours pratiqués d'affilée ne dessinaient qu'une seule barre. La
+  distinction pratiquée / non pratiquée passait alors par la couleur, doublée d'un socle
+  parce que la teinte seule ne se voit ni en niveaux de gris ni en vision daltonienne.
+  Une barre affirmant désormais une pratique, c'est la présence ou l'absence de barres
+  qui porte le signal — la règle du style graphique, sans teinte à départager, donc sans
+  socle.)*
   Une habitude 2 → 3 et une habitude 30 → 32 dessinent donc la même forme, et c'est voulu :
   la ligne annonce une progression, pas un volume d'effort. *(Tranché 2026-08-21 par
   l'owner — issue #22. Remplace des hauteurs absolues, qui débordaient de la courbe dès
