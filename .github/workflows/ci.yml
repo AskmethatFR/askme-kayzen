@@ -106,7 +106,6 @@ jobs:
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
-      JAVA_HOME: ${{ env.JAVA_HOME_17_X64 }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -137,6 +136,15 @@ jobs:
       - name: Install NDK r25c
         run: sdkmanager --sdk_root="$ANDROID_HOME" --install "ndk;25.2.9519653"
 
+      # The `env` context is not available in `jobs.<job_id>.env` (only
+      # github/needs/strategy/matrix/vars/secrets/inputs are), and even
+      # where `env` IS available it never carries a runner-inherited
+      # variable like JAVA_HOME_17_X64 -- only variables the workflow itself
+      # set. A step's `run:` shell sees the runner's own environment
+      # directly, so this is the only place this value is actually visible.
+      - name: Resolve JDK 17
+        run: echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+
       - name: Build unsigned release AAB
         id: bundle
         run: |
@@ -146,7 +154,7 @@ jobs:
       - name: Upload unsigned AAB
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: kayzen-unsigned-aab-${{ github.sha }}
+          name: kayzen-unsigned-aab-${{ github.event.pull_request.head.sha || github.sha }}
           path: ${{ steps.bundle.outputs.aab_path }}
           retention-days: 7
           if-no-files-found: error
