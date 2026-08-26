@@ -158,6 +158,13 @@ jobs:
   #
   # No keystore ever reaches this job or any PR: it proves an unsigned,
   # correctly-versioned, 16 KB-aligned AAB builds, nothing more.
+  #
+  # The build and its gates still run for a fork PR (the repo is public,
+  # trigger is pull_request), but the "Upload unsigned AAB" step is
+  # skipped for one: a fork author otherwise gets a compiled artifact
+  # under this repo's own Actions namespace for code they authored. Same-
+  # repo PRs and pushes to main keep the artifact -- the S2a->S4 hand-off
+  # is a human downloading it and uploading it to Play by hand.
   android-aab:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -209,14 +216,16 @@ jobs:
             exit 1
           }
 
-      # The `env` context is not available in `jobs.<job_id>.env` (only
-      # github/needs/strategy/matrix/vars/secrets/inputs are), and even
-      # where `env` IS available it never carries a runner-inherited
-      # variable like JAVA_HOME_17_X64 -- only variables the workflow itself
-      # set. A step's `run:` shell sees the runner's own environment
-      # directly, so this is the only place this value is actually visible.
+      # @law: the `env` context is not available in `jobs.<job_id>.env` --
+      # only a step's `run:` shell sees a runner-inherited variable like
+      # JAVA_HOME_17_X64 directly, so this is the only place it is visible.
       - name: Resolve JDK 17
-        run: echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+        run: |
+          [ -n "${JAVA_HOME_17_X64:-}" ] || {
+            echo "JAVA_HOME_17_X64 is unset on this runner image" >&2
+            exit 1
+          }
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
 
       - name: Build unsigned release AAB
         id: bundle
@@ -225,6 +234,7 @@ jobs:
           echo "aab_path=$aab_path" >> "$GITHUB_OUTPUT"
 
       - name: Upload unsigned AAB
+        if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: kayzen-unsigned-aab-${{ github.event.pull_request.head.sha || github.sha }}

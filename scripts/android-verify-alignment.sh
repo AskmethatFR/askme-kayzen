@@ -56,7 +56,11 @@ done
 list_so_indices() {
     python3 -c '
 import sys, zipfile, fnmatch
-zf = zipfile.ZipFile(sys.argv[1])
+try:
+    zf = zipfile.ZipFile(sys.argv[1])
+except zipfile.BadZipFile as e:
+    print(str(e), file=sys.stderr)
+    sys.exit(2)
 for i, info in enumerate(zf.infolist()):
     if fnmatch.fnmatchcase(info.filename, "base/lib/*/*.so"):
         print(i)
@@ -80,13 +84,17 @@ with zf.open(info) as f:
 ' "$AAB" "$1"
 }
 
-indices="$(list_so_indices)"
+indices="$(list_so_indices)" && indices_status=0 || indices_status=$?
+[ "$indices_status" -eq 2 ] && preflight_fail "$AAB is not a valid zip archive"
+[ "$indices_status" -eq 0 ] || preflight_fail "could not list entries in $AAB (python exited $indices_status)"
 [ -n "$indices" ] || fail "no base/lib/*/*.so entries in $AAB"
 
 count=0
 while IFS= read -r index; do
     entry="$(entry_name "$index")"
-    align="$(read_zip_entry "$index" | "$READELF" -l - | min_load_alignment)"
+    align="$(read_zip_entry "$index" | "$READELF" -l - 2>/dev/null | min_load_alignment 2>/dev/null)" \
+        && align_status=0 || align_status=$?
+    [ "$align_status" -eq 0 ] || fail "$entry could not be read as an ELF object"
     [ "$align" -ge "$REQUIRED_PAGE_ALIGNMENT" ] \
         || fail "$entry is aligned to $align bytes, needs >= $REQUIRED_PAGE_ALIGNMENT"
     echo "  $entry: $align bytes"

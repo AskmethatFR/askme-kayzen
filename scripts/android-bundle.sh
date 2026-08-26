@@ -71,27 +71,27 @@ rustup target list --installed | grep -qx aarch64-linux-android \
 
 command -v dx >/dev/null || fail "dx not found (cargo install dioxus-cli)"
 
-# The generated module's own recursive fileTree(".") already picks up
-# proguard-wry.pro, which covers the JNI/reflective surface R8 can strip. A
-# [bundle.android] section overriding the template's own generation would go
-# untested by that mitigation -- see the comment this refers to in
-# app/Dioxus.toml. Checked via tomllib, not a `grep` line match: TOML allows
-# the same table under several different literal spellings (leading
-# whitespace, a tab, quoted-key form, dotted inline form, ...), and a
-# `grep -qE '^\[bundle\.android\]'` misses all of them.
-if ! python3 -c '
+# @law: TOML admits the same table under several different literal
+# spellings (leading whitespace, a tab, quoted-key form, dotted inline
+# form, ...) -- a plain `grep -qE '^\[bundle\.android\]'` line match
+# cannot see all of them, so this checks via tomllib instead.
+python3 -c '
 import sys, tomllib
-with open(sys.argv[1], "rb") as f:
-    data = tomllib.load(f)
+try:
+    with open(sys.argv[1], "rb") as f:
+        data = tomllib.load(f)
+except tomllib.TOMLDecodeError as e:
+    print(str(e), file=sys.stderr)
+    sys.exit(2)
 sys.exit(1 if "android" in data.get("bundle", {}) else 0)
-' "$REPO_ROOT/app/Dioxus.toml"; then
+' "$REPO_ROOT/app/Dioxus.toml" && toml_status=0 || toml_status=$?
+if [ "$toml_status" -eq 2 ]; then
+    fail "app/Dioxus.toml is malformed TOML"
+elif [ "$toml_status" -eq 1 ]; then
     fail "app/Dioxus.toml carries a [bundle.android] section -- see its own comment, remove it"
 fi
 
 echo "==> cleaning generated resources" >&2
-# >&2 on both: android-icon.sh's own "apply" success line goes to its
-# stdout, and this script's own stdout contract (see the header above)
-# allows exactly one line, the final AAB path.
 "$REPO_ROOT/scripts/android-icon.sh" clean "$GENERATED_RES" >&2
 
 echo "==> pass 1: dx bundle (release, aab, 16 KB page-size aligned)" >&2
@@ -107,16 +107,7 @@ echo "==> applying the launcher icon" >&2
 [ -f "$BUILD_GRADLE" ] || fail "dx did not generate $BUILD_GRADLE"
 
 echo "==> checking the generated build.gradle.kts for a cleartext signing config" >&2
-# Defence-in-depth (the [bundle.android] preflight above is the load-bearing
-# control, see app/Dioxus.toml's own comment): matches both the property
-# form (storePassword = ...) and the setter form
-# (signingConfig.setStorePassword(...) / signingConfigs.getByName(...)) --
-# `dx` could plausibly emit either.
-if grep -qE 'storePassword|keyPassword|keyAlias|storeFile|signingConfig' "$BUILD_GRADLE"; then
-    # The refusal is fail-closed either way, but a real keystore password
-    # left interpolated on disk in $REPO_ROOT/target/ after a failed build
-    # is exactly the shape a future signed build (scripts/android-sign.sh)
-    # would make load-bearing -- delete it now while it is still harmless.
+if grep -qiE 'storePassword|keyPassword|keyAlias|storeFile|signingConfig' "$BUILD_GRADLE"; then
     rm -f "$BUILD_GRADLE"
     fail "$BUILD_GRADLE carries a cleartext signing config -- refusing to bundle"
 fi
@@ -135,12 +126,8 @@ VERSION="$(awk '
 VERSION_CODE="$(version_code_from_semver "$VERSION")"
 
 echo "==> patching versionCode ($VERSION -> $VERSION_CODE)" >&2
-# `grep -c` exits 1 (not 0) on zero matches -- under `set -e`/pipefail that
-# would abort this assignment BEFORE the "expected exactly 1" message below
-# ever runs, turning the exact regression this check exists to catch (dx's
-# template stops emitting the literal) into total silence instead of a
-# refusal. `|| true` lets the explicit occurrences check below be the one
-# thing that decides pass/fail.
+# @law: `grep -c` exits 1, not 0, on zero matches -- `|| true` keeps the
+# explicit occurrences check below the sole arbiter of pass/fail.
 occurrences="$(grep -cE '^[[:space:]]*versionCode = 1$' "$BUILD_GRADLE" || true)"
 [ "$occurrences" -eq 1 ] \
     || fail "$BUILD_GRADLE has $occurrences occurrence(s) of 'versionCode = 1', expected exactly 1"
@@ -157,16 +144,6 @@ grep -qE '^[[:space:]]*versionCode = 1$' "$BUILD_GRADLE" \
 grep -qE "^[[:space:]]*versionName = \"$VERSION\"\$" "$BUILD_GRADLE" \
     || fail "versionName \"$VERSION\" not found in $BUILD_GRADLE"
 
-# $META is the load-bearing one: its absence at the check below is the ONLY
-# signal that AGP did not regenerate the bundle manifest this run. Without
-# clearing it first, a stale $META from a previous run would satisfy that
-# check and get read back further down, passing while proving nothing about
-# the build that just ran. $AAB is defence-in-depth: on the AGP/Gradle
-# pairing this repo pins, output-hash tracking already forces a rebuild on
-# any versionCode/versionName change (a deliberately-stale $AAB survived
-# unchanged through a real rebuild when tried) -- but that is a Gradle
-# implementation detail, not a contract this script can rely on, hence
-# clearing it too rather than trusting it.
 echo "==> clearing any stale bundle output" >&2
 rm -f "$AAB" "$META"
 
@@ -180,12 +157,6 @@ echo "==> verifying page-size alignment" >&2
 "$REPO_ROOT/scripts/android-verify-alignment.sh" "$AAB" >&2
 
 echo "==> reading back the manifest AGP folded into the bundle" >&2
-# Same shape as the occurrences check above: a `grep -oE` with no match
-# exits 1 and, under pipefail, would abort the assignment before the "no
-# ...found" refusals below ever ran -- silent on exactly the case (AGP
-# stops emitting the attribute, or reshapes the manifest) those refusals
-# exist to name. `|| true` on each pipeline; the explicit checks below
-# decide pass/fail.
 produced_version_code="$(grep -oE 'android:versionCode="[0-9]+"' "$META" | head -1 | grep -oE '[0-9]+' || true)"
 produced_version_name="$(grep -oE 'android:versionName="[^"]*"' "$META" | head -1 | sed -E 's/^android:versionName="(.*)"$/\1/' || true)"
 
