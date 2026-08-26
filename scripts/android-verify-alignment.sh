@@ -11,16 +11,13 @@
 # native dependency ships its own .so in the same bundle and would regress
 # this exact property invisibly to a check that only looked at one name.
 #
-# Entries are listed and read through Python's zipfile module, never `unzip`:
-# `unzip` treats a member argument as a GLOB PATTERN, and entry names come
-# from the archive's own central directory -- attacker-controlled in the
-# "a .aab was downloaded from somewhere" model. A crafted entry name (e.g. a
-# `[...]` character class) makes `unzip -p` silently return a DIFFERENT,
-# benign member's bytes instead of its own, so the malicious member is never
-# inspected while the script still reports success. zipfile.read(name) maps a
-# name to exactly that member's bytes, nothing else -- the one property this
-# check exists to rely on. This also means no file is ever extracted to disk,
-# so zip-slip is structurally unreachable here, not merely guarded against.
+# @law: entry names in a zip's central directory are attacker-controlled,
+# unconstrained bytes -- duplicate, NUL- or newline-bearing names are all
+# legal, and Python's zipfile.NameToInfo is a dict keyed by name (the LAST
+# duplicate wins, silently). Entries below are therefore addressed by their
+# ordinal position in infolist(), never by name -- the one identifier a
+# crafted name cannot forge. No file is ever extracted to disk, so zip-slip
+# is structurally unreachable here, not merely guarded against.
 #
 # Usage: scripts/android-verify-alignment.sh <aab-path>
 
@@ -56,36 +53,44 @@ done
 
 [ -f "$AAB" ] || preflight_fail "no AAB at $AAB"
 
-# The pattern here is a fixed, trusted literal -- only the candidate names
-# being tested against it come from the archive. That is the safe direction
-# for glob matching; `unzip`'s bug was matching in the other one.
-list_so_entries() {
+list_so_indices() {
     python3 -c '
 import sys, zipfile, fnmatch
 zf = zipfile.ZipFile(sys.argv[1])
-for name in zf.namelist():
-    if fnmatch.fnmatchcase(name, "base/lib/*/*.so"):
-        print(name)
+for i, info in enumerate(zf.infolist()):
+    if fnmatch.fnmatchcase(info.filename, "base/lib/*/*.so"):
+        print(i)
 ' "$AAB"
+}
+
+entry_name() {
+    python3 -c '
+import sys, zipfile
+print(zipfile.ZipFile(sys.argv[1]).infolist()[int(sys.argv[2])].filename)
+' "$AAB" "$1"
 }
 
 read_zip_entry() {
     python3 -c '
-import sys, zipfile
-sys.stdout.buffer.write(zipfile.ZipFile(sys.argv[1]).read(sys.argv[2]))
+import sys, shutil, zipfile
+zf = zipfile.ZipFile(sys.argv[1])
+info = zf.infolist()[int(sys.argv[2])]
+with zf.open(info) as f:
+    shutil.copyfileobj(f, sys.stdout.buffer)
 ' "$AAB" "$1"
 }
 
-entries="$(list_so_entries || true)"
-[ -n "$entries" ] || fail "no base/lib/*/*.so entries in $AAB"
+indices="$(list_so_indices)"
+[ -n "$indices" ] || fail "no base/lib/*/*.so entries in $AAB"
 
 count=0
-while IFS= read -r entry; do
-    align="$(read_zip_entry "$entry" | "$READELF" -l - | min_load_alignment)"
+while IFS= read -r index; do
+    entry="$(entry_name "$index")"
+    align="$(read_zip_entry "$index" | "$READELF" -l - | min_load_alignment)"
     [ "$align" -ge "$REQUIRED_PAGE_ALIGNMENT" ] \
         || fail "$entry is aligned to $align bytes, needs >= $REQUIRED_PAGE_ALIGNMENT"
     echo "  $entry: $align bytes"
     count=$((count + 1))
-done <<< "$entries"
+done <<< "$indices"
 
 echo "android-verify-alignment: verified $count .so entries at >= $REQUIRED_PAGE_ALIGNMENT bytes"
