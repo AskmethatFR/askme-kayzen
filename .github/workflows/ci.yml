@@ -16,6 +16,14 @@ jobs:
   gates:
     runs-on: ubuntu-latest
     timeout-minutes: ${{ github.event_name == 'pull_request' && 40 || 20 }}
+    # ANDROID_HOME/NDK_HOME: this job's "shell units" gate
+    # (scripts/test-shell-units.sh) refuses (exit 2) rather than silently
+    # skipping its synthetic-AAB assertions when no local NDK r25c
+    # toolchain is reachable -- so this job must install one, same as the
+    # android-aab job below.
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -72,6 +80,27 @@ jobs:
           installed="$(actionlint -version | head -1)"
           [ "$installed" = "$ACTIONLINT_VERSION" ] || {
             echo "installed actionlint reports version '$installed', expected '$ACTIONLINT_VERSION'" >&2
+            exit 1
+          }
+
+      # Not r27/r28/r29 (this runner's preinstalled NDKs): the shell-units
+      # gate's own synthetic .so fixtures are compiled against r25c to
+      # match the exact toolchain android-bundle.sh links libmain.so with
+      # (see android-aab's own "Install NDK r25c" step for why r28+ would
+      # stop discriminating the regression this build exists to catch).
+      # sdkmanager ships under $ANDROID_HOME/cmdline-tools/latest/bin/, not
+      # on PATH, on this runner image.
+      - name: Install NDK r25c
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          [ -x "$SDKMANAGER" ] || {
+            echo "sdkmanager not found at $SDKMANAGER" >&2
+            exit 1
+          }
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --install "ndk;25.2.9519653"
+          [ -d "$NDK_HOME" ] || {
+            echo "NDK did not land at $NDK_HOME after sdkmanager install" >&2
             exit 1
           }
 
