@@ -443,6 +443,31 @@ with zipfile.ZipFile(aab, "w") as zf:
     rm -rf "$SYNTH_ROOT"
 fi
 
+# --- refuses, never silently skips, when no local NDK is reachable --------
+# A missing NDK toolchain must not let the 21 synthetic-AAB assertions
+# above vanish from the count while this harness still exits 0 -- "not
+# measured" must never read as "green" (same doctrine check.sh's own
+# workflow_lint and android_cross_target already apply). Invoked as a
+# subprocess with NDK_HOME unset and a fabricated HOME, so the fallback
+# default path in locate_ndk_home cannot accidentally resolve on a machine
+# that does have the SDK installed there. TEST_SHELL_UNITS_NO_RECURSE
+# stops the nested invocation from spawning a third one.
+if [ -z "${TEST_SHELL_UNITS_NO_RECURSE:-}" ]; then
+    FAKE_HOME="$(mktemp -d)"
+    norefusal_out="$(env -u NDK_HOME HOME="$FAKE_HOME" TEST_SHELL_UNITS_NO_RECURSE=1 \
+        "${BASH_SOURCE[0]}" 2>&1 1>/dev/null)"
+    norefusal_status=$?
+    rm -rf "$FAKE_HOME"
+    assert_eq "2" "$norefusal_status" \
+        "test-shell-units.sh: refuses (does not silently skip) when no local NDK is reachable"
+    case "$norefusal_out" in
+        *"no local NDK r25c toolchain found"*) norefusal_msg="yes" ;;
+        *) norefusal_msg="no" ;;
+    esac
+    assert_eq "yes" "$norefusal_msg" \
+        "test-shell-units.sh: NDK-unreachable refusal names the cause"
+fi
+
 # --- verdict --------------------------------------------------------------
 # A harness with every case deleted still exits 0 with "0 passed, 0 failed"
 # unless this is checked explicitly -- that reads as a clean gate while
