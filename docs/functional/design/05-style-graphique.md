@@ -35,8 +35,12 @@ daltonien, sur un écran en niveaux de gris, ou à l'impression. Le contraste qu
 celui de l'**état allumé contre l'état éteint**, pas celui de chacun contre le papier : la
 mini-courbe passait ses deux états à 3:1 contre le papier tout en ne les séparant que de
 **1,12:1** l'un de l'autre. Tout signal chromatique se double donc d'un indice de forme —
-la présence ou l'absence d'un élément, jamais deux nuances du même. Les points de rythme et
-l'escalier du détail ont encore ce défaut ; il attend une passe d'accessibilité dédiée.
+la présence ou l'absence d'un élément, jamais deux nuances du même. *(2026-08-26 — la
+mini-courbe applique maintenant cette règle à la lettre : une barre y est un jour pratiqué,
+donc une habitude non pratiquée n'en dessine aucune. Il n'y a plus deux états à départager,
+donc plus de teinte conditionnelle ni de socle — le signal est la présence des barres.)*
+Les points de rythme et l'escalier du détail ont encore ce défaut ; il attend une passe
+d'accessibilité dédiée.
 
 ## Typographie
 

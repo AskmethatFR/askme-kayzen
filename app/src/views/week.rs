@@ -437,7 +437,7 @@ mod tests {
     /// rendered HTML, parsed as `f64`, in document order — lets a test pin
     /// the mini-curve's normalized bar heights and their order, not just
     /// the bar count.
-    fn bar_ratios(html: &str) -> Vec<f64> {
+    fn rendered_bar_ratios(html: &str) -> Vec<f64> {
         const NEEDLE: &str = "--practice-ratio: ";
         html.match_indices(NEEDLE)
             .map(|(index, _)| {
@@ -510,7 +510,7 @@ mod tests {
             "expected the row to read the starting and current goal, got: {html}"
         );
         assert_eq!(
-            bar_ratios(&html),
+            rendered_bar_ratios(&html),
             vec![0.8, 1.0, 1.0, 1.0],
             "expected one bar per day practised (four), not one per recorded \
              goal step (three), each normalized to the row's own maximum (5) \
@@ -655,7 +655,7 @@ mod tests {
     fn a_lightened_row_still_normalizes_on_its_own_maximum_practised_goal() {
         let html = render(RootAtWeekScreenWithALightenedHabit);
 
-        let ratios = bar_ratios(&html);
+        let ratios = rendered_bar_ratios(&html);
         assert!(
             ratios.iter().all(|&ratio| ratio <= 1.0),
             "no bar may exceed its container: {ratios:?}"
@@ -723,19 +723,18 @@ mod tests {
         }
     }
 
-    /// The exact `<div class="week-curve">...</div>` markup of the
-    /// `occurrence`-th curve rendered, in document order — lets a test
-    /// assert byte-for-byte what a row's curve carries, not just whether
-    /// one class token is present. `.week-curve` never carries a second
-    /// class or variant now that a curve either draws bars or does not
-    /// render at all, so a single needle is enough.
-    fn nth_week_curve_html(html: &str, occurrence: usize) -> &str {
+    /// The exact `<div class="week-curve">...</div>` markup of the first
+    /// curve rendered — lets a test assert byte-for-byte what a row's curve
+    /// carries, not just whether one class token is present. `.week-curve`
+    /// never carries a second class or variant now that a curve either draws
+    /// bars or does not render at all, so a single needle is enough.
+    fn the_week_curve_html(html: &str) -> &str {
         const CLOSE: &str = "</div>";
         let start = html
             .match_indices(r#"<div class="week-curve""#)
-            .nth(occurrence)
+            .next()
             .map(|(index, _)| index)
-            .expect("fewer .week-curve rows rendered than expected");
+            .expect("no .week-curve rendered");
         let end = html[start..]
             .find(CLOSE)
             .map(|offset| start + offset + CLOSE.len())
@@ -754,7 +753,7 @@ mod tests {
             "expected exactly one .week-curve — the practised habit's — got: {html}"
         );
         assert_eq!(
-            nth_week_curve_html(&html, 0),
+            the_week_curve_html(&html),
             r#"<div class="week-curve" aria-label="Trajectoire de Lire une page, de 5 à 5 minutes, 1 jour pratiqué"><span class="practice-bar" style="--practice-ratio: 1"></span></div>"#,
             "the practised row must gain nothing beyond its bars and its \
              enriched aria-label; the unpractised row must draw no curve at \
@@ -796,7 +795,7 @@ mod tests {
              outside it and must draw none, got: {html}"
         );
         assert_eq!(
-            bar_ratios(&html),
+            rendered_bar_ratios(&html),
             vec![1.0],
             "the one habit inside the window must draw exactly one bar, \
              got: {html}"

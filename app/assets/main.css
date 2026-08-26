@@ -304,9 +304,7 @@ body {
    Each mini-curve draws one bar per day practised in the rolling seven-day
    window, never one per recorded goal step: the week's rhythm row above
    already draws the seven days once, the curve draws the same window's
-   lived history. A habit not practised in the window has no curve at all —
-   there is only one state left to draw (never practised in the window),
-   so there is nothing left to distinguish by colour or by a socle. */
+   lived history. A habit not practised in the window has no curve at all. */
 .week-habits {
   margin-top: var(--space-5);
 }
@@ -334,16 +332,16 @@ body {
    (--practice-ratio, 0..1), never an absolute minute value: floor 6px +
    up to 26px of ratio exactly fills the 32px .week-curve container
    (6 + 26 = 32), so the tallest bar always reaches the top and no bar can
-   overflow by construction. Accent colour throughout: every bar drawn here
-   was practised, by construction (an unpractised habit draws no
-   .week-curve at all), so colour needs no second state to distinguish. */
+   overflow by construction. Every bar drawn here stands for a practised
+   day, so the accent carries no second state. */
 .practice-bar {
   width: 10px;
   min-height: 6px;
   height: calc(6px + var(--practice-ratio, 1) * 26px);
   background: var(--color-accent);
   border-radius: var(--radius) var(--radius) 0 0;
-  opacity: 1; /* composited 3.65:1 on --color-paper -- SC 1.4.11 floor is 3:1 */
+  /* composited 3.65:1 on --color-paper -- SC 1.4.11 floor is 3:1 */
+  opacity: 1;
 }
 
 /* ---- Broadsheet components (for later screens) ---- */
