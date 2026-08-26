@@ -16,7 +16,7 @@ import os
 import subprocess
 import sys
 
-from PIL import Image, ImageDraw
+from PIL import Image
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 HERE = os.path.join(ROOT, "store", "icon")
@@ -34,7 +34,6 @@ DENSITIES = {"mdpi": 1, "hdpi": 1.5, "xhdpi": 2, "xxhdpi": 3, "xxxhdpi": 4}
 # the circle, and those corners are where the K's serifs live.
 SAFE_ADAPTIVE = 66 / 108
 SAFE_LEGACY = 0.84
-SAFE_ROUND = 0.72
 SAFE_STORE = 0.70
 
 
@@ -84,12 +83,8 @@ def fit(master, canvas, radius_fraction):
     return out
 
 
-def on_paper(fg, circular=False):
+def on_paper(fg):
     bg = Image.new("RGBA", fg.size, PAPER)
-    if circular:
-        mask = Image.new("L", fg.size, 0)
-        ImageDraw.Draw(mask).ellipse((0, 0, fg.width - 1, fg.height - 1), fill=255)
-        bg.putalpha(mask)
     bg.alpha_composite(fg)
     return bg
 
@@ -125,13 +120,11 @@ def main():
         write(fg, os.path.join(RES, f"mipmap-{name}", "ic_launcher_foreground.png"))
         write(blacken(fg), os.path.join(RES, f"mipmap-{name}", "ic_launcher_monochrome.png"))
 
-    print("legacy square + round (48dp)")
+    print("legacy square (48dp)")
     for name, factor in DENSITIES.items():
         canvas = round(48 * factor)
         write(on_paper(fit(master, canvas, SAFE_LEGACY)),
               os.path.join(RES, f"mipmap-{name}", "ic_launcher.png"))
-        write(on_paper(fit(master, canvas, SAFE_ROUND), circular=True),
-              os.path.join(RES, f"mipmap-{name}", "ic_launcher_round.png"))
 
     print("store listing icon")
     write(on_paper(fit(master, 512, SAFE_STORE)),

@@ -15,7 +15,9 @@ export ANDROID_HOME NDK_HOME JAVA_HOME
 export PATH="$PATH:$ANDROID_HOME/platform-tools"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APK="$REPO_ROOT/target/dx/kayzen-app/debug/android/app/app/build/outputs/apk/debug/app-debug.apk"
+GRADLE_PROJECT="$REPO_ROOT/target/dx/kayzen-app/debug/android/app"
+GENERATED_RES="$GRADLE_PROJECT/app/src/main/res"
+APK="$GRADLE_PROJECT/app/build/outputs/apk/debug/app-debug.apk"
 PACKAGE="com.askmethat.kayzen"
 ACTIVITY="dev.dioxus.main.MainActivity"
 
@@ -36,8 +38,20 @@ command -v dx >/dev/null || fail "dx not found (cargo install dioxus-cli)"
 DEVICES="$(adb devices | awk 'NR > 1 && $2 == "device" { print $1 }')"
 [ -n "$DEVICES" ] || fail "no authorised device over USB (check 'USB debugging' and the RSA prompt)"
 
+# dx restores its own template icons on every build without removing the ones
+# a previous run copied in, and the two collide on @mipmap/ic_launcher. So the
+# tree is handed back to dx clean, and the icon goes in once dx is done --
+# after which Gradle runs alone, because a second dx build would undo it.
+"$REPO_ROOT/scripts/android-icon.sh" clean "$GENERATED_RES"
+
 echo "==> building (unsigned debug, arm64-v8a)"
 (cd "$REPO_ROOT/app" && dx build --platform android)
+
+echo "==> applying the launcher icon"
+"$REPO_ROOT/scripts/android-icon.sh" apply "$GENERATED_RES"
+
+echo "==> re-assembling with the real icon"
+(cd "$GRADLE_PROJECT" && ./gradlew --quiet assembleDebug)
 
 [ -f "$APK" ] || fail "build produced no APK at $APK"
 

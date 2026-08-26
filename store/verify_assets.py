@@ -38,9 +38,8 @@ def rel(*parts):
 def check_icons():
     print("launcher icons")
     for density, px in LEGACY_SIZES.items():
-        for name in ("ic_launcher", "ic_launcher_round"):
-            path = os.path.join(RES, f"mipmap-{density}", f"{name}.png")
-            check(Image.open(path).size == (px, px), f"mipmap-{density}/{name}.png is {px}x{px}")
+        path = os.path.join(RES, f"mipmap-{density}", "ic_launcher.png")
+        check(Image.open(path).size == (px, px), f"mipmap-{density}/ic_launcher.png is {px}x{px}")
     for density, px in ADAPTIVE_SIZES.items():
         for name in ("ic_launcher_foreground", "ic_launcher_monochrome"):
             path = os.path.join(RES, f"mipmap-{density}", f"{name}.png")
@@ -50,7 +49,6 @@ def check_icons():
                 f"mipmap-{density}/{name}.png is {px}x{px} with transparency",
             )
     for path in ("mipmap-anydpi-v26/ic_launcher.xml",
-                 "mipmap-anydpi-v26/ic_launcher_round.xml",
                  "drawable/ic_launcher_background.xml"):
         check(os.path.exists(os.path.join(RES, path)), f"{path} exists")
 
