@@ -40,8 +40,18 @@ scripts/android-deploy.sh   # build, install and launch on the device plugged in
 ```
 
 The script is the whole procedure: it checks the toolchain, builds the debug app from
-the `mobile` feature, installs it and launches it. Nothing is signed and no keystore is
-involved — this is the "see it on my own screen" path, not a release one.
+the `mobile` feature, applies the launcher icon, installs it and launches it. Nothing is
+signed and no keystore is involved — this is the "see it on my own screen" path, not a
+release one.
+
+The icon step is `scripts/android-icon.sh`, called between the two. `dx` 0.7.9 does not
+wire `[android].icon` and rewrites `res/` under `target/` on every build, so
+`app/android/res/` cannot reach the APK on its own: the icon is copied in once `dx` has
+generated the Gradle project, and Gradle is then run alone — a second `dx build` would
+put the template icons straight back. The script lives on its own so the release pipeline
+can call it too, and it deletes the template's `ic_launcher*.webp` rather than copying
+over them: Android resolves a resource by name and not by extension, so a leftover
+`.webp` beside our `.png` gives `@mipmap/ic_launcher` two definitions and AAPT2 fails.
 
 The one-time setup it expects, and why each version is pinned where it is:
 
