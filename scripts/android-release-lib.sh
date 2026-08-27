@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # Pure helpers for the Android release build, sourced by
-# scripts/android-verify-alignment.sh and scripts/android-bundle.sh -- and,
-# in a later slice, scripts/android-sign.sh. Sourceable, side-effect-free:
-# nothing runs until a function below is called, matching
-# scripts/verify-instrument.sh's own shape.
+# scripts/android-verify-alignment.sh and scripts/android-bundle.sh.
+# Sourceable, side-effect-free: nothing runs until a function below is
+# called, matching scripts/verify-instrument.sh's own shape.
+#
+# workspace_version reads [workspace.package].version out of a Cargo.toml
+# path given as its one argument. scripts/android-bundle.sh is its only
+# caller: it feeds the result straight into version_code_from_semver below,
+# which is what makes the Cargo.toml -> versionCode binding provable by
+# this file's own test harness instead of living in untestable inline awk.
 #
 # version_code_from_semver refuses a "v" prefix and any -pre/+build suffix:
 # its input is always Cargo.toml's bare version string, never a git tag --
@@ -22,6 +27,32 @@
 # the value it gets back is acceptable.
 
 readonly REQUIRED_PAGE_ALIGNMENT=16384
+
+workspace_version() {
+    local cargo_toml="$1"
+    if [ ! -f "$cargo_toml" ]; then
+        echo "workspace_version: no Cargo.toml at $cargo_toml" >&2
+        return 1
+    fi
+
+    local version
+    version="$(awk '
+        /^\[workspace\.package\]/ { in_section = 1; next }
+        /^\[/ { in_section = 0 }
+        in_section && /^version[[:space:]]*=/ {
+            match($0, /"[^"]*"/)
+            print substr($0, RSTART + 1, RLENGTH - 2)
+            exit
+        }
+    ' "$cargo_toml")"
+
+    if [ -z "$version" ]; then
+        echo "workspace_version: could not read [workspace.package].version from $cargo_toml" >&2
+        return 1
+    fi
+
+    printf '%s\n' "$version"
+}
 
 version_code_from_semver() {
     local version="$1"

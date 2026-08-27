@@ -120,16 +120,7 @@ if grep -qiE 'storePassword|keyPassword|keyAlias|storeFile|signingConfig' "$BUIL
 fi
 
 echo "==> reading the workspace version" >&2
-VERSION="$(awk '
-    /^\[workspace\.package\]/ { in_section = 1; next }
-    /^\[/ { in_section = 0 }
-    in_section && /^version[[:space:]]*=/ {
-        match($0, /"[^"]*"/)
-        print substr($0, RSTART + 1, RLENGTH - 2)
-        exit
-    }
-' "$REPO_ROOT/Cargo.toml")"
-[ -n "$VERSION" ] || fail "could not read [workspace.package].version from Cargo.toml"
+VERSION="$(workspace_version "$REPO_ROOT/Cargo.toml")"
 VERSION_CODE="$(version_code_from_semver "$VERSION")"
 
 echo "==> patching versionCode ($VERSION -> $VERSION_CODE)" >&2

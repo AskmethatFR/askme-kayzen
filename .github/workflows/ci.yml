@@ -91,6 +91,17 @@ jobs:
             exit 1
           }
 
+      # @law: the `env` context is not available in `jobs.<job_id>.env` --
+      # only a step's `run:` shell sees a runner-inherited variable like
+      # JAVA_HOME_17_X64 directly, so this is the only place it is visible.
+      - name: Resolve JDK 17
+        run: |
+          [ -n "${JAVA_HOME_17_X64:-}" ] || {
+            echo "JAVA_HOME_17_X64 is unset on this runner image" >&2
+            exit 1
+          }
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+
       # ref: alone does not guarantee origin/main exists locally, even at
       # fetch-depth: 0 — fetched explicitly so the merge-base below has
       # something to resolve against. No --depth here: git rejects

@@ -2861,7 +2861,7 @@ dependencies = [
 
 [[package]]
 name = "kayzen-app"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "dioxus",
  "dioxus-html",
@@ -2883,7 +2883,7 @@ dependencies = [
 
 [[package]]
 name = "kayzen-core"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "chrono",
  "serde",
