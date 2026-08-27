@@ -14,8 +14,11 @@ concurrency:
 
 jobs:
   gates:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: ${{ github.event_name == 'pull_request' && 40 || 20 }}
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -45,6 +48,48 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # Runs unconditionally: scripts/check.sh's workflow-lint gate is part
+      # of the no-work-class path too, so both "Gates (pull request)" and
+      # "Gates (push to main)" below need it on PATH.
+      #
+      # @law: taiki-e/install-action does not support actionlint at any
+      # version (absent from its own TOOLS.md), and its cargo-binstall
+      # fallback can never work either -- actionlint is a Go binary, not a
+      # crates.io crate.
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: "1.7.12"
+          ACTIONLINT_SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+        run: |
+          set -euo pipefail
+          asset="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -sSLo "$RUNNER_TEMP/$asset" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${asset}"
+          (cd "$RUNNER_TEMP" && echo "${ACTIONLINT_SHA256}  ${asset}" | sha256sum -c -)
+          tar -xzf "$RUNNER_TEMP/$asset" -C "$RUNNER_TEMP" actionlint
+          install -m 0755 "$RUNNER_TEMP/actionlint" /usr/local/bin/actionlint
+          installed="$(actionlint -version | head -1)"
+          [ "$installed" = "$ACTIONLINT_VERSION" ] || {
+            echo "installed actionlint reports version '$installed', expected '$ACTIONLINT_VERSION'" >&2
+            exit 1
+          }
+
+      # @law: sdkmanager ships under $ANDROID_HOME/cmdline-tools/latest/bin/,
+      # not on PATH, on this runner image.
+      - name: Install NDK r25c
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          [ -x "$SDKMANAGER" ] || {
+            echo "sdkmanager not found at $SDKMANAGER" >&2
+            exit 1
+          }
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --install "ndk;25.2.9519653"
+          [ -d "$NDK_HOME" ] || {
+            echo "NDK did not land at $NDK_HOME after sdkmanager install" >&2
+            exit 1
+          }
 
       # ref: alone does not guarantee origin/main exists locally, even at
       # fetch-depth: 0 — fetched explicitly so the merge-base below has
@@ -86,3 +131,93 @@ jobs:
       - name: Gates (push to main)
         if: github.event_name != 'pull_request'
         run: scripts/check.sh
+
+  # Separate from `gates`: needs its own ANDROID_HOME/NDK_HOME wiring and a
+  # pinned OS (ubuntu-24.04, not ubuntu-latest) because every fact this job
+  # relies on -- which NDKs the runner preinstalls, where sdkmanager and the
+  # SDK sit -- is 24.04-specific, and this repo's policy is that any such
+  # drift is a reviewable diff, not a silent runner upgrade.
+  #
+  # Runs on push:main too, not just pull_request: the cache policy below is
+  # save-if: main, so a PR-only job would restore-miss forever and pay the
+  # full cold build cost (~22-32 min) on every run. The push:main run is
+  # what actually populates the cache PRs then restore from.
+  #
+  # No keystore ever reaches this job or any PR: it proves an unsigned,
+  # correctly-versioned, 16 KB-aligned AAB builds, nothing more.
+  android-aab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: "1.97.0"
+          targets: aarch64-linux-android
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: android-aab
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Install dx
+        uses: taiki-e/install-action@a2a5f6e99e1a31540baa0468acfa302cff0f359f # v2.86.4
+        with:
+          tool: dioxus-cli@0.7.9
+
+      # NDK r25c, not the r27/r28/r29 this runner otherwise preinstalls:
+      # r28+ aligns to 16 KB by default, so on those the gate would pass
+      # whether or not --rustc-args carried the alignment flags, while the
+      # developer's own r25c machine still ships 4 KB -- the gate would
+      # stop discriminating exactly the regression it exists to catch.
+      # Licences are already accepted on the preinstalled SDK.
+      #
+      # @law: same as the `gates` job's "Install NDK r25c" step above --
+      # sdkmanager ships under $ANDROID_HOME/cmdline-tools/latest/bin/, not
+      # on PATH, on this runner image.
+      - name: Install NDK r25c
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          [ -x "$SDKMANAGER" ] || {
+            echo "sdkmanager not found at $SDKMANAGER" >&2
+            exit 1
+          }
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --install "ndk;25.2.9519653"
+          [ -d "$NDK_HOME" ] || {
+            echo "NDK did not land at $NDK_HOME after sdkmanager install" >&2
+            exit 1
+          }
+
+      # @law: the `env` context is not available in `jobs.<job_id>.env` --
+      # only a step's `run:` shell sees a runner-inherited variable like
+      # JAVA_HOME_17_X64 directly, so this is the only place it is visible.
+      - name: Resolve JDK 17
+        run: |
+          [ -n "${JAVA_HOME_17_X64:-}" ] || {
+            echo "JAVA_HOME_17_X64 is unset on this runner image" >&2
+            exit 1
+          }
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+
+      - name: Build unsigned release AAB
+        id: bundle
+        run: |
+          aab_path="$(scripts/android-bundle.sh)"
+          echo "aab_path=$aab_path" >> "$GITHUB_OUTPUT"
+
+      - name: Upload unsigned AAB
+        if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: kayzen-unsigned-aab-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ steps.bundle.outputs.aab_path }}
+          retention-days: 7
+          if-no-files-found: error

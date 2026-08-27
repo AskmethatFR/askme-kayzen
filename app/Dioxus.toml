@@ -2,6 +2,11 @@
 name = "askme-kayzen"
 android_manifest = "android/AndroidManifest.xml"
 
+# scripts/android-bundle.sh refuses to run if a [bundle.android] section
+# appears below: dx 0.7.9's own generated build.gradle.kts only emits a
+# cleartext signingConfigs block when this key is present. The refusal in
+# that script is the real control -- this comment only points at it.
+
 [web.app]
 title = "Kaizen"
 
