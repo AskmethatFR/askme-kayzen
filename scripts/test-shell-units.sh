@@ -437,6 +437,42 @@ with zipfile.ZipFile(aab, "w") as zf:
     esac
     assert_eq "yes" "$msg_multiabi" "android-verify-alignment.sh: second-ABI 4 KB entry is scanned and named"
 
+    # 11. a file that is not a zip archive at all, passed as the AAB.
+    # zipfile.ZipFile raises BadZipFile -- python exits 2 for that, and the
+    # script names it "is not a valid zip archive". preflight_fail's OTHER
+    # exit-2 message ("could not list entries ... python exited N") is the
+    # fallback for an UNEXPECTED status, not for this known one; a fixture
+    # is the only thing that discriminates "the BadZipFile branch ran" from
+    # "it was deleted and execution fell through to the generic fallback",
+    # since both still exit 2.
+    AAB_NOTZIP="$SYNTH_ROOT/not-a-zip.aab"
+    printf 'this is not a zip file, just garbage bytes\n' > "$AAB_NOTZIP"
+    err_notzip="$(va "$AAB_NOTZIP" 2>&1 1>/dev/null)"; status_notzip=$?
+    assert_eq "2" "$status_notzip" "android-verify-alignment.sh: non-zip AAB exits 2"
+    case "$err_notzip" in
+        *"is not a valid zip archive"*) msg_notzip="yes" ;;
+        *) msg_notzip="no" ;;
+    esac
+    assert_eq "yes" "$msg_notzip" \
+        "android-verify-alignment.sh: non-zip AAB names the exact cause (kills the BadZipFile-branch-deletion mutant)"
+
+    # 12. a base/lib/*/*.so entry that is not an ELF object at all (a plain
+    # text file). This must be refused with "could not be read as an ELF
+    # object" -- a DIFFERENT cause than "aligned to N bytes" -- and the
+    # stderr must be EXACTLY that one line: llvm-readelf's own diagnostic on
+    # the malformed input is piped to /dev/null at the call site, so an
+    # exact match (not a substring) is what discriminates "suppressed" from
+    # "leaked onto this script's stderr", which is what deleting that
+    # redirection would do without changing the exit code at all.
+    printf 'not an elf file at all\n' > "$SYNTH_ROOT/notelf.txt"
+    AAB_NOTELF="$SYNTH_ROOT/not-elf.aab"
+    build_aab "$AAB_NOTELF" "base/lib/arm64-v8a/libnotelf.so" "$SYNTH_ROOT/notelf.txt"
+    err_notelf="$(va "$AAB_NOTELF" 2>&1 1>/dev/null)"; status_notelf=$?
+    assert_eq "1" "$status_notelf" "android-verify-alignment.sh: non-ELF .so exits 1"
+    assert_eq "android-verify-alignment: base/lib/arm64-v8a/libnotelf.so could not be read as an ELF object" \
+        "$err_notelf" \
+        "android-verify-alignment.sh: non-ELF .so names the exact cause, no readelf diagnostic leaks through"
+
     rm -rf "$SYNTH_ROOT"
 fi
 
@@ -458,6 +494,32 @@ if [ -z "${TEST_SHELL_UNITS_NO_RECURSE:-}" ]; then
     esac
     assert_eq "yes" "$norefusal_msg" \
         "test-shell-units.sh: NDK-unreachable refusal names the cause"
+
+    # A PARTIAL toolchain: NDK_HOME resolves to a real directory (so
+    # SYNTH_NDK_HOME is non-empty), but nothing under it matches the
+    # llvm-readelf/clang/libc++_shared.so globs (so the other three stay
+    # empty). The four-way guard is `||` -- ANY of the four being empty
+    # refuses -- specifically so this half-present case still refuses. A
+    # mutant narrowing that `||` to `&&` (only refuse when ALL four are
+    # empty) would let this exact case fall through into the toolchain
+    # setup below, which then breaks in whatever way an empty $SYNTH_CLANG
+    # or $SYNTH_READELF happens to break, rather than in the one clearly-
+    # named way this harness commits to.
+    FAKE_NDK_ROOT="$(mktemp -d)"
+    FAKE_NDK_HOME="$FAKE_NDK_ROOT/ndk/25.2.9519653"
+    mkdir -p "$FAKE_NDK_HOME"
+    partial_out="$(env NDK_HOME="$FAKE_NDK_HOME" TEST_SHELL_UNITS_NO_RECURSE=1 \
+        "${BASH_SOURCE[0]}" 2>&1 1>/dev/null)"
+    partial_status=$?
+    rm -rf "$FAKE_NDK_ROOT"
+    assert_eq "2" "$partial_status" \
+        "test-shell-units.sh: refuses (does not silently skip) with a partial NDK toolchain"
+    case "$partial_out" in
+        *"no local NDK r25c toolchain found"*) partial_msg="yes" ;;
+        *) partial_msg="no" ;;
+    esac
+    assert_eq "yes" "$partial_msg" \
+        "test-shell-units.sh: partial-NDK refusal names the cause (kills the guard's || -> && mutant)"
 fi
 
 # --- verdict --------------------------------------------------------------
