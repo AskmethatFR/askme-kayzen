@@ -120,6 +120,12 @@ min_load_alignment() {
 
 patch_version_code() {
     local build_gradle="$1" version_code="$2"
+    case "$version_code" in
+        ''|*[!0-9]*)
+            echo "patch_version_code: version_code '$version_code' is not a bare non-negative integer" >&2
+            return 1
+            ;;
+    esac
     local marker="__ANDROID_BUNDLE_VERSION_CODE_MARKER__"
     local sentinel_re='^[[:space:]]*versionCode = 1$'
 
@@ -146,7 +152,7 @@ patch_version_code() {
 
     local tmp_final
     tmp_final="$(mktemp)"
-    sed "s/$marker/$version_code/" "$tmp_marked" > "$tmp_final"
+    sed "s/^\([[:space:]]*\)versionCode = $marker\$/\1versionCode = $version_code/" "$tmp_marked" > "$tmp_final"
     rm -f "$tmp_marked"
 
     if grep -qF "$marker" "$tmp_final"; then

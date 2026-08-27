@@ -22,10 +22,11 @@
 # `:env` modifier, which is why signing never shells out to it. Verifying a
 # signature needs no store password at all -- jarsigner -verify only reads
 # public certificate data -- so :env is never passed to the verify call
-# either, and every descendant process spawned after signing (the alignment
-# re-check below) has both password variables scrubbed from its own
-# environment: argv is not the only channel a password leaks through, and
-# `environ` outlives the argv of the command that set it.
+# either, and both password variables are unset from this script's own
+# environment right after signing, so every descendant process spawned
+# after that point (the jarsigner -verify call and the alignment re-check
+# below) never sees them: argv is not the only channel a password leaks
+# through, and `environ` outlives the argv of the command that set it.
 #
 # @law: the alignment re-check below (scripts/android-verify-alignment.sh,
 # unchanged, as a second call site) measures the SIGNED bundle's own bytes,
@@ -112,9 +113,16 @@ if [ "$sign_status" -ne 0 ]; then
     esac
 fi
 
+# @law: signing is the only step that needs the two passwords -- every
+# process spawned after this point (jarsigner -verify next, and the
+# alignment re-check further down) must never see them: argv is not the
+# only channel a password leaks through, and `environ` outlives the argv
+# of the command that set it.
+unset ANDROID_SIGN_STORE_PASSWORD ANDROID_SIGN_KEY_PASSWORD
+
 echo "==> verifying the signature by alias '$ANDROID_SIGN_KEY_ALIAS'" >&2
-verify_out="$(verify_jar_signature "$ANDROID_SIGN_KEYSTORE" "$tmp_signed" "$ANDROID_SIGN_KEY_ALIAS")"
-verify_status=$?
+verify_out="$(verify_jar_signature "$ANDROID_SIGN_KEYSTORE" "$tmp_signed" "$ANDROID_SIGN_KEY_ALIAS")" \
+    && verify_status=0 || verify_status=$?
 case "$verify_status" in
     0) : ;;
     1) fail "jarsigner could not verify the signed bundle: $verify_out" ;;
@@ -123,8 +131,7 @@ case "$verify_status" in
 esac
 
 echo "==> re-verifying 16 KB page-size alignment on the signed bundle" >&2
-env -u ANDROID_SIGN_STORE_PASSWORD -u ANDROID_SIGN_KEY_PASSWORD \
-    "$ROOT/scripts/android-verify-alignment.sh" "$tmp_signed" >&2
+"$ROOT/scripts/android-verify-alignment.sh" "$tmp_signed" >&2
 
 mv "$tmp_signed" "$SIGNED_AAB"
 
