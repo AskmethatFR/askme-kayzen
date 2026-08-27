@@ -307,6 +307,112 @@ other {
 assert_refuses "patch_version_code: two occurrences of the sentinel refuses" \
     -- patch_version_code "$PVC_ROOT/double-sentinel.kts" "1000"
 
+# R2 (retry 2): the two-phase marker guard `[ "$marked" -ne 1 ]` is the
+# entire mechanism the B1 fix relies on to prove the substitution actually
+# ran -- QA hand-mutated it and the mutant survived. A stub `sed` that
+# silently no-ops (streams its last argument through unchanged) simulates
+# exactly the failure this guard exists to catch: the occurrences pre-check
+# above uses `grep`, not `sed`, so it still passes while the substitution
+# itself never happens.
+write_gradle_fixture "$PVC_ROOT/noop-sed.kts" 'android {
+    defaultConfig {
+        versionCode = 1
+        versionName = "0.1.0"
+    }
+}
+'
+SED_NOOP_DIR="$(mktemp -d)"
+cat > "$SED_NOOP_DIR/sed" <<'EOF'
+#!/usr/bin/env bash
+shift
+cat "$@"
+EOF
+chmod +x "$SED_NOOP_DIR/sed"
+
+err_r2="$(PATH="$SED_NOOP_DIR:$PATH" patch_version_code "$PVC_ROOT/noop-sed.kts" "1000" 2>&1 1>/dev/null)"
+status_r2=$?
+assert_eq "1" "$status_r2" \
+    "patch_version_code: a no-op marker substitution is refused, not silently accepted (R2)"
+case "$err_r2" in
+    *"the substitution did not run"*) msg_r2="yes" ;;
+    *) msg_r2="no" ;;
+esac
+assert_eq "yes" "$msg_r2" \
+    "patch_version_code: a no-op marker substitution names the cause (R2, kills the marked-guard mutant)"
+rm -rf "$SED_NOOP_DIR"
+
+# R4 (retry 2): version_code must be validated as a bare non-negative
+# integer BEFORE it ever reaches sed as a substitution replacement. Each
+# fixture is FRESH and carries an untouched sentinel, so without
+# validation the call would otherwise run to completion (verified: today
+# "abc", "12a", "-5", "1.0" and "" all currently return 0 and inject the
+# literal garbage string as versionCode). The message assertion, not just
+# the exit code, is what discriminates real validation from "1000/evil"
+# coincidentally tripping sed's own delimiter-count error.
+vcode_case=0
+for bad_version_code in "" "abc" "12a" "-5" "1.0" "1000/evil"; do
+    vcode_case=$((vcode_case + 1))
+    vcode_fixture="$PVC_ROOT/vcode-$vcode_case.kts"
+    write_gradle_fixture "$vcode_fixture" 'android {
+    defaultConfig {
+        versionCode = 1
+        versionName = "0.1.0"
+    }
+}
+'
+    err_vcode="$(patch_version_code "$vcode_fixture" "$bad_version_code" 2>&1 1>/dev/null)"
+    status_vcode=$?
+    assert_eq "1" "$status_vcode" \
+        "patch_version_code: version_code '$bad_version_code' is refused (R4)"
+    case "$err_vcode" in
+        *"is not a bare non-negative integer"*) msg_vcode="yes" ;;
+        *) msg_vcode="no" ;;
+    esac
+    assert_eq "yes" "$msg_vcode" \
+        "patch_version_code: version_code '$bad_version_code' names the validation cause, not a downstream accident (R4)"
+    unchanged_vcode="$(grep -qE '^[[:space:]]*versionCode = 1$' "$vcode_fixture" && echo yes || echo no)"
+    assert_eq "yes" "$unchanged_vcode" \
+        "patch_version_code: version_code '$bad_version_code' leaves the file untouched (R4)"
+done
+
+# R4: phase-2's substitution must be anchored to the `versionCode = ` line
+# shape, the same way phase-1 already is. A decoy line that happens to
+# already contain the marker's own literal text (planted here to stand in
+# for any future collision) is the only input that can tell an anchored
+# substitution apart from an unanchored one: unanchored, sed's first-match-
+# per-line semantics silently rewrite the decoy too (verified pre-fix: the
+# call returned 0 with the decoy corrupted -- exactly the "silent collateral
+# substitution" Security flagged). Anchored, the decoy no longer matches the
+# substitution pattern, so it survives -- but it still trips the pre-
+# existing, out-of-scope "did the marker fully disappear" invariant
+# (B1, unrelated), which is the CORRECT fail-safe outcome here: refuse
+# rather than either corrupt the decoy or silently ignore it. Never touch
+# that invariant; assert the refusal it produces instead.
+MARKER_LITERAL="__ANDROID_BUNDLE_VERSION_CODE_MARKER__"
+DECOY_LINE="// unrelated: $MARKER_LITERAL must never be rewritten by patch_version_code"
+write_gradle_fixture "$PVC_ROOT/anchor.kts" "android {
+    defaultConfig {
+        versionCode = 1
+        versionName = \"0.1.0\"
+    }
+}
+$DECOY_LINE
+"
+err_anchor="$(patch_version_code "$PVC_ROOT/anchor.kts" "777" 2>&1 1>/dev/null)"
+status_anchor=$?
+assert_eq "1" "$status_anchor" \
+    "patch_version_code: a decoy line matching the marker literal is refused, never silently corrupted (R4, phase-2 anchor)"
+case "$err_anchor" in
+    *"survived the second substitution"*) msg_anchor="yes" ;;
+    *) msg_anchor="no" ;;
+esac
+assert_eq "yes" "$msg_anchor" \
+    "patch_version_code: the refusal is the marker-survival guard, not some other cause (R4)"
+assert_eq "yes" "$(grep -qE '^[[:space:]]*versionCode = 1$' "$PVC_ROOT/anchor.kts" && echo yes || echo no)" \
+    "patch_version_code: a refused patch leaves the original sentinel completely untouched (R4)"
+assert_eq "yes" "$(grep -qF "$DECOY_LINE" "$PVC_ROOT/anchor.kts" && echo yes || echo no)" \
+    "patch_version_code: a refused patch leaves the decoy line completely untouched (R4)"
+
 rm -rf "$PVC_ROOT"
 
 # --- min_load_alignment ---------------------------------------------------
@@ -603,6 +709,7 @@ with zipfile.ZipFile(aab, "w") as zf:
 
     SIGN="$ROOT/scripts/android-sign.sh"
     SIGN_ROOT="$(mktemp -d)"
+    REAL_JARSIGNER="$(command -v jarsigner)"
 
     # JKS, not the PKCS12 default: `keytool -genkeypair -storetype PKCS12`
     # silently COERCES the key's own password to the store password
@@ -941,6 +1048,87 @@ EOF
     assert_eq "yes" "$alias_in_child_env" \
         "android-sign.sh: the scrub is narrow -- non-secret env vars still reach the child (B2)"
     rm -rf "$ENV_SPY_NDK" "$ENV_SPY_CAPTURE"
+
+    # R1 (retry 2): a verification failure must never be swallowed by
+    # `set -e` killing the script before the case dispatch at :118-123 gets
+    # to classify it -- this is a SCRIPT-level regression that no lib-level
+    # test on verify_jar_signature can catch (this harness itself runs
+    # under `set -uo pipefail`, deliberately without `-e`). A shim
+    # jarsigner reports success on -verify but omits the "jar verified"
+    # marker text, reproducing the exact drift verify_jar_signature
+    # classifies as status 2 -- the case that also collides with
+    # preflight_fail's own reserved exit code when the dispatch is dead
+    # code.
+    R1_ROOT="$(mktemp -d)"
+    cat > "$R1_ROOT/jarsigner" <<EOF
+#!/usr/bin/env bash
+for a in "\$@"; do
+    if [ "\$a" = "-verify" ]; then
+        printf '%s\n' "jarsigner: verification succeeded but without the usual marker text"
+        exit 0
+    fi
+done
+exec "$REAL_JARSIGNER" "\$@"
+EOF
+    chmod +x "$R1_ROOT/jarsigner"
+
+    err_r1="$(PATH="$R1_ROOT:$PATH" env NDK_HOME="$SYNTH_NDK_HOME" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" 2>&1 1>/dev/null)"
+    status_r1=$?
+    rm -f "$SIGN_ROOT/unsigned-16k-signed.aab"
+    assert_eq "1" "$status_r1" \
+        "android-sign.sh: a verification drift (missing 'jar verified' marker) exits 1, not 2 (R1)"
+    case "$err_r1" in
+        *"did not verify"*) msg_r1="yes" ;;
+        *) msg_r1="no" ;;
+    esac
+    assert_eq "yes" "$msg_r1" \
+        "android-sign.sh: a verification drift prints a real diagnostic, not a silent exit (R1)"
+    rm -rf "$R1_ROOT"
+
+    # R3 (retry 2): the SAME scrub that already protects the alignment
+    # re-check's child (B2, above) must cover the jarsigner -verify child
+    # too -- the @law at :16-28 claims BOTH descendants are covered, and
+    # until now only one was. A shim jarsigner dumps its own environment
+    # when invoked with -verify and otherwise execs the real binary
+    # transparently, so both the signing call and the verify call still
+    # succeed and only the verify child's environment is captured.
+    ENV_SPY_R3_DIR="$(mktemp -d)"
+    ENV_SPY_R3_CAPTURE="$(mktemp)"
+    cat > "$ENV_SPY_R3_DIR/jarsigner" <<EOF
+#!/usr/bin/env bash
+for a in "\$@"; do
+    if [ "\$a" = "-verify" ]; then
+        env > "$ENV_SPY_R3_CAPTURE"
+    fi
+done
+exec "$REAL_JARSIGNER" "\$@"
+EOF
+    chmod +x "$ENV_SPY_R3_DIR/jarsigner"
+
+    PATH="$ENV_SPY_R3_DIR:$PATH" env NDK_HOME="$SYNTH_NDK_HOME" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" >/dev/null 2>&1
+    status_r3=$?
+    rm -f "$SIGN_ROOT/unsigned-16k-signed.aab"
+    assert_eq "0" "$status_r3" \
+        "android-sign.sh: R3 fixture -- the run reaching the verify shim still succeeds"
+    store_pw_in_verify_env="no"
+    grep -q '^ANDROID_SIGN_STORE_PASSWORD=' "$ENV_SPY_R3_CAPTURE" && store_pw_in_verify_env="yes"
+    assert_eq "no" "$store_pw_in_verify_env" \
+        "android-sign.sh: the jarsigner -verify child never sees the store password (R3)"
+    key_pw_in_verify_env="no"
+    grep -q '^ANDROID_SIGN_KEY_PASSWORD=' "$ENV_SPY_R3_CAPTURE" && key_pw_in_verify_env="yes"
+    assert_eq "no" "$key_pw_in_verify_env" \
+        "android-sign.sh: the jarsigner -verify child never sees the key password (R3)"
+    verify_shim_ran="no"
+    [ -s "$ENV_SPY_R3_CAPTURE" ] && verify_shim_ran="yes"
+    assert_eq "yes" "$verify_shim_ran" \
+        "android-sign.sh: the verify shim actually ran and captured an environment (R3 fixture sanity)"
+    rm -rf "$ENV_SPY_R3_DIR" "$ENV_SPY_R3_CAPTURE"
 
     rm -rf "$SIGN_ROOT"
 
