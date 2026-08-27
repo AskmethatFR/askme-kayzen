@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   gates:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: ${{ github.event_name == 'pull_request' && 40 || 20 }}
     # scripts/test-shell-units.sh refuses (exit 2) without a local NDK r25c
     # toolchain, so this job installs one below, same as android-aab.
