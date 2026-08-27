@@ -185,6 +185,64 @@ assert_refuses "version_code_from_semver: major far beyond int64" \
 assert_refuses "version_code_from_semver: patch far beyond int64" \
     -- version_code_from_semver "0.0.9223372036854775808"
 
+# --- workspace_version ------------------------------------------------------
+# AC 8b: the real Cargo.toml -> versionCode binding must be provable by this
+# harness, which is exactly what extracting the reader out of
+# android-bundle.sh's inline awk (D-1) makes possible.
+assert_eq "0.0.1" "$(workspace_version "$ROOT/Cargo.toml")" \
+    "workspace_version: the real Cargo.toml -> 0.0.1"
+assert_eq "1" "$(version_code_from_semver "$(workspace_version "$ROOT/Cargo.toml")")" \
+    "workspace_version -> version_code_from_semver: the real Cargo.toml -> versionCode 1 (AC 8b)"
+
+write_cargo_toml_fixture() {
+    printf '%s' "$2" > "$1"
+}
+
+WSV_ROOT="$(mktemp -d)"
+
+write_cargo_toml_fixture "$WSV_ROOT/plain.toml" '[workspace]
+resolver = "3"
+members = ["core", "app"]
+
+[workspace.package]
+version = "2.5.7"
+edition = "2024"
+'
+assert_eq "2.5.7" "$(workspace_version "$WSV_ROOT/plain.toml")" \
+    "workspace_version: quote-stripping on a synthetic fixture"
+
+# Kills the "wrong section" mutant (mandatory hand-mutant a): a [package]
+# section carrying its OWN version line, ahead of [workspace.package], must
+# never be the one picked.
+write_cargo_toml_fixture "$WSV_ROOT/wrong-section.toml" '[package]
+version = "9.9.9"
+name = "not-the-workspace"
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+'
+assert_eq "0.0.1" "$(workspace_version "$WSV_ROOT/wrong-section.toml")" \
+    "workspace_version: picks [workspace.package], never an earlier [package] (kills the wrong-section mutant)"
+
+assert_refuses "workspace_version: nonexistent path" \
+    -- workspace_version "$WSV_ROOT/does-not-exist.toml"
+
+write_cargo_toml_fixture "$WSV_ROOT/no-workspace-package.toml" '[package]
+version = "1.0.0"
+name = "not-a-workspace"
+'
+assert_refuses "workspace_version: no [workspace.package] section" \
+    -- workspace_version "$WSV_ROOT/no-workspace-package.toml"
+
+write_cargo_toml_fixture "$WSV_ROOT/no-version-key.toml" '[workspace.package]
+edition = "2024"
+'
+assert_refuses "workspace_version: [workspace.package] present but no version key" \
+    -- workspace_version "$WSV_ROOT/no-version-key.toml"
+
+rm -rf "$WSV_ROOT"
+
 # --- min_load_alignment ---------------------------------------------------
 
 assert_eq "4096" "$(printf '%s' "$DUMP_REAL_4K" | min_load_alignment)" \
@@ -473,8 +531,189 @@ with zipfile.ZipFile(aab, "w") as zf:
         "$err_notelf" \
         "android-verify-alignment.sh: non-ELF .so names the exact cause, no readelf diagnostic leaks through"
 
+    # --- android-sign.sh (synthetic-keystore integration) -----------------
+    # A missing jarsigner/keytool is a distinct prerequisite from the NDK
+    # toolchain checked above, and refuses (exit 2) rather than silently
+    # skipping -- same doctrine as the NDK-unreachable guard.
+    if ! command -v jarsigner >/dev/null 2>&1 || ! command -v keytool >/dev/null 2>&1; then
+        echo "test-shell-units: no local jarsigner/keytool found on PATH -- refusing rather than reporting partial coverage as a pass" >&2
+        rm -rf "$SYNTH_ROOT"
+        exit 2
+    fi
+
+    SIGN="$ROOT/scripts/android-sign.sh"
+    SIGN_ROOT="$(mktemp -d)"
+
+    # JKS, not the PKCS12 default: PKCS12 keystores silently ignore a
+    # distinct -keypass and always use the store password as the key
+    # password, which would make the "wrong key password" case below
+    # unreachable. A real Play upload keystore may be either format; JKS is
+    # what makes the two passwords genuinely independent for this fixture.
+    SIGN_KEYSTORE="$SIGN_ROOT/upload.jks"
+    SIGN_ALIAS="upload"
+    keytool -genkeypair -storetype JKS -keystore "$SIGN_KEYSTORE" \
+        -storepass "rightstorepw" -keypass "rightkeypw" \
+        -alias "$SIGN_ALIAS" -dname "CN=Test,OU=Test,O=Test,L=Test,S=Test,C=US" \
+        -keyalg RSA -keysize 2048 -validity 3650 >/dev/null 2>&1
+
+    # A 16 KB-aligned unsigned AAB (S1's fixture) and a 4 KB-misaligned one
+    # (for the alignment-regression case) -- both signed with the SAME
+    # correct keystore, so only the alignment differs between them.
+    UNSIGNED_AAB_16K="$SIGN_ROOT/unsigned-16k.aab"
+    build_aab "$UNSIGNED_AAB_16K" "base/lib/arm64-v8a/lib16k.so" "$SYNTH_ROOT/lib16k.so"
+    UNSIGNED_AAB_4K="$SIGN_ROOT/unsigned-4k.aab"
+    build_aab "$UNSIGNED_AAB_4K" "base/lib/arm64-v8a/libstock.so" "$SYNTH_STOCK_SO"
+
+    sign_ok() {
+        env NDK_HOME="$SYNTH_NDK_HOME" \
+            ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" \
+            ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+            ANDROID_SIGN_STORE_PASSWORD="rightstorepw" \
+            ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+            "$SIGN" "$@"
+    }
+
+    # 1. S1 happy path: correct keystore, correct passwords, 16 KB-aligned
+    # .so -- must exit 0, print exactly the signed path on stdout, and the
+    # signed file must actually exist.
+    SIGNED_16K_EXPECTED="$SIGN_ROOT/unsigned-16k-signed.aab"
+    out_sign_ok="$(sign_ok "$UNSIGNED_AAB_16K" 2>/dev/null)"; status_sign_ok=$?
+    assert_eq "0" "$status_sign_ok" "android-sign.sh: S1 happy path exits 0"
+    assert_eq "$SIGNED_16K_EXPECTED" "$out_sign_ok" \
+        "android-sign.sh: S1 happy path prints exactly the signed path on stdout"
+    signed_16k_exists="no"
+    [ -f "$SIGNED_16K_EXPECTED" ] && signed_16k_exists="yes"
+    assert_eq "yes" "$signed_16k_exists" "android-sign.sh: S1 happy path leaves the signed AAB on disk"
+    rm -f "$SIGNED_16K_EXPECTED"
+
+    # 2. Alignment regression on the SIGNED bundle (AC 5, mandatory
+    # hand-mutant e): jarsigner rewrites the archive but never touches
+    # member content, so a 4 KB .so stays 4 KB after signing -- the second
+    # call site to android-verify-alignment.sh must catch it and no signed
+    # artifact must be left behind.
+    SIGNED_4K_EXPECTED="$SIGN_ROOT/unsigned-4k-signed.aab"
+    err_sign_misaligned="$(sign_ok "$UNSIGNED_AAB_4K" 2>&1 1>/dev/null)"; status_sign_misaligned=$?
+    assert_eq "1" "$status_sign_misaligned" \
+        "android-sign.sh: a 4 KB .so fails the post-signing alignment re-check"
+    case "$err_sign_misaligned" in
+        *"aligned to 4096"*) msg_misaligned="yes" ;;
+        *) msg_misaligned="no" ;;
+    esac
+    assert_eq "yes" "$msg_misaligned" \
+        "android-sign.sh: the alignment-regression refusal names the cause"
+    signed_4k_exists="no"
+    [ -f "$SIGNED_4K_EXPECTED" ] && signed_4k_exists="yes"
+    assert_eq "no" "$signed_4k_exists" \
+        "android-sign.sh: no signed artifact is left behind after an alignment regression"
+
+    # 3. S2 / AC 3: wrong store password -- a distinct, actionable message,
+    # never a stack trace, and nothing signed left behind.
+    SIGNED_WRONGSTORE_EXPECTED="$SIGN_ROOT/unsigned-16k-signed.aab"
+    err_wrongstore="$(env NDK_HOME="$SYNTH_NDK_HOME" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_STORE_PASSWORD="wrongstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" 2>&1 1>/dev/null)"; status_wrongstore=$?
+    assert_eq "1" "$status_wrongstore" "android-sign.sh: S2 wrong store password exits 1"
+    case "$err_wrongstore" in
+        *"wrong store password"*) msg_wrongstore="yes" ;;
+        *) msg_wrongstore="no" ;;
+    esac
+    assert_eq "yes" "$msg_wrongstore" "android-sign.sh: S2 wrong store password names the exact cause"
+    case "$err_wrongstore" in
+        *"	at "*|*"Exception in thread"*) msg_wrongstore_notrace="no" ;;
+        *) msg_wrongstore_notrace="yes" ;;
+    esac
+    assert_eq "yes" "$msg_wrongstore_notrace" "android-sign.sh: S2 wrong store password never prints a stack trace"
+    wrongstore_leftover="no"
+    [ -f "$SIGNED_WRONGSTORE_EXPECTED" ] && wrongstore_leftover="yes"
+    assert_eq "no" "$wrongstore_leftover" "android-sign.sh: S2 no signed bundle is left behind after a wrong store password"
+
+    # 4. AC 3: wrong key password -- a DIFFERENT message than #3 above
+    # (mandatory hand-mutant f: two of the four classes must never collapse
+    # into one diagnostic).
+    err_wrongkey="$(env NDK_HOME="$SYNTH_NDK_HOME" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="wrongkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" 2>&1 1>/dev/null)"; status_wrongkey=$?
+    assert_eq "1" "$status_wrongkey" "android-sign.sh: wrong key password exits 1"
+    case "$err_wrongkey" in
+        *"wrong key password"*) msg_wrongkey="yes" ;;
+        *) msg_wrongkey="no" ;;
+    esac
+    assert_eq "yes" "$msg_wrongkey" "android-sign.sh: wrong key password names the exact cause"
+
+    # 5. AC 3: alias not present in the keystore -- a THIRD distinct message.
+    err_noalias="$(env NDK_HOME="$SYNTH_NDK_HOME" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="nosuchalias" \
+        ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" 2>&1 1>/dev/null)"; status_noalias=$?
+    assert_eq "1" "$status_noalias" "android-sign.sh: alias not present exits 1"
+    case "$err_noalias" in
+        *"nosuchalias"*"not found"*) msg_noalias="yes" ;;
+        *) msg_noalias="no" ;;
+    esac
+    assert_eq "yes" "$msg_noalias" "android-sign.sh: alias-not-present names the exact cause"
+
+    # 6. AC 3: keystore file absent -- our own preflight check, exit 2
+    # (matching android-verify-alignment.sh's `[ -f ]` -> preflight_fail
+    # precedent), a FOURTH distinct message.
+    err_nokeystore="$(env NDK_HOME="$SYNTH_NDK_HOME" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_ROOT/does-not-exist.jks" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" 2>&1 1>/dev/null)"; status_nokeystore=$?
+    assert_eq "2" "$status_nokeystore" "android-sign.sh: keystore file absent exits 2 (preflight)"
+    case "$err_nokeystore" in
+        *"no keystore at"*) msg_nokeystore="yes" ;;
+        *) msg_nokeystore="no" ;;
+    esac
+    assert_eq "yes" "$msg_nokeystore" "android-sign.sh: keystore-absent names the exact cause"
+
+    # 7. Usage: wrong argument count.
+    err_usage_sign="$("$SIGN" 2>&1 1>/dev/null)"; status_usage_sign=$?
+    assert_eq "2" "$status_usage_sign" "android-sign.sh: no args exits 2"
+    case "$err_usage_sign" in
+        *"usage: scripts/android-sign.sh <aab-path>"*) msg_usage_sign="yes" ;;
+        *) msg_usage_sign="no" ;;
+    esac
+    assert_eq "yes" "$msg_usage_sign" "android-sign.sh: no args names the cause"
+
+    # 8. AC 2 / D-3 / mandatory hand-mutant c: a REAL `bash -x` run, with
+    # both real password VALUES in the environment, must never print either
+    # value anywhere in the combined output -- only the env-var NAMES may
+    # appear (as :env arguments), never the values.
+    trace_out="$(env NDK_HOME="$SYNTH_NDK_HOME" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        bash -x "$SIGN" "$UNSIGNED_AAB_16K" 2>&1 1>/dev/null)"
+    rm -f "$SIGN_ROOT/unsigned-16k-signed.aab"
+    store_pw_leaked="no"
+    case "$trace_out" in *"rightstorepw"*) store_pw_leaked="yes" ;; esac
+    assert_eq "no" "$store_pw_leaked" \
+        "android-sign.sh: set -x never prints the store password (AC 2)"
+    key_pw_leaked="no"
+    case "$trace_out" in *"rightkeypw"*) key_pw_leaked="yes" ;; esac
+    assert_eq "no" "$key_pw_leaked" \
+        "android-sign.sh: set -x never prints the key password (AC 2)"
+
+    rm -rf "$SIGN_ROOT"
+
     rm -rf "$SYNTH_ROOT"
 fi
+
+# --- .gitignore tripwire (AC 6) --------------------------------------------
+# A real keystore lives at $HOME/.kayzen/, never in the repo; *.jks,
+# *.keystore and *.p12 are refused by .gitignore as a tripwire against ever
+# committing one by accident. `git check-ignore` is the real collaborator --
+# no mocking, the actual .gitignore rules are exercised.
+git_is_ignored() {
+    git -C "$ROOT" check-ignore -q "$1" >/dev/null 2>&1
+    printf '%d' "$?"
+}
+assert_eq "0" "$(git_is_ignored "upload.jks")" "gitignore: *.jks is ignored at repo root"
+assert_eq "0" "$(git_is_ignored "upload.keystore")" "gitignore: *.keystore is ignored at repo root"
+assert_eq "0" "$(git_is_ignored "upload.p12")" "gitignore: *.p12 is ignored at repo root"
+assert_eq "0" "$(git_is_ignored "some/nested/dir/upload.jks")" \
+    "gitignore: *.jks is ignored at a nested depth (unrooted pattern)"
 
 # --- refuses, never silently skips, when no local NDK is reachable --------
 # Subprocess invocation with NDK_HOME unset and a fabricated HOME, so
