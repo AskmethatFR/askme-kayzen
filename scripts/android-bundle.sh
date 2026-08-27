@@ -76,11 +76,16 @@ command -v dx >/dev/null || fail "dx not found (cargo install dioxus-cli)"
 # form, ...) -- a plain `grep -qE '^\[bundle\.android\]'` line match
 # cannot see all of them, so this checks via tomllib instead.
 python3 -c '
-import sys, tomllib
+import sys
+try:
+    import tomllib
+except ModuleNotFoundError as e:
+    print(str(e), file=sys.stderr)
+    sys.exit(2)
 try:
     with open(sys.argv[1], "rb") as f:
         data = tomllib.load(f)
-except tomllib.TOMLDecodeError as e:
+except (tomllib.TOMLDecodeError, OSError) as e:
     print(str(e), file=sys.stderr)
     sys.exit(2)
 sys.exit(1 if "android" in data.get("bundle", {}) else 0)
@@ -89,6 +94,8 @@ if [ "$toml_status" -eq 2 ]; then
     fail "app/Dioxus.toml is malformed TOML"
 elif [ "$toml_status" -eq 1 ]; then
     fail "app/Dioxus.toml carries a [bundle.android] section -- see its own comment, remove it"
+elif [ "$toml_status" -ne 0 ]; then
+    fail "app/Dioxus.toml preflight check failed unexpectedly (python exited $toml_status)"
 fi
 
 echo "==> cleaning generated resources" >&2
