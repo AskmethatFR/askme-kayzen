@@ -1050,15 +1050,15 @@ EOF
     rm -rf "$ENV_SPY_NDK" "$ENV_SPY_CAPTURE"
 
     # R1 (retry 2): a verification failure must never be swallowed by
-    # `set -e` killing the script before the case dispatch at :118-123 gets
-    # to classify it -- this is a SCRIPT-level regression that no lib-level
-    # test on verify_jar_signature can catch (this harness itself runs
-    # under `set -uo pipefail`, deliberately without `-e`). A shim
-    # jarsigner reports success on -verify but omits the "jar verified"
-    # marker text, reproducing the exact drift verify_jar_signature
-    # classifies as status 2 -- the case that also collides with
-    # preflight_fail's own reserved exit code when the dispatch is dead
-    # code.
+    # `set -e` killing the script before the `case "$verify_status"`
+    # dispatch gets to classify it -- this is a SCRIPT-level regression
+    # that no lib-level test on verify_jar_signature can catch (this
+    # harness itself runs under `set -uo pipefail`, deliberately without
+    # `-e`). A shim jarsigner reports success on -verify but omits the
+    # "jar verified" marker text, reproducing the exact drift
+    # verify_jar_signature classifies as status 2 -- the case that also
+    # collides with preflight_fail's own reserved exit code when the
+    # dispatch is dead code.
     R1_ROOT="$(mktemp -d)"
     cat > "$R1_ROOT/jarsigner" <<EOF
 #!/usr/bin/env bash
@@ -1140,9 +1140,10 @@ EOF
     rm -rf "$W1_ROOT"
 
     # W2 (same-shape sweep, round 3): branches `1)` and `3)` of the same
-    # dispatch are pinned above only at lib level, on
-    # verify_jar_signature's RETURN VALUE (:755-769) -- never on the
-    # dispatch that CONSUMES it. Deleting either `fail` arm would ship a
+    # dispatch are pinned above only at lib level, on the
+    # verify_jar_signature (AC 4, mandatory hand-mutants g+h) assertions'
+    # RETURN VALUE -- never on the dispatch that CONSUMES it. Deleting
+    # either `fail` arm would ship a
     # bundle jarsigner could not verify, or one signed by the wrong alias,
     # and nothing existing would redden. Two shim variants drive both
     # statuses through the real dispatch end-to-end, the way R1 already
@@ -1208,9 +1209,10 @@ EOF
 
     # R3 (retry 2): the SAME scrub that already protects the alignment
     # re-check's child (B2, above) must cover the jarsigner -verify child
-    # too -- the @law at :16-28 claims BOTH descendants are covered, and
-    # until now only one was. A shim jarsigner dumps its own environment
-    # when invoked with -verify and otherwise execs the real binary
+    # too -- the `@law:` on `-storepass:env` at the top of the script
+    # claims BOTH descendants are covered, and until now only one was.
+    # A shim jarsigner dumps its own environment when invoked with
+    # -verify and otherwise execs the real binary
     # transparently, so both the signing call and the verify call still
     # succeed and only the verify child's environment is captured.
     ENV_SPY_R3_DIR="$(mktemp -d)"
