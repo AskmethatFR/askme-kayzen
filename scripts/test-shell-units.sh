@@ -270,10 +270,9 @@ else
         rm -rf "$work"
     }
 
-    # Same contract as build_aab, but writes entries directly into the zip's
-    # central directory via Python -- a filesystem path cannot represent two
-    # entries sharing one literal name, or a name containing a raw newline,
-    # both of which a real .aab's central directory permits.
+    # @law: a filesystem path cannot represent two entries sharing one
+    # literal name, or a name containing a raw newline, both of which a
+    # real .aab's central directory permits.
     build_aab_raw() {
         local aab="$1"
         shift
