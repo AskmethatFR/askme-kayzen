@@ -16,8 +16,6 @@ jobs:
   gates:
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ github.event_name == 'pull_request' && 40 || 20 }}
-    # scripts/test-shell-units.sh refuses (exit 2) without a local NDK r25c
-    # toolchain, so this job installs one below, same as android-aab.
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
@@ -58,10 +56,7 @@ jobs:
       # @law: taiki-e/install-action does not support actionlint at any
       # version (absent from its own TOOLS.md), and its cargo-binstall
       # fallback can never work either -- actionlint is a Go binary, not a
-      # crates.io crate. Installed straight from the pinned upstream
-      # release instead, digest-verified against a value pinned in this
-      # file, never against a checksums file fetched from the same place a
-      # tampered binary would come from.
+      # crates.io crate.
       - name: Install actionlint
         env:
           ACTIONLINT_VERSION: "1.7.12"
@@ -69,18 +64,17 @@ jobs:
         run: |
           set -euo pipefail
           asset="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
-          curl -sSLo "$asset" \
+          curl -sSLo "$RUNNER_TEMP/$asset" \
             "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${asset}"
-          echo "${ACTIONLINT_SHA256}  ${asset}" | sha256sum -c -
-          tar -xzf "$asset" actionlint
-          install -m 0755 actionlint /usr/local/bin/actionlint
+          (cd "$RUNNER_TEMP" && echo "${ACTIONLINT_SHA256}  ${asset}" | sha256sum -c -)
+          tar -xzf "$RUNNER_TEMP/$asset" -C "$RUNNER_TEMP" actionlint
+          install -m 0755 "$RUNNER_TEMP/actionlint" /usr/local/bin/actionlint
           installed="$(actionlint -version | head -1)"
           [ "$installed" = "$ACTIONLINT_VERSION" ] || {
             echo "installed actionlint reports version '$installed', expected '$ACTIONLINT_VERSION'" >&2
             exit 1
           }
 
-      # r25c, same reason as android-aab's own "Install NDK r25c" step below.
       # @law: sdkmanager ships under $ANDROID_HOME/cmdline-tools/latest/bin/,
       # not on PATH, on this runner image.
       - name: Install NDK r25c
@@ -151,10 +145,6 @@ jobs:
   #
   # No keystore ever reaches this job or any PR: it proves an unsigned,
   # correctly-versioned, 16 KB-aligned AAB builds, nothing more.
-  #
-  # A fork PR still runs the build and its gates, but "Upload unsigned AAB"
-  # below is skipped for one -- a fork author gets no compiled artifact
-  # under this repo's own Actions namespace.
   android-aab:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -189,9 +179,9 @@ jobs:
       # stop discriminating exactly the regression it exists to catch.
       # Licences are already accepted on the preinstalled SDK.
       #
-      # @law: this runner preinstalls the Android command-line tools but
-      # does not put sdkmanager on PATH -- it ships under
-      # $ANDROID_HOME/cmdline-tools/latest/bin/, invoked by full path here.
+      # @law: same as the `gates` job's "Install NDK r25c" step above --
+      # sdkmanager ships under $ANDROID_HOME/cmdline-tools/latest/bin/, not
+      # on PATH, on this runner image.
       - name: Install NDK r25c
         run: |
           set -euo pipefail
