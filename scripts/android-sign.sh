@@ -128,6 +128,7 @@ case "$verify_status" in
     1) fail "jarsigner could not verify the signed bundle: $verify_out" ;;
     2) fail "the signed bundle did not verify: $verify_out" ;;
     3) fail "the signed bundle is not signed by alias '$ANDROID_SIGN_KEY_ALIAS'" ;;
+    *) fail "unexpected verify status $verify_status: $verify_out" ;;
 esac
 
 echo "==> re-verifying 16 KB page-size alignment on the signed bundle" >&2
