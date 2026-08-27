@@ -1088,6 +1088,124 @@ EOF
         "android-sign.sh: a verification drift prints a real diagnostic, not a silent exit (R1)"
     rm -rf "$R1_ROOT"
 
+    # W1 (same-shape sweep, round 3): the `case "$verify_status"` dispatch
+    # has no `*)` arm -- a status outside {0,1,2,3} falls through as a
+    # silent no-op and the bundle ships as verified. verify_jar_signature's
+    # own `-ne 0` check collapses ANY nonzero jarsigner exit into a plain
+    # `return 1`, so killing the `jarsigner -verify` CHILD only ever
+    # reaches the existing `1)` branch -- the only way android-sign.sh's
+    # own `verify_status` can land outside {0,1,2,3} is the SUBSHELL that
+    # runs `verify_jar_signature` itself dying from a signal before any of
+    # its `return` statements execute, which is two fork levels above the
+    # `jarsigner -verify` child (one subshell for the outer
+    # `$(verify_jar_signature ...)`, one more for its own inner
+    # `$(jarsigner -verify ...)`) -- confirmed by walking the live process
+    # tree with `ps` while this exact shim ran. A shim jarsigner, invoked
+    # with -verify, looks up its own grandparent PID via `ps -o ppid=` and
+    # SIGKILLs THAT instead of exiting normally, so android-sign.sh
+    # observes verify_status = 128+9 = 137.
+    W1_ROOT="$(mktemp -d)"
+    cat > "$W1_ROOT/jarsigner" <<EOF
+#!/usr/bin/env bash
+for a in "\$@"; do
+    if [ "\$a" = "-verify" ]; then
+        grandparent="\$(ps -o ppid= -p "\$PPID" 2>/dev/null | tr -d ' ')"
+        [ -n "\$grandparent" ] && kill -KILL "\$grandparent"
+        sleep 2
+        exit 0
+    fi
+done
+exec "$REAL_JARSIGNER" "\$@"
+EOF
+    chmod +x "$W1_ROOT/jarsigner"
+
+    err_w1="$(PATH="$W1_ROOT:$PATH" env NDK_HOME="$SYNTH_NDK_HOME" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" 2>&1 1>/dev/null)"
+    status_w1=$?
+    signed_w1_exists="no"
+    [ -f "$SIGN_ROOT/unsigned-16k-signed.aab" ] && signed_w1_exists="yes"
+    rm -f "$SIGN_ROOT/unsigned-16k-signed.aab"
+    assert_eq "1" "$status_w1" \
+        "android-sign.sh: an out-of-range verify status fails closed, not through (W1)"
+    case "$err_w1" in
+        *"unexpected verify status"*) msg_w1="yes" ;;
+        *) msg_w1="no" ;;
+    esac
+    assert_eq "yes" "$msg_w1" \
+        "android-sign.sh: an out-of-range verify status names the cause instead of shipping silently (W1)"
+    assert_eq "no" "$signed_w1_exists" \
+        "android-sign.sh: no signed artifact is left behind after an out-of-range verify status (W1)"
+    rm -rf "$W1_ROOT"
+
+    # W2 (same-shape sweep, round 3): branches `1)` and `3)` of the same
+    # dispatch are pinned above only at lib level, on
+    # verify_jar_signature's RETURN VALUE (:755-769) -- never on the
+    # dispatch that CONSUMES it. Deleting either `fail` arm would ship a
+    # bundle jarsigner could not verify, or one signed by the wrong alias,
+    # and nothing existing would redden. Two shim variants drive both
+    # statuses through the real dispatch end-to-end, the way R1 already
+    # does for status 2.
+    W2_STATUS1_ROOT="$(mktemp -d)"
+    cat > "$W2_STATUS1_ROOT/jarsigner" <<EOF
+#!/usr/bin/env bash
+for a in "\$@"; do
+    if [ "\$a" = "-verify" ]; then
+        printf '%s\n' "jarsigner: shim forces a verify failure (W2 status 1)"
+        exit 1
+    fi
+done
+exec "$REAL_JARSIGNER" "\$@"
+EOF
+    chmod +x "$W2_STATUS1_ROOT/jarsigner"
+
+    err_w2_status1="$(PATH="$W2_STATUS1_ROOT:$PATH" env NDK_HOME="$SYNTH_NDK_HOME" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" 2>&1 1>/dev/null)"
+    status_w2_status1=$?
+    rm -f "$SIGN_ROOT/unsigned-16k-signed.aab"
+    assert_eq "1" "$status_w2_status1" \
+        "android-sign.sh: verify status 1 (jarsigner could not verify) fails at the dispatch, script-level (W2)"
+    case "$err_w2_status1" in
+        *"jarsigner could not verify the signed bundle"*) msg_w2_status1="yes" ;;
+        *) msg_w2_status1="no" ;;
+    esac
+    assert_eq "yes" "$msg_w2_status1" \
+        "android-sign.sh: verify status 1 names the dispatch's own message, script-level (W2)"
+    rm -rf "$W2_STATUS1_ROOT"
+
+    W2_STATUS3_ROOT="$(mktemp -d)"
+    cat > "$W2_STATUS3_ROOT/jarsigner" <<EOF
+#!/usr/bin/env bash
+for a in "\$@"; do
+    if [ "\$a" = "-verify" ]; then
+        printf '%s\n' "jar verified."
+        printf '%s\n' "not signed by the specified alias"
+        exit 0
+    fi
+done
+exec "$REAL_JARSIGNER" "\$@"
+EOF
+    chmod +x "$W2_STATUS3_ROOT/jarsigner"
+
+    err_w2_status3="$(PATH="$W2_STATUS3_ROOT:$PATH" env NDK_HOME="$SYNTH_NDK_HOME" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" 2>&1 1>/dev/null)"
+    status_w2_status3=$?
+    rm -f "$SIGN_ROOT/unsigned-16k-signed.aab"
+    assert_eq "1" "$status_w2_status3" \
+        "android-sign.sh: verify status 3 (wrong alias) fails at the dispatch, script-level (W2)"
+    case "$err_w2_status3" in
+        *"is not signed by alias"*) msg_w2_status3="yes" ;;
+        *) msg_w2_status3="no" ;;
+    esac
+    assert_eq "yes" "$msg_w2_status3" \
+        "android-sign.sh: verify status 3 names the dispatch's own message, script-level (W2)"
+    rm -rf "$W2_STATUS3_ROOT"
+
     # R3 (retry 2): the SAME scrub that already protects the alignment
     # re-check's child (B2, above) must cover the jarsigner -verify child
     # too -- the @law at :16-28 claims BOTH descendants are covered, and
