@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Pure helpers for the Android release build, sourced by
-# scripts/android-verify-alignment.sh and scripts/android-bundle.sh.
+# scripts/android-verify-alignment.sh, scripts/android-bundle.sh and
+# scripts/android-sign.sh.
 # Sourceable, side-effect-free: nothing runs until a function below is
 # called, matching scripts/verify-instrument.sh's own shape.
 #
 # workspace_version reads [workspace.package].version out of a Cargo.toml
-# path given as its one argument. scripts/android-bundle.sh is its only
-# caller: it feeds the result straight into version_code_from_semver below,
-# which is what makes the Cargo.toml -> versionCode binding provable by
-# this file's own test harness instead of living in untestable inline awk.
+# path given as its one argument. Its result feeds version_code_from_semver
+# below, which is what makes the Cargo.toml -> versionCode binding provable
+# by this file's own test harness instead of living in untestable inline awk.
 #
 # version_code_from_semver refuses a "v" prefix and any -pre/+build suffix:
 # its input is always Cargo.toml's bare version string, never a git tag --
@@ -25,6 +25,28 @@
 # LOAD segment, not only the one carrying .text, so the caller must never
 # assume which one to look at. It only reports; the caller decides whether
 # the value it gets back is acceptable.
+#
+# patch_version_code rewrites a generated build.gradle.kts's ONE
+# `versionCode = 1` sentinel line to the real versionCode. It proves the
+# substitution actually RAN via a two-phase marker swap (sentinel -> a
+# marker token that can never coincide with any versionCode -> the real
+# value) rather than by comparing the before/after text: when the intended
+# versionCode is itself 1 (a bare 0.0.x release), a text-only comparison
+# cannot tell "the substitution ran and produced 1" from "the substitution
+# never ran and the dx-generated 1 was merely left in place" -- the two
+# read as byte-identical. The marker makes the two provably different
+# events again.
+#
+# verify_jar_signature classifies a `jarsigner -verify` run into exactly
+# one of: 0 (verified, and by the named alias), 1 (jarsigner itself could
+# not verify), 2 (verified without failing, but the "jar verified" marker
+# text is absent), 3 (verified, but not by the alias asked for). The
+# caller owns the resulting message; this function owns only the
+# classification, which is what makes it directly testable against a
+# fixture jar signed by a DIFFERENT alias than the one it is asked to
+# verify against -- a state scripts/android-sign.sh's own sign-then-verify
+# contract can never reach on its own, since it always signs and verifies
+# with the same single alias.
 
 readonly REQUIRED_PAGE_ALIGNMENT=16384
 
@@ -94,4 +116,13 @@ min_load_alignment() {
     done <<< "$aligns"
 
     printf '%d\n' "$min"
+}
+
+patch_version_code() {
+    echo "patch_version_code: not yet implemented" >&2
+    return 1
+}
+
+verify_jar_signature() {
+    return 1
 }

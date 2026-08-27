@@ -243,6 +243,72 @@ assert_refuses "workspace_version: [workspace.package] present but no version ke
 
 rm -rf "$WSV_ROOT"
 
+# --- patch_version_code (B1) ------------------------------------------------
+# The dx-generated fixture always carries the sentinel `versionCode = 1`.
+# Cargo.toml's real version is 0.0.1, whose version_code_from_semver output
+# is ALSO 1 -- the exact collision that made the OLD "did the old value
+# survive the patch" check fire on its own success. patch_version_code must
+# tell "the substitution ran and produced 1" apart from "nothing ran and 1
+# was merely left over", which a text-only before/after comparison cannot.
+PVC_ROOT="$(mktemp -d)"
+
+write_gradle_fixture() {
+    printf '%s' "$2" > "$1"
+}
+
+write_gradle_fixture "$PVC_ROOT/distinct.kts" 'android {
+    defaultConfig {
+        versionCode = 1
+        versionName = "0.1.0"
+    }
+}
+'
+patch_version_code "$PVC_ROOT/distinct.kts" "1000"
+assert_eq "0" "$?" "patch_version_code: 0.1.0 -> 1000 returns success"
+assert_eq "yes" "$(grep -qE '^[[:space:]]*versionCode = 1000$' "$PVC_ROOT/distinct.kts" && echo yes || echo no)" \
+    "patch_version_code: 0.1.0 -> 1000 lands in the file"
+assert_eq "no" "$(grep -qE '^[[:space:]]*versionCode = 1$' "$PVC_ROOT/distinct.kts" && echo yes || echo no)" \
+    "patch_version_code: 0.1.0 -> 1000 leaves no trace of the old sentinel"
+
+# The critical regression case for B1: target == sentinel == 1 (Cargo.toml
+# at 0.0.x). A correct patch must still report success even though the
+# file's text is unchanged by the round trip.
+write_gradle_fixture "$PVC_ROOT/collision.kts" 'android {
+    defaultConfig {
+        versionCode = 1
+        versionName = "0.0.1"
+    }
+}
+'
+patch_version_code "$PVC_ROOT/collision.kts" "1"
+assert_eq "0" "$?" \
+    "patch_version_code: 0.0.1 -> 1 (sentinel == target) still reports success (B1)"
+assert_eq "yes" "$(grep -qE '^[[:space:]]*versionCode = 1$' "$PVC_ROOT/collision.kts" && echo yes || echo no)" \
+    "patch_version_code: 0.0.1 -> 1 leaves the correct value in the file"
+
+write_gradle_fixture "$PVC_ROOT/zero-sentinel.kts" 'android {
+    defaultConfig {
+        versionName = "0.1.0"
+    }
+}
+'
+assert_refuses "patch_version_code: zero occurrences of the sentinel refuses" \
+    -- patch_version_code "$PVC_ROOT/zero-sentinel.kts" "1000"
+
+write_gradle_fixture "$PVC_ROOT/double-sentinel.kts" 'android {
+    defaultConfig {
+        versionCode = 1
+    }
+}
+other {
+    versionCode = 1
+}
+'
+assert_refuses "patch_version_code: two occurrences of the sentinel refuses" \
+    -- patch_version_code "$PVC_ROOT/double-sentinel.kts" "1000"
+
+rm -rf "$PVC_ROOT"
+
 # --- min_load_alignment ---------------------------------------------------
 
 assert_eq "4096" "$(printf '%s' "$DUMP_REAL_4K" | min_load_alignment)" \
@@ -353,8 +419,6 @@ with zipfile.ZipFile(aab, "w") as zf:
         -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384 \
         <<< 'int f(void) { return 0; }' 2>/dev/null
 
-    # 1. a real 4 KB-aligned .so (the NDK's own stock libc++_shared.so) must
-    # be refused, and the refusal must name the actual cause.
     AAB_4K="$SYNTH_ROOT/four-k.aab"
     build_aab "$AAB_4K" "base/lib/arm64-v8a/libstock.so" "$SYNTH_STOCK_SO"
     err_4k="$(va "$AAB_4K" 2>&1 1>/dev/null)"; status_4k=$?
@@ -365,7 +429,6 @@ with zipfile.ZipFile(aab, "w") as zf:
     esac
     assert_eq "yes" "$msg_4k" "android-verify-alignment.sh: 4 KB .so names the cause"
 
-    # 2. an AAB with no base/lib/*/*.so entries at all.
     AAB_NOSO="$SYNTH_ROOT/no-so.aab"
     build_aab "$AAB_NOSO" "META-INF/MANIFEST.MF" "$SYNTH_STOCK_SO"
     err_noso="$(va "$AAB_NOSO" 2>&1 1>/dev/null)"; status_noso=$?
@@ -376,7 +439,6 @@ with zipfile.ZipFile(aab, "w") as zf:
     esac
     assert_eq "yes" "$msg_noso" "android-verify-alignment.sh: no .so entries names the cause"
 
-    # 3. a missing AAB path.
     err_missing="$(va "$SYNTH_ROOT/does-not-exist.aab" 2>&1 1>/dev/null)"; status_missing=$?
     assert_eq "2" "$status_missing" "android-verify-alignment.sh: missing AAB exits 2"
     case "$err_missing" in
@@ -385,7 +447,6 @@ with zipfile.ZipFile(aab, "w") as zf:
     esac
     assert_eq "yes" "$msg_missing" "android-verify-alignment.sh: missing AAB names the cause"
 
-    # 4. NDK_HOME unset.
     err_nondk="$(env -u NDK_HOME "$VERIFY_ALIGNMENT" "$AAB_4K" 2>&1 1>/dev/null)"; status_nondk=$?
     assert_eq "2" "$status_nondk" "android-verify-alignment.sh: NDK_HOME unset exits 2"
     case "$err_nondk" in
@@ -394,7 +455,6 @@ with zipfile.ZipFile(aab, "w") as zf:
     esac
     assert_eq "yes" "$msg_nondk" "android-verify-alignment.sh: NDK_HOME unset names the cause"
 
-    # 5. wrong argument count.
     err_usage="$("$VERIFY_ALIGNMENT" 2>&1 1>/dev/null)"; status_usage=$?
     assert_eq "2" "$status_usage" "android-verify-alignment.sh: no args exits 2"
     case "$err_usage" in
@@ -403,7 +463,7 @@ with zipfile.ZipFile(aab, "w") as zf:
     esac
     assert_eq "yes" "$msg_usage" "android-verify-alignment.sh: no args names the cause"
 
-    # 6. a real 16 KB-aligned .so must PASS. Without this case, the `>=`
+    # A real 16 KB-aligned .so must PASS. Without this case, the `>=`
     # threshold itself could be mutated away (e.g. to `-ge 0`) and every
     # refusal case above would still "correctly" refuse, for the wrong
     # reason -- this is what actually discriminates that mutant.
@@ -423,7 +483,7 @@ with zipfile.ZipFile(aab, "w") as zf:
     assert_eq "yes" "$msg_16k_count" \
         "android-verify-alignment.sh: 16 KB .so reports the entry count (kills the mutant deleting the summary line)"
 
-    # 7. a forged AAB carrying an entry name shaped like a glob character
+    # A forged AAB carrying an entry name shaped like a glob character
     # class (base/lib/arm64-v8a/libgoo[d].so, 4 KB, malicious) alongside a
     # benign 16 KB one (libgood.so) must have BOTH entries actually read.
     # `unzip -p "$AAB" "$entry"` treats the entry name as a pattern and
@@ -442,7 +502,7 @@ with zipfile.ZipFile(aab, "w") as zf:
     esac
     assert_eq "yes" "$msg_forged" "android-verify-alignment.sh: forged glob-named entry is actually inspected"
 
-    # 8. a REAL duplicate entry name: the malicious 4 KB library first, a
+    # A REAL duplicate entry name: the malicious 4 KB library first, a
     # benign 16 KB one second, both at the identical literal name.
     # zipfile.NameToInfo is a dict keyed by name -- a name-keyed reader
     # resolves that key to the LAST entry, so it would verify the benign
@@ -460,7 +520,7 @@ with zipfile.ZipFile(aab, "w") as zf:
     esac
     assert_eq "yes" "$msg_dup" "android-verify-alignment.sh: duplicate-name entry names the malicious cause"
 
-    # 9. an entry name with an embedded newline: fnmatch's DOTALL semantics
+    # An entry name with an embedded newline: fnmatch's DOTALL semantics
     # let `*` cross it, so the printed name splits into two lines each equal
     # to a second, genuinely-benign entry's plain name. A name-keyed reader
     # resolves both printed lines to the benign entry and never inspects the
@@ -477,7 +537,7 @@ with zipfile.ZipFile(aab, "w") as zf:
     esac
     assert_eq "yes" "$msg_nl" "android-verify-alignment.sh: newline-embedded entry name is actually inspected"
 
-    # 10. the malicious 4 KB library under a SECOND ABI directory
+    # The malicious 4 KB library under a SECOND ABI directory
     # (armeabi-v7a), alongside a benign 16 KB arm64-v8a entry -- pins that
     # every base/lib/<abi>/ directory is scanned, not only arm64-v8a. Kills
     # a mutant narrowing the glob to "base/lib/arm64-v8a/*.so": every other
@@ -495,7 +555,7 @@ with zipfile.ZipFile(aab, "w") as zf:
     esac
     assert_eq "yes" "$msg_multiabi" "android-verify-alignment.sh: second-ABI 4 KB entry is scanned and named"
 
-    # 11. a file that is not a zip archive at all, passed as the AAB.
+    # A file that is not a zip archive at all, passed as the AAB.
     # zipfile.ZipFile raises BadZipFile -- python exits 2 for that, and the
     # script names it "is not a valid zip archive". preflight_fail's OTHER
     # exit-2 message ("could not list entries ... python exited N") is the
@@ -514,7 +574,7 @@ with zipfile.ZipFile(aab, "w") as zf:
     assert_eq "yes" "$msg_notzip" \
         "android-verify-alignment.sh: non-zip AAB names the exact cause (kills the BadZipFile-branch-deletion mutant)"
 
-    # 12. a base/lib/*/*.so entry that is not an ELF object at all (a plain
+    # A base/lib/*/*.so entry that is not an ELF object at all (a plain
     # text file). This must be refused with "could not be read as an ELF
     # object" -- a DIFFERENT cause than "aligned to N bytes" -- and the
     # stderr must be EXACTLY that one line: llvm-readelf's own diagnostic on
@@ -544,17 +604,62 @@ with zipfile.ZipFile(aab, "w") as zf:
     SIGN="$ROOT/scripts/android-sign.sh"
     SIGN_ROOT="$(mktemp -d)"
 
-    # JKS, not the PKCS12 default: PKCS12 keystores silently ignore a
-    # distinct -keypass and always use the store password as the key
-    # password, which would make the "wrong key password" case below
-    # unreachable. A real Play upload keystore may be either format; JKS is
-    # what makes the two passwords genuinely independent for this fixture.
+    # JKS, not the PKCS12 default: `keytool -genkeypair -storetype PKCS12`
+    # silently COERCES the key's own password to the store password
+    # (verified: a distinct -keypass at signing time then fails with "not
+    # a private key" even when it is the value keytool itself was given at
+    # creation) -- so a PKCS12 fixture cannot hold two genuinely
+    # independent store/key passwords, which is exactly what keeps the
+    # wrong-store-password and wrong-key-password cases below distinct
+    # from each other (mandatory hand-mutant f). JKS is chosen for that
+    # independence, not because PKCS12 makes either case unreachable --
+    # a wrong -keypass fails under PKCS12 too, just never independently of
+    # the store password. Security separately flags PKCS12 as the format a
+    # real production upload keystore is more likely to use; this fixture
+    # does not cover that format, a known, accepted gap (see
+    # implementation-decisions).
     SIGN_KEYSTORE="$SIGN_ROOT/upload.jks"
     SIGN_ALIAS="upload"
     keytool -genkeypair -storetype JKS -keystore "$SIGN_KEYSTORE" \
         -storepass "rightstorepw" -keypass "rightkeypw" \
         -alias "$SIGN_ALIAS" -dname "CN=Test,OU=Test,O=Test,L=Test,S=Test,C=US" \
         -keyalg RSA -keysize 2048 -validity 3650 >/dev/null 2>&1
+
+    # A second alias in the SAME keystore, distinct certificate -- used
+    # ONLY to drive verify_jar_signature's alias-mismatch classification
+    # directly (AC 4, mandatory hand-mutants g+h). android-sign.sh's own
+    # sign-then-verify contract always uses ONE alias for both steps, so it
+    # can never itself produce a signed bundle whose signer differs from
+    # the alias being verified against -- that state is only constructible
+    # one level down, by signing directly with jarsigner in this fixture.
+    SIGN_ALIAS_OTHER="otheralias"
+    keytool -genkeypair -storetype JKS -keystore "$SIGN_KEYSTORE" \
+        -storepass "rightstorepw" -keypass "rightkeypw" \
+        -alias "$SIGN_ALIAS_OTHER" -dname "CN=Other,OU=Test,O=Test,L=Test,S=Test,C=US" \
+        -keyalg RSA -keysize 2048 -validity 3650 >/dev/null 2>&1
+
+    # --- verify_jar_signature (AC 4, mandatory hand-mutants g+h) -----------
+    VJS_FIXTURE_SRC="$SIGN_ROOT/verify-fixture-unsigned.aab"
+    build_aab "$VJS_FIXTURE_SRC" "base/lib/arm64-v8a/lib16k.so" "$SYNTH_ROOT/lib16k.so"
+    VJS_FIXTURE_SIGNED="$SIGN_ROOT/verify-fixture-signed.aab"
+    jarsigner -keystore "$SIGN_KEYSTORE" -storepass "rightstorepw" -keypass "rightkeypw" \
+        -signedjar "$VJS_FIXTURE_SIGNED" "$VJS_FIXTURE_SRC" "$SIGN_ALIAS" >/dev/null 2>&1
+
+    verify_jar_signature "$SIGN_KEYSTORE" "$VJS_FIXTURE_SIGNED" "$SIGN_ALIAS" >/dev/null
+    status_vjs_match=$?
+    assert_eq "0" "$status_vjs_match" \
+        "verify_jar_signature: a jar signed by alias A verifies clean against alias A"
+
+    out_vjs_mismatch="$(verify_jar_signature "$SIGN_KEYSTORE" "$VJS_FIXTURE_SIGNED" "$SIGN_ALIAS_OTHER")"
+    status_vjs_mismatch=$?
+    assert_eq "3" "$status_vjs_mismatch" \
+        "verify_jar_signature: a jar signed by alias A reports mismatch against alias B (kills mutants g+h)"
+    case "$out_vjs_mismatch" in
+        *"not signed by the specified alias"*) msg_vjs_mismatch="yes" ;;
+        *) msg_vjs_mismatch="no" ;;
+    esac
+    assert_eq "yes" "$msg_vjs_mismatch" \
+        "verify_jar_signature: the alias-mismatch classification carries jarsigner's own diagnostic text"
 
     # A 16 KB-aligned unsigned AAB (S1's fixture) and a 4 KB-misaligned one
     # (for the alignment-regression case) -- both signed with the SAME
@@ -573,9 +678,6 @@ with zipfile.ZipFile(aab, "w") as zf:
             "$SIGN" "$@"
     }
 
-    # 1. S1 happy path: correct keystore, correct passwords, 16 KB-aligned
-    # .so -- must exit 0, print exactly the signed path on stdout, and the
-    # signed file must actually exist.
     SIGNED_16K_EXPECTED="$SIGN_ROOT/unsigned-16k-signed.aab"
     out_sign_ok="$(sign_ok "$UNSIGNED_AAB_16K" 2>/dev/null)"; status_sign_ok=$?
     assert_eq "0" "$status_sign_ok" "android-sign.sh: S1 happy path exits 0"
@@ -586,11 +688,12 @@ with zipfile.ZipFile(aab, "w") as zf:
     assert_eq "yes" "$signed_16k_exists" "android-sign.sh: S1 happy path leaves the signed AAB on disk"
     rm -f "$SIGNED_16K_EXPECTED"
 
-    # 2. Alignment regression on the SIGNED bundle (AC 5, mandatory
-    # hand-mutant e): jarsigner rewrites the archive but never touches
-    # member content, so a 4 KB .so stays 4 KB after signing -- the second
-    # call site to android-verify-alignment.sh must catch it and no signed
-    # artifact must be left behind.
+    # Alignment regression on the SIGNED bundle (AC 5, mandatory
+    # hand-mutant e).
+    # @law: jarsigner rewrites the archive's central directory but never
+    # touches a member's own content, so a 4 KB .so stays 4 KB after
+    # signing -- the second call site to android-verify-alignment.sh must
+    # catch it and no signed artifact must be left behind.
     SIGNED_4K_EXPECTED="$SIGN_ROOT/unsigned-4k-signed.aab"
     err_sign_misaligned="$(sign_ok "$UNSIGNED_AAB_4K" 2>&1 1>/dev/null)"; status_sign_misaligned=$?
     assert_eq "1" "$status_sign_misaligned" \
@@ -606,7 +709,7 @@ with zipfile.ZipFile(aab, "w") as zf:
     assert_eq "no" "$signed_4k_exists" \
         "android-sign.sh: no signed artifact is left behind after an alignment regression"
 
-    # 3. S2 / AC 3: wrong store password -- a distinct, actionable message,
+    # S2 / AC 3: wrong store password -- a distinct, actionable message,
     # never a stack trace, and nothing signed left behind.
     SIGNED_WRONGSTORE_EXPECTED="$SIGN_ROOT/unsigned-16k-signed.aab"
     err_wrongstore="$(env NDK_HOME="$SYNTH_NDK_HOME" \
@@ -628,9 +731,9 @@ with zipfile.ZipFile(aab, "w") as zf:
     [ -f "$SIGNED_WRONGSTORE_EXPECTED" ] && wrongstore_leftover="yes"
     assert_eq "no" "$wrongstore_leftover" "android-sign.sh: S2 no signed bundle is left behind after a wrong store password"
 
-    # 4. AC 3: wrong key password -- a DIFFERENT message than #3 above
-    # (mandatory hand-mutant f: two of the four classes must never collapse
-    # into one diagnostic).
+    # AC 3: wrong key password -- a DIFFERENT message than the wrong-store-
+    # password case above (mandatory hand-mutant f: two of the four classes
+    # must never collapse into one diagnostic).
     err_wrongkey="$(env NDK_HOME="$SYNTH_NDK_HOME" \
         ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
         ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="wrongkeypw" \
@@ -642,7 +745,7 @@ with zipfile.ZipFile(aab, "w") as zf:
     esac
     assert_eq "yes" "$msg_wrongkey" "android-sign.sh: wrong key password names the exact cause"
 
-    # 5. AC 3: alias not present in the keystore -- a THIRD distinct message.
+    # AC 3: alias not present in the keystore -- a THIRD distinct message.
     err_noalias="$(env NDK_HOME="$SYNTH_NDK_HOME" \
         ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="nosuchalias" \
         ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
@@ -654,7 +757,7 @@ with zipfile.ZipFile(aab, "w") as zf:
     esac
     assert_eq "yes" "$msg_noalias" "android-sign.sh: alias-not-present names the exact cause"
 
-    # 6. AC 3: keystore file absent -- our own preflight check, exit 2
+    # AC 3: keystore file absent -- our own preflight check, exit 2
     # (matching android-verify-alignment.sh's `[ -f ]` -> preflight_fail
     # precedent), a FOURTH distinct message.
     err_nokeystore="$(env NDK_HOME="$SYNTH_NDK_HOME" \
@@ -668,7 +771,6 @@ with zipfile.ZipFile(aab, "w") as zf:
     esac
     assert_eq "yes" "$msg_nokeystore" "android-sign.sh: keystore-absent names the exact cause"
 
-    # 7. Usage: wrong argument count.
     err_usage_sign="$("$SIGN" 2>&1 1>/dev/null)"; status_usage_sign=$?
     assert_eq "2" "$status_usage_sign" "android-sign.sh: no args exits 2"
     case "$err_usage_sign" in
@@ -677,7 +779,7 @@ with zipfile.ZipFile(aab, "w") as zf:
     esac
     assert_eq "yes" "$msg_usage_sign" "android-sign.sh: no args names the cause"
 
-    # 8. AC 2 / D-3 / mandatory hand-mutant c: a REAL `bash -x` run, with
+    # AC 2 / D-3 / mandatory hand-mutant c: a REAL `bash -x` run, with
     # both real password VALUES in the environment, must never print either
     # value anywhere in the combined output -- only the env-var NAMES may
     # appear (as :env arguments), never the values.
@@ -694,6 +796,151 @@ with zipfile.ZipFile(aab, "w") as zf:
     case "$trace_out" in *"rightkeypw"*) key_pw_leaked="yes" ;; esac
     assert_eq "no" "$key_pw_leaked" \
         "android-sign.sh: set -x never prints the key password (AC 2)"
+
+    # B3 / mandatory hand-mutant k: an AAB path starting with '-' must be
+    # refused before it ever reaches jarsigner's argv, where it could be
+    # read as an option instead of a filename.
+    err_dashaab="$(sign_ok "-Jsomething.aab" 2>&1 1>/dev/null)"; status_dashaab=$?
+    assert_eq "2" "$status_dashaab" "android-sign.sh: AAB path starting with '-' is refused (B3)"
+    case "$err_dashaab" in
+        *"AAB path must not start with"*) msg_dashaab="yes" ;;
+        *) msg_dashaab="no" ;;
+    esac
+    assert_eq "yes" "$msg_dashaab" "android-sign.sh: leading-dash AAB path names the cause"
+
+    # B3 / mandatory hand-mutant k: an alias starting with '-' must be
+    # refused too -- jarsigner has no `--` end-of-options marker, so a
+    # value like `-J-javaagent:...` reaches the JVM that holds both
+    # passwords.
+    err_dashalias="$(env NDK_HOME="$SYNTH_NDK_HOME" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="-J-javaagent:/tmp/evil.jar" \
+        ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" 2>&1 1>/dev/null)"; status_dashalias=$?
+    assert_eq "2" "$status_dashalias" "android-sign.sh: alias starting with '-' is refused (B3)"
+    case "$err_dashalias" in
+        *"ANDROID_SIGN_KEY_ALIAS must not start with"*) msg_dashalias="yes" ;;
+        *) msg_dashalias="no" ;;
+    esac
+    assert_eq "yes" "$msg_dashalias" "android-sign.sh: leading-dash alias names the cause"
+
+    # B6 / mandatory hand-mutant l: an UNSET store password must be
+    # caught by its own preflight (exit 2), not fall into jarsigner's
+    # catch-all (which happens at exit 1, with a usage banner as noise --
+    # empirically confirmed, D8 corrected).
+    err_nostorepw="$(env NDK_HOME="$SYNTH_NDK_HOME" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" 2>&1 1>/dev/null)"; status_nostorepw=$?
+    assert_eq "2" "$status_nostorepw" "android-sign.sh: ANDROID_SIGN_STORE_PASSWORD unset exits 2 (preflight, B6)"
+    case "$err_nostorepw" in
+        *"ANDROID_SIGN_STORE_PASSWORD is not set"*) msg_nostorepw="yes" ;;
+        *) msg_nostorepw="no" ;;
+    esac
+    assert_eq "yes" "$msg_nostorepw" "android-sign.sh: unset store password preflight names the cause"
+
+    # B6 / mandatory hand-mutant l: same for the key password.
+    err_nokeypw="$(env NDK_HOME="$SYNTH_NDK_HOME" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_STORE_PASSWORD="rightstorepw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" 2>&1 1>/dev/null)"; status_nokeypw=$?
+    assert_eq "2" "$status_nokeypw" "android-sign.sh: ANDROID_SIGN_KEY_PASSWORD unset exits 2 (preflight, B6)"
+    case "$err_nokeypw" in
+        *"ANDROID_SIGN_KEY_PASSWORD is not set"*) msg_nokeypw="yes" ;;
+        *) msg_nokeypw="no" ;;
+    esac
+    assert_eq "yes" "$msg_nokeypw" "android-sign.sh: unset key password preflight names the cause"
+
+    # B10: a failed run must not leave a STALE previous signed AAB
+    # behind at the expected output path -- a caller that globs for
+    # *-signed.aab after a failure must never pick up an old build.
+    STALE_SIGNED="$SIGN_ROOT/unsigned-16k-signed.aab"
+    printf 'stale bytes from a previous run' > "$STALE_SIGNED"
+    err_stale="$(env NDK_HOME="$SYNTH_NDK_HOME" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_STORE_PASSWORD="wrongstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" 2>&1 1>/dev/null)"; status_stale=$?
+    assert_eq "1" "$status_stale" "android-sign.sh: B10 fixture -- a failing run still exits 1"
+    case "$err_stale" in
+        *"wrong store password"*) msg_stale="yes" ;;
+        *) msg_stale="no" ;;
+    esac
+    assert_eq "yes" "$msg_stale" "android-sign.sh: B10 fixture fails for the expected reason"
+    stale_survived="no"
+    [ -f "$STALE_SIGNED" ] && stale_survived="yes"
+    assert_eq "no" "$stale_survived" \
+        "android-sign.sh: a failed run removes a stale previous signed AAB (B10)"
+
+    # B11 (same-shape sweep): the intermediate temp file must be
+    # created as a SIBLING of the AAB (same directory), never a bare
+    # `mktemp` landing in $TMPDIR -- a spy `mktemp` on PATH records the
+    # template every real mktemp call was given.
+    MKTEMP_SPY_DIR="$(mktemp -d)"
+    REAL_MKTEMP="$(command -v mktemp)"
+    MKTEMP_SPY_LOG="$(mktemp)"
+    cat > "$MKTEMP_SPY_DIR/mktemp" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$@" >> "$MKTEMP_SPY_LOG"
+exec "$REAL_MKTEMP" "\$@"
+EOF
+    chmod +x "$MKTEMP_SPY_DIR/mktemp"
+    PATH="$MKTEMP_SPY_DIR:$PATH" sign_ok "$UNSIGNED_AAB_16K" >/dev/null 2>&1
+    rm -f "$SIGN_ROOT/unsigned-16k-signed.aab"
+    sibling_template="yes"
+    while IFS= read -r logged_arg; do
+        case "$logged_arg" in
+            "$SIGN_ROOT"/.*) : ;;
+            *) sibling_template="no" ;;
+        esac
+    done < "$MKTEMP_SPY_LOG"
+    [ -s "$MKTEMP_SPY_LOG" ] || sibling_template="no"
+    assert_eq "yes" "$sibling_template" \
+        "android-sign.sh: the signing temp file is created as a sibling of the AAB, not in \$TMPDIR (B11)"
+    rm -rf "$MKTEMP_SPY_DIR" "$MKTEMP_SPY_LOG"
+
+    # B2 / mandatory hand-mutant j: both passwords must be scrubbed
+    # from the environment of every descendant process -- argv silence
+    # (already proven above) is not enough, since environ outlives argv. A
+    # stub llvm-readelf dumps its own environment; the alignment re-check
+    # is what invokes it.
+    ENV_SPY_NDK="$(mktemp -d)"
+    ENV_SPY_READELF_DIR="$ENV_SPY_NDK/toolchains/llvm/prebuilt/spy-host/bin"
+    mkdir -p "$ENV_SPY_READELF_DIR"
+    ENV_SPY_CAPTURE="$(mktemp)"
+    cat > "$ENV_SPY_READELF_DIR/llvm-readelf" <<EOF
+#!/usr/bin/env bash
+env > "$ENV_SPY_CAPTURE"
+cat >/dev/null
+cat <<'DUMP'
+Program Headers:
+  Type           Offset   VirtAddr           PhysAddr           FileSiz  MemSiz   Flg Align
+  LOAD           0x000000 0x0000000000000000 0x0000000000000000 0x001000 0x001000 R   0x4000
+  LOAD           0x001000 0x0000000000001000 0x0000000000001000 0x001000 0x001000 R E 0x4000
+DUMP
+EOF
+    chmod +x "$ENV_SPY_READELF_DIR/llvm-readelf"
+
+    env NDK_HOME="$ENV_SPY_NDK" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" >/dev/null 2>&1
+    status_envspy=$?
+    rm -f "$SIGN_ROOT/unsigned-16k-signed.aab"
+
+    assert_eq "0" "$status_envspy" \
+        "android-sign.sh: B2 fixture -- the run reaching the stubbed alignment check still succeeds"
+    store_pw_in_child_env="no"
+    grep -q '^ANDROID_SIGN_STORE_PASSWORD=' "$ENV_SPY_CAPTURE" && store_pw_in_child_env="yes"
+    assert_eq "no" "$store_pw_in_child_env" \
+        "android-sign.sh: the alignment re-check's child process never sees the store password (B2)"
+    key_pw_in_child_env="no"
+    grep -q '^ANDROID_SIGN_KEY_PASSWORD=' "$ENV_SPY_CAPTURE" && key_pw_in_child_env="yes"
+    assert_eq "no" "$key_pw_in_child_env" \
+        "android-sign.sh: the alignment re-check's child process never sees the key password (B2)"
+    alias_in_child_env="no"
+    grep -q "^ANDROID_SIGN_KEY_ALIAS=$SIGN_ALIAS\$" "$ENV_SPY_CAPTURE" && alias_in_child_env="yes"
+    assert_eq "yes" "$alias_in_child_env" \
+        "android-sign.sh: the scrub is narrow -- non-secret env vars still reach the child (B2)"
+    rm -rf "$ENV_SPY_NDK" "$ENV_SPY_CAPTURE"
 
     rm -rf "$SIGN_ROOT"
 
@@ -714,6 +961,11 @@ assert_eq "0" "$(git_is_ignored "upload.keystore")" "gitignore: *.keystore is ig
 assert_eq "0" "$(git_is_ignored "upload.p12")" "gitignore: *.p12 is ignored at repo root"
 assert_eq "0" "$(git_is_ignored "some/nested/dir/upload.jks")" \
     "gitignore: *.jks is ignored at a nested depth (unrooted pattern)"
+assert_eq "0" "$(git_is_ignored "upload.pfx")" "gitignore: *.pfx is ignored at repo root (B4)"
+assert_eq "0" "$(git_is_ignored "upload.pepk")" "gitignore: *.pepk is ignored at repo root (B4)"
+assert_eq "0" "$(git_is_ignored "keystore.properties")" "gitignore: keystore.properties is ignored at repo root (B4)"
+assert_eq "0" "$(git_is_ignored "some/nested/dir/keystore.properties")" \
+    "gitignore: keystore.properties is ignored at a nested depth (unrooted pattern, B4)"
 
 # --- refuses, never silently skips, when no local NDK is reachable --------
 # Subprocess invocation with NDK_HOME unset and a fabricated HOME, so
