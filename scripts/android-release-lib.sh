@@ -119,10 +119,66 @@ min_load_alignment() {
 }
 
 patch_version_code() {
-    echo "patch_version_code: not yet implemented" >&2
-    return 1
+    local build_gradle="$1" version_code="$2"
+    local marker="__ANDROID_BUNDLE_VERSION_CODE_MARKER__"
+    local sentinel_re='^[[:space:]]*versionCode = 1$'
+
+    # @law: `grep -c` exits 1, not 0, on zero matches -- `|| true` keeps
+    # the explicit occurrences check below the sole arbiter of pass/fail.
+    local occurrences
+    occurrences="$(grep -cE "$sentinel_re" "$build_gradle" || true)"
+    if [ "$occurrences" -ne 1 ]; then
+        echo "patch_version_code: $build_gradle has $occurrences occurrence(s) of 'versionCode = 1', expected exactly 1" >&2
+        return 1
+    fi
+
+    local tmp_marked
+    tmp_marked="$(mktemp)"
+    sed "s/^\([[:space:]]*\)versionCode = 1\$/\1versionCode = $marker/" "$build_gradle" > "$tmp_marked"
+
+    local marked
+    marked="$(grep -cF "versionCode = $marker" "$tmp_marked" || true)"
+    if [ "$marked" -ne 1 ]; then
+        rm -f "$tmp_marked"
+        echo "patch_version_code: the versionCode sentinel did not turn into the internal patch marker ($marked line(s) marked) -- the substitution did not run" >&2
+        return 1
+    fi
+
+    local tmp_final
+    tmp_final="$(mktemp)"
+    sed "s/$marker/$version_code/" "$tmp_marked" > "$tmp_final"
+    rm -f "$tmp_marked"
+
+    if grep -qF "$marker" "$tmp_final"; then
+        rm -f "$tmp_final"
+        echo "patch_version_code: the internal patch marker survived the second substitution in $build_gradle" >&2
+        return 1
+    fi
+    if ! grep -qE "^[[:space:]]*versionCode = $version_code\$" "$tmp_final"; then
+        rm -f "$tmp_final"
+        echo "patch_version_code: versionCode = $version_code not found in $build_gradle after patching" >&2
+        return 1
+    fi
+
+    mv "$tmp_final" "$build_gradle"
 }
 
 verify_jar_signature() {
-    return 1
+    local keystore="$1" jar="$2" alias="$3"
+    local verify_out verify_status
+    verify_out="$(jarsigner -verify -keystore "$keystore" "$jar" "$alias" 2>&1)" && verify_status=0 || verify_status=$?
+
+    printf '%s' "$verify_out"
+
+    if [ "$verify_status" -ne 0 ]; then
+        return 1
+    fi
+    case "$verify_out" in
+        *"jar verified"*) : ;;
+        *) return 2 ;;
+    esac
+    case "$verify_out" in
+        *"not signed by the specified alias"*) return 3 ;;
+    esac
+    return 0
 }

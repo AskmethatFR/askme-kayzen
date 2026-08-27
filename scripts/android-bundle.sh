@@ -124,21 +124,9 @@ VERSION="$(workspace_version "$REPO_ROOT/Cargo.toml")"
 VERSION_CODE="$(version_code_from_semver "$VERSION")"
 
 echo "==> patching versionCode ($VERSION -> $VERSION_CODE)" >&2
-# @law: `grep -c` exits 1, not 0, on zero matches -- `|| true` keeps the
-# explicit occurrences check below the sole arbiter of pass/fail.
-occurrences="$(grep -cE '^[[:space:]]*versionCode = 1$' "$BUILD_GRADLE" || true)"
-[ "$occurrences" -eq 1 ] \
-    || fail "$BUILD_GRADLE has $occurrences occurrence(s) of 'versionCode = 1', expected exactly 1"
+patch_version_code "$BUILD_GRADLE" "$VERSION_CODE" \
+    || fail "failed to patch versionCode in $BUILD_GRADLE (see the patch_version_code diagnostic above)"
 
-tmp_gradle="$(mktemp)"
-trap 'rm -f "$tmp_gradle"' EXIT
-sed "s/^\([[:space:]]*\)versionCode = 1\$/\1versionCode = $VERSION_CODE/" "$BUILD_GRADLE" > "$tmp_gradle"
-mv "$tmp_gradle" "$BUILD_GRADLE"
-
-grep -qE "^[[:space:]]*versionCode = $VERSION_CODE\$" "$BUILD_GRADLE" \
-    || fail "versionCode patch did not land in $BUILD_GRADLE"
-grep -qE '^[[:space:]]*versionCode = 1$' "$BUILD_GRADLE" \
-    && fail "the old versionCode = 1 survived the patch in $BUILD_GRADLE"
 grep -qE "^[[:space:]]*versionName = \"$VERSION\"\$" "$BUILD_GRADLE" \
     || fail "versionName \"$VERSION\" not found in $BUILD_GRADLE"
 
