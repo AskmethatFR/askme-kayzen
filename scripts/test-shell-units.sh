@@ -1183,6 +1183,54 @@ SHIM
     esac
     assert_eq "yes" "$msg_noalias" "android-sign.sh: alias-not-present names the exact cause"
 
+    # F2 (security-barrier finding): the SIGNING jarsigner call's own -J
+    # locale-forcing flags were untested -- the classification right below
+    # it (S2/AC3 tests above) matches ENGLISH substrings only
+    # ("password was incorrect", "not a private key", "Certificate chain
+    # not found for"), so under a non-English JVM (the owner's own
+    # machine is French) every one of them falls through to the generic
+    # catch-all and every specific diagnostic is lost. A shim jarsigner
+    # emits the classifiable English text ONLY when both -J flags are
+    # present on argv, and a French one otherwise -- this is what makes
+    # the assertion below independent of THIS test machine's own locale.
+    F2_ROOT="$(mktemp -d)"
+    cat > "$F2_ROOT/jarsigner" <<EOF
+#!/usr/bin/env bash
+is_sign="no"
+has_lang="no"
+has_country="no"
+for a in "\$@"; do
+    case "\$a" in
+        -signedjar) is_sign="yes" ;;
+        -J-Duser.language=en) has_lang="yes" ;;
+        -J-Duser.country=US) has_country="yes" ;;
+    esac
+done
+if [ "\$is_sign" = "yes" ]; then
+    if [ "\$has_lang" = "yes" ] && [ "\$has_country" = "yes" ]; then
+        printf '%s\n' "jarsigner: password was incorrect for keystore"
+    else
+        printf '%s\n' "jarsigner : le mot de passe du fichier de cles est incorrect"
+    fi
+    exit 1
+fi
+exec "$REAL_JARSIGNER" "\$@"
+EOF
+    chmod +x "$F2_ROOT/jarsigner"
+
+    err_f2="$(PATH="$F2_ROOT:$PATH" env NDK_HOME="$SYNTH_NDK_HOME" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" 2>&1 1>/dev/null)"; status_f2=$?
+    rm -f "$SIGN_ROOT/unsigned-16k-signed.aab"
+    assert_eq "1" "$status_f2" \
+        "android-sign.sh: F2 -- a French-diagnostic signing failure still exits 1"
+    msg_f2="no"
+    case "$err_f2" in *"wrong store password"*) msg_f2="yes" ;; esac
+    assert_eq "yes" "$msg_f2" \
+        "android-sign.sh: F2 -- the signing call's locale flags let the classification match, instead of falling to the generic catch-all"
+    rm -rf "$F2_ROOT"
+
     # AC 3: keystore file absent -- our own preflight check, exit 2
     # (matching android-verify-alignment.sh's `[ -f ]` -> preflight_fail
     # precedent), a FOURTH distinct message.
