@@ -13,20 +13,23 @@
 #   ANDROID_SIGN_STORE_PASSWORD  the keystore's store password
 #   ANDROID_SIGN_KEY_PASSWORD    the key's own password
 #
-# @law: jarsigner's `-storepass:env NAME` / `-keypass:env NAME` read the
-# NAMED environment variable's value themselves -- this script puts only
-# the variable NAME on jarsigner's argv and never expands
+# @law: jarsigner's and keytool's `-storepass:env NAME` / `-keypass:env
+# NAME` read the NAMED environment variable's value themselves -- this
+# script puts only the variable NAME on their argv and never expands
 # ANDROID_SIGN_STORE_PASSWORD / ANDROID_SIGN_KEY_PASSWORD itself, anywhere,
 # for anything. A password on argv is readable in /proc/*/cmdline by any
-# process on the machine and is echoed verbatim by `set -x`; keytool has no
-# `:env` modifier, which is why signing never shells out to it. Verifying a
-# signature needs no store password at all -- jarsigner -verify only reads
-# public certificate data -- so :env is never passed to the verify call
-# either, and both password variables are unset from this script's own
-# environment right after signing, so every descendant process spawned
-# after that point (the jarsigner -verify call and the alignment re-check
-# below) never sees them: argv is not the only channel a password leaks
-# through, and `environ` outlives the argv of the command that set it.
+# process on the machine and is echoed verbatim by `set -x`. Signing and
+# reading the signing alias's certificate fingerprint (verify_jar_signature's
+# expected value, read via keystore_alias_fingerprint) are the ONLY two
+# steps that need the store password, and both run before either password
+# variable is unset from this script's own environment: every descendant
+# process spawned after that point (the jarsigner -verify call, the
+# signed jar's OWN fingerprint read inside verify_jar_signature, and the
+# alignment re-check below) never sees them -- argv is not the only
+# channel a password leaks through, and `environ` outlives the argv of the
+# command that set it. Verifying a signature needs no store password at
+# all -- jarsigner -verify and `keytool -printcert -jarfile` only read
+# public certificate data -- so :env is never passed to either.
 #
 # @law: the alignment re-check below (scripts/android-verify-alignment.sh,
 # unchanged, as a second call site) measures the SIGNED bundle's own bytes,
@@ -59,6 +62,7 @@ case "$AAB" in
 esac
 
 command -v jarsigner >/dev/null 2>&1 || preflight_fail "jarsigner not found on PATH (needs a JDK)"
+command -v keytool >/dev/null 2>&1 || preflight_fail "keytool not found on PATH (needs a JDK)"
 
 [ -n "${ANDROID_SIGN_KEYSTORE:-}" ] || preflight_fail "ANDROID_SIGN_KEYSTORE is not set"
 [ -n "${ANDROID_SIGN_KEY_ALIAS:-}" ] || preflight_fail "ANDROID_SIGN_KEY_ALIAS is not set"
@@ -90,6 +94,7 @@ echo "==> signing $AAB with alias '$ANDROID_SIGN_KEY_ALIAS'" >&2
 # script's own stdout: command substitution consumes the whole thing into
 # sign_out, nothing escapes to the caller regardless of sign_status.
 sign_out="$(jarsigner \
+    -J-Duser.language=en -J-Duser.country=US \
     -keystore "$ANDROID_SIGN_KEYSTORE" \
     -storepass:env ANDROID_SIGN_STORE_PASSWORD \
     -keypass:env ANDROID_SIGN_KEY_PASSWORD \
@@ -113,21 +118,26 @@ if [ "$sign_status" -ne 0 ]; then
     esac
 fi
 
-# @law: signing is the only step that needs the two passwords -- every
-# process spawned after this point (jarsigner -verify next, and the
-# alignment re-check further down) must never see them: argv is not the
-# only channel a password leaks through, and `environ` outlives the argv
-# of the command that set it.
+echo "==> reading the certificate fingerprint for alias '$ANDROID_SIGN_KEY_ALIAS'" >&2
+expected_fingerprint="$(keystore_alias_fingerprint "$ANDROID_SIGN_KEYSTORE" "$ANDROID_SIGN_KEY_ALIAS" ANDROID_SIGN_STORE_PASSWORD 2>&1)" \
+    || fail "could not read the certificate fingerprint for alias '$ANDROID_SIGN_KEY_ALIAS' in $ANDROID_SIGN_KEYSTORE: $expected_fingerprint"
+
+# @law: signing and the fingerprint read above are the only steps that
+# need the two passwords -- every process spawned after this point
+# (jarsigner -verify next, the signed jar's OWN fingerprint read inside
+# verify_jar_signature, and the alignment re-check further down) must
+# never see them: argv is not the only channel a password leaks through,
+# and `environ` outlives the argv of the command that set it.
 unset ANDROID_SIGN_STORE_PASSWORD ANDROID_SIGN_KEY_PASSWORD
 
 echo "==> verifying the signature by alias '$ANDROID_SIGN_KEY_ALIAS'" >&2
-verify_out="$(verify_jar_signature "$ANDROID_SIGN_KEYSTORE" "$tmp_signed" "$ANDROID_SIGN_KEY_ALIAS")" \
+verify_out="$(verify_jar_signature "$ANDROID_SIGN_KEYSTORE" "$tmp_signed" "$expected_fingerprint")" \
     && verify_status=0 || verify_status=$?
 case "$verify_status" in
     0) : ;;
     1) fail "jarsigner could not verify the signed bundle: $verify_out" ;;
     2) fail "the signed bundle did not verify: $verify_out" ;;
-    3) fail "the signed bundle is not signed by alias '$ANDROID_SIGN_KEY_ALIAS'" ;;
+    3) fail "the signed bundle is not signed by alias '$ANDROID_SIGN_KEY_ALIAS': $verify_out" ;;
     *) fail "unexpected verify status $verify_status: $verify_out" ;;
 esac
 

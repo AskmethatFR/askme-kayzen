@@ -819,6 +819,10 @@ with zipfile.ZipFile(aab, "w") as zf:
     status_fp_unsigned=$?
     assert_eq "1" "$status_fp_unsigned" \
         "jar_signer_fingerprint: an UNSIGNED jar (no signer certificate at all) fails rather than returning an empty fingerprint"
+    msg_fp_unsigned="no"
+    case "$err_fp_unsigned" in *"no SHA256 fingerprint found"*) msg_fp_unsigned="yes" ;; esac
+    assert_eq "yes" "$msg_fp_unsigned" \
+        "jar_signer_fingerprint: an unsigned jar names the cause"
 
     # THE regression test (AC 4): a jar signed by alias A, verified against
     # alias A's OWN fingerprint, must report a clean match -- even though
@@ -882,6 +886,8 @@ SHIM
     status_locale_alias=$?
     assert_eq "0" "$status_locale_alias" \
         "keystore_alias_fingerprint: forces English locale on keytool -list (kills hand-mutant b)"
+    assert_eq "DEAD:BEEF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB" "$out_locale_alias" \
+        "keystore_alias_fingerprint: the shim's fingerprint reaches the caller once locale forcing lets it run"
     rm -rf "$LOCALE_SHIM_ROOT"
 
     # A 16 KB-aligned unsigned AAB (S1's fixture) and a 4 KB-misaligned one

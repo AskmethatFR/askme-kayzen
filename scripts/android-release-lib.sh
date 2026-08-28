@@ -37,16 +37,43 @@
 # read as byte-identical. The marker makes the two provably different
 # events again.
 #
+# jar_signer_fingerprint and keystore_alias_fingerprint both read a
+# certificate's SHA-256 fingerprint via `keytool`, forced to English
+# (`-J-Duser.language=en -J-Duser.country=US`): on the JDK this was built
+# against, `keytool -printcert`/`-list` crashes outright under a French
+# JVM locale (`erreur keytool : java.util.MissingFormatArgumentException:
+# Format specifier '%2$s'`) -- confirmed reproducible, and confirmed NOT
+# fixed by LC_ALL=C, since a macOS JVM reads its locale from native
+# CFLocale APIs, never from shell environment variables, so the forcing
+# has to happen on argv. jar_signer_fingerprint reads the fingerprint off
+# an already-SIGNED jar's own signer certificate and needs no password:
+# `keytool -printcert -jarfile` only reads public certificate data.
+# keystore_alias_fingerprint reads the fingerprint off a keystore alias's
+# certificate and needs the store password (`-storepass:env NAME`, the
+# variable NAME only, never its value -- the same discipline
+# scripts/android-sign.sh's own `@law:` block holds jarsigner to); its
+# caller must call it before the store password leaves scope.
+#
 # verify_jar_signature classifies a `jarsigner -verify` run into exactly
-# one of: 0 (verified, and by the named alias), 1 (jarsigner itself could
-# not verify), 2 (verified without failing, but the "jar verified" marker
-# text is absent), 3 (verified, but not by the alias asked for). The
-# caller owns the resulting message; this function owns only the
-# classification, which is what makes it directly testable against a
-# fixture jar signed by a DIFFERENT alias than the one it is asked to
-# verify against -- a state scripts/android-sign.sh's own sign-then-verify
-# contract can never reach on its own, since it always signs and verifies
-# with the same single alias.
+# one of: 0 (verified, and its signer certificate fingerprint matches the
+# caller-supplied expected fingerprint), 1 (jarsigner itself could not
+# verify, or the signer certificate could not be read back off the signed
+# jar), 2 (verified without failing, but the "jar verified" marker text is
+# absent), 3 (verified, but the signer certificate does not match the
+# expected fingerprint). It takes an expected FINGERPRINT, not an alias
+# name: jarsigner's own alias check (passing an alias to `-verify`) prints
+# "not signed by the specified alias(es)" for ANY self-signed certificate
+# regardless of whether the named alias is in fact the signer -- every
+# Android upload key IS self-signed, and this was a real false positive
+# in production on a correctly-signed bundle (confirmed directly against
+# this JVM with a two-alias PKCS12 keystore: the warning fires identically
+# whether the alias asked for is the true signer or a different one). The
+# text does not discriminate; a fingerprint comparison does, which is what
+# makes it directly testable against a fixture jar signed by a DIFFERENT
+# alias than the one whose fingerprint it is compared against -- a state
+# scripts/android-sign.sh's own sign-then-verify contract can never reach
+# on its own, since it always signs and verifies with the same single
+# alias.
 
 readonly REQUIRED_PAGE_ALIGNMENT=16384
 
@@ -169,10 +196,43 @@ patch_version_code() {
     mv "$tmp_final" "$build_gradle"
 }
 
+_sha256_fingerprint_from_keytool_output() {
+    local out="$1" context="$2"
+    local fp
+    fp="$(printf '%s\n' "$out" | awk '/SHA256:/ { print $NF; exit }')"
+    if [ -z "$fp" ]; then
+        echo "$context: no SHA256 fingerprint found in keytool output" >&2
+        return 1
+    fi
+    printf '%s\n' "$fp"
+}
+
+jar_signer_fingerprint() {
+    local jar="$1"
+    local out status
+    out="$(keytool -J-Duser.language=en -J-Duser.country=US -printcert -jarfile "$jar" 2>&1)" && status=0 || status=$?
+    if [ "$status" -ne 0 ]; then
+        echo "jar_signer_fingerprint: keytool could not read a signer certificate from $jar: $out" >&2
+        return 1
+    fi
+    _sha256_fingerprint_from_keytool_output "$out" "jar_signer_fingerprint: $jar"
+}
+
+keystore_alias_fingerprint() {
+    local keystore="$1" alias="$2" store_password_var="$3"
+    local out status
+    out="$(keytool -J-Duser.language=en -J-Duser.country=US -list -v -alias "$alias" -keystore "$keystore" -storepass:env "$store_password_var" 2>&1)" && status=0 || status=$?
+    if [ "$status" -ne 0 ]; then
+        echo "keystore_alias_fingerprint: keytool could not read alias '$alias' from $keystore: $out" >&2
+        return 1
+    fi
+    _sha256_fingerprint_from_keytool_output "$out" "keystore_alias_fingerprint: alias '$alias' in $keystore"
+}
+
 verify_jar_signature() {
-    local keystore="$1" jar="$2" alias="$3"
+    local keystore="$1" jar="$2" expected_fingerprint="$3"
     local verify_out verify_status
-    verify_out="$(jarsigner -verify -keystore "$keystore" "$jar" "$alias" 2>&1)" && verify_status=0 || verify_status=$?
+    verify_out="$(jarsigner -J-Duser.language=en -J-Duser.country=US -verify -keystore "$keystore" "$jar" 2>&1)" && verify_status=0 || verify_status=$?
 
     printf '%s' "$verify_out"
 
@@ -183,8 +243,15 @@ verify_jar_signature() {
         *"jar verified"*) : ;;
         *) return 2 ;;
     esac
-    case "$verify_out" in
-        *"not signed by the specified alias"*) return 3 ;;
-    esac
+
+    local actual_fingerprint
+    actual_fingerprint="$(jar_signer_fingerprint "$jar")" || return 1
+
+    if [ "$actual_fingerprint" != "$expected_fingerprint" ]; then
+        printf '\nverify_jar_signature: signer fingerprint %s does not match the expected alias fingerprint %s\n' \
+            "$actual_fingerprint" "$expected_fingerprint"
+        return 3
+    fi
+
     return 0
 }
