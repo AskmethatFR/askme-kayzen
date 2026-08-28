@@ -230,7 +230,7 @@ jar_signer_fingerprint() {
     fi
     local signer_count
     signer_count="$(printf '%s\n' "$out" | grep -cE '^Signer #[0-9]+:' || true)"
-    if [ "$signer_count" -gt 1 ]; then
+    if [ "$signer_count" -ne 1 ]; then
         echo "jar_signer_fingerprint: $jar is signed by $signer_count signers, expected exactly 1" >&2
         return 1
     fi

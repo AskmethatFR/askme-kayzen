@@ -820,9 +820,9 @@ with zipfile.ZipFile(aab, "w") as zf:
     assert_eq "1" "$status_fp_unsigned" \
         "jar_signer_fingerprint: an UNSIGNED jar (no signer certificate at all) fails rather than returning an empty fingerprint"
     msg_fp_unsigned="no"
-    case "$err_fp_unsigned" in *"no SHA256 fingerprint found"*) msg_fp_unsigned="yes" ;; esac
+    case "$err_fp_unsigned" in *"is signed by 0 signers, expected exactly 1"*) msg_fp_unsigned="yes" ;; esac
     assert_eq "yes" "$msg_fp_unsigned" \
-        "jar_signer_fingerprint: an unsigned jar names the cause"
+        "jar_signer_fingerprint: an unsigned jar is refused by the signer-count guard (F1), naming the zero count"
 
     # THE regression test (AC 4): a jar signed by alias A, verified against
     # alias A's OWN fingerprint, must report a clean match -- even though
