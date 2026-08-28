@@ -199,6 +199,10 @@ patch_version_code() {
     mv "$tmp_final" "$build_gradle"
 }
 
+_looks_like_sha256_fingerprint() {
+    [[ "$1" =~ ^([0-9A-F]{2}:){31}[0-9A-F]{2}$ ]]
+}
+
 _sha256_fingerprint_from_keytool_output() {
     local out="$1" context="$2"
     local fp
@@ -211,7 +215,7 @@ _sha256_fingerprint_from_keytool_output() {
         }
         /^[[:space:]]*$/ { in_fp = 0 }
     ')"
-    if [ -z "$fp" ]; then
+    if ! _looks_like_sha256_fingerprint "$fp"; then
         echo "$context: no SHA256 fingerprint found in keytool output" >&2
         return 1
     fi
