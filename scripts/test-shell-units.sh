@@ -967,6 +967,24 @@ with zipfile.ZipFile(aab, "w") as zf:
         "verify_jar_signature: B2 -- a multi-signer bundle is rejected even though one of its signers matches the expected alias (kills the multi-signer bypass)"
     rm -rf "$B2_ROOT"
 
+    # Belt-and-suspenders (retry 1): two empty strings must never compare
+    # equal inside verify_jar_signature's own fingerprint check -- an
+    # explicit invariant, independent of the fact that
+    # _sha256_fingerprint_from_keytool_output already refuses to hand back
+    # an empty value. jar_signer_fingerprint is overridden in a subshell to
+    # simulate a caller-contract violation (empty stdout, exit 0) that no
+    # real implementation of it can currently produce, so the guard inside
+    # verify_jar_signature itself is what this test actually exercises.
+    empty_guard_status="$(
+        jar_signer_fingerprint() { printf ''; return 0; }
+        verify_jar_signature "$SIGN_KEYSTORE_P12" "$VJS_FIXTURE_SIGNED" "" >/dev/null
+        echo $?
+    )"
+    empty_guard_reads_verified="no"
+    [ "$empty_guard_status" = "0" ] && empty_guard_reads_verified="yes"
+    assert_eq "no" "$empty_guard_reads_verified" \
+        "verify_jar_signature: an empty actual fingerprint against an empty expected fingerprint never reads as verified"
+
     # Locale forcing (hand-mutant b): a shim keytool that only succeeds
     # when invoked with the English-forcing -J flags -- portable across any
     # host locale, unlike relying on this development machine's own
