@@ -65,6 +65,9 @@ command -v jarsigner >/dev/null 2>&1 || preflight_fail "jarsigner not found on P
 command -v keytool >/dev/null 2>&1 || preflight_fail "keytool not found on PATH (needs a JDK)"
 
 [ -n "${ANDROID_SIGN_KEYSTORE:-}" ] || preflight_fail "ANDROID_SIGN_KEYSTORE is not set"
+case "${ANDROID_SIGN_KEYSTORE:-}" in
+    -*) preflight_fail "ANDROID_SIGN_KEYSTORE must not start with '-': $ANDROID_SIGN_KEYSTORE" ;;
+esac
 [ -n "${ANDROID_SIGN_KEY_ALIAS:-}" ] || preflight_fail "ANDROID_SIGN_KEY_ALIAS is not set"
 case "${ANDROID_SIGN_KEY_ALIAS:-}" in
     -*) preflight_fail "ANDROID_SIGN_KEY_ALIAS must not start with '-': $ANDROID_SIGN_KEY_ALIAS" ;;
