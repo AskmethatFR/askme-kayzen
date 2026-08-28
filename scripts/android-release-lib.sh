@@ -267,7 +267,7 @@ verify_jar_signature() {
         return 4
     fi
 
-    if [ "$actual_fingerprint" != "$expected_fingerprint" ]; then
+    if [ -z "$actual_fingerprint" ] || [ -z "$expected_fingerprint" ] || [ "$actual_fingerprint" != "$expected_fingerprint" ]; then
         printf '\nverify_jar_signature: signer fingerprint %s does not match the expected alias fingerprint %s\n' \
             "$actual_fingerprint" "$expected_fingerprint"
         return 3
