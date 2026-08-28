@@ -57,10 +57,13 @@
 # verify_jar_signature classifies a `jarsigner -verify` run into exactly
 # one of: 0 (verified, and its signer certificate fingerprint matches the
 # caller-supplied expected fingerprint), 1 (jarsigner itself could not
-# verify, or the signer certificate could not be read back off the signed
-# jar), 2 (verified without failing, but the "jar verified" marker text is
-# absent), 3 (verified, but the signer certificate does not match the
-# expected fingerprint). It takes an expected FINGERPRINT, not an alias
+# verify the jar), 2 (verified without failing, but the "jar verified"
+# marker text is absent), 3 (verified, exactly one signer certificate was
+# read back, but its fingerprint does not match the expected one), 4
+# (verified, but a single signer certificate could not be established --
+# either keytool could not read one back at all, or the jar carries more
+# than one signer; jar_signer_fingerprint refuses the latter outright
+# rather than silently taking the first). It takes an expected FINGERPRINT, not an alias
 # name: jarsigner's own alias check (passing an alias to `-verify`) prints
 # "not signed by the specified alias(es)" for ANY self-signed certificate
 # regardless of whether the named alias is in fact the signer -- every
@@ -223,6 +226,12 @@ jar_signer_fingerprint() {
         echo "jar_signer_fingerprint: keytool could not read a signer certificate from $jar: $out" >&2
         return 1
     fi
+    local signer_count
+    signer_count="$(printf '%s\n' "$out" | grep -cE '^Signer #[0-9]+:' || true)"
+    if [ "$signer_count" -gt 1 ]; then
+        echo "jar_signer_fingerprint: $jar is signed by $signer_count signers, expected exactly 1" >&2
+        return 1
+    fi
     _sha256_fingerprint_from_keytool_output "$out" "jar_signer_fingerprint: $jar"
 }
 
@@ -253,7 +262,10 @@ verify_jar_signature() {
     esac
 
     local actual_fingerprint
-    actual_fingerprint="$(jar_signer_fingerprint "$jar")" || return 1
+    if ! actual_fingerprint="$(jar_signer_fingerprint "$jar")"; then
+        printf '\nverify_jar_signature: could not establish a single signer certificate for %s\n' "$jar"
+        return 4
+    fi
 
     if [ "$actual_fingerprint" != "$expected_fingerprint" ]; then
         printf '\nverify_jar_signature: signer fingerprint %s does not match the expected alias fingerprint %s\n' \
