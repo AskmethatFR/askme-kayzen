@@ -1011,7 +1011,7 @@ fi
 printf '%s\n' "Signer #1:"
 printf '%s\n' "Certificate #1:"
 printf '%s\n' "Certificate fingerprints:"
-printf '\t SHA256: %s\n' "DEAD:BEEF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB"
+printf '\t SHA256: %s\n' "DE:AD:BE:EF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB"
 SHIM
     chmod +x "$LOCALE_SHIM_ROOT/keytool"
 
@@ -1019,16 +1019,43 @@ SHIM
     status_locale_jar=$?
     assert_eq "0" "$status_locale_jar" \
         "jar_signer_fingerprint: forces English locale on keytool -printcert (kills hand-mutant b)"
-    assert_eq "DEAD:BEEF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB" "$out_locale_jar" \
+    assert_eq "DE:AD:BE:EF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB" "$out_locale_jar" \
         "jar_signer_fingerprint: the shim's fingerprint reaches the caller once locale forcing lets it run"
 
     out_locale_alias="$(PATH="$LOCALE_SHIM_ROOT:$PATH" keystore_alias_fingerprint "$SIGN_KEYSTORE_P12" "$SIGN_ALIAS" SIGN_STOREPASS_ENV)"
     status_locale_alias=$?
     assert_eq "0" "$status_locale_alias" \
         "keystore_alias_fingerprint: forces English locale on keytool -list (kills hand-mutant b)"
-    assert_eq "DEAD:BEEF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB" "$out_locale_alias" \
+    assert_eq "DE:AD:BE:EF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB" "$out_locale_alias" \
         "keystore_alias_fingerprint: the shim's fingerprint reaches the caller once locale forcing lets it run"
     rm -rf "$LOCALE_SHIM_ROOT"
+
+    # Shape validation (retry 1): a value that does not look like a real
+    # SHA256 fingerprint (32 uppercase hex pairs, colon-separated) must be
+    # an ERROR, never a comparison input -- an anchored field read is not
+    # by itself proof the field's own content is well-formed. A shim
+    # keytool prints a truncated fingerprint (16 pairs, still under the
+    # anchored "Certificate fingerprints:" header) to exercise this
+    # independently of B1's anchor fix.
+    SHAPE_SHIM_ROOT="$(mktemp -d)"
+    cat > "$SHAPE_SHIM_ROOT/keytool" <<'SHIM'
+#!/usr/bin/env bash
+printf '%s\n' "Signer #1:"
+printf '%s\n' "Certificate #1:"
+printf '%s\n' "Certificate fingerprints:"
+printf '\t SHA256: %s\n' "AB:CD:EF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC"
+SHIM
+    chmod +x "$SHAPE_SHIM_ROOT/keytool"
+
+    err_shape="$(PATH="$SHAPE_SHIM_ROOT:$PATH" jar_signer_fingerprint "$VJS_FIXTURE_SIGNED" 2>&1 1>/dev/null)"
+    status_shape=$?
+    assert_eq "1" "$status_shape" \
+        "jar_signer_fingerprint: a truncated (non-32-pair) SHA256 value under the fingerprints header is refused, not returned"
+    msg_shape="no"
+    case "$err_shape" in *"no SHA256 fingerprint found"*) msg_shape="yes" ;; esac
+    assert_eq "yes" "$msg_shape" \
+        "jar_signer_fingerprint: the shape-rejection names the cause"
+    rm -rf "$SHAPE_SHIM_ROOT"
 
     # A 16 KB-aligned unsigned AAB (S1's fixture) and a 4 KB-misaligned one
     # (for the alignment-regression case) -- both signed with the SAME
