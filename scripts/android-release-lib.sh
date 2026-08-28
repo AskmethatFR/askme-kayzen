@@ -199,7 +199,15 @@ patch_version_code() {
 _sha256_fingerprint_from_keytool_output() {
     local out="$1" context="$2"
     local fp
-    fp="$(printf '%s\n' "$out" | awk '/SHA256:/ { print $NF; exit }')"
+    fp="$(printf '%s\n' "$out" | awk '
+        /^[[:space:]]*Certificate fingerprints:[[:space:]]*$/ { in_fp = 1; next }
+        in_fp && /^[[:space:]]*SHA256:/ {
+            sub(/^[[:space:]]*SHA256:[[:space:]]*/, "")
+            print
+            exit
+        }
+        /^[[:space:]]*$/ { in_fp = 0 }
+    ')"
     if [ -z "$fp" ]; then
         echo "$context: no SHA256 fingerprint found in keytool output" >&2
         return 1
