@@ -845,6 +845,42 @@ with zipfile.ZipFile(aab, "w") as zf:
     assert_eq "yes" "$msg_vjs_mismatch" \
         "verify_jar_signature: the fingerprint-mismatch classification names both fingerprints"
 
+    # B1 (retry 1): a forged, self-signed certificate whose Owner: DN
+    # CONTAINS the victim alias's own fingerprint text (with the interior
+    # space that lands a naive `awk '/SHA256:/ {print $NF; exit}'` on the
+    # Owner: line instead of the real, later Certificate fingerprints:
+    # block) must never be read as that victim's fingerprint. Real
+    # self-signed cert, real jarsigner signature, not a synthetic string.
+    B1_ROOT="$(mktemp -d)"
+    openssl req -x509 -newkey rsa:2048 -keyout "$B1_ROOT/evil.key" -out "$B1_ROOT/evil.cert" \
+        -days 365 -nodes -subj "/emailAddress=x $fp_alias_correct/CN=SHA256:" >/dev/null 2>&1
+    openssl pkcs12 -export -in "$B1_ROOT/evil.cert" -inkey "$B1_ROOT/evil.key" -name evil \
+        -out "$B1_ROOT/evil.p12" -passout pass:evilpw >/dev/null 2>&1
+    B1_JAR="$B1_ROOT/evil-signed.aab"
+    jarsigner -keystore "$B1_ROOT/evil.p12" -storepass evilpw -keypass evilpw \
+        -signedjar "$B1_JAR" "$VJS_FIXTURE_SRC" evil >/dev/null 2>&1
+
+    b1_naive_scan="$(keytool -J-Duser.language=en -J-Duser.country=US -printcert -jarfile "$B1_JAR" 2>&1 \
+        | awk '/SHA256:/ { print $NF; exit }')"
+    b1_fixture_reproduces_bug="no"
+    [ "$b1_naive_scan" = "$fp_alias_correct" ] && b1_fixture_reproduces_bug="yes"
+    assert_eq "yes" "$b1_fixture_reproduces_bug" \
+        "test fixture sanity: B1 -- the forged Owner: DN fools a naive substring SHA256 scan (the production authentication bypass this ticket fixes)"
+
+    b1_fp="$(jar_signer_fingerprint "$B1_JAR")"; b1_fp_status=$?
+    assert_eq "0" "$b1_fp_status" \
+        "jar_signer_fingerprint: B1 -- reads the forged jar's own signer fingerprint without erroring"
+    b1_matches_forged_owner="no"
+    [ "$b1_fp" = "$fp_alias_correct" ] && b1_matches_forged_owner="yes"
+    assert_eq "no" "$b1_matches_forged_owner" \
+        "jar_signer_fingerprint: B1 -- a forged Owner: DN containing the victim's fingerprint text is not read as the signer fingerprint"
+
+    verify_jar_signature "$B1_ROOT/evil.p12" "$B1_JAR" "$fp_alias_correct" >/dev/null
+    b1_verify_status=$?
+    assert_eq "3" "$b1_verify_status" \
+        "verify_jar_signature: B1 -- a bundle signed ONLY by an attacker's key is rejected against the victim alias's fingerprint (kills the authentication bypass)"
+    rm -rf "$B1_ROOT"
+
     # Locale forcing (hand-mutant b): a shim keytool that only succeeds
     # when invoked with the English-forcing -J flags -- portable across any
     # host locale, unlike relying on this development machine's own
