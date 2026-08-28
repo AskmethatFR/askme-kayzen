@@ -710,6 +710,7 @@ with zipfile.ZipFile(aab, "w") as zf:
     SIGN="$ROOT/scripts/android-sign.sh"
     SIGN_ROOT="$(mktemp -d)"
     REAL_JARSIGNER="$(command -v jarsigner)"
+    REAL_KEYTOOL="$(command -v keytool)"
 
     # JKS, not the PKCS12 default: `keytool -genkeypair -storetype PKCS12`
     # silently COERCES the key's own password to the store password
@@ -721,10 +722,7 @@ with zipfile.ZipFile(aab, "w") as zf:
     # from each other (mandatory hand-mutant f). JKS is chosen for that
     # independence, not because PKCS12 makes either case unreachable --
     # a wrong -keypass fails under PKCS12 too, just never independently of
-    # the store password. Security separately flags PKCS12 as the format a
-    # real production upload keystore is more likely to use; this fixture
-    # does not cover that format, a known, accepted gap (see
-    # implementation-decisions).
+    # the store password.
     SIGN_KEYSTORE="$SIGN_ROOT/upload.jks"
     SIGN_ALIAS="upload"
     keytool -genkeypair -storetype JKS -keystore "$SIGN_KEYSTORE" \
@@ -732,41 +730,159 @@ with zipfile.ZipFile(aab, "w") as zf:
         -alias "$SIGN_ALIAS" -dname "CN=Test,OU=Test,O=Test,L=Test,S=Test,C=US" \
         -keyalg RSA -keysize 2048 -validity 3650 >/dev/null 2>&1
 
-    # A second alias in the SAME keystore, distinct certificate -- used
-    # ONLY to drive verify_jar_signature's alias-mismatch classification
-    # directly (AC 4, mandatory hand-mutants g+h). android-sign.sh's own
-    # sign-then-verify contract always uses ONE alias for both steps, so it
-    # can never itself produce a signed bundle whose signer differs from
-    # the alias being verified against -- that state is only constructible
-    # one level down, by signing directly with jarsigner in this fixture.
+    # A SECOND keystore, PKCS12 -- the format `keytool -genkeypair` has
+    # defaulted to since JDK 9, and the format Security flagged as what a
+    # real production upload keystore is more likely to use. Confirmed
+    # directly against this JVM: a self-signed PKCS12 entry's certificate
+    # fails PKIX chain validation at `jarsigner -verify` time
+    # UNCONDITIONALLY -- jarsigner prints the identical "not signed by the
+    # specified alias(es)" text whether the alias handed to it is the
+    # bundle's REAL signer or a completely different one, because that
+    # text comes from the chain-validation warning path, not from an
+    # actual signer-identity check. This is the exact production defect
+    # (issue #28 follow-up): a real upload keystore's own alias verified
+    # clean and jarsigner still reported "not signed by alias 'upload'".
+    # The JKS keystore above cannot reproduce it -- confirmed this JVM does
+    # not raise the same warning against a JKS entry's self-signed
+    # certificate at verify time -- so PKCS12 is the format this fixture
+    # must use to prove the fix actually fixes the reported bug, not a
+    # coincidentally-clean case.
+    SIGN_KEYSTORE_P12="$SIGN_ROOT/upload.p12"
     SIGN_ALIAS_OTHER="otheralias"
-    keytool -genkeypair -storetype JKS -keystore "$SIGN_KEYSTORE" \
-        -storepass "rightstorepw" -keypass "rightkeypw" \
+    keytool -genkeypair -storetype PKCS12 -keystore "$SIGN_KEYSTORE_P12" \
+        -storepass "rightstorepw" -keypass "rightstorepw" \
+        -alias "$SIGN_ALIAS" -dname "CN=Test,OU=Test,O=Test,L=Test,S=Test,C=US" \
+        -keyalg RSA -keysize 2048 -validity 3650 >/dev/null 2>&1
+    keytool -genkeypair -storetype PKCS12 -keystore "$SIGN_KEYSTORE_P12" \
+        -storepass "rightstorepw" -keypass "rightstorepw" \
         -alias "$SIGN_ALIAS_OTHER" -dname "CN=Other,OU=Test,O=Test,L=Test,S=Test,C=US" \
         -keyalg RSA -keysize 2048 -validity 3650 >/dev/null 2>&1
 
-    # --- verify_jar_signature (AC 4, mandatory hand-mutants g+h) -----------
+    # --- jar_signer_fingerprint / keystore_alias_fingerprint / -------------
+    # verify_jar_signature (AC 4, mandatory hand-mutants g+h) ---------------
     VJS_FIXTURE_SRC="$SIGN_ROOT/verify-fixture-unsigned.aab"
     build_aab "$VJS_FIXTURE_SRC" "base/lib/arm64-v8a/lib16k.so" "$SYNTH_ROOT/lib16k.so"
     VJS_FIXTURE_SIGNED="$SIGN_ROOT/verify-fixture-signed.aab"
-    jarsigner -keystore "$SIGN_KEYSTORE" -storepass "rightstorepw" -keypass "rightkeypw" \
+    jarsigner -keystore "$SIGN_KEYSTORE_P12" -storepass "rightstorepw" -keypass "rightstorepw" \
         -signedjar "$VJS_FIXTURE_SIGNED" "$VJS_FIXTURE_SRC" "$SIGN_ALIAS" >/dev/null 2>&1
 
-    verify_jar_signature "$SIGN_KEYSTORE" "$VJS_FIXTURE_SIGNED" "$SIGN_ALIAS" >/dev/null
+    # Fixture sanity: prove this fixture actually reproduces the reported
+    # production symptom before trusting anything built on it -- jarsigner's
+    # own alias-mismatch text must fire even against the CORRECT alias. If
+    # this ever stops reproducing (a JDK upgrade changes the warning), the
+    # fixture is no longer proving what it claims to and everything below
+    # is testing nothing.
+    raw_verify_correct="$(jarsigner -verify -keystore "$SIGN_KEYSTORE_P12" "$VJS_FIXTURE_SIGNED" "$SIGN_ALIAS" 2>&1)"
+    fixture_reproduces_bug="no"
+    case "$raw_verify_correct" in
+        *"not signed by the specified alias"*) fixture_reproduces_bug="yes" ;;
+    esac
+    assert_eq "yes" "$fixture_reproduces_bug" \
+        "test fixture sanity: jarsigner's alias-mismatch text fires even for the CORRECT alias (the production false positive this ticket fixes)"
+
+    export SIGN_STOREPASS_ENV="rightstorepw"
+
+    fp_jar="$(jar_signer_fingerprint "$VJS_FIXTURE_SIGNED")"; status_fp_jar=$?
+    assert_eq "0" "$status_fp_jar" \
+        "jar_signer_fingerprint: reads a SHA-256 fingerprint from a real signed jar"
+    fp_jar_looks_like_fingerprint="no"
+    case "$fp_jar" in
+        [0-9A-Fa-f][0-9A-Fa-f]:*[0-9A-Fa-f][0-9A-Fa-f]) fp_jar_looks_like_fingerprint="yes" ;;
+    esac
+    assert_eq "yes" "$fp_jar_looks_like_fingerprint" \
+        "jar_signer_fingerprint: the result is colon-separated hex, not raw keytool prose"
+
+    fp_alias_correct="$(keystore_alias_fingerprint "$SIGN_KEYSTORE_P12" "$SIGN_ALIAS" SIGN_STOREPASS_ENV)"; status_fp_alias_correct=$?
+    assert_eq "0" "$status_fp_alias_correct" \
+        "keystore_alias_fingerprint: reads a SHA-256 fingerprint for an alias that exists"
+    assert_eq "$fp_jar" "$fp_alias_correct" \
+        "keystore_alias_fingerprint: a jar signed by alias A reports the SAME fingerprint jar_signer_fingerprint reads off that jar"
+
+    fp_alias_other="$(keystore_alias_fingerprint "$SIGN_KEYSTORE_P12" "$SIGN_ALIAS_OTHER" SIGN_STOREPASS_ENV)"; status_fp_alias_other=$?
+    assert_eq "0" "$status_fp_alias_other" \
+        "keystore_alias_fingerprint: reads a SHA-256 fingerprint for the second alias"
+    fp_aliases_differ="no"
+    [ "$fp_jar" != "$fp_alias_other" ] && fp_aliases_differ="yes"
+    assert_eq "yes" "$fp_aliases_differ" \
+        "keystore_alias_fingerprint: alias A and alias B have distinct certificate fingerprints (fixture sanity)"
+
+    err_fp_noalias="$(keystore_alias_fingerprint "$SIGN_KEYSTORE_P12" "nosuchalias" SIGN_STOREPASS_ENV 2>&1 1>/dev/null)"
+    status_fp_noalias=$?
+    assert_eq "1" "$status_fp_noalias" \
+        "keystore_alias_fingerprint: a nonexistent alias fails"
+    msg_fp_noalias="no"
+    case "$err_fp_noalias" in *"nosuchalias"*) msg_fp_noalias="yes" ;; esac
+    assert_eq "yes" "$msg_fp_noalias" \
+        "keystore_alias_fingerprint: a nonexistent alias names the cause"
+
+    err_fp_unsigned="$(jar_signer_fingerprint "$VJS_FIXTURE_SRC" 2>&1 1>/dev/null)"
+    status_fp_unsigned=$?
+    assert_eq "1" "$status_fp_unsigned" \
+        "jar_signer_fingerprint: an UNSIGNED jar (no signer certificate at all) fails rather than returning an empty fingerprint"
+
+    # THE regression test (AC 4): a jar signed by alias A, verified against
+    # alias A's OWN fingerprint, must report a clean match -- even though
+    # the fixture sanity check above proves jarsigner's own text says
+    # otherwise for this exact jar. This is the false positive the owner
+    # hit on the first real signing run, reproduced from scratch.
+    verify_jar_signature "$SIGN_KEYSTORE_P12" "$VJS_FIXTURE_SIGNED" "$fp_alias_correct" >/dev/null
     status_vjs_match=$?
     assert_eq "0" "$status_vjs_match" \
-        "verify_jar_signature: a jar signed by alias A verifies clean against alias A"
+        "verify_jar_signature: a jar signed by alias A verifies clean against alias A's fingerprint (kills the production false positive)"
 
-    out_vjs_mismatch="$(verify_jar_signature "$SIGN_KEYSTORE" "$VJS_FIXTURE_SIGNED" "$SIGN_ALIAS_OTHER")"
+    out_vjs_mismatch="$(verify_jar_signature "$SIGN_KEYSTORE_P12" "$VJS_FIXTURE_SIGNED" "$fp_alias_other")"
     status_vjs_mismatch=$?
     assert_eq "3" "$status_vjs_mismatch" \
-        "verify_jar_signature: a jar signed by alias A reports mismatch against alias B (kills mutants g+h)"
+        "verify_jar_signature: a jar signed by alias A reports mismatch against alias B's fingerprint (kills mutants g+h)"
+    msg_vjs_mismatch="no"
     case "$out_vjs_mismatch" in
-        *"not signed by the specified alias"*) msg_vjs_mismatch="yes" ;;
-        *) msg_vjs_mismatch="no" ;;
+        *"does not match"*) msg_vjs_mismatch="yes" ;;
     esac
     assert_eq "yes" "$msg_vjs_mismatch" \
-        "verify_jar_signature: the alias-mismatch classification carries jarsigner's own diagnostic text"
+        "verify_jar_signature: the fingerprint-mismatch classification names both fingerprints"
+
+    # Locale forcing (hand-mutant b): a shim keytool that only succeeds
+    # when invoked with the English-forcing -J flags -- portable across any
+    # host locale, unlike relying on this development machine's own
+    # (French) AppleLocale, which is what actually crashed in production
+    # (`erreur keytool : java.util.MissingFormatArgumentException: Format
+    # specifier '%2$s'`, confirmed reproducible on this exact JDK, and
+    # confirmed NOT fixed by LC_ALL=C -- a macOS JVM reads its locale from
+    # native CFLocale APIs, never from shell environment variables).
+    LOCALE_SHIM_ROOT="$(mktemp -d)"
+    cat > "$LOCALE_SHIM_ROOT/keytool" <<'SHIM'
+#!/usr/bin/env bash
+has_lang="no"
+has_country="no"
+for a in "$@"; do
+    case "$a" in
+        -J-Duser.language=en) has_lang="yes" ;;
+        -J-Duser.country=US) has_country="yes" ;;
+    esac
+done
+if [ "$has_lang" != "yes" ] || [ "$has_country" != "yes" ]; then
+    printf '%s\n' "keytool-locale-shim: refusing without forced English locale flags" >&2
+    exit 1
+fi
+printf '%s\n' "Signer #1:"
+printf '%s\n' "Certificate #1:"
+printf '%s\n' "Certificate fingerprints:"
+printf '\t SHA256: %s\n' "DEAD:BEEF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB"
+SHIM
+    chmod +x "$LOCALE_SHIM_ROOT/keytool"
+
+    out_locale_jar="$(PATH="$LOCALE_SHIM_ROOT:$PATH" jar_signer_fingerprint "$VJS_FIXTURE_SIGNED")"
+    status_locale_jar=$?
+    assert_eq "0" "$status_locale_jar" \
+        "jar_signer_fingerprint: forces English locale on keytool -printcert (kills hand-mutant b)"
+    assert_eq "DEAD:BEEF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB" "$out_locale_jar" \
+        "jar_signer_fingerprint: the shim's fingerprint reaches the caller once locale forcing lets it run"
+
+    out_locale_alias="$(PATH="$LOCALE_SHIM_ROOT:$PATH" keystore_alias_fingerprint "$SIGN_KEYSTORE_P12" "$SIGN_ALIAS" SIGN_STOREPASS_ENV)"
+    status_locale_alias=$?
+    assert_eq "0" "$status_locale_alias" \
+        "keystore_alias_fingerprint: forces English locale on keytool -list (kills hand-mutant b)"
+    rm -rf "$LOCALE_SHIM_ROOT"
 
     # A 16 KB-aligned unsigned AAB (S1's fixture) and a 4 KB-misaligned one
     # (for the alignment-regression case) -- both signed with the SAME
@@ -1177,19 +1293,30 @@ EOF
         "android-sign.sh: verify status 1 names the dispatch's own message, script-level (W2)"
     rm -rf "$W2_STATUS1_ROOT"
 
+    # W2 status 3 is now driven by a FINGERPRINT mismatch, not by
+    # jarsigner's own (unreliable, see the fixture-sanity check above)
+    # alias-mismatch text -- so the shim that reaches it fakes `keytool
+    # -printcert`, not `jarsigner -verify`. `keystore_alias_fingerprint`
+    # (called before this shim's PATH entry matters, but shadowed all the
+    # same) falls through to the REAL keytool for its `-list` call, so the
+    # expected fingerprint is the real alias's; the shimmed `-printcert`
+    # call inside verify_jar_signature returns a fingerprint that can
+    # never match it.
     W2_STATUS3_ROOT="$(mktemp -d)"
-    cat > "$W2_STATUS3_ROOT/jarsigner" <<EOF
+    cat > "$W2_STATUS3_ROOT/keytool" <<EOF
 #!/usr/bin/env bash
 for a in "\$@"; do
-    if [ "\$a" = "-verify" ]; then
-        printf '%s\n' "jar verified."
-        printf '%s\n' "not signed by the specified alias"
+    if [ "\$a" = "-printcert" ]; then
+        printf '%s\n' "Signer #1:"
+        printf '%s\n' "Certificate #1:"
+        printf '%s\n' "Certificate fingerprints:"
+        printf '\t SHA256: %s\n' "00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF"
         exit 0
     fi
 done
-exec "$REAL_JARSIGNER" "\$@"
+exec "$REAL_KEYTOOL" "\$@"
 EOF
-    chmod +x "$W2_STATUS3_ROOT/jarsigner"
+    chmod +x "$W2_STATUS3_ROOT/keytool"
 
     err_w2_status3="$(PATH="$W2_STATUS3_ROOT:$PATH" env NDK_HOME="$SYNTH_NDK_HOME" \
         ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
@@ -1198,7 +1325,7 @@ EOF
     status_w2_status3=$?
     rm -f "$SIGN_ROOT/unsigned-16k-signed.aab"
     assert_eq "1" "$status_w2_status3" \
-        "android-sign.sh: verify status 3 (wrong alias) fails at the dispatch, script-level (W2)"
+        "android-sign.sh: verify status 3 (fingerprint mismatch) fails at the dispatch, script-level (W2)"
     case "$err_w2_status3" in
         *"is not signed by alias"*) msg_w2_status3="yes" ;;
         *) msg_w2_status3="no" ;;
