@@ -1246,6 +1246,73 @@ EOF
     esac
     assert_eq "yes" "$msg_nokeystore" "android-sign.sh: keystore-absent names the exact cause"
 
+    # Issue #28 follow-up (production incident): the post-signing alignment
+    # re-check's own precondition (an NDK toolchain reachable under
+    # NDK_HOME) was discovered only AFTER jarsigner had already run and
+    # consumed the interactive password entry, so a wrong/unset NDK_HOME
+    # discarded a real signing result. A jarsigner shim that records its
+    # own invocation is what proves the fix moved the check ahead of
+    # signing, not merely that signing still fails somehow.
+    NDKPRE_ROOT="$(mktemp -d)"
+    NDKPRE_JARSIGNER_LOG="$(mktemp)"
+    cat > "$NDKPRE_ROOT/jarsigner" <<EOF
+#!/usr/bin/env bash
+printf 'invoked\n' >> "$NDKPRE_JARSIGNER_LOG"
+exec "$REAL_JARSIGNER" "\$@"
+EOF
+    chmod +x "$NDKPRE_ROOT/jarsigner"
+
+    SIGNED_NDKPRE_EXPECTED="$SIGN_ROOT/unsigned-16k-signed.aab"
+    err_ndkunset="$(PATH="$NDKPRE_ROOT:$PATH" env -u NDK_HOME \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" 2>&1 1>/dev/null)"; status_ndkunset=$?
+    assert_eq "2" "$status_ndkunset" \
+        "android-sign.sh: NDK_HOME unset exits 2 (preflight), before any signing"
+    case "$err_ndkunset" in
+        *"no llvm-readelf under"*"NDK_HOME=<unset>"*) msg_ndkunset="yes" ;;
+        *) msg_ndkunset="no" ;;
+    esac
+    assert_eq "yes" "$msg_ndkunset" "android-sign.sh: NDK_HOME-unset preflight names the cause"
+    ndkunset_jarsigner_invoked="no"
+    [ -s "$NDKPRE_JARSIGNER_LOG" ] && ndkunset_jarsigner_invoked="yes"
+    assert_eq "no" "$ndkunset_jarsigner_invoked" \
+        "android-sign.sh: the NDK_HOME preflight runs before jarsigner is ever invoked (the actual production defect)"
+    ndkunset_signed_exists="no"
+    [ -f "$SIGNED_NDKPRE_EXPECTED" ] && ndkunset_signed_exists="yes"
+    assert_eq "no" "$ndkunset_signed_exists" \
+        "android-sign.sh: NDK_HOME-unset preflight leaves no signed artifact behind"
+
+    # A wrong NDK_HOME -- set, and a real directory -- must refuse exactly
+    # the same way: the class this closes is "no reachable llvm-readelf",
+    # not merely "the variable happens to be unset".
+    NDK_EMPTY="$(mktemp -d)"
+    err_ndkwrong="$(PATH="$NDKPRE_ROOT:$PATH" env NDK_HOME="$NDK_EMPTY" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" 2>&1 1>/dev/null)"; status_ndkwrong=$?
+    assert_eq "2" "$status_ndkwrong" \
+        "android-sign.sh: NDK_HOME set to a toolchain-less dir also exits 2 (closes the class, not just the unset instance)"
+    case "$err_ndkwrong" in
+        *"no llvm-readelf under"*) msg_ndkwrong="yes" ;;
+        *) msg_ndkwrong="no" ;;
+    esac
+    assert_eq "yes" "$msg_ndkwrong" "android-sign.sh: wrong-NDK_HOME preflight names the cause"
+    ndkwrong_jarsigner_invoked="no"
+    [ -s "$NDKPRE_JARSIGNER_LOG" ] && ndkwrong_jarsigner_invoked="yes"
+    assert_eq "no" "$ndkwrong_jarsigner_invoked" \
+        "android-sign.sh: the wrong-NDK_HOME preflight also runs before jarsigner is invoked"
+    rm -rf "$NDKPRE_ROOT" "$NDKPRE_JARSIGNER_LOG" "$NDK_EMPTY"
+
+    # The existing green path (S1) must still work end-to-end with a real
+    # NDK_HOME -- the preflight above must not regress it.
+    out_ndkgood="$(sign_ok "$UNSIGNED_AAB_16K" 2>/dev/null)"; status_ndkgood=$?
+    assert_eq "0" "$status_ndkgood" \
+        "android-sign.sh: a resolvable NDK_HOME still signs successfully"
+    assert_eq "$SIGN_ROOT/unsigned-16k-signed.aab" "$out_ndkgood" \
+        "android-sign.sh: a resolvable NDK_HOME still prints the signed path"
+    rm -f "$SIGN_ROOT/unsigned-16k-signed.aab"
+
     err_usage_sign="$("$SIGN" 2>&1 1>/dev/null)"; status_usage_sign=$?
     assert_eq "2" "$status_usage_sign" "android-sign.sh: no args exits 2"
     case "$err_usage_sign" in
