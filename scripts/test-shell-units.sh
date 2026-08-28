@@ -961,7 +961,7 @@ with zipfile.ZipFile(aab, "w") as zf:
     assert_eq "yes" "$msg_b2_fp" \
         "jar_signer_fingerprint: B2 -- the multi-signer refusal names the signer count"
 
-    out_b2_verify="$(verify_jar_signature "$SIGN_KEYSTORE_P12" "$B2_MULTI" "$fp_alias_correct")"
+    verify_jar_signature "$SIGN_KEYSTORE_P12" "$B2_MULTI" "$fp_alias_correct" >/dev/null
     status_b2_verify=$?
     assert_eq "4" "$status_b2_verify" \
         "verify_jar_signature: B2 -- a multi-signer bundle is rejected even though one of its signers matches the expected alias (kills the multi-signer bypass)"
@@ -976,6 +976,7 @@ with zipfile.ZipFile(aab, "w") as zf:
     # real implementation of it can currently produce, so the guard inside
     # verify_jar_signature itself is what this test actually exercises.
     empty_guard_status="$(
+        # shellcheck disable=SC2329 # called indirectly, by verify_jar_signature below
         jar_signer_fingerprint() { printf ''; return 0; }
         verify_jar_signature "$SIGN_KEYSTORE_P12" "$VJS_FIXTURE_SIGNED" "" >/dev/null
         echo $?
