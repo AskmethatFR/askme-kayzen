@@ -973,10 +973,11 @@ with zipfile.ZipFile(aab, "w") as zf:
     # production: android-sign.sh always signs with our own key, so a
     # pre-signed attacker bundle carries a SECOND signer and must be
     # refused right here. A forged DN (B1) can only ever RAISE the count
-    # -- it fails closed already -- so the reachable direction is a
-    # keytool build whose "Signer #" wording differs and prints no such
-    # line at all, undercounting to zero. A shim keytool reproduces that
-    # wording drift directly (no attacker-controlled content involved).
+    # -- it fails closed already. The zero count is NOT an exotic case:
+    # an ordinary unsigned jar under the real keytool already produces it
+    # (:820-825), no attacker and no crafted archive involved. The shim
+    # below covers the second route to the same count -- a keytool build
+    # whose "Signer #" wording differs and prints no such line at all.
     F1_ROOT="$(mktemp -d)"
     cat > "$F1_ROOT/keytool" <<'SHIM'
 #!/usr/bin/env bash
