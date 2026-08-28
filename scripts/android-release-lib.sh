@@ -37,22 +37,20 @@
 # read as byte-identical. The marker makes the two provably different
 # events again.
 #
-# jar_signer_fingerprint and keystore_alias_fingerprint both read a
-# certificate's SHA-256 fingerprint via `keytool`, forced to English
-# (`-J-Duser.language=en -J-Duser.country=US`): on the JDK this was built
-# against, `keytool -printcert`/`-list` crashes outright under a French
-# JVM locale (`erreur keytool : java.util.MissingFormatArgumentException:
-# Format specifier '%2$s'`) -- confirmed reproducible, and confirmed NOT
-# fixed by LC_ALL=C, since a macOS JVM reads its locale from native
-# CFLocale APIs, never from shell environment variables, so the forcing
-# has to happen on argv. jar_signer_fingerprint reads the fingerprint off
-# an already-SIGNED jar's own signer certificate and needs no password:
-# `keytool -printcert -jarfile` only reads public certificate data.
-# keystore_alias_fingerprint reads the fingerprint off a keystore alias's
-# certificate and needs the store password (`-storepass:env NAME`, the
-# variable NAME only, never its value -- the same discipline
-# scripts/android-sign.sh's own `@law:` block holds jarsigner to); its
-# caller must call it before the store password leaves scope.
+# @law: jar_signer_fingerprint and keystore_alias_fingerprint both force
+# `keytool -printcert`/`-list` to English (`-J-Duser.language=en
+# -J-Duser.country=US`) -- a non-English JVM locale can crash keytool
+# outright, and the forcing must happen on argv: a JVM can read its
+# locale from native OS APIs rather than shell environment variables, so
+# LC_ALL/LANG alone is not a reliable substitute. jar_signer_fingerprint
+# reads the fingerprint off an already-SIGNED jar's own signer
+# certificate and needs no password: `keytool -printcert -jarfile` only
+# reads public certificate data. keystore_alias_fingerprint reads the
+# fingerprint off a keystore alias's certificate and needs the store
+# password (`-storepass:env NAME`, the variable NAME only, never its
+# value -- the same discipline scripts/android-sign.sh's own `@law:`
+# block holds jarsigner to); its caller must call it before the store
+# password leaves scope.
 #
 # verify_jar_signature classifies a `jarsigner -verify` run into exactly
 # one of: 0 (verified, and its signer certificate fingerprint matches the
