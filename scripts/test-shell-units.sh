@@ -1219,6 +1219,22 @@ SHIM
     esac
     assert_eq "yes" "$msg_dashalias" "android-sign.sh: leading-dash alias names the cause"
 
+    # B4 (retry 1) / mandatory hand-mutant d: a keystore path starting
+    # with '-' must be refused too, for the same reason the AAB path and
+    # the alias already are -- ANDROID_SIGN_KEYSTORE had no such guard,
+    # and unlike the AAB path it never reaches a `[ -f ]` check before
+    # landing on jarsigner's/keytool's own argv.
+    err_dashkeystore="$(env NDK_HOME="$SYNTH_NDK_HOME" \
+        ANDROID_SIGN_KEYSTORE="-J-javaagent:/tmp/evil.jar" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" 2>&1 1>/dev/null)"; status_dashkeystore=$?
+    assert_eq "2" "$status_dashkeystore" "android-sign.sh: keystore path starting with '-' is refused (B4)"
+    case "$err_dashkeystore" in
+        *"ANDROID_SIGN_KEYSTORE must not start with"*) msg_dashkeystore="yes" ;;
+        *) msg_dashkeystore="no" ;;
+    esac
+    assert_eq "yes" "$msg_dashkeystore" "android-sign.sh: leading-dash keystore path names the cause"
+
     # B6 / mandatory hand-mutant l: an UNSET store password must be
     # caught by its own preflight (exit 2), not fall into jarsigner's
     # catch-all (which happens at exit 1, with a usage banner as noise --
