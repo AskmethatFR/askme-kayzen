@@ -923,6 +923,50 @@ with zipfile.ZipFile(aab, "w") as zf:
         "keystore_alias_fingerprint: B3 -- the result is the LEAF certificate's own fingerprint (openssl-derived oracle), not the CA's"
     rm -rf "$B3_ROOT"
 
+    # B2 (retry 1): a jar carrying signatures from TWO different aliases
+    # must never verify -- jar_signer_fingerprint's job is to answer "is
+    # this artifact signed by our key, and only our key", and jarsigner
+    # itself happily reports "jar verified" on a jar signed by alias A
+    # AND alias B. Double-signed by pre-signing outside the pipeline
+    # (android-sign.sh itself only ever produces a single fresh
+    # signature), same as Dev-B's own reproduction.
+    B2_ROOT="$(mktemp -d)"
+    B2_STEP1="$B2_ROOT/step1.aab"
+    cp "$VJS_FIXTURE_SRC" "$B2_STEP1"
+    jarsigner -keystore "$SIGN_KEYSTORE_P12" -storepass rightstorepw -keypass rightstorepw \
+        -signedjar "$B2_STEP1" "$B2_STEP1" "$SIGN_ALIAS_OTHER" >/dev/null 2>&1
+    B2_MULTI="$B2_ROOT/multi-signed.aab"
+    jarsigner -keystore "$SIGN_KEYSTORE_P12" -storepass rightstorepw -keypass rightstorepw \
+        -signedjar "$B2_MULTI" "$B2_STEP1" "$SIGN_ALIAS" >/dev/null 2>&1
+
+    b2_signer_count="$(keytool -J-Duser.language=en -J-Duser.country=US -printcert -jarfile "$B2_MULTI" 2>&1 \
+        | grep -cE '^Signer #[0-9]+:' || true)"
+    assert_eq "2" "$b2_signer_count" \
+        "test fixture sanity: B2 -- the double-signed bundle carries two Signer # blocks"
+
+    b2_raw_verify="$(jarsigner -J-Duser.language=en -J-Duser.country=US -verify -keystore "$SIGN_KEYSTORE_P12" "$B2_MULTI" 2>&1)"
+    b2_raw_verify_status=$?
+    b2_fixture_verifies="no"
+    if [ "$b2_raw_verify_status" -eq 0 ]; then
+        case "$b2_raw_verify" in *"jar verified"*) b2_fixture_verifies="yes" ;; esac
+    fi
+    assert_eq "yes" "$b2_fixture_verifies" \
+        "test fixture sanity: B2 -- jarsigner itself verifies a multi-signer bundle clean (the production hole this ticket closes)"
+
+    err_b2_fp="$(jar_signer_fingerprint "$B2_MULTI" 2>&1 1>/dev/null)"; status_b2_fp=$?
+    assert_eq "1" "$status_b2_fp" \
+        "jar_signer_fingerprint: B2 -- a bundle carrying more than one signer is refused"
+    msg_b2_fp="no"
+    case "$err_b2_fp" in *"2 signers"*) msg_b2_fp="yes" ;; esac
+    assert_eq "yes" "$msg_b2_fp" \
+        "jar_signer_fingerprint: B2 -- the multi-signer refusal names the signer count"
+
+    out_b2_verify="$(verify_jar_signature "$SIGN_KEYSTORE_P12" "$B2_MULTI" "$fp_alias_correct")"
+    status_b2_verify=$?
+    assert_eq "4" "$status_b2_verify" \
+        "verify_jar_signature: B2 -- a multi-signer bundle is rejected even though one of its signers matches the expected alias (kills the multi-signer bypass)"
+    rm -rf "$B2_ROOT"
+
     # Locale forcing (hand-mutant b): a shim keytool that only succeeds
     # when invoked with the English-forcing -J flags -- portable across any
     # host locale, unlike relying on this development machine's own
