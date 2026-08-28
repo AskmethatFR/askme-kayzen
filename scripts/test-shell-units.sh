@@ -881,6 +881,48 @@ with zipfile.ZipFile(aab, "w") as zf:
         "verify_jar_signature: B1 -- a bundle signed ONLY by an attacker's key is rejected against the victim alias's fingerprint (kills the authentication bypass)"
     rm -rf "$B1_ROOT"
 
+    # B3 (retry 1, Dev-B's ruled-killed-required mutation survivor): a
+    # certificate CHAIN of length 2 (leaf signed by a CA) is the only
+    # fixture shape that discriminates the awk `exit` above -- every other
+    # fixture in this file is self-signed (chain length 1), where the
+    # first and only SHA256 line IS the answer regardless of `exit`.
+    # Independent oracle: the leaf's own fingerprint, read by `openssl
+    # x509 -fingerprint`, off the SAME exported certificate bytes.
+    B3_ROOT="$(mktemp -d)"
+    B3_KEYSTORE="$B3_ROOT/chain.p12"
+    keytool -genkeypair -storetype PKCS12 -keystore "$B3_KEYSTORE" -storepass chainpw -keypass chainpw \
+        -alias ca -dname "CN=TestCA,OU=Test,O=Test,L=Test,S=Test,C=US" -keyalg RSA -keysize 2048 \
+        -validity 3650 -ext bc:c=ca:true >/dev/null 2>&1
+    keytool -genkeypair -storetype PKCS12 -keystore "$B3_KEYSTORE" -storepass chainpw -keypass chainpw \
+        -alias leaf -dname "CN=Test,OU=Test,O=Test,L=Test,S=Test,C=US" -keyalg RSA -keysize 2048 \
+        -validity 3650 >/dev/null 2>&1
+    keytool -certreq -storetype PKCS12 -keystore "$B3_KEYSTORE" -storepass chainpw -alias leaf \
+        -file "$B3_ROOT/leaf.csr" >/dev/null 2>&1
+    keytool -gencert -storetype PKCS12 -keystore "$B3_KEYSTORE" -storepass chainpw -alias ca \
+        -infile "$B3_ROOT/leaf.csr" -outfile "$B3_ROOT/leaf.cert" -validity 3650 >/dev/null 2>&1
+    keytool -exportcert -storetype PKCS12 -keystore "$B3_KEYSTORE" -storepass chainpw -alias ca \
+        -rfc -file "$B3_ROOT/ca.cert" >/dev/null 2>&1
+    keytool -importcert -storetype PKCS12 -keystore "$B3_KEYSTORE" -storepass chainpw -alias ca \
+        -file "$B3_ROOT/ca.cert" -noprompt >/dev/null 2>&1
+    cat "$B3_ROOT/leaf.cert" "$B3_ROOT/ca.cert" > "$B3_ROOT/fullchain.cert"
+    keytool -importcert -storetype PKCS12 -keystore "$B3_KEYSTORE" -storepass chainpw -alias leaf \
+        -file "$B3_ROOT/fullchain.cert" -noprompt >/dev/null 2>&1
+    keytool -exportcert -storetype PKCS12 -keystore "$B3_KEYSTORE" -storepass chainpw -alias leaf \
+        -rfc -file "$B3_ROOT/leaf-exported.cert" >/dev/null 2>&1
+    b3_expected_fp="$(openssl x509 -in "$B3_ROOT/leaf-exported.cert" -noout -fingerprint -sha256 | sed 's/^.*=//')"
+
+    export B3_STOREPASS_ENV="chainpw"
+    b3_fp="$(keystore_alias_fingerprint "$B3_KEYSTORE" leaf B3_STOREPASS_ENV)"; b3_status=$?
+    assert_eq "0" "$b3_status" \
+        "keystore_alias_fingerprint: B3 -- a chain-length-2 alias still reads a single fingerprint"
+    b3_single_line="yes"
+    case "$b3_fp" in *$'\n'*) b3_single_line="no" ;; esac
+    assert_eq "yes" "$b3_single_line" \
+        "keystore_alias_fingerprint: B3 -- the result is a single line, not both chain entries concatenated (kills the awk-exit mutant)"
+    assert_eq "$b3_expected_fp" "$b3_fp" \
+        "keystore_alias_fingerprint: B3 -- the result is the LEAF certificate's own fingerprint (openssl-derived oracle), not the CA's"
+    rm -rf "$B3_ROOT"
+
     # Locale forcing (hand-mutant b): a shim keytool that only succeeds
     # when invoked with the English-forcing -J flags -- portable across any
     # host locale, unlike relying on this development machine's own
