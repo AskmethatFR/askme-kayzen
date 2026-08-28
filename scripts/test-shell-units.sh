@@ -967,6 +967,35 @@ with zipfile.ZipFile(aab, "w") as zf:
         "verify_jar_signature: B2 -- a multi-signer bundle is rejected even though one of its signers matches the expected alias (kills the multi-signer bypass)"
     rm -rf "$B2_ROOT"
 
+    # F1 (security-barrier finding): the multi-signer guard is fail-open --
+    # `signer_count -gt 1` accepts a count of 0. This is the ONLY thing
+    # that makes the DN-forgery bypass (B1 above) unreachable in
+    # production: android-sign.sh always signs with our own key, so a
+    # pre-signed attacker bundle carries a SECOND signer and must be
+    # refused right here. A forged DN (B1) can only ever RAISE the count
+    # -- it fails closed already -- so the reachable direction is a
+    # keytool build whose "Signer #" wording differs and prints no such
+    # line at all, undercounting to zero. A shim keytool reproduces that
+    # wording drift directly (no attacker-controlled content involved).
+    F1_ROOT="$(mktemp -d)"
+    cat > "$F1_ROOT/keytool" <<'SHIM'
+#!/usr/bin/env bash
+printf '%s\n' "Certificate #1:"
+printf '%s\n' "Certificate fingerprints:"
+printf '\t SHA256: %s\n' "AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99"
+SHIM
+    chmod +x "$F1_ROOT/keytool"
+
+    err_f1="$(PATH="$F1_ROOT:$PATH" jar_signer_fingerprint "$VJS_FIXTURE_SIGNED" 2>&1 1>/dev/null)"
+    status_f1=$?
+    assert_eq "1" "$status_f1" \
+        "jar_signer_fingerprint: F1 -- a keytool build printing no 'Signer #' line at all is refused, not read as a single signer"
+    msg_f1="no"
+    case "$err_f1" in *"expected exactly 1"*) msg_f1="yes" ;; esac
+    assert_eq "yes" "$msg_f1" \
+        "jar_signer_fingerprint: F1 -- the zero-signer refusal names the expectation"
+    rm -rf "$F1_ROOT"
+
     # Belt-and-suspenders (retry 1): two empty strings must never compare
     # equal inside verify_jar_signature's own fingerprint check -- an
     # explicit invariant, independent of the fact that
