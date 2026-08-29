@@ -1301,26 +1301,10 @@ EOF
     assert_eq "no" "$ndkwrong_jarsigner_invoked" \
         "android-sign.sh: the wrong-NDK_HOME preflight also runs before jarsigner is invoked"
 
-    # Dev-B changes-requested B1 (PR #53): android-verify-alignment.sh's
-    # OWN preflight requires python3 (scripts/android-verify-alignment.sh:46),
-    # but until now android-sign.sh never checked for it before signing --
-    # so on a machine with no python3 on PATH (macOS since 12.3, without
-    # the Xcode command-line tools) jarsigner ran, consumed the
-    # interactive password entry, succeeded, and only THEN did the
-    # post-signing alignment re-check fail on the missing python3: `set
-    # -euo pipefail` propagated, the EXIT trap fired, and the freshly
-    # signed bundle was destroyed -- byte-for-byte the incident this
-    # script exists to fix, one preflight check short. Exit status and
-    # message text alone do not discriminate this fix from its absence
-    # (android-verify-alignment.sh's own preflight also exits 2 and also
-    # says "python3 not found", just under its own "android-verify-
-    # alignment:" prefix): only the jarsigner-invocation log tells the two
-    # apart, exactly as the NDK preflight's own log above does. A PATH
-    # built from every real executable already resolvable on this machine
-    # EXCEPT python3 is what proves python3 is genuinely unreachable,
-    # rather than merely shadowed by an earlier, non-executable decoy
-    # (which `command -v` skips in favor of the real one further down
-    # PATH).
+    # @algo: exit status and message text alone don't discriminate this
+    # preflight from android-verify-alignment.sh's own (same exit 2, same
+    # "python3 not found" text) -- only the jarsigner-invocation log below
+    # tells them apart, exactly as the NDK preflight's own log above does.
     PYFREE_ROOT="$(mktemp -d)"
     PYFREE_JARSIGNER_LOG="$(mktemp)"
     old_ifs="$IFS"
@@ -1360,19 +1344,10 @@ EOF
         "android-sign.sh: the python3 preflight runs before jarsigner is ever invoked (B1: a missing post-signing checker must never destroy a freshly signed bundle)"
     rm -rf "$PYFREE_ROOT" "$PYFREE_JARSIGNER_LOG"
 
-    # QA-found (orchestrator-verified) B1 residual gap: `command -v python3`
-    # tests PRESENCE, not INVOCABILITY. On macOS, /usr/bin/python3 is an
-    # xcode-select tool shim shipped with the base OS -- present, mode 755,
-    # WITHOUT the Command Line Tools installed -- so `command -v` finds it
-    # even on the exact CLT-less machine this whole fix exists for, and the
-    # preflight above (PYFREE_ROOT, which excludes python3 from PATH
-    # entirely) never reaches this shape: it proves "no python3 anywhere",
-    # not "a python3 that command -v sees but cannot run". Only actually
-    # invoking python3 discriminates the two, so this farm plants one that
-    # IS on PATH, IS executable, and always fails when run -- the shim's
-    # exact behavior -- to prove the destroyed-bundle incident is closed
-    # for this shape too, not just the "PATH has no python3 at all" shape
-    # above.
+    # @law: macOS ships /usr/bin/python3 as an xcode-select shim -- present,
+    # mode 755, exiting nonzero when run without the Command Line Tools
+    # installed. `command -v` alone cannot distinguish it from a working
+    # interpreter; only actually invoking python3 does.
     PYBROKEN_ROOT="$(mktemp -d)"
     PYBROKEN_JARSIGNER_LOG="$(mktemp)"
     old_ifs="$IFS"
@@ -1419,20 +1394,11 @@ PYSHIM
         "android-sign.sh: the non-invocable-python3 preflight runs before jarsigner is ever invoked (command -v alone cannot catch this; only actually running python3 can)"
     rm -rf "$PYBROKEN_ROOT" "$PYBROKEN_JARSIGNER_LOG"
 
-    # QA-found (orchestrator-verified) B1 residual gap, retry 1: `import
-    # zipfile` alone succeeds without zlib -- android-verify-alignment.sh's
-    # read_zip_entry decompresses each base/lib/*/*.so entry
-    # (zf.open + shutil.copyfileobj), and a real signed bundle's .so
-    # entries are DEFLATE-compressed (verified directly: `zip -q -r`, the
-    # same tool build_aab uses, writes compress_type=8 for an
-    # ELF-sized member). A python3 whose `import zipfile` succeeds but
-    # whose zlib support is missing reaches exactly the destroyed-bundle
-    # incident this preflight exists to close -- jarsigner already ran,
-    # consumed the real passwords, and the alignment re-check dies deep
-    # inside android-verify-alignment.sh instead of at this script's own
-    # preflight. A PYTHONPATH-shadowed `zlib` module that raises
-    # ImportError on import is what proves the probe now exercises the
-    # actual decompression need, not merely the `zipfile` import.
+    # @algo: `import zipfile` alone succeeds without zlib, but
+    # android-verify-alignment.sh's read_zip_entry decompresses every real
+    # base/lib/*/*.so entry (DEFLATE-compressed by `zip -q -r`, verified:
+    # it writes compress_type=8 for an ELF-sized member) -- only a real
+    # decompression round-trip, not a bare import, discriminates this.
     PYNOZLIB_ROOT="$(mktemp -d)"
     PYNOZLIB_JARSIGNER_LOG="$(mktemp)"
     old_ifs="$IFS"
@@ -1483,15 +1449,9 @@ EOF
         "android-sign.sh: the zlib-less preflight runs before jarsigner is ever invoked (import zipfile alone cannot catch this; only a real decompression round-trip can)"
     rm -rf "$PYNOZLIB_ROOT" "$PYNOZLIB_JARSIGNER_LOG" "$PYNOZLIB_SHIMDIR"
 
-    # QA-found (orchestrator-verified, reproduced by the orchestrator) B3
-    # gap: `command -v keytool` tests PRESENCE, not INVOCABILITY -- the
-    # exact same shape as the python3 gap above, and closeable the same
-    # way. macOS's java_home stub is a single 37-hard-link binary shared by
-    # `java`, `javac`, `jarsigner` AND `keytool`, so a JDK-less machine
-    # passes `command -v keytool` too. keystore_alias_fingerprint runs
-    # AFTER jarsigner has already produced a freshly signed bundle (line
-    # ~139), so a present-but-non-functional keytool destroys that bundle
-    # through the identical `set -e` + EXIT-trap path.
+    # @law: macOS's java_home stub is one 37-hard-link binary shared by
+    # java/javac/jarsigner/keytool -- a JDK-less machine passes
+    # `command -v keytool` too, the same gap python3 had above.
     KTBROKEN_ROOT="$(mktemp -d)"
     KTBROKEN_JARSIGNER_LOG="$(mktemp)"
     old_ifs="$IFS"
@@ -1539,16 +1499,10 @@ KTSHIM
         "android-sign.sh: the non-invocable-keytool preflight runs before jarsigner is ever invoked (command -v alone cannot catch this; only actually running keytool can, B3)"
     rm -rf "$KTBROKEN_ROOT" "$KTBROKEN_JARSIGNER_LOG"
 
-    # Security-found (orchestrator-verified) B2 gap: the python3 preflight
-    # probe now EXECUTES an interpreter resolved from PATH, unlike the
-    # former `command -v python3` -- and a real subprocess inherits the
-    # full parent environment, including ANDROID_SIGN_STORE_PASSWORD /
-    # ANDROID_SIGN_KEY_PASSWORD (validated as set two lines below the
-    # probe, but already present in the environment before that
-    # validation runs). A python3 shim that records what its OWN
-    # environment actually contains is what proves the probe's child
-    # process is scoped away from both passwords, not merely that a
-    # working probe still runs.
+    # @law: a subprocess inherits the full parent environment by default,
+    # including ANDROID_SIGN_STORE_PASSWORD / ANDROID_SIGN_KEY_PASSWORD --
+    # validated as set two lines below the probe, but already present in
+    # the environment before that validation runs.
     ENVLOG_ROOT="$(mktemp -d)"
     ENVLOG_FILE="$(mktemp)"
     old_ifs="$IFS"
