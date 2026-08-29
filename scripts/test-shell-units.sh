@@ -1360,6 +1360,65 @@ EOF
         "android-sign.sh: the python3 preflight runs before jarsigner is ever invoked (B1: a missing post-signing checker must never destroy a freshly signed bundle)"
     rm -rf "$PYFREE_ROOT" "$PYFREE_JARSIGNER_LOG"
 
+    # QA-found (orchestrator-verified) B1 residual gap: `command -v python3`
+    # tests PRESENCE, not INVOCABILITY. On macOS, /usr/bin/python3 is an
+    # xcode-select tool shim shipped with the base OS -- present, mode 755,
+    # WITHOUT the Command Line Tools installed -- so `command -v` finds it
+    # even on the exact CLT-less machine this whole fix exists for, and the
+    # preflight above (PYFREE_ROOT, which excludes python3 from PATH
+    # entirely) never reaches this shape: it proves "no python3 anywhere",
+    # not "a python3 that command -v sees but cannot run". Only actually
+    # invoking python3 discriminates the two, so this farm plants one that
+    # IS on PATH, IS executable, and always fails when run -- the shim's
+    # exact behavior -- to prove the destroyed-bundle incident is closed
+    # for this shape too, not just the "PATH has no python3 at all" shape
+    # above.
+    PYBROKEN_ROOT="$(mktemp -d)"
+    PYBROKEN_JARSIGNER_LOG="$(mktemp)"
+    old_ifs="$IFS"
+    IFS=':'
+    for pybroken_dir in $PATH; do
+        [ -d "$pybroken_dir" ] || continue
+        for pybroken_candidate in "$pybroken_dir"/*; do
+            [ -f "$pybroken_candidate" ] && [ -x "$pybroken_candidate" ] || continue
+            pybroken_name="$(basename "$pybroken_candidate")"
+            case "$pybroken_name" in python|python2*|python3*) continue ;; esac
+            [ -e "$PYBROKEN_ROOT/$pybroken_name" ] || ln -s "$pybroken_candidate" "$PYBROKEN_ROOT/$pybroken_name"
+        done
+    done
+    IFS="$old_ifs"
+    rm -f "$PYBROKEN_ROOT/jarsigner"
+    cat > "$PYBROKEN_ROOT/jarsigner" <<EOF
+#!/usr/bin/env bash
+printf 'invoked\n' >> "$PYBROKEN_JARSIGNER_LOG"
+exec "$REAL_JARSIGNER" "\$@"
+EOF
+    chmod +x "$PYBROKEN_ROOT/jarsigner"
+    cat > "$PYBROKEN_ROOT/python3" <<'PYSHIM'
+#!/bin/sh
+echo "xcrun: error: invalid active developer path, missing xcrun" >&2
+exit 1
+PYSHIM
+    chmod +x "$PYBROKEN_ROOT/python3"
+
+    err_pybroken="$(PATH="$PYBROKEN_ROOT" env NDK_HOME="$SYNTH_NDK_HOME" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" 2>&1 1>/dev/null)"; status_pybroken=$?
+    assert_eq "2" "$status_pybroken" \
+        "android-sign.sh: a present but non-invocable python3 (the macOS xcode-select shim's exact shape) exits 2, before any signing"
+    case "$err_pybroken" in
+        *"android-sign: python3 not found"*) msg_pybroken="yes" ;;
+        *) msg_pybroken="no" ;;
+    esac
+    assert_eq "yes" "$msg_pybroken" \
+        "android-sign.sh: the non-invocable-python3 preflight names the cause under its OWN prefix, not android-verify-alignment.sh's"
+    pybroken_jarsigner_invoked="no"
+    [ -s "$PYBROKEN_JARSIGNER_LOG" ] && pybroken_jarsigner_invoked="yes"
+    assert_eq "no" "$pybroken_jarsigner_invoked" \
+        "android-sign.sh: the non-invocable-python3 preflight runs before jarsigner is ever invoked (command -v alone cannot catch this; only actually running python3 can)"
+    rm -rf "$PYBROKEN_ROOT" "$PYBROKEN_JARSIGNER_LOG"
+
     rm -rf "$NDKPRE_ROOT" "$NDKPRE_JARSIGNER_LOG" "$NDK_EMPTY"
 
     err_usage_sign="$("$SIGN" 2>&1 1>/dev/null)"; status_usage_sign=$?
