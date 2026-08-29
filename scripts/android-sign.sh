@@ -14,11 +14,7 @@
 #   ANDROID_SIGN_KEY_PASSWORD    the key's own password
 #
 # Also reads NDK_HOME (no default -- must already be set, same contract as
-# scripts/android-verify-alignment.sh) and preflights that an NDK toolchain
-# is actually reachable under it, BEFORE signing: the post-signing
-# alignment re-check below needs it, and that precondition is knowable for
-# free ahead of the one expensive, interactive, credential-requiring step
-# in this script.
+# scripts/android-verify-alignment.sh).
 #
 # @law: jarsigner's and keytool's `-storepass:env NAME` / `-keypass:env
 # NAME` read the NAMED environment variable's value themselves -- this
@@ -70,6 +66,7 @@ esac
 
 command -v jarsigner >/dev/null 2>&1 || preflight_fail "jarsigner not found on PATH (needs a JDK)"
 command -v keytool >/dev/null 2>&1 || preflight_fail "keytool not found on PATH (needs a JDK)"
+command -v python3 >/dev/null 2>&1 || preflight_fail "python3 not found on PATH -- needed for the post-signing alignment re-check"
 
 [ -n "${ANDROID_SIGN_KEYSTORE:-}" ] || preflight_fail "ANDROID_SIGN_KEYSTORE is not set"
 case "${ANDROID_SIGN_KEYSTORE:-}" in
@@ -85,18 +82,9 @@ esac
 [ -f "$AAB" ] || preflight_fail "no AAB at $AAB"
 [ -f "$ANDROID_SIGN_KEYSTORE" ] || preflight_fail "no keystore at $ANDROID_SIGN_KEYSTORE"
 
-# @algo: mirrors scripts/android-verify-alignment.sh's OWN resolution of
-# llvm-readelf under NDK_HOME (that script is byte-frozen, ADR-0019, so
-# this cannot be shared code -- it is re-derived here so this preflight
-# refuses on exactly the condition the re-check below would fail on).
-# Probing for the resolved BINARY, not merely that NDK_HOME is set to some
-# existing directory, closes the whole class of failure (unset, or set to
-# an NDK without this toolchain layout) rather than only the unset
-# instance. Checked here, before signing: signing is the one expensive,
-# interactive, credential-requiring step in this script, and a
-# precondition this cheap must never be discovered only after it runs,
-# discarding a real signing result -- which is exactly what happened in
-# production (issue #28 follow-up).
+# @law: ADR-0019 byte-freezes scripts/android-verify-alignment.sh, so its
+# resolution of llvm-readelf under NDK_HOME is deliberately duplicated
+# here rather than shared -- do not refactor this into android-release-lib.sh.
 ndk_readelf_found="no"
 for candidate in "${NDK_HOME:-/nonexistent}"/toolchains/llvm/prebuilt/*/bin/llvm-readelf; do
     [ -x "$candidate" ] && ndk_readelf_found="yes" && break
