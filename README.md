@@ -108,13 +108,20 @@ the script is the fix.
 
 ```bash
 scripts/android-bundle.sh   # build an unsigned, 16 KB-aligned, correctly-versioned .aab
+scripts/android-sign.sh <aab>   # sign it locally with the upload key, re-verify signature + alignment
 ```
 
 Play requires every native library in an app targeting Android 15+ to align its `LOAD`
 segments to 16 KB, not the historical 4 KB — `scripts/android-verify-alignment.sh`
-checks this on the bundle's own bytes, and `scripts/android-release-lib.sh` holds the
-two pure functions (`min_load_alignment`, `version_code_from_semver`) both scripts share,
-pinned by `scripts/test-shell-units.sh` (the "shell units" gate, see below).
+checks this on the bundle's own bytes. `scripts/android-release-lib.sh` holds every
+pure, side-effect-free helper the release scripts share — read its own header for the
+current roster, never this paragraph — all pinned by `scripts/test-shell-units.sh`
+(the "shell units" gate, see below).
+
+`scripts/android-sign.sh` reads the keystore path, key alias and both passwords from
+the environment (`ANDROID_SIGN_KEYSTORE`, `ANDROID_SIGN_KEY_ALIAS`,
+`ANDROID_SIGN_STORE_PASSWORD`, `ANDROID_SIGN_KEY_PASSWORD`) — never from argv — and is
+a local-only tool: no CI job runs it or receives a signing secret.
 
 The script is two seams around one `dx bundle` call, in this order, because `dx` owns
 the whole generated Gradle project and rewrites it on every run:

@@ -10,3 +10,13 @@ app/assets/AGENTS.md
 
 # Python bytecode from the store asset generators
 __pycache__/
+
+# Android release signing keystores and their secrets: never committed,
+# always outside the repo (see scripts/android-sign.sh) -- unrooted so a
+# keystore or secrets file dropped at any depth still trips this.
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pepk
+keystore.properties
