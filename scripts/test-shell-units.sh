@@ -1419,6 +1419,174 @@ PYSHIM
         "android-sign.sh: the non-invocable-python3 preflight runs before jarsigner is ever invoked (command -v alone cannot catch this; only actually running python3 can)"
     rm -rf "$PYBROKEN_ROOT" "$PYBROKEN_JARSIGNER_LOG"
 
+    # QA-found (orchestrator-verified) B1 residual gap, retry 1: `import
+    # zipfile` alone succeeds without zlib -- android-verify-alignment.sh's
+    # read_zip_entry decompresses each base/lib/*/*.so entry
+    # (zf.open + shutil.copyfileobj), and a real signed bundle's .so
+    # entries are DEFLATE-compressed (verified directly: `zip -q -r`, the
+    # same tool build_aab uses, writes compress_type=8 for an
+    # ELF-sized member). A python3 whose `import zipfile` succeeds but
+    # whose zlib support is missing reaches exactly the destroyed-bundle
+    # incident this preflight exists to close -- jarsigner already ran,
+    # consumed the real passwords, and the alignment re-check dies deep
+    # inside android-verify-alignment.sh instead of at this script's own
+    # preflight. A PYTHONPATH-shadowed `zlib` module that raises
+    # ImportError on import is what proves the probe now exercises the
+    # actual decompression need, not merely the `zipfile` import.
+    PYNOZLIB_ROOT="$(mktemp -d)"
+    PYNOZLIB_JARSIGNER_LOG="$(mktemp)"
+    old_ifs="$IFS"
+    IFS=':'
+    for pynozlib_dir in $PATH; do
+        [ -d "$pynozlib_dir" ] || continue
+        for pynozlib_candidate in "$pynozlib_dir"/*; do
+            [ -f "$pynozlib_candidate" ] && [ -x "$pynozlib_candidate" ] || continue
+            pynozlib_name="$(basename "$pynozlib_candidate")"
+            case "$pynozlib_name" in python|python2*|python3*) continue ;; esac
+            [ -e "$PYNOZLIB_ROOT/$pynozlib_name" ] || ln -s "$pynozlib_candidate" "$PYNOZLIB_ROOT/$pynozlib_name"
+        done
+    done
+    IFS="$old_ifs"
+    rm -f "$PYNOZLIB_ROOT/jarsigner"
+    cat > "$PYNOZLIB_ROOT/jarsigner" <<EOF
+#!/usr/bin/env bash
+printf 'invoked\n' >> "$PYNOZLIB_JARSIGNER_LOG"
+exec "$REAL_JARSIGNER" "\$@"
+EOF
+    chmod +x "$PYNOZLIB_ROOT/jarsigner"
+
+    PYNOZLIB_SHIMDIR="$(mktemp -d)"
+    printf 'raise ImportError("no zlib")\n' > "$PYNOZLIB_SHIMDIR/zlib.py"
+    REAL_PYTHON3="$(command -v python3)"
+    cat > "$PYNOZLIB_ROOT/python3" <<EOF
+#!/bin/sh
+PYTHONPATH="$PYNOZLIB_SHIMDIR" exec "$REAL_PYTHON3" "\$@"
+EOF
+    chmod +x "$PYNOZLIB_ROOT/python3"
+
+    err_pynozlib="$(PATH="$PYNOZLIB_ROOT" env NDK_HOME="$SYNTH_NDK_HOME" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" 2>&1 1>/dev/null)"; status_pynozlib=$?
+    rm -f "$SIGN_ROOT/unsigned-16k-signed.aab"
+    assert_eq "2" "$status_pynozlib" \
+        "android-sign.sh: a python3 with zipfile but WITHOUT zlib exits 2 (preflight), before any signing (B1 residual)"
+    case "$err_pynozlib" in
+        *"android-sign: python3"*) msg_pynozlib="yes" ;;
+        *) msg_pynozlib="no" ;;
+    esac
+    assert_eq "yes" "$msg_pynozlib" \
+        "android-sign.sh: the zlib-less preflight names the cause under its OWN prefix, not android-verify-alignment.sh's"
+    pynozlib_jarsigner_invoked="no"
+    [ -s "$PYNOZLIB_JARSIGNER_LOG" ] && pynozlib_jarsigner_invoked="yes"
+    assert_eq "no" "$pynozlib_jarsigner_invoked" \
+        "android-sign.sh: the zlib-less preflight runs before jarsigner is ever invoked (import zipfile alone cannot catch this; only a real decompression round-trip can)"
+    rm -rf "$PYNOZLIB_ROOT" "$PYNOZLIB_JARSIGNER_LOG" "$PYNOZLIB_SHIMDIR"
+
+    # QA-found (orchestrator-verified, reproduced by the orchestrator) B3
+    # gap: `command -v keytool` tests PRESENCE, not INVOCABILITY -- the
+    # exact same shape as the python3 gap above, and closeable the same
+    # way. macOS's java_home stub is a single 37-hard-link binary shared by
+    # `java`, `javac`, `jarsigner` AND `keytool`, so a JDK-less machine
+    # passes `command -v keytool` too. keystore_alias_fingerprint runs
+    # AFTER jarsigner has already produced a freshly signed bundle (line
+    # ~139), so a present-but-non-functional keytool destroys that bundle
+    # through the identical `set -e` + EXIT-trap path.
+    KTBROKEN_ROOT="$(mktemp -d)"
+    KTBROKEN_JARSIGNER_LOG="$(mktemp)"
+    old_ifs="$IFS"
+    IFS=':'
+    for ktbroken_dir in $PATH; do
+        [ -d "$ktbroken_dir" ] || continue
+        for ktbroken_candidate in "$ktbroken_dir"/*; do
+            [ -f "$ktbroken_candidate" ] && [ -x "$ktbroken_candidate" ] || continue
+            ktbroken_name="$(basename "$ktbroken_candidate")"
+            case "$ktbroken_name" in keytool) continue ;; esac
+            [ -e "$KTBROKEN_ROOT/$ktbroken_name" ] || ln -s "$ktbroken_candidate" "$KTBROKEN_ROOT/$ktbroken_name"
+        done
+    done
+    IFS="$old_ifs"
+    rm -f "$KTBROKEN_ROOT/jarsigner"
+    cat > "$KTBROKEN_ROOT/jarsigner" <<EOF
+#!/usr/bin/env bash
+printf 'invoked\n' >> "$KTBROKEN_JARSIGNER_LOG"
+exec "$REAL_JARSIGNER" "\$@"
+EOF
+    chmod +x "$KTBROKEN_ROOT/jarsigner"
+    cat > "$KTBROKEN_ROOT/keytool" <<'KTSHIM'
+#!/bin/sh
+echo "No Java runtime present, requesting install." >&2
+exit 1
+KTSHIM
+    chmod +x "$KTBROKEN_ROOT/keytool"
+
+    err_ktbroken="$(PATH="$KTBROKEN_ROOT" env NDK_HOME="$SYNTH_NDK_HOME" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" 2>&1 1>/dev/null)"; status_ktbroken=$?
+    rm -f "$SIGN_ROOT/unsigned-16k-signed.aab"
+    assert_eq "2" "$status_ktbroken" \
+        "android-sign.sh: a present but non-invocable keytool (the macOS java_home shim's exact shape) exits 2, before any signing (B3)"
+    case "$err_ktbroken" in
+        *"android-sign: keytool"*) msg_ktbroken="yes" ;;
+        *) msg_ktbroken="no" ;;
+    esac
+    assert_eq "yes" "$msg_ktbroken" \
+        "android-sign.sh: the non-invocable-keytool preflight names the cause under its OWN prefix"
+    ktbroken_jarsigner_invoked="no"
+    [ -s "$KTBROKEN_JARSIGNER_LOG" ] && ktbroken_jarsigner_invoked="yes"
+    assert_eq "no" "$ktbroken_jarsigner_invoked" \
+        "android-sign.sh: the non-invocable-keytool preflight runs before jarsigner is ever invoked (command -v alone cannot catch this; only actually running keytool can, B3)"
+    rm -rf "$KTBROKEN_ROOT" "$KTBROKEN_JARSIGNER_LOG"
+
+    # Security-found (orchestrator-verified) B2 gap: the python3 preflight
+    # probe now EXECUTES an interpreter resolved from PATH, unlike the
+    # former `command -v python3` -- and a real subprocess inherits the
+    # full parent environment, including ANDROID_SIGN_STORE_PASSWORD /
+    # ANDROID_SIGN_KEY_PASSWORD (validated as set two lines below the
+    # probe, but already present in the environment before that
+    # validation runs). A python3 shim that records what its OWN
+    # environment actually contains is what proves the probe's child
+    # process is scoped away from both passwords, not merely that a
+    # working probe still runs.
+    ENVLOG_ROOT="$(mktemp -d)"
+    ENVLOG_FILE="$(mktemp)"
+    old_ifs="$IFS"
+    IFS=':'
+    for envlog_dir in $PATH; do
+        [ -d "$envlog_dir" ] || continue
+        for envlog_candidate in "$envlog_dir"/*; do
+            [ -f "$envlog_candidate" ] && [ -x "$envlog_candidate" ] || continue
+            envlog_name="$(basename "$envlog_candidate")"
+            case "$envlog_name" in python|python2*|python3*) continue ;; esac
+            [ -e "$ENVLOG_ROOT/$envlog_name" ] || ln -s "$envlog_candidate" "$ENVLOG_ROOT/$envlog_name"
+        done
+    done
+    IFS="$old_ifs"
+    rm -f "$ENVLOG_ROOT/jarsigner"
+    cat > "$ENVLOG_ROOT/jarsigner" <<EOF
+#!/usr/bin/env bash
+exec "$REAL_JARSIGNER" "\$@"
+EOF
+    chmod +x "$ENVLOG_ROOT/jarsigner"
+    REAL_PYTHON3_ENVLOG="$(command -v python3)"
+    cat > "$ENVLOG_ROOT/python3" <<EOF
+#!/bin/sh
+printf 'store=%s key=%s\n' "\${ANDROID_SIGN_STORE_PASSWORD:-<unset>}" "\${ANDROID_SIGN_KEY_PASSWORD:-<unset>}" >> "$ENVLOG_FILE"
+exec "$REAL_PYTHON3_ENVLOG" "\$@"
+EOF
+    chmod +x "$ENVLOG_ROOT/python3"
+
+    PATH="$ENVLOG_ROOT" env NDK_HOME="$SYNTH_NDK_HOME" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" >/dev/null 2>/dev/null
+    rm -f "$SIGN_ROOT/unsigned-16k-signed.aab"
+    probe_call_envlog="$(head -n 1 "$ENVLOG_FILE" 2>/dev/null || echo "<no call recorded>")"
+    assert_eq "store=<unset> key=<unset>" "$probe_call_envlog" \
+        "android-sign.sh: B2 -- the python3 preflight probe's own child process never sees either signing password in its environment"
+    rm -rf "$ENVLOG_ROOT" "$ENVLOG_FILE"
+
     rm -rf "$NDKPRE_ROOT" "$NDKPRE_JARSIGNER_LOG" "$NDK_EMPTY"
 
     err_usage_sign="$("$SIGN" 2>&1 1>/dev/null)"; status_usage_sign=$?
