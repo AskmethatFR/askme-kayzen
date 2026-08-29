@@ -66,7 +66,7 @@ esac
 
 command -v jarsigner >/dev/null 2>&1 || preflight_fail "jarsigner not found on PATH (needs a JDK)"
 command -v keytool >/dev/null 2>&1 || preflight_fail "keytool not found on PATH (needs a JDK)"
-command -v python3 >/dev/null 2>&1 || preflight_fail "python3 not found on PATH -- needed for the post-signing alignment re-check"
+python3 -c 'import zipfile' >/dev/null 2>&1 || preflight_fail "python3 not found or not invocable on PATH -- needed for the post-signing alignment re-check"
 
 [ -n "${ANDROID_SIGN_KEYSTORE:-}" ] || preflight_fail "ANDROID_SIGN_KEYSTORE is not set"
 case "${ANDROID_SIGN_KEYSTORE:-}" in
