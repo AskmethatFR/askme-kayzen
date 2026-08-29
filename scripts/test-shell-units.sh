@@ -1257,6 +1257,7 @@ EOF
     NDKPRE_JARSIGNER_LOG="$(mktemp)"
     cat > "$NDKPRE_ROOT/jarsigner" <<EOF
 #!/usr/bin/env bash
+case "\$1" in -help) exec "$REAL_JARSIGNER" "\$@" ;; esac
 printf 'invoked\n' >> "$NDKPRE_JARSIGNER_LOG"
 exec "$REAL_JARSIGNER" "\$@"
 EOF
@@ -1301,6 +1302,46 @@ EOF
     assert_eq "no" "$ndkwrong_jarsigner_invoked" \
         "android-sign.sh: the wrong-NDK_HOME preflight also runs before jarsigner is invoked"
 
+    # @law: macOS's java_home stub is one 37-hard-link binary shared by
+    # java/javac/jarsigner/keytool -- a JDK-less machine passes `command -v
+    # jarsigner` too, the same gap keytool (B3, below) and python3 (below)
+    # each had before their own preflight checks moved from presence to
+    # invocability.
+    JSBROKEN_ROOT="$(mktemp -d)"
+    old_ifs="$IFS"
+    IFS=':'
+    for jsbroken_dir in $PATH; do
+        [ -d "$jsbroken_dir" ] || continue
+        for jsbroken_candidate in "$jsbroken_dir"/*; do
+            [ -f "$jsbroken_candidate" ] && [ -x "$jsbroken_candidate" ] || continue
+            jsbroken_name="$(basename "$jsbroken_candidate")"
+            case "$jsbroken_name" in jarsigner) continue ;; esac
+            [ -e "$JSBROKEN_ROOT/$jsbroken_name" ] || ln -s "$jsbroken_candidate" "$JSBROKEN_ROOT/$jsbroken_name"
+        done
+    done
+    IFS="$old_ifs"
+    cat > "$JSBROKEN_ROOT/jarsigner" <<'JSSHIM'
+#!/bin/sh
+echo "No Java runtime present, requesting install." >&2
+exit 1
+JSSHIM
+    chmod +x "$JSBROKEN_ROOT/jarsigner"
+
+    err_jsbroken="$(PATH="$JSBROKEN_ROOT" env NDK_HOME="$SYNTH_NDK_HOME" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" 2>&1 1>/dev/null)"; status_jsbroken=$?
+    rm -f "$SIGN_ROOT/unsigned-16k-signed.aab"
+    assert_eq "2" "$status_jsbroken" \
+        "android-sign.sh: a present but non-invocable jarsigner (the macOS java_home shim's exact shape) exits 2, before any signing (B1)"
+    case "$err_jsbroken" in
+        *"android-sign: jarsigner"*) msg_jsbroken="yes" ;;
+        *) msg_jsbroken="no" ;;
+    esac
+    assert_eq "yes" "$msg_jsbroken" \
+        "android-sign.sh: the non-invocable-jarsigner preflight names the cause under its OWN prefix, not a signing failure (exit 1 would mean it reached real signing instead)"
+    rm -rf "$JSBROKEN_ROOT"
+
     # @algo: exit status and message text alone don't discriminate this
     # preflight from android-verify-alignment.sh's own (same exit 2, same
     # "python3 not found" text) -- only the jarsigner-invocation log below
@@ -1322,6 +1363,7 @@ EOF
     rm -f "$PYFREE_ROOT/jarsigner"
     cat > "$PYFREE_ROOT/jarsigner" <<EOF
 #!/usr/bin/env bash
+case "\$1" in -help) exec "$REAL_JARSIGNER" "\$@" ;; esac
 printf 'invoked\n' >> "$PYFREE_JARSIGNER_LOG"
 exec "$REAL_JARSIGNER" "\$@"
 EOF
@@ -1365,6 +1407,7 @@ EOF
     rm -f "$PYBROKEN_ROOT/jarsigner"
     cat > "$PYBROKEN_ROOT/jarsigner" <<EOF
 #!/usr/bin/env bash
+case "\$1" in -help) exec "$REAL_JARSIGNER" "\$@" ;; esac
 printf 'invoked\n' >> "$PYBROKEN_JARSIGNER_LOG"
 exec "$REAL_JARSIGNER" "\$@"
 EOF
@@ -1396,8 +1439,10 @@ PYSHIM
 
     # @algo: `import zipfile` alone succeeds without zlib, but
     # android-verify-alignment.sh's read_zip_entry decompresses every real
-    # base/lib/*/*.so entry (DEFLATE-compressed by `zip -q -r`, verified:
-    # it writes compress_type=8 for an ELF-sized member) -- only a real
+    # base/lib/*/*.so entry, and the production bundle's real compressor
+    # (scripts/android-bundle.sh's `gradlew bundleRelease` pass) DEFLATEs
+    # them -- verified: the owner's own signed bundle has
+    # base/lib/arm64-v8a/libmain.so at compress_type=8. Only a real
     # decompression round-trip, not a bare import, discriminates this.
     PYNOZLIB_ROOT="$(mktemp -d)"
     PYNOZLIB_JARSIGNER_LOG="$(mktemp)"
@@ -1416,6 +1461,7 @@ PYSHIM
     rm -f "$PYNOZLIB_ROOT/jarsigner"
     cat > "$PYNOZLIB_ROOT/jarsigner" <<EOF
 #!/usr/bin/env bash
+case "\$1" in -help) exec "$REAL_JARSIGNER" "\$@" ;; esac
 printf 'invoked\n' >> "$PYNOZLIB_JARSIGNER_LOG"
 exec "$REAL_JARSIGNER" "\$@"
 EOF
@@ -1469,6 +1515,7 @@ EOF
     rm -f "$KTBROKEN_ROOT/jarsigner"
     cat > "$KTBROKEN_ROOT/jarsigner" <<EOF
 #!/usr/bin/env bash
+case "\$1" in -help) exec "$REAL_JARSIGNER" "\$@" ;; esac
 printf 'invoked\n' >> "$KTBROKEN_JARSIGNER_LOG"
 exec "$REAL_JARSIGNER" "\$@"
 EOF
@@ -1502,9 +1549,16 @@ KTSHIM
     # @law: a subprocess inherits the full parent environment by default,
     # including ANDROID_SIGN_STORE_PASSWORD / ANDROID_SIGN_KEY_PASSWORD --
     # validated as set two lines below the probe, but already present in
-    # the environment before that validation runs.
+    # the environment before that validation runs. All three preflight
+    # probes (jarsigner -help, keytool -help, python3) run inside that
+    # window and must each see neither password (B2); each wrapper below
+    # logs only on `-help`, so the later SIGNING jarsigner call and the
+    # fingerprint-reading keytool call -- which legitimately receive the
+    # password via `-storepass:env`/`-keypass:env` -- never pollute the log.
     ENVLOG_ROOT="$(mktemp -d)"
-    ENVLOG_FILE="$(mktemp)"
+    ENVLOG_PY_FILE="$(mktemp)"
+    ENVLOG_JS_FILE="$(mktemp)"
+    ENVLOG_KT_FILE="$(mktemp)"
     old_ifs="$IFS"
     IFS=':'
     for envlog_dir in $PATH; do
@@ -1512,21 +1566,35 @@ KTSHIM
         for envlog_candidate in "$envlog_dir"/*; do
             [ -f "$envlog_candidate" ] && [ -x "$envlog_candidate" ] || continue
             envlog_name="$(basename "$envlog_candidate")"
-            case "$envlog_name" in python|python2*|python3*) continue ;; esac
+            case "$envlog_name" in python|python2*|python3*|jarsigner|keytool) continue ;; esac
             [ -e "$ENVLOG_ROOT/$envlog_name" ] || ln -s "$envlog_candidate" "$ENVLOG_ROOT/$envlog_name"
         done
     done
     IFS="$old_ifs"
-    rm -f "$ENVLOG_ROOT/jarsigner"
     cat > "$ENVLOG_ROOT/jarsigner" <<EOF
-#!/usr/bin/env bash
+#!/bin/sh
+case "\$1" in
+    -help)
+        printf 'store=%s key=%s\n' "\${ANDROID_SIGN_STORE_PASSWORD:-<unset>}" "\${ANDROID_SIGN_KEY_PASSWORD:-<unset>}" >> "$ENVLOG_JS_FILE"
+        ;;
+esac
 exec "$REAL_JARSIGNER" "\$@"
 EOF
     chmod +x "$ENVLOG_ROOT/jarsigner"
+    cat > "$ENVLOG_ROOT/keytool" <<EOF
+#!/bin/sh
+case "\$1" in
+    -help)
+        printf 'store=%s key=%s\n' "\${ANDROID_SIGN_STORE_PASSWORD:-<unset>}" "\${ANDROID_SIGN_KEY_PASSWORD:-<unset>}" >> "$ENVLOG_KT_FILE"
+        ;;
+esac
+exec "$REAL_KEYTOOL" "\$@"
+EOF
+    chmod +x "$ENVLOG_ROOT/keytool"
     REAL_PYTHON3_ENVLOG="$(command -v python3)"
     cat > "$ENVLOG_ROOT/python3" <<EOF
 #!/bin/sh
-printf 'store=%s key=%s\n' "\${ANDROID_SIGN_STORE_PASSWORD:-<unset>}" "\${ANDROID_SIGN_KEY_PASSWORD:-<unset>}" >> "$ENVLOG_FILE"
+printf 'store=%s key=%s\n' "\${ANDROID_SIGN_STORE_PASSWORD:-<unset>}" "\${ANDROID_SIGN_KEY_PASSWORD:-<unset>}" >> "$ENVLOG_PY_FILE"
 exec "$REAL_PYTHON3_ENVLOG" "\$@"
 EOF
     chmod +x "$ENVLOG_ROOT/python3"
@@ -1536,10 +1604,36 @@ EOF
         ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
         "$SIGN" "$UNSIGNED_AAB_16K" >/dev/null 2>/dev/null
     rm -f "$SIGN_ROOT/unsigned-16k-signed.aab"
-    probe_call_envlog="$(head -n 1 "$ENVLOG_FILE" 2>/dev/null || echo "<no call recorded>")"
-    assert_eq "store=<unset> key=<unset>" "$probe_call_envlog" \
+
+    # Non-vacuity guard (B4): a log file that stays empty because its probe
+    # never ran must not read as "no password seen" -- assert the probe
+    # actually recorded a call BEFORE comparing what it recorded.
+    # python3 is also invoked downstream by android-verify-alignment.sh's
+    # own re-check (AFTER the passwords are unset) -- only the FIRST
+    # recorded call is this script's own preflight probe, the one that
+    # matters here; head -n 1 keeps that scope, `-s` proves it exists.
+    py_log_nonempty="no"; [ -s "$ENVLOG_PY_FILE" ] && py_log_nonempty="yes"
+    assert_eq "yes" "$py_log_nonempty" \
+        "android-sign.sh: B2 -- the python3 preflight probe actually ran and logged a call (non-vacuity guard)"
+    probe_call_py="$(head -n 1 "$ENVLOG_PY_FILE" 2>/dev/null)"
+    assert_eq "store=<unset> key=<unset>" "$probe_call_py" \
         "android-sign.sh: B2 -- the python3 preflight probe's own child process never sees either signing password in its environment"
-    rm -rf "$ENVLOG_ROOT" "$ENVLOG_FILE"
+
+    probe_call_js="$(cat "$ENVLOG_JS_FILE" 2>/dev/null)"
+    js_log_nonempty="no"; [ -n "$probe_call_js" ] && js_log_nonempty="yes"
+    assert_eq "yes" "$js_log_nonempty" \
+        "android-sign.sh: B2 -- the jarsigner -help preflight probe actually ran and logged a call (non-vacuity guard)"
+    assert_eq "store=<unset> key=<unset>" "$probe_call_js" \
+        "android-sign.sh: B2 -- the jarsigner -help preflight probe's own child process never sees either signing password in its environment"
+
+    probe_call_kt="$(cat "$ENVLOG_KT_FILE" 2>/dev/null)"
+    kt_log_nonempty="no"; [ -n "$probe_call_kt" ] && kt_log_nonempty="yes"
+    assert_eq "yes" "$kt_log_nonempty" \
+        "android-sign.sh: B2 -- the keytool -help preflight probe actually ran and logged a call (non-vacuity guard)"
+    assert_eq "store=<unset> key=<unset>" "$probe_call_kt" \
+        "android-sign.sh: B2 -- the keytool -help preflight probe's own child process never sees either signing password in its environment"
+
+    rm -rf "$ENVLOG_ROOT" "$ENVLOG_PY_FILE" "$ENVLOG_JS_FILE" "$ENVLOG_KT_FILE"
 
     rm -rf "$NDKPRE_ROOT" "$NDKPRE_JARSIGNER_LOG" "$NDK_EMPTY"
 
