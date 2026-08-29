@@ -33,10 +33,13 @@
 # command that set it. Verifying a signature needs no store password at
 # all -- jarsigner -verify and `keytool -printcert -jarfile` only read
 # public certificate data -- so :env is never passed to either. The
-# python3 preflight probe below runs inside that same pre-unset window and
-# also needs neither password, so -- unlike jarsigner and keytool, which
-# only ever see the variable NAME -- it is invoked via `env -u` rather
-# than trusting that a subprocess inherits nothing it wasn't handed.
+# three preflight probes below (jarsigner -help, keytool -help, python3)
+# all run inside that same pre-unset window and each need neither password
+# -- unlike the SIGNING jarsigner call and the fingerprint-reading keytool
+# call further down, which legitimately receive the variable NAME via
+# `-storepass:env`/`-keypass:env`, none of the three probes receives even
+# the name: each is invoked via `env -u` rather than trusting that a
+# subprocess inherits nothing it wasn't handed.
 #
 # @law: the alignment re-check below (scripts/android-verify-alignment.sh,
 # unchanged, as a second call site) measures the SIGNED bundle's own bytes,
@@ -68,15 +71,16 @@ case "$AAB" in
     -*) preflight_fail "the AAB path must not start with '-': $AAB" ;;
 esac
 
-command -v jarsigner >/dev/null 2>&1 || preflight_fail "jarsigner not found on PATH (needs a JDK)"
-keytool -help >/dev/null 2>&1 || preflight_fail "keytool not found or not invocable on PATH (needs a JDK)"
+env -u ANDROID_SIGN_STORE_PASSWORD -u ANDROID_SIGN_KEY_PASSWORD jarsigner -help >/dev/null 2>&1 \
+    || preflight_fail "jarsigner not found or not invocable on PATH (needs a JDK)"
+env -u ANDROID_SIGN_STORE_PASSWORD -u ANDROID_SIGN_KEY_PASSWORD keytool -help >/dev/null 2>&1 \
+    || preflight_fail "keytool not found or not invocable on PATH (needs a JDK)"
 # @algo: the post-signing alignment re-check decompresses each
 # base/lib/*/*.so entry (android-verify-alignment.sh's read_zip_entry), and
 # a real signed bundle's .so entries are DEFLATE-compressed -- `import
 # zipfile` alone succeeds without zlib, so it cannot catch a python3
 # missing zlib support. Round-tripping a small DEFLATE-compressed entry
-# through zipfile is what actually needs zlib, the same way the check
-# above actually invokes keytool instead of merely locating it.
+# through zipfile is what actually needs zlib.
 env -u ANDROID_SIGN_STORE_PASSWORD -u ANDROID_SIGN_KEY_PASSWORD python3 -c '
 import zipfile, io
 buf = io.BytesIO()
