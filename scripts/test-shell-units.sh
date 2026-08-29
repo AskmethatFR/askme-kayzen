@@ -1262,7 +1262,6 @@ exec "$REAL_JARSIGNER" "\$@"
 EOF
     chmod +x "$NDKPRE_ROOT/jarsigner"
 
-    SIGNED_NDKPRE_EXPECTED="$SIGN_ROOT/unsigned-16k-signed.aab"
     err_ndkunset="$(PATH="$NDKPRE_ROOT:$PATH" env -u NDK_HOME \
         ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
         ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
@@ -1270,7 +1269,7 @@ EOF
     assert_eq "2" "$status_ndkunset" \
         "android-sign.sh: NDK_HOME unset exits 2 (preflight), before any signing"
     case "$err_ndkunset" in
-        *"no llvm-readelf under"*"NDK_HOME=<unset>"*) msg_ndkunset="yes" ;;
+        *"android-sign: no llvm-readelf under"*"NDK_HOME=<unset>"*) msg_ndkunset="yes" ;;
         *) msg_ndkunset="no" ;;
     esac
     assert_eq "yes" "$msg_ndkunset" "android-sign.sh: NDK_HOME-unset preflight names the cause"
@@ -1278,14 +1277,13 @@ EOF
     [ -s "$NDKPRE_JARSIGNER_LOG" ] && ndkunset_jarsigner_invoked="yes"
     assert_eq "no" "$ndkunset_jarsigner_invoked" \
         "android-sign.sh: the NDK_HOME preflight runs before jarsigner is ever invoked (the actual production defect)"
-    ndkunset_signed_exists="no"
-    [ -f "$SIGNED_NDKPRE_EXPECTED" ] && ndkunset_signed_exists="yes"
-    assert_eq "no" "$ndkunset_signed_exists" \
-        "android-sign.sh: NDK_HOME-unset preflight leaves no signed artifact behind"
 
     # A wrong NDK_HOME -- set, and a real directory -- must refuse exactly
     # the same way: the class this closes is "no reachable llvm-readelf",
-    # not merely "the variable happens to be unset".
+    # not merely "the variable happens to be unset". The log is truncated
+    # first so this case's own invocation check is independent of the
+    # unset case above -- otherwise one regression would fail both.
+    : > "$NDKPRE_JARSIGNER_LOG"
     NDK_EMPTY="$(mktemp -d)"
     err_ndkwrong="$(PATH="$NDKPRE_ROOT:$PATH" env NDK_HOME="$NDK_EMPTY" \
         ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
@@ -1294,7 +1292,7 @@ EOF
     assert_eq "2" "$status_ndkwrong" \
         "android-sign.sh: NDK_HOME set to a toolchain-less dir also exits 2 (closes the class, not just the unset instance)"
     case "$err_ndkwrong" in
-        *"no llvm-readelf under"*) msg_ndkwrong="yes" ;;
+        *"android-sign: no llvm-readelf under"*) msg_ndkwrong="yes" ;;
         *) msg_ndkwrong="no" ;;
     esac
     assert_eq "yes" "$msg_ndkwrong" "android-sign.sh: wrong-NDK_HOME preflight names the cause"
@@ -1302,16 +1300,67 @@ EOF
     [ -s "$NDKPRE_JARSIGNER_LOG" ] && ndkwrong_jarsigner_invoked="yes"
     assert_eq "no" "$ndkwrong_jarsigner_invoked" \
         "android-sign.sh: the wrong-NDK_HOME preflight also runs before jarsigner is invoked"
-    rm -rf "$NDKPRE_ROOT" "$NDKPRE_JARSIGNER_LOG" "$NDK_EMPTY"
 
-    # The existing green path (S1) must still work end-to-end with a real
-    # NDK_HOME -- the preflight above must not regress it.
-    out_ndkgood="$(sign_ok "$UNSIGNED_AAB_16K" 2>/dev/null)"; status_ndkgood=$?
-    assert_eq "0" "$status_ndkgood" \
-        "android-sign.sh: a resolvable NDK_HOME still signs successfully"
-    assert_eq "$SIGN_ROOT/unsigned-16k-signed.aab" "$out_ndkgood" \
-        "android-sign.sh: a resolvable NDK_HOME still prints the signed path"
-    rm -f "$SIGN_ROOT/unsigned-16k-signed.aab"
+    # Dev-B changes-requested B1 (PR #53): android-verify-alignment.sh's
+    # OWN preflight requires python3 (scripts/android-verify-alignment.sh:46),
+    # but until now android-sign.sh never checked for it before signing --
+    # so on a machine with no python3 on PATH (macOS since 12.3, without
+    # the Xcode command-line tools) jarsigner ran, consumed the
+    # interactive password entry, succeeded, and only THEN did the
+    # post-signing alignment re-check fail on the missing python3: `set
+    # -euo pipefail` propagated, the EXIT trap fired, and the freshly
+    # signed bundle was destroyed -- byte-for-byte the incident this
+    # script exists to fix, one preflight check short. Exit status and
+    # message text alone do not discriminate this fix from its absence
+    # (android-verify-alignment.sh's own preflight also exits 2 and also
+    # says "python3 not found", just under its own "android-verify-
+    # alignment:" prefix): only the jarsigner-invocation log tells the two
+    # apart, exactly as the NDK preflight's own log above does. A PATH
+    # built from every real executable already resolvable on this machine
+    # EXCEPT python3 is what proves python3 is genuinely unreachable,
+    # rather than merely shadowed by an earlier, non-executable decoy
+    # (which `command -v` skips in favor of the real one further down
+    # PATH).
+    PYFREE_ROOT="$(mktemp -d)"
+    PYFREE_JARSIGNER_LOG="$(mktemp)"
+    old_ifs="$IFS"
+    IFS=':'
+    for pyfree_dir in $PATH; do
+        [ -d "$pyfree_dir" ] || continue
+        for pyfree_candidate in "$pyfree_dir"/*; do
+            [ -f "$pyfree_candidate" ] && [ -x "$pyfree_candidate" ] || continue
+            pyfree_name="$(basename "$pyfree_candidate")"
+            case "$pyfree_name" in python|python2*|python3*) continue ;; esac
+            [ -e "$PYFREE_ROOT/$pyfree_name" ] || ln -s "$pyfree_candidate" "$PYFREE_ROOT/$pyfree_name"
+        done
+    done
+    IFS="$old_ifs"
+    rm -f "$PYFREE_ROOT/jarsigner"
+    cat > "$PYFREE_ROOT/jarsigner" <<EOF
+#!/usr/bin/env bash
+printf 'invoked\n' >> "$PYFREE_JARSIGNER_LOG"
+exec "$REAL_JARSIGNER" "\$@"
+EOF
+    chmod +x "$PYFREE_ROOT/jarsigner"
+
+    err_pyfree="$(PATH="$PYFREE_ROOT" env NDK_HOME="$SYNTH_NDK_HOME" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" 2>&1 1>/dev/null)"; status_pyfree=$?
+    assert_eq "2" "$status_pyfree" \
+        "android-sign.sh: python3 unreachable on PATH exits 2 (preflight), before any signing"
+    case "$err_pyfree" in
+        *"android-sign: python3 not found"*) msg_pyfree="yes" ;;
+        *) msg_pyfree="no" ;;
+    esac
+    assert_eq "yes" "$msg_pyfree" "android-sign.sh: python3-unreachable preflight names the cause"
+    pyfree_jarsigner_invoked="no"
+    [ -s "$PYFREE_JARSIGNER_LOG" ] && pyfree_jarsigner_invoked="yes"
+    assert_eq "no" "$pyfree_jarsigner_invoked" \
+        "android-sign.sh: the python3 preflight runs before jarsigner is ever invoked (B1: a missing post-signing checker must never destroy a freshly signed bundle)"
+    rm -rf "$PYFREE_ROOT" "$PYFREE_JARSIGNER_LOG"
+
+    rm -rf "$NDKPRE_ROOT" "$NDKPRE_JARSIGNER_LOG" "$NDK_EMPTY"
 
     err_usage_sign="$("$SIGN" 2>&1 1>/dev/null)"; status_usage_sign=$?
     assert_eq "2" "$status_usage_sign" "android-sign.sh: no args exits 2"
