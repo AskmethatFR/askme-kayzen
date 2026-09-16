@@ -82,7 +82,7 @@ env -u ANDROID_SIGN_STORE_PASSWORD -u ANDROID_SIGN_KEY_PASSWORD keytool -help >/
 # missing zlib support. Round-tripping a small DEFLATE-compressed entry
 # through zipfile is what actually needs zlib.
 env -u ANDROID_SIGN_STORE_PASSWORD -u ANDROID_SIGN_KEY_PASSWORD python3 -c '
-import zipfile, io
+import zlib, zipfile, io
 buf = io.BytesIO()
 with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
     zf.writestr("probe", b"probe")
