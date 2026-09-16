@@ -1468,7 +1468,16 @@ EOF
     chmod +x "$PYNOZLIB_ROOT/jarsigner"
 
     PYNOZLIB_SHIMDIR="$(mktemp -d)"
-    printf 'raise ImportError("no zlib")\n' > "$PYNOZLIB_SHIMDIR/zlib.py"
+    cat > "$PYNOZLIB_SHIMDIR/sitecustomize.py" <<'PYEOF'
+import sys as _sys
+class _BlockZlib:
+    def find_spec(self, name, path, target=None):
+        if name == 'zlib':
+            raise ImportError('no zlib')
+        return None
+_sys.meta_path.insert(0, _BlockZlib())
+_sys.modules.pop('zlib', None)
+PYEOF
     REAL_PYTHON3="$(command -v python3)"
     cat > "$PYNOZLIB_ROOT/python3" <<EOF
 #!/bin/sh
