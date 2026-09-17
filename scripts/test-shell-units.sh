@@ -624,11 +624,15 @@ esac
 upper="\$(printf '%s' "\$step" | tr 'a-z' 'A-Z')"
 status_var="CURL_SHIM_\${upper}_STATUS"
 body_var="CURL_SHIM_\${upper}_BODY"
+exit_var="CURL_SHIM_\${upper}_EXIT"
 status="\${!status_var:-200}"
 body="\${!body_var:-}"
 printf '%s %s %s\n' "\$method" "\$step" "\$url" >> "$CURL_SHIM_CALL_LOG"
 [ -n "\$body_out" ] && printf '%s' "\$body" > "\$body_out"
 printf '%s' "\$status"
+if [ -n "\${!exit_var:-}" ]; then
+    exit "\${!exit_var}"
+fi
 exit "\${CURL_SHIM_EXIT:-0}"
 EOF
     chmod +x "$shim_dir/curl"
@@ -768,6 +772,41 @@ track_notoken_called_curl="no"
 assert_eq "no" "$track_notoken_called_curl" \
     "android-play-track.sh: an unset token refuses before any request is made"
 
+# A 2xx insert whose body carries no edit id is not a usable edit: reading on
+# would mean inventing an id, and the API would 404 on it far from the cause.
+: > "$CURL_SHIM_ARGV_LOG"
+err_track_noid="$(PATH="$PLAY_SHIM_DIR:$PATH" env PLAY_ACCESS_TOKEN="$PLAY_TOKEN" \
+    CURL_SHIM_INSERT_BODY='{"unexpected":"shape"}' \
+    "$PLAY_TRACK" 2>&1 1>/dev/null)"; status_track_noid=$?
+assert_eq "1" "$status_track_noid" \
+    "android-play-track.sh: an edit-insert response without an id is a refusal"
+case "$err_track_noid" in
+    *"edit id"*) msg_track_noid="yes" ;;
+    *) msg_track_noid="no" ;;
+esac
+assert_eq "yes" "$msg_track_noid" \
+    "android-play-track.sh: the missing-edit-id refusal says what was missing"
+track_noid_read_track="no"
+grep -q 'tracks/internal' "$CURL_SHIM_ARGV_LOG" && track_noid_read_track="yes"
+assert_eq "no" "$track_noid_read_track" \
+    "android-play-track.sh: no track read is attempted on an id-less edit"
+
+# A read-only edit that could not be deleted is a WARNING, not a failure: the
+# codes were read successfully, and Play expires the edit on its own. Failing
+# the preflight here would refuse a release for a housekeeping hiccup.
+err_track_delfail="$(PATH="$PLAY_SHIM_DIR:$PATH" env PLAY_ACCESS_TOKEN="$PLAY_TOKEN" \
+    CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" CURL_SHIM_TRACK_BODY="$TRACK_ONE_CODE" \
+    CURL_SHIM_DELETE_STATUS=500 \
+    "$PLAY_TRACK" 2>&1 1>/dev/null)"; status_track_delfail=$?
+assert_eq "0" "$status_track_delfail" \
+    "android-play-track.sh: a failed edit delete does not fail a read that succeeded"
+case "$err_track_delfail" in
+    *"could not delete the Play edit"*) msg_track_delfail="yes" ;;
+    *) msg_track_delfail="no" ;;
+esac
+assert_eq "yes" "$msg_track_delfail" \
+    "android-play-track.sh: the undeletable edit is reported on stderr"
+
 rm -rf "$PLAY_SHIM_DIR"
 
 # --- android-preflight.sh (AC 2/5/6/7/13) ---------------------------------
@@ -906,6 +945,23 @@ case "$err_preflight_collision" in
 esac
 assert_eq "yes" "$msg_preflight_collision" \
     "android-preflight.sh: the collision refusal names the colliding versionCode (AC 7)"
+
+# A collision query that cannot RUN is a preflight failure (exit 2), the same
+# class the query script itself reports -- it is not "the release is in the
+# wrong state" (exit 1), and above all it must never read as "the track is
+# empty", which would green-light an upload straight into a collision.
+err_preflight_notoken="$(env -u PLAY_ACCESS_TOKEN \
+    PATH="$PREFLIGHT_SHIM_DIR:$PATH" \
+    GITHUB_REF="refs/heads/main" GITHUB_SHA="$(git -C "$PREFLIGHT_REPO" rev-parse HEAD)" \
+    "$PLAY_PREFLIGHT" "$PREFLIGHT_REPO" 2>&1 1>/dev/null)"; status_preflight_notoken=$?
+assert_eq "2" "$status_preflight_notoken" \
+    "android-preflight.sh: a track query that cannot run (no token) propagates exit 2 (preflight)"
+case "$err_preflight_notoken" in
+    *"could not run"*) msg_preflight_notoken="yes" ;;
+    *) msg_preflight_notoken="no" ;;
+esac
+assert_eq "yes" "$msg_preflight_notoken" \
+    "android-preflight.sh: the unrunnable query says so instead of reporting a collision verdict"
 
 : > "$PLAY_PREFLIGHT_SUMMARY"
 : > "$PLAY_PREFLIGHT_OUTPUT"
@@ -1149,6 +1205,34 @@ publish_step_failure "a refused edit-insert (HTTP 500)" CURL_SHIM_INSERT_STATUS 
 publish_step_failure "a refused bundle upload (HTTP 400)" CURL_SHIM_UPLOAD_STATUS 400 "bundle-upload"
 publish_step_failure "a refused track update (HTTP 500)" CURL_SHIM_TRACKUPDATE_STATUS 500 "track-update"
 publish_step_failure "a refused edit commit (HTTP 409)" CURL_SHIM_COMMIT_STATUS 409 "edit-commit"
+
+# A transport failure is not an HTTP status: curl exits without ever seeing
+# one, and the operator's next move (check the Console, then decide) is a
+# different one from a store refusal. The upload is the step where that
+# distinction costs the most -- the bundle may or may not have arrived.
+reset_publish_logs
+err_publish_transport="$(env CURL_SHIM_UPLOAD_EXIT=7 \
+    PATH="$PUBLISH_SHIM_DIR:$PATH" PLAY_ACCESS_TOKEN="$PLAY_TOKEN" \
+    CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" \
+    "$PUBLISH" "$PUBLISH_AAB" "0.0.2" "2" 2>&1 1>/dev/null)"; status_publish_transport=$?
+assert_eq "1" "$status_publish_transport" \
+    "android-publish.sh: a transport failure during the upload fails the run (AC 14)"
+case "$err_publish_transport" in
+    *"bundle-upload"*) msg_publish_transport_step="yes" ;;
+    *) msg_publish_transport_step="no" ;;
+esac
+assert_eq "yes" "$msg_publish_transport_step" \
+    "android-publish.sh: a transport failure during the upload names the step"
+case "$err_publish_transport" in
+    *"transport"*) msg_publish_transport_kind="yes" ;;
+    *) msg_publish_transport_kind="no" ;;
+esac
+assert_eq "yes" "$msg_publish_transport_kind" \
+    "android-publish.sh: a transport failure is named as transport, not as an HTTP status"
+publish_transport_no_commit="yes"
+grep -q 'POST commit' "$CURL_SHIM_CALL_LOG" && publish_transport_no_commit="no"
+assert_eq "yes" "$publish_transport_no_commit" \
+    "android-publish.sh: a transport failure during the upload never proceeds to the commit"
 
 # AC 16 -- a failure stops the flow: nothing after the failed step runs. The
 # upload failure is the sharp one: its bundle has already been sent, so the
