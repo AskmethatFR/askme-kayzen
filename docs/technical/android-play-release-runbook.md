@@ -3,7 +3,7 @@ id: "android-play-release-runbook"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-08-27"
+updated: "2026-09-17"
 relations:
   related:
     - "adr-0019-android-release-bundle-seam"
@@ -17,6 +17,7 @@ answers:
   - "What must exist on the Play side before an automated publish can work at all?"
   - "When is a slice that depends on the store DONE, if no test can reach the store?"
   - "A publish half-failed — what is the recovery?"
+  - "How is the automated publish started, what gates it, and what does it refuse?"
 ---
 
 # Runbook — the first Google Play upload, and the release path it unlocks
@@ -91,9 +92,9 @@ Confirm the release shows the expected `versionCode` before finalising. After th
 
 **6 — Attest it.** Paste the outcome back into the issue in plain text: the version uploaded, the `versionCode` the Console shows, the track, and the date. Until that record exists, the automated publish slice has not started — see the two-leg rule above.
 
-## What the automated publish needs before it can exist
+## The Play-side prerequisites (one-time, outside this repository)
 
-Four Play-side prerequisites, each independently checkable, all outside this repository:
+Four prerequisites, each independently checkable, all outside this repository:
 
 1. A GCP project.
 2. The Play Android Developer API enabled on it.
@@ -102,17 +103,67 @@ Four Play-side prerequisites, each independently checkable, all outside this rep
 
 **A service account that exists in GCP but was never invited in the Play Console can publish nothing.** It authenticates successfully and is refused at the store, which reads as a credential problem and is not one. Check the invitation, not only the key.
 
-Two properties of the eventual publish path are decided and belong here rather than in whatever workflow file expresses them:
+## S4 — the automated publish
 
-- **Only a `v*` tag reachable from `main` publishes.** A fork contributor can prove the unsigned build and nothing more. This is intended design, not a limitation to be fixed later.
-- **The run is attested.** `actions/attest-build-provenance` runs on the signed bundle, producing the runner→Play provenance record for the hand-over.
+The publish path is one workflow, `.github/workflows/release.yml`, and three scripts that carry every decision the workflow must not make. It is **not** a replacement for the procedure above on a *new app*: the Play API cannot create an app's first release, so the first upload stays human (see the two-leg rule).
 
-## What is not yet true
+**How it is started.** Manually, from the Actions tab: *Play release* → *Run workflow*, on `main`. Two gates stand in front of it, and neither is a formality:
 
-Stated plainly, so no step below is mistaken for routine:
+- **`workflow_dispatch` only, and only on `main`.** A tag push cannot start it; a tag is a ref a contributor can move, a dispatch is an explicit act on a named ref.
+- **The `play-release` Environment requires a reviewer's approval.** The signing key and the Play credential are reachable only from that job, and no job a pull request can trigger references it.
 
-- **No bundle has ever been uploaded to Play.** Steps 5 and 6 have not been performed, and the `versionCode` floor is therefore **not yet set** — it is still a choice, not a fact.
-- **Play App Signing is not enabled**, and Google holds no key for this app. The custody arrangement above describes what step 5 establishes, not what is in force today.
-- **The automated publish slice does not exist.** No workflow signs, attests or uploads anything. The four prerequisites above are unverified.
+**What the run does, in order** — everything refusal-shaped happens before the first build:
 
-Steps 1 and 2 have landed: the upload keystore exists outside the repository, and the workspace version sits at `0.0.1`, ahead of the upload it exists to protect.
+```
+preflight (ref → version → tag → versionCode collision)
+  → build the unsigned, 16 KB-aligned AAB
+  → sign it with the upload key, and verify the keystore is the CONFIGURED one
+  → attest the signed bundle (actions/attest-build-provenance)
+  → publish it to internal testing as a DRAFT release
+```
+
+Nothing writes to the store before the commit at the end of that publish, and the release is left as a **draft**: a human starts the rollout in the Console. That is the only undo this pipeline has.
+
+**The tag is a consistency gate, not a trigger.** The run refuses unless a tag named exactly `v<version>` exists *and* points at the commit being released. The version itself comes from `Cargo.toml` through the frozen function ([[adr-0019-android-release-bundle-seam]]) — never from the tag.
+
+| run fails at | human action | recovery |
+|---|---|---|
+| ref refusal (dispatch not on `main`) | dispatch from `main` | none needed |
+| refused version | fix `Cargo.toml` | new version + tag |
+| tag missing / misplaced | create or retag `v<version>` at the intended commit — **the version is not yet burned**, nothing was built | re-tag, or new version + tag |
+| `versionCode` collision | read the colliding code from the message; if the code is genuinely wanted, the version must increase | new version + tag |
+| signing failure | the message names the cause (wrong password / alias / keystore, or a keystore that is not the configured upload key) — Play was never reached | fix, re-dispatch the same version |
+| credential rejection | check the service-account **invitation** in the Play Console, not only the key | fix, re-dispatch the same version |
+| Play rejection (the store refused the bundle) | inspect the Console; the `versionCode` **may** now be burned even though the run failed | treat as half-failed: new version + tag, unless the Console confirms nothing arrived |
+| quota / transport failure after the upload started | inspect the Console for the `versionCode`; re-dispatch the same version **only** if the Console confirms nothing arrived | otherwise new version + tag |
+| attestation missing but the upload green | provenance is recoverable by re-attesting locally; Play state is unaffected | re-run the attestation only, never the upload |
+
+**Recovery from a failed or partial publish is a new version and a new tag — never a re-dispatch on the same version**, with the sole exception of a case where the Console confirms nothing arrived. Play burns a `versionCode` permanently once it accepts it, and the run itself refuses a code the internal track already carries.
+
+**If the run failed at or after signing**, the signed AAB and its attestation are published as a workflow artifact (`kayzen-signed-aab-<version>`), so "a bad bundle" can be told from "the transport died" without rebuilding something that must not be rebuilt.
+
+**What the run summary states**, without opening a log: the version and derived `versionCode`, the tag and the commit it was verified at, the configured upload-key SHA-256 fingerprint (public — exempt from redaction), and the upload outcome or the step that failed.
+
+**Attest the run.** Paste this on issue #28 once the release is visible on the internal track:
+
+```
+## Automated publish attestation
+
+- **Run URL**: <link to the workflow run>
+- **Version**: <version> (versionCode <code>)
+- **Tag**: v<version> at <commit>
+- **Track**: internal testing, release status draft
+- **Internal-track release**: <link to the release in the Play Console>
+- **Upload-key fingerprint**: <as printed in the run summary>
+- **Date**: <YYYY-MM-DD>
+```
+
+Until that record exists, the slice that built this workflow is not DONE — the two-leg rule above applies to a dispatch exactly as it applies to a hand upload.
+
+## What is true now, and what still rests on a human record
+
+Stated plainly, so nothing here is mistaken for routine:
+
+- **Steps 1 and 2 have landed.** The upload keystore exists outside the repository, and the workspace version sits at `0.0.1` — ahead of the upload it exists to protect.
+- **The automated publish path now exists**: one workflow and three scripts, with every refusal above checked before the first build step and exercised by `scripts/test-shell-units.sh`. What no local test can reach — that a real dispatch actually publishes, that the Environment gate really stops a non-reviewer, that Play accepts the bundle — is runbook-attested on issue #28 rather than dressed up as covered.
+- **The `versionCode` floor and the Play App Signing custody arrangement come from the first upload Play accepts** (steps 5 and 6 of the procedure). The Console is the only place those facts are visible; this repository cannot read them, which is why the workflow refuses a code the internal track already carries instead of trusting a number written down here.
