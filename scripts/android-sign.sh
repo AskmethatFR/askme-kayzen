@@ -16,6 +16,13 @@
 # Also reads NDK_HOME (no default -- must already be set, same contract as
 # scripts/android-verify-alignment.sh).
 #
+# Optionally reads ANDROID_SIGN_EXPECTED_FINGERPRINT: when it is SET -- even
+# to the empty string -- the signing alias's certificate fingerprint must
+# equal it before anything is signed. This is the only check that catches
+# "the operator stored the wrong keystore in the secret", since a keystore's
+# own alias always matches its own certificate. Unset, this script behaves
+# exactly as it did before the gate existed.
+#
 # @law: jarsigner's and keytool's `-storepass:env NAME` / `-keypass:env
 # NAME` read the NAMED environment variable's value themselves -- this
 # script puts only the variable NAME on their argv and never expands
@@ -114,6 +121,23 @@ for candidate in "${NDK_HOME:-/nonexistent}"/toolchains/llvm/prebuilt/*/bin/llvm
 done
 [ "$ndk_readelf_found" = "yes" ] \
     || preflight_fail "no llvm-readelf under \$NDK_HOME/toolchains/llvm/prebuilt/*/bin (NDK_HOME=${NDK_HOME:-<unset>}) -- needed for the post-signing alignment re-check"
+
+# @law: ANDROID_SIGN_EXPECTED_FINGERPRINT is tested with `${...+x}`, never
+# with `-n`. SET-BUT-EMPTY is a configured-and-broken secret, and `-n` would
+# silently read it as "no gate configured" -- the one direction this check
+# exists to refuse (an empty expected fingerprint compared against an empty
+# read-back would also match both strings). The comparison runs here, before
+# the output path is even named, so a wrong keystore costs no signing work
+# and leaves no artifact behind.
+if [ -n "${ANDROID_SIGN_EXPECTED_FINGERPRINT+x}" ]; then
+    echo "==> checking alias '$ANDROID_SIGN_KEY_ALIAS' against ANDROID_SIGN_EXPECTED_FINGERPRINT" >&2
+    configured_fingerprint="$(keystore_alias_fingerprint "$ANDROID_SIGN_KEYSTORE" "$ANDROID_SIGN_KEY_ALIAS" ANDROID_SIGN_STORE_PASSWORD 2>&1)" \
+        || fail "could not read the certificate fingerprint for alias '$ANDROID_SIGN_KEY_ALIAS' in $ANDROID_SIGN_KEYSTORE: $configured_fingerprint"
+    fingerprint_gate_out="$(fingerprint_matches_expected "$configured_fingerprint" "$ANDROID_SIGN_EXPECTED_FINGERPRINT" 2>&1)" \
+        && fingerprint_gate_status=0 || fingerprint_gate_status=$?
+    [ "$fingerprint_gate_status" -eq 0 ] \
+        || fail "$fingerprint_gate_out (keystore $ANDROID_SIGN_KEYSTORE, alias '$ANDROID_SIGN_KEY_ALIAS')"
+fi
 
 SIGNED_AAB="${AAB%.aab}-signed.aab"
 rm -f "$SIGNED_AAB"

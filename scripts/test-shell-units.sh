@@ -446,6 +446,867 @@ esac
 assert_eq "yes" "$nonnumeric_says_nonnumeric" \
     "min_load_alignment: non-numeric-Align refusal names the right cause"
 
+# --- fingerprint_matches_expected (D5) ------------------------------------
+# @law: an EMPTY fingerprint on either side must never compare equal.
+# ADR-0020 records this repo's empty-value trap: an empty expected
+# fingerprint would otherwise be matched by an equally empty actual one, and
+# a keystore secret that decoded to nothing would then pass a gate whose
+# whole purpose is to refuse it. The refusal is the gate.
+FP_A="AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99"
+FP_B="DE:AD:BE:EF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB"
+
+fingerprint_matches_expected "$FP_A" "$FP_A" 2>/dev/null
+assert_eq "0" "$?" "fingerprint_matches_expected: identical fingerprints match"
+fingerprint_matches_expected "$FP_A" "$FP_B" 2>/dev/null
+assert_eq "1" "$?" "fingerprint_matches_expected: different fingerprints do not match"
+
+assert_refuses "fingerprint_matches_expected: empty actual" \
+    -- fingerprint_matches_expected "" "$FP_A"
+assert_refuses "fingerprint_matches_expected: empty expected" \
+    -- fingerprint_matches_expected "$FP_A" ""
+assert_refuses "fingerprint_matches_expected: both empty" \
+    -- fingerprint_matches_expected "" ""
+
+fp_mismatch_msg="$(fingerprint_matches_expected "$FP_A" "$FP_B" 2>&1 1>/dev/null)"
+fp_names_both="no"
+case "$fp_mismatch_msg" in *"$FP_A"*"$FP_B"*) fp_names_both="yes" ;; esac
+assert_eq "yes" "$fp_names_both" \
+    "fingerprint_matches_expected: the mismatch refusal names both fingerprints"
+
+fp_empty_msg="$(fingerprint_matches_expected "$FP_A" "" 2>&1 1>/dev/null)"
+fp_empty_says_empty="no"
+case "$fp_empty_msg" in *"empty"*) fp_empty_says_empty="yes" ;; esac
+assert_eq "yes" "$fp_empty_says_empty" \
+    "fingerprint_matches_expected: an empty expected fingerprint is refused AS empty, never as a plain mismatch"
+
+fp_empty_actual_msg="$(fingerprint_matches_expected "" "$FP_A" 2>&1 1>/dev/null)"
+fp_empty_actual_says_empty="no"
+case "$fp_empty_actual_msg" in *"empty"*) fp_empty_actual_says_empty="yes" ;; esac
+assert_eq "yes" "$fp_empty_actual_says_empty" \
+    "fingerprint_matches_expected: an empty actual fingerprint is refused AS empty, never as a plain mismatch"
+
+# --- write_play_auth_header_file (D3, AC 17) -------------------------------
+# @law: the Play access token reaches curl through a header FILE, never
+# through argv -- /proc/*/cmdline is readable by any process on the runner,
+# so an Authorization header on the command line is a live token handed to
+# every neighbour of the job. The `set +x` subshell below is the other half:
+# a trace of the one expansion that carries the value would put it in the
+# job log.
+PLAY_TRACE_TOKEN="play-trace-token-must-not-leak"
+PLAY_TRACE_DIR="$(mktemp -d)"
+PLAY_TRACE_OUT="$(PLAY_ACCESS_TOKEN="$PLAY_TRACE_TOKEN" bash -x -c "
+source '$ROOT/scripts/android-release-lib.sh'
+write_play_auth_header_file '$PLAY_TRACE_DIR/header' PLAY_ACCESS_TOKEN
+" 2>&1)"
+play_trace_written="no"
+[ -f "$PLAY_TRACE_DIR/header" ] && play_trace_written="yes"
+assert_eq "yes" "$play_trace_written" \
+    "write_play_auth_header_file: writes the header file it was handed"
+assert_eq "Authorization: Bearer $PLAY_TRACE_TOKEN" "$(cat "$PLAY_TRACE_DIR/header")" \
+    "write_play_auth_header_file: the file carries the bearer token from the named variable"
+play_token_in_trace="no"
+case "$PLAY_TRACE_OUT" in *"$PLAY_TRACE_TOKEN"*) play_token_in_trace="yes" ;; esac
+assert_eq "no" "$play_token_in_trace" \
+    "write_play_auth_header_file: a bash -x trace never prints the token (D3/AC 17)"
+rm -rf "$PLAY_TRACE_DIR"
+
+# --- version_codes_from_track_json / track_contains_version_code (AC 7) ---
+# The collision decision is a pure set-membership question; the HTTP that
+# feeds it is a separate, shim-replaceable script below. Splitting them is
+# what makes "the code is already on the track" provable without a network.
+track_json_codes_joined() {
+    printf '%s' "$1" | version_codes_from_track_json | tr '\n' ','
+}
+track_json_codes() { printf '%s' "$1" | version_codes_from_track_json; }
+
+assert_eq "1,2," "$(track_json_codes_joined '{"track":"internal","releases":[{"versionCodes":["1","2"],"status":"completed"}]}')" \
+    "version_codes_from_track_json: a populated track prints one code per line"
+assert_eq "1,2,3," "$(track_json_codes_joined '{"track":"internal","releases":[{"versionCodes":["1"]},{"versionCodes":["2","3"]}]}')" \
+    "version_codes_from_track_json: every release in the track contributes its codes"
+assert_eq "" "$(track_json_codes_joined '{"track":"internal"}')" \
+    "version_codes_from_track_json: a track with no releases key yields no codes"
+assert_eq "" "$(track_json_codes_joined '{"track":"internal","releases":[]}')" \
+    "version_codes_from_track_json: an empty releases list yields no codes"
+assert_eq "" "$(track_json_codes_joined '{"track":"internal","releases":[{"status":"completed"}]}')" \
+    "version_codes_from_track_json: a release without versionCodes yields no codes"
+
+# Non-vacuity: "no codes" must be a SUCCESS with empty output, never a
+# refusal that happens to print nothing -- a caller treating the two alike
+# would read a broken query as an empty track and upload straight into a
+# collision.
+track_json_codes '{"track":"internal","releases":[]}' >/dev/null
+assert_eq "0" "$?" \
+    "version_codes_from_track_json: an empty track is a success, not a refusal"
+
+assert_refuses "version_codes_from_track_json: malformed JSON" -- track_json_codes '{'
+assert_refuses "version_codes_from_track_json: empty input" -- track_json_codes ''
+assert_refuses "version_codes_from_track_json: top-level array" -- track_json_codes '[]'
+assert_refuses "version_codes_from_track_json: releases is not a list" -- track_json_codes '{"releases":{}}'
+assert_refuses "version_codes_from_track_json: a release entry is not an object" -- track_json_codes '{"releases":["x"]}'
+assert_refuses "version_codes_from_track_json: versionCodes is not a list" -- track_json_codes '{"releases":[{"versionCodes":"1"}]}'
+
+track_malformed_msg="$(track_json_codes '{' 2>&1 1>/dev/null)"
+track_malformed_says_json="no"
+case "$track_malformed_msg" in *"not valid JSON"*) track_malformed_says_json="yes" ;; esac
+assert_eq "yes" "$track_malformed_says_json" \
+    "version_codes_from_track_json: a malformed body is refused as malformed, not as a missing field"
+
+track_shape_msg="$(track_json_codes '{"releases":{}}' 2>&1 1>/dev/null)"
+track_shape_names_field="no"
+case "$track_shape_msg" in *"releases"*) track_shape_names_field="yes" ;; esac
+assert_eq "yes" "$track_shape_names_field" \
+    "version_codes_from_track_json: a wrong-shaped field is refused naming that field"
+
+track_codes_contain() { printf '%s' "$1" | track_contains_version_code "$2"; }
+
+track_codes_contain $'1\n2\n' 2
+assert_eq "0" "$?" "track_contains_version_code: a code present in the set matches"
+track_codes_contain $'1\n2\n' 3
+assert_eq "1" "$?" "track_contains_version_code: a code absent from the set does not match"
+track_codes_contain "" 1
+assert_eq "1" "$?" "track_contains_version_code: an empty set matches nothing"
+track_codes_contain $'10\n' 1
+assert_eq "1" "$?" "track_contains_version_code: membership is exact, never a substring match"
+
+# --- android-play-track.sh (AC 7, D1/D3) ----------------------------------
+# The HTTP is replaced by a curl shim that records every argv it was handed,
+# so "the token never reached argv" is proven on the real call path rather
+# than inferred from reading the script.
+PLAY_TRACK="$ROOT/scripts/android-play-track.sh"
+PLAY_TOKEN="play-access-token-2e7c"
+PLAY_REAL_CURL="$(command -v curl)"
+CURL_SHIM_ARGV_LOG="$(mktemp)"
+CURL_SHIM_HEADER_LOG="$(mktemp)"
+CURL_SHIM_BODY_LOG="$(mktemp)"
+CURL_SHIM_CALL_LOG="$(mktemp)"
+export CURL_SHIM_ARGV_LOG CURL_SHIM_HEADER_LOG CURL_SHIM_BODY_LOG CURL_SHIM_CALL_LOG
+
+# One curl shim for every Play API script below. It records each argv it was
+# handed (so "the token never reached argv" is provable on the real call
+# path), captures the contents of the authorization HEADER FILE it was given
+# (so the token is proven to arrive by file, not merely absent from argv),
+# and answers each API call from a fixture keyed on the URL -- so a call the
+# script should never make (a track other than internal) is answered with a
+# status no real server returns, and the run fails loudly instead of passing
+# on a fixture that was never meant for it.
+make_curl_shim() {
+    local shim_dir="$1"
+    cat > "$shim_dir/curl" <<EOF
+#!/usr/bin/env bash
+case "\${1:-}" in --version) exec "$PLAY_REAL_CURL" "\$@" ;; esac
+printf '%s\n' "\$@" >> "$CURL_SHIM_ARGV_LOG"
+method=""; body_out=""; header_file=""; url=""; request_body=""
+prev=""
+for a in "\$@"; do
+    case "\$prev" in
+        -X) method="\$a" ;;
+        -o) body_out="\$a" ;;
+        -H) case "\$a" in @*) header_file="\${a#@}" ;; esac ;;
+        --data-binary|-d|--data) case "\$a" in @*) : ;; *) request_body="\$a" ;; esac ;;
+    esac
+    case "\$a" in http://*|https://*) url="\$a" ;; esac
+    prev="\$a"
+done
+if [ -n "\$header_file" ] && [ -f "\$header_file" ]; then
+    cat "\$header_file" >> "$CURL_SHIM_HEADER_LOG"
+fi
+if [ -n "\$request_body" ]; then
+    printf '%s\n' "\$request_body" >> "$CURL_SHIM_BODY_LOG"
+fi
+step="unknown"
+case "\$url" in
+    */edits) step="insert" ;;
+    *uploadType=media*) step="upload" ;;
+    */tracks/internal) case "\$method" in PUT) step="trackupdate" ;; *) step="track" ;; esac ;;
+    *:commit) step="commit" ;;
+    *) case "\$method" in DELETE) step="delete" ;; esac ;;
+esac
+upper="\$(printf '%s' "\$step" | tr 'a-z' 'A-Z')"
+status_var="CURL_SHIM_\${upper}_STATUS"
+body_var="CURL_SHIM_\${upper}_BODY"
+status="\${!status_var:-200}"
+body="\${!body_var:-}"
+printf '%s %s %s\n' "\$method" "\$step" "\$url" >> "$CURL_SHIM_CALL_LOG"
+[ -n "\$body_out" ] && printf '%s' "\$body" > "\$body_out"
+printf '%s' "\$status"
+exit "\${CURL_SHIM_EXIT:-0}"
+EOF
+    chmod +x "$shim_dir/curl"
+}
+
+# An UNKNOWN url must never answer 200 -- that is what makes "the script
+# called an endpoint it should not have" a red test rather than a silent
+# pass on a fixture that happens to look right.
+export CURL_SHIM_UNKNOWN_STATUS=599
+
+PLAY_SHIM_DIR="$(mktemp -d)"
+make_curl_shim "$PLAY_SHIM_DIR"
+
+TRACK_EDIT_BODY='{"id":"edit-42","expiryTimeSeconds":"123"}'
+TRACK_ONE_CODE='{"track":"internal","releases":[{"versionCodes":["1"],"status":"completed"}]}'
+
+: > "$CURL_SHIM_ARGV_LOG"
+out_track_ok="$(PATH="$PLAY_SHIM_DIR:$PATH" env PLAY_ACCESS_TOKEN="$PLAY_TOKEN" \
+    CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" CURL_SHIM_TRACK_BODY="$TRACK_ONE_CODE" \
+    "$PLAY_TRACK" 2>/dev/null)"; status_track_ok=$?
+assert_eq "0" "$status_track_ok" \
+    "android-play-track.sh: a clean query exits 0"
+assert_eq "1," "$(printf '%s\n' "$out_track_ok" | tr '\n' ',')" \
+    "android-play-track.sh: the internal track's codes reach stdout, one per line"
+track_opened_edit="no"
+grep -q '^https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.askmethat.kayzen/edits$' "$CURL_SHIM_ARGV_LOG" \
+    && track_opened_edit="yes"
+assert_eq "yes" "$track_opened_edit" \
+    "android-play-track.sh: the edit is opened for the real package id"
+track_read_track="no"
+grep -q '/edits/edit-42/tracks/internal$' "$CURL_SHIM_ARGV_LOG" && track_read_track="yes"
+assert_eq "yes" "$track_read_track" \
+    "android-play-track.sh: the read targets the track id the insert returned, on the internal track"
+track_deleted_edit="no"
+grep -q '^DELETE$' "$CURL_SHIM_ARGV_LOG" && track_deleted_edit="yes"
+assert_eq "yes" "$track_deleted_edit" \
+    "android-play-track.sh: the read edit is deleted before exit"
+track_used_header_file="no"
+grep -q '^@' "$CURL_SHIM_ARGV_LOG" && track_used_header_file="yes"
+assert_eq "yes" "$track_used_header_file" \
+    "android-play-track.sh: the authorization header travels as a file, not as an argv value"
+track_argv_has_token="no"
+grep -qF "$PLAY_TOKEN" "$CURL_SHIM_ARGV_LOG" && track_argv_has_token="yes"
+assert_eq "no" "$track_argv_has_token" \
+    "android-play-track.sh: the access token never appears on any argv (D3)"
+track_header_has_token="no"
+grep -qF "Authorization: Bearer $PLAY_TOKEN" "$CURL_SHIM_HEADER_LOG" && track_header_has_token="yes"
+assert_eq "yes" "$track_header_has_token" \
+    "android-play-track.sh: the token does reach curl, through the header file (kills the drop-the-header mutant)"
+
+: > "$CURL_SHIM_ARGV_LOG"
+out_track_empty="$(PATH="$PLAY_SHIM_DIR:$PATH" env PLAY_ACCESS_TOKEN="$PLAY_TOKEN" \
+    CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" CURL_SHIM_TRACK_BODY='{"track":"internal"}' \
+    "$PLAY_TRACK" 2>/dev/null)"; status_track_empty=$?
+assert_eq "0" "$status_track_empty" \
+    "android-play-track.sh: a track with no releases exits 0"
+assert_eq "" "$out_track_empty" \
+    "android-play-track.sh: a track with no releases prints nothing on stdout"
+
+: > "$CURL_SHIM_ARGV_LOG"
+err_track_malformed="$(PATH="$PLAY_SHIM_DIR:$PATH" env PLAY_ACCESS_TOKEN="$PLAY_TOKEN" \
+    CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" CURL_SHIM_TRACK_BODY='{"track":' \
+    "$PLAY_TRACK" 2>&1 1>/dev/null)"; status_track_malformed=$?
+assert_eq "1" "$status_track_malformed" \
+    "android-play-track.sh: an unparseable track body is a refusal, never an empty track"
+case "$err_track_malformed" in
+    *"not valid JSON"*) msg_track_malformed="yes" ;;
+    *) msg_track_malformed="no" ;;
+esac
+assert_eq "yes" "$msg_track_malformed" \
+    "android-play-track.sh: the unparseable-body refusal names the parse failure"
+track_malformed_deleted="no"
+grep -q '^DELETE$' "$CURL_SHIM_ARGV_LOG" && track_malformed_deleted="yes"
+assert_eq "yes" "$track_malformed_deleted" \
+    "android-play-track.sh: the edit is deleted on the FAILURE path too"
+
+: > "$CURL_SHIM_ARGV_LOG"
+err_track_403="$(PATH="$PLAY_SHIM_DIR:$PATH" env PLAY_ACCESS_TOKEN="$PLAY_TOKEN" \
+    CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" CURL_SHIM_TRACK_STATUS=403 \
+    "$PLAY_TRACK" 2>&1 1>/dev/null)"; status_track_403=$?
+assert_eq "1" "$status_track_403" \
+    "android-play-track.sh: HTTP 403 on the track read is a refusal"
+case "$err_track_403" in
+    *"403"*"invitation"*) msg_track_403="yes" ;;
+    *) msg_track_403="no" ;;
+esac
+assert_eq "yes" "$msg_track_403" \
+    "android-play-track.sh: HTTP 403 names the credential cause (the Play Console invitation, not only the key)"
+track_403_deleted="no"
+grep -q '^DELETE$' "$CURL_SHIM_ARGV_LOG" && track_403_deleted="yes"
+assert_eq "yes" "$track_403_deleted" \
+    "android-play-track.sh: the edit is deleted after a refused read"
+
+: > "$CURL_SHIM_ARGV_LOG"
+err_track_insert="$(PATH="$PLAY_SHIM_DIR:$PATH" env PLAY_ACCESS_TOKEN="$PLAY_TOKEN" \
+    CURL_SHIM_INSERT_STATUS=500 \
+    "$PLAY_TRACK" 2>&1 1>/dev/null)"; status_track_insert=$?
+assert_eq "1" "$status_track_insert" \
+    "android-play-track.sh: a refused edit insert is a failure"
+case "$err_track_insert" in
+    *"500"*) msg_track_insert="yes" ;;
+    *) msg_track_insert="no" ;;
+esac
+assert_eq "yes" "$msg_track_insert" \
+    "android-play-track.sh: the refused insert names the HTTP status"
+track_insert_deleted="no"
+grep -q '^DELETE$' "$CURL_SHIM_ARGV_LOG" && track_insert_deleted="yes"
+assert_eq "no" "$track_insert_deleted" \
+    "android-play-track.sh: a failed insert deletes nothing (there is no edit to delete)"
+
+: > "$CURL_SHIM_ARGV_LOG"
+err_track_transport="$(PATH="$PLAY_SHIM_DIR:$PATH" env PLAY_ACCESS_TOKEN="$PLAY_TOKEN" \
+    CURL_SHIM_EXIT=7 \
+    "$PLAY_TRACK" 2>&1 1>/dev/null)"; status_track_transport=$?
+assert_eq "1" "$status_track_transport" \
+    "android-play-track.sh: a transport failure (curl exit 7) is a refusal"
+case "$err_track_transport" in
+    *"transport"*) msg_track_transport="yes" ;;
+    *) msg_track_transport="no" ;;
+esac
+assert_eq "yes" "$msg_track_transport" \
+    "android-play-track.sh: a transport failure is named as transport, not as an HTTP status"
+
+: > "$CURL_SHIM_ARGV_LOG"
+err_track_notoken="$(PATH="$PLAY_SHIM_DIR:$PATH" env -u PLAY_ACCESS_TOKEN \
+    "$PLAY_TRACK" 2>&1 1>/dev/null)"; status_track_notoken=$?
+assert_eq "2" "$status_track_notoken" \
+    "android-play-track.sh: PLAY_ACCESS_TOKEN unset exits 2 (preflight)"
+case "$err_track_notoken" in
+    *"PLAY_ACCESS_TOKEN"*) msg_track_notoken="yes" ;;
+    *) msg_track_notoken="no" ;;
+esac
+assert_eq "yes" "$msg_track_notoken" \
+    "android-play-track.sh: the unset-token preflight names the variable"
+track_notoken_called_curl="no"
+[ -s "$CURL_SHIM_ARGV_LOG" ] && track_notoken_called_curl="yes"
+assert_eq "no" "$track_notoken_called_curl" \
+    "android-play-track.sh: an unset token refuses before any request is made"
+
+rm -rf "$PLAY_SHIM_DIR"
+
+# --- android-preflight.sh (AC 2/5/6/7/13) ---------------------------------
+# The refusals are ordered (ref -> version -> tag -> collision) and the
+# ORDER is the design: a fixture that violates several at once is the only
+# thing that proves the first one still wins.
+PLAY_PREFLIGHT="$ROOT/scripts/android-preflight.sh"
+PLAY_PREFLIGHT_FIXTURE="$(mktemp -d)"
+PLAY_PREFLIGHT_SUMMARY="$(mktemp)"
+PLAY_PREFLIGHT_OUTPUT="$(mktemp)"
+PREFLIGHT_SHIM_DIR="$(mktemp -d)"
+make_curl_shim "$PREFLIGHT_SHIM_DIR"
+
+new_preflight_repo() {
+    local repo="$1" version="$2"
+    mkdir -p "$repo"
+    git -C "$repo" init -q -b main
+    git -C "$repo" config user.email "preflight@test.invalid"
+    git -C "$repo" config user.name "preflight fixture"
+    printf '[workspace]\nresolver = "3"\nmembers = ["core"]\n\n[workspace.package]\nversion = "%s"\nedition = "2024"\n' \
+        "$version" > "$repo/Cargo.toml"
+    printf 'fixture\n' > "$repo/README.md"
+    git -C "$repo" add -A
+    git -C "$repo" commit -qm "fixture at $version"
+}
+
+run_preflight() {
+    local repo="$1"
+    PATH="$PREFLIGHT_SHIM_DIR:$PATH" env \
+        PLAY_ACCESS_TOKEN="$PLAY_TOKEN" \
+        GITHUB_REF="${PREFLIGHT_REF-}" \
+        GITHUB_SHA="$(git -C "$repo" rev-parse "${PREFLIGHT_TARGET:-HEAD}")" \
+        GITHUB_STEP_SUMMARY="${PREFLIGHT_SUMMARY_FILE:-}" \
+        GITHUB_OUTPUT="${PREFLIGHT_OUTPUT_FILE:-}" \
+        PLAY_UPLOAD_KEY_FINGERPRINT="${PREFLIGHT_FINGERPRINT:-}" \
+        "$PLAY_PREFLIGHT" "$repo"
+}
+
+PREFLIGHT_REPO="$PLAY_PREFLIGHT_FIXTURE/repo-0.0.2"
+new_preflight_repo "$PREFLIGHT_REPO" "0.0.2"
+PREFLIGHT_REF="refs/heads/main"
+
+# AC 2 -- the ref refusal, first in the order.
+PREFLIGHT_REF="refs/heads/feature/not-main"
+err_preflight_ref="$(run_preflight "$PREFLIGHT_REPO" 2>&1 1>/dev/null)"; status_preflight_ref=$?
+PREFLIGHT_REF="refs/heads/main"
+assert_eq "1" "$status_preflight_ref" \
+    "android-preflight.sh: a dispatch ref other than main is refused (AC 2)"
+case "$err_preflight_ref" in
+    *"refs/heads/feature/not-main"*"main"*) msg_preflight_ref="yes" ;;
+    *) msg_preflight_ref="no" ;;
+esac
+assert_eq "yes" "$msg_preflight_ref" \
+    "android-preflight.sh: the ref refusal names the ref it was given"
+
+err_preflight_noref="$(env -u GITHUB_REF \
+    PATH="$PREFLIGHT_SHIM_DIR:$PATH" PLAY_ACCESS_TOKEN="$PLAY_TOKEN" \
+    GITHUB_SHA="$(git -C "$PREFLIGHT_REPO" rev-parse HEAD)" \
+    "$PLAY_PREFLIGHT" "$PREFLIGHT_REPO" 2>&1 1>/dev/null)"; status_preflight_noref=$?
+assert_eq "2" "$status_preflight_noref" \
+    "android-preflight.sh: an unset GITHUB_REF exits 2 (preflight -- nothing to compare, not a ref that is wrong)"
+
+# AC 5 -- the frozen function's own message, verbatim, and BEFORE the tag
+# check: this fixture has no v-tag at all, so a wrong order would surface
+# the tag refusal instead.
+new_preflight_repo "$PLAY_PREFLIGHT_FIXTURE/repo-bad-version" "1.0.1000"
+err_preflight_version="$(run_preflight "$PLAY_PREFLIGHT_FIXTURE/repo-bad-version" 2>&1 1>/dev/null)"
+status_preflight_version=$?
+assert_eq "1" "$status_preflight_version" \
+    "android-preflight.sh: a version the frozen function refuses fails the run (AC 5)"
+case "$err_preflight_version" in
+    *"version_code_from_semver: '1.0.1000' is not a bare major.minor.patch, each component 0-999 (no v prefix, no -pre/+build suffix)"*) \
+        msg_preflight_version="yes" ;;
+    *) msg_preflight_version="no" ;;
+esac
+assert_eq "yes" "$msg_preflight_version" \
+    "android-preflight.sh: the refused version surfaces the frozen library's message VERBATIM (AC 5)"
+
+new_preflight_repo "$PLAY_PREFLIGHT_FIXTURE/repo-zero-version" "0.0.0"
+err_preflight_zero="$(run_preflight "$PLAY_PREFLIGHT_FIXTURE/repo-zero-version" 2>&1 1>/dev/null)"
+case "$err_preflight_zero" in
+    *"version_code_from_semver: '0.0.0' yields versionCode 0"*) msg_preflight_zero="yes" ;;
+    *) msg_preflight_zero="no" ;;
+esac
+assert_eq "yes" "$msg_preflight_zero" \
+    "android-preflight.sh: a version yielding versionCode 0 surfaces that refusal too (AC 5)"
+
+# AC 6 -- missing vs misplaced are DISTINCT refusals, and the message says
+# which one happened (AC 14: no failure may be ambiguous).
+err_preflight_tag_missing="$(run_preflight "$PREFLIGHT_REPO" 2>&1 1>/dev/null)"
+status_preflight_tag_missing=$?
+assert_eq "1" "$status_preflight_tag_missing" \
+    "android-preflight.sh: a missing v<version> tag fails the run (AC 6)"
+case "$err_preflight_tag_missing" in
+    *"no tag 'v0.0.2'"*) msg_preflight_tag_missing="yes" ;;
+    *) msg_preflight_tag_missing="no" ;;
+esac
+assert_eq "yes" "$msg_preflight_tag_missing" \
+    "android-preflight.sh: the missing-tag refusal says the tag is MISSING (AC 6)"
+case "$err_preflight_tag_missing" in
+    *"points at"*) msg_preflight_tag_missing_misplaced="yes" ;;
+    *) msg_preflight_tag_missing_misplaced="no" ;;
+esac
+assert_eq "no" "$msg_preflight_tag_missing_misplaced" \
+    "android-preflight.sh: the missing-tag refusal never reads as the misplaced-tag one (AC 6)"
+
+git -C "$PREFLIGHT_REPO" tag v0.0.2
+git -C "$PREFLIGHT_REPO" commit -q --allow-empty -m "second commit"
+misplaced_target="$(git -C "$PREFLIGHT_REPO" rev-parse HEAD)"
+misplaced_tag_sha="$(git -C "$PREFLIGHT_REPO" rev-parse v0.0.2)"
+PREFLIGHT_TARGET="$misplaced_target"
+err_preflight_tag_misplaced="$(run_preflight "$PREFLIGHT_REPO" 2>&1 1>/dev/null)"
+status_preflight_tag_misplaced=$?
+PREFLIGHT_TARGET=""
+assert_eq "1" "$status_preflight_tag_misplaced" \
+    "android-preflight.sh: a tag pointing at another commit fails the run (AC 6)"
+case "$err_preflight_tag_misplaced" in
+    *"points at $misplaced_tag_sha"*"$misplaced_target"*) msg_preflight_tag_misplaced="yes" ;;
+    *) msg_preflight_tag_misplaced="no" ;;
+esac
+assert_eq "yes" "$msg_preflight_tag_misplaced" \
+    "android-preflight.sh: the misplaced-tag refusal names BOTH the tag's commit and the commit being released (AC 6)"
+
+# AC 7 -- the collision: the code is on the internal track, named in the
+# refusal; and the happy path where it is not.
+git -C "$PREFLIGHT_REPO" checkout -q v0.0.2
+PREFLIGHT_TARGET="v0.0.2"
+err_preflight_collision="$(CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" \
+    CURL_SHIM_TRACK_BODY='{"track":"internal","releases":[{"versionCodes":["2"],"status":"completed"}]}' \
+    run_preflight "$PREFLIGHT_REPO" 2>&1 1>/dev/null)"; status_preflight_collision=$?
+assert_eq "1" "$status_preflight_collision" \
+    "android-preflight.sh: a versionCode already on the internal track fails the run (AC 7)"
+case "$err_preflight_collision" in
+    *"2"*"internal"*) msg_preflight_collision="yes" ;;
+    *) msg_preflight_collision="no" ;;
+esac
+assert_eq "yes" "$msg_preflight_collision" \
+    "android-preflight.sh: the collision refusal names the colliding versionCode (AC 7)"
+
+: > "$PLAY_PREFLIGHT_SUMMARY"
+: > "$PLAY_PREFLIGHT_OUTPUT"
+PREFLIGHT_SUMMARY_FILE="$PLAY_PREFLIGHT_SUMMARY"
+PREFLIGHT_OUTPUT_FILE="$PLAY_PREFLIGHT_OUTPUT"
+PREFLIGHT_FINGERPRINT="$FP_A"
+out_preflight_ok="$(CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" \
+    CURL_SHIM_TRACK_BODY='{"track":"internal","releases":[{"versionCodes":["1"],"status":"completed"}]}' \
+    run_preflight "$PREFLIGHT_REPO" 2>/dev/null)"; status_preflight_ok=$?
+PREFLIGHT_TARGET=""
+PREFLIGHT_FINGERPRINT=""
+assert_eq "0" "$status_preflight_ok" \
+    "android-preflight.sh: a non-colliding version with a matching tag exits 0 (AC 7)"
+preflight_ok_single_line="yes"
+case "$out_preflight_ok" in *$'\n'*) preflight_ok_single_line="no" ;; esac
+assert_eq "yes" "$preflight_ok_single_line" \
+    "android-preflight.sh: the success path prints exactly one line on stdout"
+case "$out_preflight_ok" in
+    *"0.0.2"*"v0.0.2"*) msg_preflight_ok_line="yes" ;;
+    *) msg_preflight_ok_line="no" ;;
+esac
+assert_eq "yes" "$msg_preflight_ok_line" \
+    "android-preflight.sh: the stdout line states the version and the verified tag"
+
+# AC 13 -- the run summary, and the machine-readable outputs the publish
+# step consumes.
+preflight_summary_version="no"
+grep -q '0\.0\.2' "$PLAY_PREFLIGHT_SUMMARY" && preflight_summary_version="yes"
+assert_eq "yes" "$preflight_summary_version" \
+    "android-preflight.sh: the run summary carries the version (AC 13)"
+preflight_summary_code="no"
+grep -q 'versionCode 2' "$PLAY_PREFLIGHT_SUMMARY" && preflight_summary_code="yes"
+assert_eq "yes" "$preflight_summary_code" \
+    "android-preflight.sh: the run summary carries the derived versionCode (AC 13)"
+preflight_summary_tag="no"
+grep -q 'v0\.0\.2' "$PLAY_PREFLIGHT_SUMMARY" && preflight_summary_tag="yes"
+assert_eq "yes" "$preflight_summary_tag" \
+    "android-preflight.sh: the run summary carries the tag it verified (AC 13)"
+preflight_summary_fp="no"
+grep -qF "$FP_A" "$PLAY_PREFLIGHT_SUMMARY" && preflight_summary_fp="yes"
+assert_eq "yes" "$preflight_summary_fp" \
+    "android-preflight.sh: the run summary carries the configured upload-key fingerprint (AC 13)"
+
+# A run with no configured fingerprint must SAY so: a blank field an operator
+# could read as "some fingerprint" is worse than an explicit "not configured".
+: > "$PLAY_PREFLIGHT_SUMMARY"
+CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" CURL_SHIM_TRACK_BODY="$TRACK_ONE_CODE" \
+    run_preflight "$PREFLIGHT_REPO" >/dev/null 2>&1
+preflight_summary_fp_unset="no"
+grep -q 'not configured' "$PLAY_PREFLIGHT_SUMMARY" && preflight_summary_fp_unset="yes"
+assert_eq "yes" "$preflight_summary_fp_unset" \
+    "android-preflight.sh: the summary declares a missing upload-key fingerprint instead of leaving it blank"
+
+preflight_output_version="no"
+grep -q '^version=0\.0\.2$' "$PLAY_PREFLIGHT_OUTPUT" && preflight_output_version="yes"
+assert_eq "yes" "$preflight_output_version" \
+    "android-preflight.sh: the version reaches \$GITHUB_OUTPUT for the later steps"
+preflight_output_code="no"
+grep -q '^version_code=2$' "$PLAY_PREFLIGHT_OUTPUT" && preflight_output_code="yes"
+assert_eq "yes" "$preflight_output_code" \
+    "android-preflight.sh: the derived versionCode reaches \$GITHUB_OUTPUT for the publish step"
+
+# A local invocation carries no $GITHUB_STEP_SUMMARY and no $GITHUB_OUTPUT:
+# the summary channels are optional, and a missing one must not fail a dry
+# run. The export below is what keeps it honest -- the earlier refusal runs
+# pass an EMPTY summary variable, which is a different case.
+out_preflight_nosummary="$(env -u GITHUB_STEP_SUMMARY -u GITHUB_OUTPUT \
+    PATH="$PREFLIGHT_SHIM_DIR:$PATH" PLAY_ACCESS_TOKEN="$PLAY_TOKEN" \
+    GITHUB_REF="refs/heads/main" GITHUB_SHA="$(git -C "$PREFLIGHT_REPO" rev-parse HEAD)" \
+    CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" CURL_SHIM_TRACK_BODY="$TRACK_ONE_CODE" \
+    "$PLAY_PREFLIGHT" "$PREFLIGHT_REPO" 2>/dev/null)"; status_preflight_nosummary=$?
+assert_eq "0" "$status_preflight_nosummary" \
+    "android-preflight.sh: a local run with neither \$GITHUB_STEP_SUMMARY nor \$GITHUB_OUTPUT set still succeeds"
+assert_eq "$out_preflight_ok" "$out_preflight_nosummary" \
+    "android-preflight.sh: the summary channels do not change what reaches stdout"
+
+# AC 14 -- a missing Cargo.toml surfaces the reader's own message verbatim,
+# rather than an unrelated failure further down.
+PREFLIGHT_NO_CARGO="$PLAY_PREFLIGHT_FIXTURE/no-cargo-toml"
+mkdir -p "$PREFLIGHT_NO_CARGO"
+git -C "$PREFLIGHT_NO_CARGO" init -q -b main
+git -C "$PREFLIGHT_NO_CARGO" config user.email "preflight@test.invalid"
+git -C "$PREFLIGHT_NO_CARGO" config user.name "preflight fixture"
+printf 'no Cargo.toml here\n' > "$PREFLIGHT_NO_CARGO/README.md"
+git -C "$PREFLIGHT_NO_CARGO" add -A
+git -C "$PREFLIGHT_NO_CARGO" commit -qm "fixture without a Cargo.toml"
+err_preflight_nocargo="$(run_preflight "$PREFLIGHT_NO_CARGO" 2>&1 1>/dev/null)"
+case "$err_preflight_nocargo" in
+    *"workspace_version: no Cargo.toml at"*) msg_preflight_nocargo="yes" ;;
+    *) msg_preflight_nocargo="no" ;;
+esac
+assert_eq "yes" "$msg_preflight_nocargo" \
+    "android-preflight.sh: a missing Cargo.toml surfaces the reader's message verbatim"
+
+rm -rf "$PREFLIGHT_SHIM_DIR"
+
+# --- env_var_is_nonempty (AC 17) -------------------------------------------
+# @law: the test is NAMED, never inlined. `[ -n "$SOME_SECRET" ]` expanded
+# under `set -x` prints the secret's value into the job log -- the exact
+# leak the AC-17 trace test further down is watching for -- whereas the
+# name of a variable carries no secret at all.
+env_var_is_nonempty PLAY_TOKEN_UNSET_VAR
+assert_eq "1" "$?" "env_var_is_nonempty: an unset variable is not non-empty"
+PLAY_TOKEN_SET_VAR="value"
+env_var_is_nonempty PLAY_TOKEN_SET_VAR
+assert_eq "0" "$?" "env_var_is_nonempty: a variable holding a value is non-empty"
+PLAY_TOKEN_EMPTY_VAR=""
+env_var_is_nonempty PLAY_TOKEN_EMPTY_VAR
+assert_eq "1" "$?" "env_var_is_nonempty: a SET-BUT-EMPTY variable is not non-empty (an empty token is not a token)"
+unset PLAY_TOKEN_SET_VAR PLAY_TOKEN_EMPTY_VAR
+
+# --- android-publish.sh (AC 12/13/14/15/16/17) ----------------------------
+PUBLISH="$ROOT/scripts/android-publish.sh"
+PUBLISH_ROOT="$(mktemp -d)"
+PUBLISH_AAB="$PUBLISH_ROOT/app-release-signed.aab"
+printf 'not really a bundle, the shim never reads it\n' > "$PUBLISH_AAB"
+PUBLISH_SHIM_DIR="$(mktemp -d)"
+make_curl_shim "$PUBLISH_SHIM_DIR"
+PUBLISH_SUMMARY="$(mktemp)"
+TRACK_AS_UPLOADED='{"track":"internal","releases":[{"versionCodes":["1"],"status":"completed"}]}'
+
+run_publish() {
+    PATH="$PUBLISH_SHIM_DIR:$PATH" env \
+        PLAY_ACCESS_TOKEN="$PLAY_TOKEN" \
+        GITHUB_STEP_SUMMARY="${PUBLISH_SUMMARY_FILE:-}" \
+        "$PUBLISH" "$@"
+}
+reset_publish_logs() {
+    : > "$CURL_SHIM_ARGV_LOG"
+    : > "$CURL_SHIM_HEADER_LOG"
+    : > "$CURL_SHIM_BODY_LOG"
+    : > "$CURL_SHIM_CALL_LOG"
+}
+publish_steps() {
+    awk '{ print $1 " " $2 }' "$CURL_SHIM_CALL_LOG" | tr '\n' ';'
+}
+
+reset_publish_logs
+out_publish_ok="$(CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" \
+    CURL_SHIM_TRACK_BODY="$TRACK_AS_UPLOADED" \
+    run_publish "$PUBLISH_AAB" "0.0.2" "2" 2>/dev/null)"; status_publish_ok=$?
+assert_eq "0" "$status_publish_ok" \
+    "android-publish.sh: the one-edit publish exits 0"
+assert_eq "POST insert;POST upload;GET track;PUT trackupdate;POST commit;" "$(publish_steps)" \
+    "android-publish.sh: the four steps run once each, in order, as one edit (AC 12/16)"
+
+# AC 16 -- the upload happens exactly once, and nothing retries it.
+publish_upload_calls="$(grep -c 'POST upload' "$CURL_SHIM_CALL_LOG" || true)"
+assert_eq "1" "$publish_upload_calls" \
+    "android-publish.sh: the bundle endpoint is hit exactly once (AC 16)"
+publish_retry_flag="no"
+grep -q -- '--retry' "$CURL_SHIM_ARGV_LOG" && publish_retry_flag="yes"
+assert_eq "no" "$publish_retry_flag" \
+    "android-publish.sh: no curl invocation carries --retry (AC 16)"
+
+# AC 12 -- a DRAFT release on the internal track, and the track's existing
+# releases survive the write (D7's read-modify-write, not a wholesale
+# replacement: a replace would drop versionCode 1 from the listing).
+publish_body_draft="no"
+grep -q '"status": "draft"' "$CURL_SHIM_BODY_LOG" && publish_body_draft="yes"
+assert_eq "yes" "$publish_body_draft" \
+    "android-publish.sh: the published release carries status draft (AC 12)"
+publish_body_keeps_earlier="no"
+grep -q '"versionCodes": \["1"\]' "$CURL_SHIM_BODY_LOG" \
+    && publish_body_keeps_earlier="yes"
+assert_eq "yes" "$publish_body_keeps_earlier" \
+    "android-publish.sh: the track write keeps the releases already on the track (D7)"
+publish_body_adds_new="no"
+grep -q '"versionCodes": \["2"\]' "$CURL_SHIM_BODY_LOG" && publish_body_adds_new="yes"
+assert_eq "yes" "$publish_body_adds_new" \
+    "android-publish.sh: the track write adds the new versionCode as its own release (D7)"
+publish_track_url="no"
+grep -q '^PUT trackupdate https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.askmethat.kayzen/edits/edit-42/tracks/internal$' \
+    "$CURL_SHIM_CALL_LOG" && publish_track_url="yes"
+assert_eq "yes" "$publish_track_url" \
+    "android-publish.sh: the only track written is internal (AC 12)"
+
+# The token's two halves: absent from every argv, present in the header file
+# curl was actually handed.
+publish_argv_has_token="no"
+grep -qF "$PLAY_TOKEN" "$CURL_SHIM_ARGV_LOG" && publish_argv_has_token="yes"
+assert_eq "no" "$publish_argv_has_token" \
+    "android-publish.sh: the access token never appears on any argv (D3)"
+publish_header_has_token="no"
+grep -qF "Authorization: Bearer $PLAY_TOKEN" "$CURL_SHIM_HEADER_LOG" \
+    && publish_header_has_token="yes"
+assert_eq "yes" "$publish_header_has_token" \
+    "android-publish.sh: every request carried the bearer header (AC 12)"
+
+publish_ok_line="no"
+case "$out_publish_ok" in
+    *"2"*"draft"*) publish_ok_line="yes" ;;
+esac
+assert_eq "yes" "$publish_ok_line" \
+    "android-publish.sh: the success path states the versionCode and the draft status on stdout"
+
+# AC 13 -- the outcome lands in the run summary too.
+: > "$PUBLISH_SUMMARY"
+PUBLISH_SUMMARY_FILE="$PUBLISH_SUMMARY"
+reset_publish_logs
+CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" CURL_SHIM_TRACK_BODY="$TRACK_AS_UPLOADED" \
+    run_publish "$PUBLISH_AAB" "0.0.2" "2" >/dev/null 2>&1
+PUBLISH_SUMMARY_FILE=""
+publish_summary_outcome="no"
+grep -q 'versionCode 2' "$PUBLISH_SUMMARY" && publish_summary_outcome="yes"
+assert_eq "yes" "$publish_summary_outcome" \
+    "android-publish.sh: the run summary carries the upload outcome (AC 13)"
+publish_summary_draft="no"
+grep -q 'draft' "$PUBLISH_SUMMARY" && publish_summary_draft="yes"
+assert_eq "yes" "$publish_summary_draft" \
+    "android-publish.sh: the run summary says the release is a draft (AC 12/13)"
+
+# AC 14 -- every failure names the step that failed, and none of them exits
+# green.
+publish_step_failure() {
+    local label="$1" status_var="$2" status_value="$3" expected_step="$4"
+    reset_publish_logs
+    local err
+    local code
+    err="$(env "$status_var=$status_value" \
+        PATH="$PUBLISH_SHIM_DIR:$PATH" PLAY_ACCESS_TOKEN="$PLAY_TOKEN" \
+        CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" CURL_SHIM_TRACK_BODY="$TRACK_AS_UPLOADED" \
+        "$PUBLISH" "$PUBLISH_AAB" "0.0.2" "2" 2>&1 1>/dev/null)"
+    code=$?
+    assert_eq "1" "$code" "android-publish.sh: $label fails the run (AC 14)"
+    case "$err" in
+        *"$expected_step"*) publish_named_step="yes" ;;
+        *) publish_named_step="no" ;;
+    esac
+    assert_eq "yes" "$publish_named_step" \
+        "android-publish.sh: $label names the step ($expected_step) (AC 14)"
+    case "$err" in
+        *"$status_value"*) publish_named_status="yes" ;;
+        *) publish_named_status="no" ;;
+    esac
+    assert_eq "yes" "$publish_named_status" \
+        "android-publish.sh: $label names the HTTP status ($status_value) (AC 14)"
+}
+
+publish_step_failure "a refused edit-insert (HTTP 500)" CURL_SHIM_INSERT_STATUS 500 "edit-insert"
+publish_step_failure "a refused bundle upload (HTTP 400)" CURL_SHIM_UPLOAD_STATUS 400 "bundle-upload"
+publish_step_failure "a refused track update (HTTP 500)" CURL_SHIM_TRACKUPDATE_STATUS 500 "track-update"
+publish_step_failure "a refused edit commit (HTTP 409)" CURL_SHIM_COMMIT_STATUS 409 "edit-commit"
+
+# AC 16 -- a failure stops the flow: nothing after the failed step runs. The
+# upload failure is the sharp one: its bundle has already been sent, so the
+# commit must never follow it.
+reset_publish_logs
+env CURL_SHIM_UPLOAD_STATUS=400 PATH="$PUBLISH_SHIM_DIR:$PATH" PLAY_ACCESS_TOKEN="$PLAY_TOKEN" \
+    CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" CURL_SHIM_TRACK_BODY="$TRACK_AS_UPLOADED" \
+    "$PUBLISH" "$PUBLISH_AAB" "0.0.2" "2" >/dev/null 2>&1
+publish_no_commit_after_failure="yes"
+grep -q 'POST commit' "$CURL_SHIM_CALL_LOG" && publish_no_commit_after_failure="no"
+assert_eq "yes" "$publish_no_commit_after_failure" \
+    "android-publish.sh: a failed upload never proceeds to the commit (AC 16)"
+publish_edit_deleted_on_failure="no"
+grep -q 'DELETE delete' "$CURL_SHIM_CALL_LOG" && publish_edit_deleted_on_failure="yes"
+assert_eq "yes" "$publish_edit_deleted_on_failure" \
+    "android-publish.sh: a failed publish deletes the edit it opened, so nothing is left half-applied"
+
+# AC 14/13 -- a failed run's summary says which step failed, so the operator
+# does not have to open the log to find out.
+: > "$PUBLISH_SUMMARY"
+reset_publish_logs
+env CURL_SHIM_UPLOAD_STATUS=400 PATH="$PUBLISH_SHIM_DIR:$PATH" PLAY_ACCESS_TOKEN="$PLAY_TOKEN" \
+    CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" CURL_SHIM_TRACK_BODY="$TRACK_AS_UPLOADED" \
+    GITHUB_STEP_SUMMARY="$PUBLISH_SUMMARY" \
+    "$PUBLISH" "$PUBLISH_AAB" "0.0.2" "2" >/dev/null 2>&1
+publish_summary_failure="no"
+grep -q 'bundle-upload' "$PUBLISH_SUMMARY" && publish_summary_failure="yes"
+assert_eq "yes" "$publish_summary_failure" \
+    "android-publish.sh: a failed run's summary names the failing step (AC 13/14)"
+
+# AC 17 -- the trace test, extended to this script: a real `bash -x` run with
+# the real token in the environment must not print it anywhere.
+reset_publish_logs
+publish_trace_out="$(env PATH="$PUBLISH_SHIM_DIR:$PATH" PLAY_ACCESS_TOKEN="$PLAY_TOKEN" \
+    CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" CURL_SHIM_TRACK_BODY="$TRACK_AS_UPLOADED" \
+    bash -x "$PUBLISH" "$PUBLISH_AAB" "0.0.2" "2" 2>&1 1>/dev/null)"
+publish_token_in_trace="no"
+case "$publish_trace_out" in *"$PLAY_TOKEN"*) publish_token_in_trace="yes" ;; esac
+assert_eq "no" "$publish_token_in_trace" \
+    "android-publish.sh: a bash -x trace never prints the access token (AC 17)"
+
+# Preflight refusals: a missing token, and a versionCode that disagrees with
+# the frozen function's own answer for the version.
+reset_publish_logs
+err_publish_notoken="$(env -u PLAY_ACCESS_TOKEN PATH="$PUBLISH_SHIM_DIR:$PATH" \
+    "$PUBLISH" "$PUBLISH_AAB" "0.0.2" "2" 2>&1 1>/dev/null)"; status_publish_notoken=$?
+assert_eq "2" "$status_publish_notoken" \
+    "android-publish.sh: PLAY_ACCESS_TOKEN unset exits 2 (preflight)"
+case "$err_publish_notoken" in
+    *"PLAY_ACCESS_TOKEN"*) msg_publish_notoken="yes" ;;
+    *) msg_publish_notoken="no" ;;
+esac
+assert_eq "yes" "$msg_publish_notoken" \
+    "android-publish.sh: the unset-token preflight names the variable"
+publish_notoken_called="no"
+[ -s "$CURL_SHIM_CALL_LOG" ] && publish_notoken_called="yes"
+assert_eq "no" "$publish_notoken_called" \
+    "android-publish.sh: an unset token refuses before any request is made"
+
+reset_publish_logs
+err_publish_mismatch="$(CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" \
+    run_publish "$PUBLISH_AAB" "0.0.2" "3" 2>&1 1>/dev/null)"; status_publish_mismatch=$?
+assert_eq "2" "$status_publish_mismatch" \
+    "android-publish.sh: a versionCode the frozen function does not derive from the version is refused (preflight)"
+case "$err_publish_mismatch" in
+    *"0.0.2"*"2"*"3"*) msg_publish_mismatch="yes" ;;
+    *) msg_publish_mismatch="no" ;;
+esac
+assert_eq "yes" "$msg_publish_mismatch" \
+    "android-publish.sh: the versionCode disagreement names the version, the derived code and the given one"
+publish_mismatch_called="no"
+[ -s "$CURL_SHIM_CALL_LOG" ] && publish_mismatch_called="yes"
+assert_eq "no" "$publish_mismatch_called" \
+    "android-publish.sh: a versionCode disagreement refuses before any request is made (nothing irreversible is attempted)"
+
+reset_publish_logs
+err_publish_dashaab="$(run_publish "-Jsomething.aab" "0.0.2" "2" 2>&1 1>/dev/null)"
+status_publish_dashaab=$?
+assert_eq "2" "$status_publish_dashaab" \
+    "android-publish.sh: an AAB path starting with '-' is refused (preflight)"
+case "$err_publish_dashaab" in
+    *"must not start with"*) msg_publish_dashaab="yes" ;;
+    *) msg_publish_dashaab="no" ;;
+esac
+assert_eq "yes" "$msg_publish_dashaab" \
+    "android-publish.sh: the leading-dash path refusal names the cause"
+
+rm -rf "$PUBLISH_SHIM_DIR" "$PUBLISH_ROOT"
+
+# --- .github/workflows/release.yml (AC 1/3/8/9/15, D6/D8) ------------------
+# A workflow cannot be executed here, so these are structural, text-level
+# assertions over the committed file -- crude on purpose. They pin what
+# actionlint cannot see (a second trigger key is perfectly valid YAML) and
+# what no shell test can reach (which Environment a job selects), and
+# everything else is runbook-attested under AC 20 rather than dressed up as
+# covered.
+RELEASE_WORKFLOW="$ROOT/.github/workflows/release.yml"
+
+workflow_matches() {
+    [ -f "$1" ] || return 1
+    grep -qE "$2" "$1"
+}
+workflow_contains() {
+    [ -f "$1" ] || return 1
+    grep -qF "$2" "$1"
+}
+workflow_count() {
+    if [ ! -f "$1" ]; then
+        printf '0'
+        return
+    fi
+    grep -cE "$2" "$1" || true
+}
+
+assert_eq "yes" "$(workflow_matches "$RELEASE_WORKFLOW" '^on:' && echo yes || echo no)" \
+    "release.yml: declares a trigger block"
+assert_eq "yes" "$(workflow_matches "$RELEASE_WORKFLOW" '^[[:space:]]*workflow_dispatch:' && echo yes || echo no)" \
+    "release.yml: is dispatched by workflow_dispatch (AC 1)"
+assert_eq "0" "$(workflow_count "$RELEASE_WORKFLOW" '^[[:space:]]*(push|pull_request|pull_request_target|schedule|workflow_run|repository_dispatch|merge_group|tags|branches):')" \
+    "release.yml: carries no second trigger key -- no push, PR, tag or schedule can start it (AC 1)"
+
+assert_eq "yes" "$(workflow_matches "$RELEASE_WORKFLOW" '^[[:space:]]+environment:[[:space:]]*play-release[[:space:]]*$' && echo yes || echo no)" \
+    "release.yml: the release job runs inside the protected play-release Environment (AC 3)"
+assert_eq "yes" "$(workflow_contains "$RELEASE_WORKFLOW" "github.ref == 'refs/heads/main'" && echo yes || echo no)" \
+    "release.yml: the job is gated on main (AC 2's belt -- the shell preflight is the braces)"
+assert_eq "1" "$(workflow_count "$RELEASE_WORKFLOW" '^[[:space:]]*runs-on:')" \
+    "release.yml: one runner only -- build and sign cannot be split across jobs (AC 8)"
+assert_eq "yes" "$(workflow_contains "$RELEASE_WORKFLOW" 'persist-credentials: false' && echo yes || echo no)" \
+    "release.yml: the checkout persists no credentials"
+assert_eq "yes" "$(workflow_contains "$RELEASE_WORKFLOW" '::add-mask::' && echo yes || echo no)" \
+    "release.yml: the Play access token is masked before any step can print it (AC 17)"
+
+assert_eq "yes" "$(workflow_contains "$RELEASE_WORKFLOW" 'scripts/android-preflight.sh' && echo yes || echo no)" \
+    "release.yml: the preflight runs before the build (AC 2/5/6/7)"
+assert_eq "yes" "$(workflow_contains "$RELEASE_WORKFLOW" 'scripts/android-publish.sh' && echo yes || echo no)" \
+    "release.yml: the publish step calls the script rather than inlining curl (the testability constraint)"
+assert_eq "yes" "$(workflow_contains "$RELEASE_WORKFLOW" 'ANDROID_SIGN_EXPECTED_FINGERPRINT: ${{ vars.PLAY_UPLOAD_KEY_FINGERPRINT }}' && echo yes || echo no)" \
+    "release.yml: the sign step is handed the configured upload-key fingerprint (AC 9)"
+assert_eq "yes" "$(workflow_contains "$RELEASE_WORKFLOW" 'actions/attest-build-provenance@' && echo yes || echo no)" \
+    "release.yml: the signed bundle is attested before the upload (AC 11)"
+
+assert_eq "yes" "$(workflow_contains "$RELEASE_WORKFLOW" 'steps.sign.outputs.signed_path' && echo yes || echo no)" \
+    "release.yml: the failure path is conditioned on the signed path, so a pre-signing failure publishes nothing (D6)"
+assert_eq "yes" "$(workflow_contains "$RELEASE_WORKFLOW" 'if-no-files-found: error' && echo yes || echo no)" \
+    "release.yml: the failure artifact refuses to be silently empty (AC 15)"
+assert_eq "yes" "$(workflow_contains "$RELEASE_WORKFLOW" 'cancel-in-progress: false' && echo yes || echo no)" \
+    "release.yml: a second dispatch queues rather than racing the first (D4)"
+
+release_unpinned="$(grep -E '^[[:space:]]*uses:' "$RELEASE_WORKFLOW" 2>/dev/null | grep -vE '@[0-9a-f]{40}' || true)"
+assert_eq "" "$release_unpinned" \
+    "release.yml: every action is pinned to a 40-hex commit SHA (a moved tag would be a silent supply-chain change)"
+
+release_environment_references="$(grep -lE 'play-release' "$ROOT"/.github/workflows/*.yml 2>/dev/null | wc -l | tr -d ' ')"
+assert_eq "1" "$release_environment_references" \
+    "only release.yml references the play-release Environment -- no PR-reachable job can reach it (AC 3)"
+assert_eq "0" "$(grep -c 'secrets\.' "$ROOT/.github/workflows/ci.yml" 2>/dev/null || true)" \
+    "ci.yml: still references no secret at all (AC 3)"
+
 # --- android-verify-alignment.sh (synthetic-AAB integration) --------------
 # assert_eq/assert_refuses above pin the pure functions in isolation; they
 # cannot reach this script's own file/zip handling, preflight refusals, exit
@@ -2044,6 +2905,94 @@ EOF
     assert_eq "yes" "$verify_shim_ran" \
         "android-sign.sh: the verify shim actually ran and captured an environment (R3 fixture sanity)"
     rm -rf "$ENV_SPY_R3_DIR" "$ENV_SPY_R3_CAPTURE"
+
+    # --- android-sign.sh: ANDROID_SIGN_EXPECTED_FINGERPRINT gate (D5) -----
+    # The fingerprint check inside verify_jar_signature proves "this jar was
+    # signed by the alias this keystore holds". It can never catch "the
+    # operator put the WRONG keystore in the secret": a wrong keystore's own
+    # alias still matches itself. Only a fingerprint configured OUTSIDE the
+    # keystore tells those two apart, which is what this gate adds.
+    fp_jks="$(keystore_alias_fingerprint "$SIGN_KEYSTORE" "$SIGN_ALIAS" SIGN_STOREPASS_ENV)"
+    status_fp_jks=$?
+    assert_eq "0" "$status_fp_jks" \
+        "android-sign.sh: D5 fixture -- the JKS upload alias fingerprint reads cleanly"
+    fp_jks_distinct="no"
+    [ "$fp_jks" != "$fp_alias_other" ] && fp_jks_distinct="yes"
+    assert_eq "yes" "$fp_jks_distinct" \
+        "android-sign.sh: D5 fixture -- the upload alias and the second alias carry distinct fingerprints"
+
+    SIG_GATE_OUT="$SIGN_ROOT/unsigned-16k-signed.aab"
+    sign_with_expected() {
+        env NDK_HOME="$SYNTH_NDK_HOME" \
+            ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+            ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+            ANDROID_SIGN_EXPECTED_FINGERPRINT="$1" \
+            "$SIGN" "$UNSIGNED_AAB_16K"
+    }
+
+    out_gate_match="$(sign_with_expected "$fp_jks" 2>/dev/null)"; status_gate_match=$?
+    gate_match_signed="no"; [ -f "$SIG_GATE_OUT" ] && gate_match_signed="yes"
+    rm -f "$SIG_GATE_OUT"
+    assert_eq "0" "$status_gate_match" \
+        "android-sign.sh: a matching ANDROID_SIGN_EXPECTED_FINGERPRINT signs normally"
+    assert_eq "$SIG_GATE_OUT" "$out_gate_match" \
+        "android-sign.sh: a matching expected fingerprint prints exactly the signed path on stdout"
+    assert_eq "yes" "$gate_match_signed" \
+        "android-sign.sh: a matching expected fingerprint leaves the signed AAB on disk"
+
+    GATE_ROOT="$(mktemp -d)"
+    GATE_JARSIGNER_LOG="$(mktemp)"
+    cat > "$GATE_ROOT/jarsigner" <<EOF
+#!/usr/bin/env bash
+case "\$1" in -help) exec "$REAL_JARSIGNER" "\$@" ;; esac
+printf 'invoked\n' >> "$GATE_JARSIGNER_LOG"
+exec "$REAL_JARSIGNER" "\$@"
+EOF
+    chmod +x "$GATE_ROOT/jarsigner"
+
+    err_gate_mismatch="$(PATH="$GATE_ROOT:$PATH" sign_with_expected "$fp_alias_other" 2>&1 1>/dev/null)"
+    status_gate_mismatch=$?
+    gate_mismatch_signed="no"; [ -f "$SIG_GATE_OUT" ] && gate_mismatch_signed="yes"
+    rm -f "$SIG_GATE_OUT"
+    assert_eq "1" "$status_gate_mismatch" \
+        "android-sign.sh: a keystore whose fingerprint is not the configured one refuses with exit 1"
+    case "$err_gate_mismatch" in
+        *"$fp_jks"*"$fp_alias_other"*) msg_gate_mismatch="yes" ;;
+        *) msg_gate_mismatch="no" ;;
+    esac
+    assert_eq "yes" "$msg_gate_mismatch" \
+        "android-sign.sh: the wrong-keystore refusal names BOTH fingerprints"
+    assert_eq "no" "$gate_mismatch_signed" \
+        "android-sign.sh: a refused keystore leaves no signed bundle behind"
+    gate_jarsigner_invoked="no"
+    [ -s "$GATE_JARSIGNER_LOG" ] && gate_jarsigner_invoked="yes"
+    assert_eq "no" "$gate_jarsigner_invoked" \
+        "android-sign.sh: the wrong-keystore gate runs BEFORE jarsigner is ever invoked"
+    rm -rf "$GATE_ROOT" "$GATE_JARSIGNER_LOG"
+
+    out_gate_unset="$(env NDK_HOME="$SYNTH_NDK_HOME" \
+        ANDROID_SIGN_KEYSTORE="$SIGN_KEYSTORE" ANDROID_SIGN_KEY_ALIAS="$SIGN_ALIAS" \
+        ANDROID_SIGN_STORE_PASSWORD="rightstorepw" ANDROID_SIGN_KEY_PASSWORD="rightkeypw" \
+        "$SIGN" "$UNSIGNED_AAB_16K" 2>/dev/null)"; status_gate_unset=$?
+    rm -f "$SIG_GATE_OUT"
+    assert_eq "0" "$status_gate_unset" \
+        "android-sign.sh: with ANDROID_SIGN_EXPECTED_FINGERPRINT unset the gate is absent (today's behaviour)"
+    assert_eq "$SIG_GATE_OUT" "$out_gate_unset" \
+        "android-sign.sh: with the expected fingerprint unset the stdout contract is unchanged"
+
+    err_gate_empty="$(sign_with_expected "" 2>&1 1>/dev/null)"; status_gate_empty=$?
+    gate_empty_signed="no"; [ -f "$SIG_GATE_OUT" ] && gate_empty_signed="yes"
+    rm -f "$SIG_GATE_OUT"
+    assert_eq "1" "$status_gate_empty" \
+        "android-sign.sh: an EMPTY ANDROID_SIGN_EXPECTED_FINGERPRINT refuses, never read as unset (ADR-0020's empty-comparison trap)"
+    case "$err_gate_empty" in
+        *"empty"*) msg_gate_empty="yes" ;;
+        *) msg_gate_empty="no" ;;
+    esac
+    assert_eq "yes" "$msg_gate_empty" \
+        "android-sign.sh: the empty-expected refusal names the empty fingerprint, not a plain mismatch"
+    assert_eq "no" "$gate_empty_signed" \
+        "android-sign.sh: an empty expected fingerprint leaves no signed bundle behind"
 
     rm -rf "$SIGN_ROOT"
 
