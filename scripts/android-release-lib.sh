@@ -52,6 +52,42 @@
 # block holds jarsigner to); its caller must call it before the store
 # password leaves scope.
 #
+# version_codes_from_track_json reads a Play `tracks/<track>` response body
+# on stdin and prints one versionCode per line -- the set the collision
+# check tests membership against. An absent `releases` key and an empty
+# `releases` list both mean "the track carries no codes", which is NOT an
+# error; anything whose SHAPE is unexpected (a body that does not parse, a
+# `releases` that is not a list, a release entry that is not an object, a
+# `versionCodes` that is not a list) is refused with the offending field
+# named. A caller that read a broken response as an empty track would
+# upload straight into a collision, which is the one failure this whole
+# preflight exists to prevent.
+#
+# track_contains_version_code reads the same one-per-line set on stdin and
+# answers set membership for the versionCode in its first argument. Exact
+# equality, deliberately: a substring match would let versionCode 1 collide
+# with a stored 10.
+#
+# env_var_is_nonempty answers "is the environment variable NAMED by its
+# argument set to a non-empty value?" -- by name, so that a caller's `set -x`
+# trace shows the name and never the value.
+#
+# write_play_auth_header_file writes `Authorization: Bearer <token>` into
+# the file named by its first argument, reading the token from the
+# environment variable NAMED by its second -- the same
+# name-never-value discipline keystore_alias_fingerprint applies to the
+# store password.
+#
+# fingerprint_matches_expected answers "is this the upload key we
+# configured?". It exists because no check inside the keystore can answer
+# it: a keystore's own alias always matches its own certificate, so an
+# operator who stored the WRONG keystore in the secret passes every alias
+# comparison there is. An expected fingerprint that comes from outside the
+# keystore is the only thing that discriminates the two, and it refuses an
+# empty value on EITHER side rather than comparing them -- two empty
+# strings compare equal, which would turn a secret that decoded to nothing
+# into a silent pass.
+#
 # verify_jar_signature classifies a `jarsigner -verify` run into exactly
 # one of: 0 (verified, and its signer certificate fingerprint matches the
 # caller-supplied expected fingerprint), 1 (jarsigner itself could not
@@ -77,6 +113,7 @@
 # alias.
 
 readonly REQUIRED_PAGE_ALIGNMENT=16384
+readonly PLAY_PACKAGE_NAME="com.askmethat.kayzen"
 
 workspace_version() {
     local cargo_toml="$1"
@@ -246,6 +283,83 @@ keystore_alias_fingerprint() {
         return 1
     fi
     _sha256_fingerprint_from_keytool_output "$out" "keystore_alias_fingerprint: alias '$alias' in $keystore"
+}
+
+version_codes_from_track_json() {
+    python3 -c '
+import json
+import sys
+
+
+def refuse(message):
+    sys.stderr.write("version_codes_from_track_json: " + message + "\n")
+    sys.exit(1)
+
+
+try:
+    document = json.load(sys.stdin)
+except ValueError as error:
+    refuse("the track response is not valid JSON: %s" % error)
+
+if not isinstance(document, dict):
+    refuse("expected a JSON object for the track response, got %s" % type(document).__name__)
+
+releases = document.get("releases", [])
+if not isinstance(releases, list):
+    refuse("\"releases\" is not a list in the track response")
+
+for release in releases:
+    if not isinstance(release, dict):
+        refuse("a release entry in \"releases\" is not a JSON object")
+    codes = release.get("versionCodes", [])
+    if not isinstance(codes, list):
+        refuse("\"versionCodes\" is not a list in a release entry")
+    for code in codes:
+        print(code)
+'
+}
+
+track_contains_version_code() {
+    local version_code="$1" line
+    while IFS= read -r line; do
+        if [ "$line" = "$version_code" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+env_var_is_nonempty() {
+    local name="$1"
+    # @law: the test runs inside `set +x`, and takes the variable's NAME --
+    # `[ -n "$TOKEN" ]` expanded under `set -x` prints the token itself into
+    # the trace, which is the leak AC 17 forbids and the trace test watches
+    # for. The subshell keeps the suppression local to this check.
+    ( set +x
+      [ -n "${!name:-}" ] )
+}
+
+write_play_auth_header_file() {
+    local header_file="$1" token_var="$2"
+    # @law: `set +x` inside a SUBSHELL, never in this one: a `set -x` run of
+    # a caller would otherwise print the printf's expansion -- and with it
+    # the token, verbatim, into the job log. The subshell keeps the
+    # suppression local, so the caller's own tracing resumes untouched.
+    ( set +x
+      printf 'Authorization: Bearer %s\n' "${!token_var}" > "$header_file" )
+}
+
+fingerprint_matches_expected() {
+    local actual="$1" expected="$2"
+    if [ -z "$actual" ] || [ -z "$expected" ]; then
+        echo "fingerprint_matches_expected: an empty fingerprint never matches (keystore alias '$actual', configured expected '$expected')" >&2
+        return 1
+    fi
+    if [ "$actual" != "$expected" ]; then
+        echo "fingerprint_matches_expected: keystore alias fingerprint $actual does not match the configured upload-key fingerprint $expected" >&2
+        return 1
+    fi
+    return 0
 }
 
 verify_jar_signature() {

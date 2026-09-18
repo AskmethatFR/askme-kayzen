@@ -1,0 +1,230 @@
+name: Play release
+
+# @law: `workflow_dispatch` is the ONLY trigger key in this file, deliberately
+# (owner ruling, issue #28). A tag push cannot be used: a tag is a ref any
+# contributor with push access can move, whereas a dispatch is an explicit
+# human act on a named ref -- and this job holds a signing key and a store
+# credential. Adding a second trigger key here is a new decision, not a
+# convenience: the shell preflight's ref refusal (AC 2) is the second gate,
+# never the first one.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A second dispatch QUEUES (cancel-in-progress: false) instead of racing
+  # the first: two publishes against one versionCode would race the store's
+  # own floor check, and the queued one then dies at the collision refusal.
+  group: play-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # Belt: the job does not even start off main. The braces are
+    # scripts/android-preflight.sh's own ref refusal, which runs inside the
+    # job -- and unlike this condition, is exercised by the shell harness.
+    if: github.ref == 'refs/heads/main'
+    # AC 3: the signing key and the Play credential live in a protected
+    # Environment with a required reviewer. Only this workflow references it.
+    environment: play-release
+    # Pinned OS, like ci.yml's android-aab: which NDKs the image preinstalls,
+    # where sdkmanager sits, and that JAVA_HOME_17_X64 exists are all
+    # 24.04-specific, so any such drift must be a reviewable diff.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      NDK_HOME: /usr/local/lib/android/sdk/ndk/25.2.9519653
+    permissions:
+      contents: read
+      # actions/attest-build-provenance signs its attestation with the
+      # runner's OIDC identity and stores it in the repo's attestation store.
+      id-token: write
+      attestations: write
+    steps:
+      # fetch-depth: 0 is load-bearing, not a habit: it is what brings the
+      # `v<version>` tags into the clone, and android-preflight.sh refuses
+      # the run when the tag is absent or points elsewhere (AC 6).
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Pinned so a toolchain update is a reviewable diff, never a silent
+      # drift between the developer's machine and the runner (ci.yml:40-46).
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: "1.97.0"
+          targets: aarch64-linux-android
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: android-release
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Install dx
+        uses: taiki-e/install-action@a2a5f6e99e1a31540baa0468acfa302cff0f359f # v2.86.4
+        with:
+          tool: dioxus-cli@0.7.9
+
+      # NDK r25c, not the r27/r28/r29 this runner otherwise preinstalls: on
+      # r28+ the 16 KB alignment is the default, so the alignment check would
+      # stop discriminating the regression it exists to catch (ci.yml:186-195).
+      #
+      # @law: sdkmanager ships under $ANDROID_HOME/cmdline-tools/latest/bin/,
+      # not on PATH, on this runner image.
+      - name: Install NDK r25c
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          [ -x "$SDKMANAGER" ] || {
+            echo "sdkmanager not found at $SDKMANAGER" >&2
+            exit 1
+          }
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --install "ndk;25.2.9519653"
+          [ -d "$NDK_HOME" ] || {
+            echo "NDK did not land at $NDK_HOME after sdkmanager install" >&2
+            exit 1
+          }
+
+      # @law: the `env` context is not available in `jobs.<job_id>.env` --
+      # only a step's `run:` shell sees a runner-inherited variable like
+      # JAVA_HOME_17_X64 directly, so this is the only place it is visible.
+      - name: Resolve JDK 17
+        run: |
+          set -euo pipefail
+          [ -n "${JAVA_HOME_17_X64:-}" ] || {
+            echo "JAVA_HOME_17_X64 is unset on this runner image" >&2
+            exit 1
+          }
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+
+      # The keystore lands in $RUNNER_TEMP -- never under the checkout, so
+      # no artefact step here can pick it up by walking the workspace -- and
+      # only the path is exported, not the bytes: the base64 secret stays in
+      # this step's own environment.
+      - name: Decode the upload keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          keystore="$RUNNER_TEMP/upload.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$keystore"
+          chmod 600 "$keystore"
+          [ -s "$keystore" ] || {
+            echo "the decoded keystore is empty -- refusing to sign with nothing" >&2
+            exit 1
+          }
+          echo "ANDROID_SIGN_KEYSTORE=$keystore" >> "$GITHUB_ENV"
+
+      # @law: `create_credentials_file: false` keeps the service-account key
+      # off the disk entirely -- the shell scripts below speak to the API
+      # with the short-lived access token and nothing else, so the JSON
+      # secret is read by exactly one action and never by our own code.
+      - name: Authenticate to Play
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.PLAY_SERVICE_ACCOUNT }}
+          token_format: access_token
+          create_credentials_file: false
+          export_environment_variables: false
+
+      # Masked before any step that handles it, so a stray echo of the
+      # variable in a later step's log cannot print the token (AC 17).
+      - name: Mask the Play access token
+        env:
+          PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$PLAY_ACCESS_TOKEN"
+
+      # Everything refusal-shaped runs here, before the first build step:
+      # ref, version, tag, versionCode collision (ACs 2/5/6/7). Its stdout
+      # carries version and versionCode to the publish step; its work also
+      # lands in the run summary (AC 13).
+      - name: Preflight
+        id: preflight
+        env:
+          PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          PLAY_UPLOAD_KEY_FINGERPRINT: ${{ vars.PLAY_UPLOAD_KEY_FINGERPRINT }}
+        run: |
+          set -euo pipefail
+          scripts/android-preflight.sh
+
+      - name: Build unsigned AAB
+        id: bundle
+        run: |
+          set -euo pipefail
+          aab_path="$(scripts/android-bundle.sh)"
+          echo "aab_path=$aab_path" >> "$GITHUB_OUTPUT"
+
+      # Build and sign share this runner by design (AC 8, ADR-0020): the
+      # artifact is signed in the same workspace that built it, so a
+      # pre-signed input would carry a second signer and the signer-count
+      # check still refuses it.
+      #
+      # @law: ANDROID_SIGN_EXPECTED_FINGERPRINT is passed even when the
+      # repository variable is unset -- the expansion is then the empty
+      # string, which android-sign.sh treats as a configured-but-broken
+      # value and REFUSES. That is deliberate: a release whose configured
+      # fingerprint is missing must fail, not sign with whatever the secret
+      # happens to hold (AC 9).
+      - name: Sign
+        id: sign
+        env:
+          ANDROID_SIGN_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_SIGN_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_SIGN_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_SIGN_EXPECTED_FINGERPRINT: ${{ vars.PLAY_UPLOAD_KEY_FINGERPRINT }}
+        run: |
+          set -euo pipefail
+          signed="$(scripts/android-sign.sh "${{ steps.bundle.outputs.aab_path }}")"
+          echo "signed_path=$signed" >> "$GITHUB_OUTPUT"
+
+      - name: Attest
+        id: attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ${{ steps.sign.outputs.signed_path }}
+
+      # The one irreversible step (AC 12/16). No retry, one upload, draft
+      # release on the internal track; its outcome joins the run summary.
+      - name: Upload to Play internal (draft)
+        env:
+          PLAY_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          scripts/android-publish.sh \
+            "${{ steps.sign.outputs.signed_path }}" \
+            "${{ steps.preflight.outputs.version }}" \
+            "${{ steps.preflight.outputs.version_code }}"
+
+      # AC 15: a failure at or after signing still hands back the signed
+      # bundle and its attestation, so "a bad bundle" can be told from "the
+      # transport died" without re-running a build that must not be re-run.
+      # Conditioned on the signed path rather than on failure() alone: a
+      # failure BEFORE signing has nothing to publish, and an empty artefact
+      # would read as if it had.
+      - name: Collect failure artifacts
+        if: "failure() && steps.sign.outputs.signed_path != ''"
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/s4-failure-artifacts"
+          cp "${{ steps.sign.outputs.signed_path }}" "$RUNNER_TEMP/s4-failure-artifacts/"
+          attestation="${{ steps.attest.outputs.bundle-path }}"
+          if [ -n "$attestation" ] && [ -f "$attestation" ]; then
+            cp "$attestation" "$RUNNER_TEMP/s4-failure-artifacts/"
+          fi
+
+      - name: Upload failure artifacts
+        if: "failure() && steps.sign.outputs.signed_path != ''"
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: kayzen-signed-aab-${{ steps.preflight.outputs.version }}
+          path: ${{ runner.temp }}/s4-failure-artifacts/
+          retention-days: 7
+          if-no-files-found: error
