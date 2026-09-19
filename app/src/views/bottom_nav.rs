@@ -149,6 +149,26 @@ mod tests {
         );
     }
 
+    // @scenario: bottom-nav/S2
+    #[test]
+    fn the_current_destination_is_marked_once_and_matches_the_route() {
+        for (path, href) in [("/", "/"), ("/week", "/week"), ("/anchored", "/anchored")] {
+            let html = render_route(path, langid!("fr"));
+            let nav = nav_slice(&html);
+
+            assert_eq!(
+                nav.matches(r#"aria-current="page""#).count(),
+                1,
+                "expected exactly one current-page marker on {path}, got: {nav}"
+            );
+            let tag = current_page_tag(nav);
+            assert!(
+                tag.contains(&format!(r#"href="{href}""#)),
+                "expected the current-page marker on {path} to sit on the {href} link, got: {tag}"
+            );
+        }
+    }
+
     // @scenario: bottom-nav/S4
     #[test]
     fn focus_screens_keep_the_whole_screen_to_themselves() {

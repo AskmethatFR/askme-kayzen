@@ -13,7 +13,7 @@ Feature: Move between the three main screens from a bar at the bottom
     Then a navigation bar sits at the bottom of the screen
     And it offers three destinations, in order: "Aujourd'hui", "Semaine", "Ancrées"
 
-  @wip @scenario:S2
+  @scenario:S2
   Scenario: The current screen is marked by more than colour
     Given the user is on Cette semaine
     Then the "Semaine" destination is marked as the current page

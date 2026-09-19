@@ -115,6 +115,7 @@ body {
   text-decoration: none;
   color: var(--color-on-ink-soft);
 }
+.bottom-nav a[aria-current="page"] { color: var(--color-paper); font-weight: 600; }
 .bottom-nav a:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
 .bottom-nav-icon {
   width: 22px;
