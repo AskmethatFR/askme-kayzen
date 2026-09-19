@@ -14,9 +14,10 @@ Ce dossier fige le produit pour le réécrire en **Rust** (Dioxus), écran par �
 | [`02-modele-donnees.md`](../../technical/design/02-modele-donnees.md) | Le modèle de données (structs Rust) |
 | [`03-ecrans.md`](03-ecrans.md) | Les écrans, leurs gestes et transitions |
 | [`04-gestes-kaizen.md`](04-gestes-kaizen.md) | Les sept gestes Kaizen + la boucle |
-| [`05-style-graphique.md`](05-style-graphique.md) | Couleurs, typographie, icônes, composants + aperçu des écrans |
+| [`05-style-graphique.md`](05-style-graphique.md) | Style « Broadsheet » — **remplacé**, conservé pour ses icônes, animations et règles d'accent |
+| [`06-style-galets.md`](06-style-galets.md) | Style « Galets » en vigueur : couleurs, typographie, formes + aperçu des écrans |
 | [`06-mise-en-place-rust.md`](../../technical/design/06-mise-en-place-rust.md) | Tuto de création du projet Rust (Dioxus) |
-| [`images/`](images/) | Captures des six écrans du prototype |
+| [`images/`](images/) | Captures des six écrans de l'app (style Galets) |
 
 ## En une phrase
 
