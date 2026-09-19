@@ -1,27 +1,58 @@
-/* Kaizen — Broadsheet design system
-   Newsprint for the web: Source Serif 4 ink on paper, cyan as spot color,
-   hierarchy by serif scale and whitespace — no boxes, no rules-as-borders. */
+/* Kaizen — Galets design system
+   Fraunces display over Figtree body on warm paper, cyan as spot color,
+   pebble shapes for everything the thumb touches. */
 
-@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,600&display=swap');
+@font-face {
+  font-family: 'Fraunces';
+  src: url('Fraunces-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Figtree';
+  src: url('Figtree-Variable.woff2') format('woff2');
+  font-weight: 300 900;
+  font-style: normal;
+  font-display: swap;
+}
 
 :root {
   /* Palette */
-  --color-paper: #f3f2f2;
-  --color-ink: #201e1d;
-  --color-ink-soft: #6f6a68;
-  --color-rule: #dcd9d7;
-  --color-accent: #0088b0;      /* cyan — everything interactive */
-  --color-accent-100: #e0eff4;
-  --color-accent-700: #045f7d;
+  --color-paper: #F4F1EA;
+  --color-card: #FBF9F4;
+  --color-ink: #2A2622;
+  --color-ink-soft: #6B645C;
+  --color-rule: #DCD5C8;
+  --color-accent: #0088b0;
+  --color-accent-text: #00708F;
+  --color-accent-hover: #005A73;
+  --color-tint: #DDEEF3;
+  --color-on-tint: #00506A;
+  --color-on-accent: #FBF9F4;
+  --color-anchored: #7A5E24;
+  --color-anchored-tint: #EFE3C8;
+  --color-shadow: 42, 38, 34;
+
+  --color-ritual-ground: #12303A;
+  --color-ritual-track: #1C4552;
+  --color-ritual-run: #2E6B7E;
+  --color-ritual-ink: #F4F1EA;
+  --color-ritual-ink-soft: #A9BEC4;
 
   /* Space & shape */
   --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
   --space-5: 24px; --space-6: 32px; --space-7: 48px;
-  --radius: 2px;
-  --shadow-sm: 0 1px 2px rgba(32, 30, 29, .06);
-  --shadow-md: 0 2px 10px rgba(32, 30, 29, .10);
+  --radius-bar: 4px;
+  --radius-field: 22px;
+  --radius-pill: 30px;
+  --radius-pebble: 48% 52% 46% 54% / 55% 47% 53% 45%;
+  --shadow-sm: 0 1px 2px rgba(var(--color-shadow), .06);
+  --shadow-md: 0 2px 10px rgba(var(--color-shadow), .10);
 
-  --font-serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-body: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -30,7 +61,7 @@ html, body { margin: 0; padding: 0; }
 body {
   background: var(--color-paper);
   color: var(--color-ink);
-  font-family: var(--font-serif);
+  font-family: var(--font-body);
   font-size: 17px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -65,6 +96,7 @@ body {
 
 /* ---- Headings ---- */
 .greeting {
+  font-family: var(--font-display);
   font-size: clamp(30px, 8.2vw, 56px);
   font-weight: 700;
   line-height: 1.1;
@@ -108,7 +140,7 @@ body {
   color: var(--color-ink);
   text-decoration: none;
 }
-.habit-name:hover { color: var(--color-accent); }
+.habit-name:hover { color: var(--color-accent-text); }
 .habit-meta,
 .quiet-note {
   font-size: 14px;
@@ -126,7 +158,7 @@ body {
   padding: 0;
   font: inherit;
   font-size: 15px;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   cursor: pointer;
   text-decoration: none;
 }
@@ -141,7 +173,7 @@ body {
   flex: none;
   width: 52px;
   height: 52px;
-  border-radius: 50%;
+  border-radius: var(--radius-pebble);
   border: 2px solid var(--color-rule);
   background: var(--color-paper);
   cursor: pointer;
@@ -165,7 +197,7 @@ body {
 .target-ink {
   position: absolute;
   inset: 5px;
-  border-radius: 50%;
+  border-radius: var(--radius-pebble);
   background: var(--color-accent);
   transform: scale(0);
   opacity: 0;
@@ -181,8 +213,8 @@ body {
   content: "";
   position: absolute;
   inset: -2px;
-  border-radius: 50%;
-  border: 2px solid var(--color-accent-700);
+  border-radius: var(--radius-pebble);
+  border: 2px solid var(--color-accent-hover);
   animation: kzRing .5s ease-out both;
 }
 
@@ -194,7 +226,7 @@ body {
 }
 .quiet-link {
   display: inline-block;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   text-decoration: none;
   font-size: 17px;
 }
@@ -230,7 +262,7 @@ body {
   min-height: 8px;
   height: calc(8px + var(--day-ratio, 1) * 56px);
   background: var(--color-rule);
-  border-radius: var(--radius) var(--radius) 0 0;
+  border-radius: var(--radius-bar) var(--radius-bar) 0 0;
   opacity: 0.35;
 }
 .day-bar.is-done {
@@ -252,6 +284,7 @@ body {
   padding: 0;
 }
 .recap-figure {
+  font-family: var(--font-display);
   display: inline-block;
   min-width: 44px;
   font-variant-numeric: tabular-nums;
@@ -266,6 +299,7 @@ body {
    One large figure standing for practice accumulated across every habit,
    and one gentle word for how the week is living right now. */
 .week-figure {
+  font-family: var(--font-display);
   font-size: clamp(30px, 8vw, 44px);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -290,7 +324,7 @@ body {
 .rhythm-dot {
   width: 10px;
   height: 10px;
-  border-radius: 50%;
+  border-radius: var(--radius-pebble);
   background: var(--color-rule);
   opacity: 0.35;
 }
@@ -339,17 +373,17 @@ body {
   min-height: 6px;
   height: calc(6px + var(--practice-ratio, 1) * 26px);
   background: var(--color-accent);
-  border-radius: var(--radius) var(--radius) 0 0;
-  /* composited 3.65:1 on --color-paper -- SC 1.4.11 floor is 3:1 */
+  border-radius: var(--radius-bar) var(--radius-bar) 0 0;
+  /* composited 3.62:1 on --color-paper -- SC 1.4.11 floor is 3:1 */
   opacity: 1;
 }
 
 /* ---- Broadsheet components (for later screens) ---- */
 .btn {
-  font-family: var(--font-serif);
+  font-family: var(--font-body);
   font-size: 17px;
   padding: var(--space-3) var(--space-5);
-  border-radius: var(--radius);
+  border-radius: var(--radius-pill);
   border: 1px solid var(--color-ink);
   background: transparent;
   color: var(--color-ink);
@@ -357,8 +391,8 @@ body {
   text-decoration: none;
   display: inline-block;
 }
-.btn-primary { background: var(--color-accent); border-color: var(--color-accent); color: #fff; }
-.btn-primary:hover { background: var(--color-accent-700); border-color: var(--color-accent-700); }
+.btn-primary { background: var(--color-accent-text); border-color: var(--color-accent-text); color: var(--color-on-accent); }
+.btn-primary:hover { background: var(--color-accent-hover); border-color: var(--color-accent-hover); }
 .btn-secondary { border-color: var(--color-rule); }
 .btn-block { display: block; width: 100%; text-align: center; }
 .btn-block + .btn-block { margin-top: var(--space-4); }
@@ -368,21 +402,21 @@ body {
   letter-spacing: .1em;
   text-transform: uppercase;
   padding: 3px var(--space-2);
-  border-radius: var(--radius);
-  background: var(--color-accent-100);
-  color: var(--color-accent-700);
+  border-radius: var(--radius-pill);
+  background: var(--color-tint);
+  color: var(--color-on-tint);
 }
-.tag-accent { background: var(--color-accent-100); color: var(--color-accent-700); }
+.tag-accent { background: var(--color-tint); color: var(--color-on-tint); }
 
 .field { display: block; margin-bottom: var(--space-4); }
 .input {
   width: 100%;
-  font-family: var(--font-serif);
+  font-family: var(--font-body);
   font-size: 18px;
   padding: var(--space-3);
   border: 1px solid var(--color-rule);
-  border-radius: var(--radius);
-  background: #fff;
+  border-radius: var(--radius-field);
+  background: var(--color-card);
 }
 .input:focus-visible { outline: 2px solid var(--color-accent); border-color: var(--color-accent); }
 
@@ -393,10 +427,10 @@ body {
   flex: none;
   width: 44px;
   height: 44px;
-  border-radius: 50%;
+  border-radius: var(--radius-pebble);
   border: 2px solid var(--color-accent);
   background: transparent;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   font-size: 24px;
   line-height: 1;
   cursor: pointer;
@@ -404,7 +438,7 @@ body {
   place-items: center;
   transition: background-color .15s ease, transform .1s ease;
 }
-.add-target:hover { background: var(--color-accent-100); }
+.add-target:hover { background: var(--color-tint); }
 .add-target:active { transform: scale(.94); }
 .add-target:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
 
@@ -420,7 +454,15 @@ body {
   flex-direction: column;
   min-height: 100vh;
   min-height: 100dvh;
+  color: var(--color-ritual-ink);
+  background: var(--color-ritual-ground);
+  box-shadow: 0 0 0 100vmax var(--color-ritual-ground);
+  clip-path: inset(0 -100vmax);
 }
+html:has(.screen.ritual),
+body:has(.screen.ritual) { background: var(--color-ritual-ground); }
+.screen.ritual .quiet-note { color: var(--color-ritual-ink-soft); }
+.screen.ritual .quiet-link { color: var(--color-ritual-ink); }
 .ritual-dial {
   position: relative;
   width: 220px;
@@ -432,9 +474,9 @@ body {
 .ritual-breath {
   position: absolute;
   inset: 28px;
-  border-radius: 50%;
-  background: var(--color-accent-100);
-  opacity: .85;
+  border-radius: var(--radius-pebble);
+  background: var(--color-ritual-run);
+  opacity: .35;
   animation: kzBreathe 8s ease-in-out infinite;
 }
 /* Stacked in the same grid cell (not two grid auto-rows) so the countdown
@@ -451,12 +493,12 @@ body {
 }
 .ritual-ring-track {
   fill: none;
-  stroke: var(--color-rule);
+  stroke: var(--color-ritual-track);
   stroke-width: 4;
 }
 .ritual-ring-run {
   fill: none;
-  stroke: var(--color-accent);
+  stroke: var(--color-ritual-run);
   stroke-width: 4;
   stroke-linecap: round;
 }
@@ -473,7 +515,8 @@ body {
   font-size: clamp(30px, 8vw, 44px);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--color-ink);
+  font-family: var(--font-display);
+  color: var(--color-ritual-ink);
 }
 /* Invisible by design: this element's only job is to fire an
    animationiteration event every .25s so the countdown re-reads the clock.

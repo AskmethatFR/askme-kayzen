@@ -13,6 +13,15 @@ use views::DataUnavailable;
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
+const FRAUNCES_FONT: Asset = asset!(
+    "/assets/fonts/Fraunces-Variable.woff2",
+    AssetOptions::builder().with_hash_suffix(false)
+);
+const FIGTREE_FONT: Asset = asset!(
+    "/assets/fonts/Figtree-Variable.woff2",
+    AssetOptions::builder().with_hash_suffix(false)
+);
+const BUNDLED_FONTS: [Asset; 2] = [FRAUNCES_FONT, FIGTREE_FONT];
 const VIEWPORT_CONTENT: &str = "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover";
 
 fn main() {
@@ -30,8 +39,6 @@ fn App() -> Element {
 /// actual data directory.
 fn app_root(services_fn: impl FnOnce() -> Option<Services> + 'static) -> Element {
     use_init_i18n(i18n::config);
-    // Dependency injection, Dioxus-style: provide the composition root once at the
-    // top of the tree; every child screen reads it with `use_context::<Services>()`.
     let services = use_hook(services_fn);
     app_shell(services)
 }
@@ -58,6 +65,15 @@ fn app_shell(services: Option<Services>) -> Element {
         document::Meta { name: "viewport", content: VIEWPORT_CONTENT }
         document::Link { rel: "icon", href: FAVICON }
         document::Link { rel: "stylesheet", href: MAIN_CSS }
+        for font in BUNDLED_FONTS {
+            document::Link {
+                rel: "preload",
+                href: font,
+                r#as: "font",
+                r#type: "font/woff2",
+                crossorigin: "anonymous",
+            }
+        }
         {content}
     }
 }
@@ -203,15 +219,90 @@ mod tests {
         );
     }
 
+    fn head_elements_of_app_shell() -> Vec<RecordedHeadElement> {
+        let spy = Rc::new(HeadElementSpy::default());
+        SHARED_HEAD_SPY.with(|cell| *cell.borrow_mut() = Some(spy.clone() as Rc<dyn Document>));
+        let _guard = SharedHeadSpyGuard;
+        let mut vdom = VirtualDom::new(AppShellWithHeadSpy);
+        vdom.rebuild_in_place();
+        spy.head_elements.take()
+    }
+
+    fn attribute<'a>(element: &'a RecordedHeadElement, key: &str) -> Option<&'a str> {
+        element
+            .attributes
+            .iter()
+            .find(|(name, _)| name == key)
+            .map(|(_, value)| value.as_str())
+    }
+
+    const MAIN_CSS_SOURCE: &str = include_str!("../assets/main.css");
+
+    fn source_file_name(font: Asset) -> String {
+        std::path::Path::new(font.bundled().absolute_source_path())
+            .file_name()
+            .and_then(|name| name.to_str())
+            .expect("a bundled font has a UTF-8 file name")
+            .to_string()
+    }
+
+    #[test]
+    fn every_font_main_css_declares_is_a_bundled_font() {
+        let declared_font_urls = MAIN_CSS_SOURCE.matches(".woff2')").count();
+
+        assert_eq!(declared_font_urls, BUNDLED_FONTS.len());
+        for font in BUNDLED_FONTS {
+            let font_file = source_file_name(font);
+            assert!(
+                MAIN_CSS_SOURCE.contains(&format!("url('{font_file}')")),
+                "main.css has no @font-face src: url('{font_file}')"
+            );
+        }
+    }
+
+    #[test]
+    fn every_bundled_font_opts_out_of_the_hash_suffix_so_main_css_can_name_it() {
+        for font in BUNDLED_FONTS {
+            assert!(
+                !font.bundled().options().hash_suffix(),
+                "{} would be bundled under a hashed name main.css cannot reference",
+                source_file_name(font)
+            );
+        }
+    }
+
+    #[test]
+    fn app_shell_preloads_each_bundled_font_as_a_crossorigin_woff2() {
+        let head_elements = head_elements_of_app_shell();
+
+        for font in BUNDLED_FONTS {
+            let font_file = source_file_name(font);
+            let preload = head_elements
+                .iter()
+                .find(|element| {
+                    element.name == "link"
+                        && attribute(element, "rel") == Some("preload")
+                        && attribute(element, "href")
+                            .is_some_and(|href| href.ends_with(&format!("/{font_file}")))
+                })
+                .unwrap_or_else(|| {
+                    panic!("expected a <link rel=\"preload\"> whose href ends with /{font_file}")
+                });
+            assert_eq!(attribute(preload, "as"), Some("font"));
+            assert_eq!(attribute(preload, "type"), Some("font/woff2"));
+            assert!(
+                attribute(preload, "crossOrigin").is_some(),
+                "a font preload without crossorigin is fetched twice"
+            );
+        }
+    }
+
     #[test]
     fn app_shell_registers_a_viewport_meta_that_opts_into_safe_area_insets() {
         let spy = Rc::new(HeadElementSpy::default());
         SHARED_HEAD_SPY.with(|cell| *cell.borrow_mut() = Some(spy.clone() as Rc<dyn Document>));
         let _guard = SharedHeadSpyGuard;
 
-        // Seeded over `Some(services)` — the live-session path every real
-        // launch takes — not `None`/`DataUnavailable`, so this cannot pass
-        // by luck of which branch happens to carry the meta.
         let mut vdom = VirtualDom::new(AppShellWithHeadSpy);
         vdom.rebuild_in_place();
 
@@ -238,12 +329,12 @@ mod tests {
             .map(|(_, value)| value.clone())
             .expect("expected the viewport meta to carry a content attribute");
 
-        // This runtime tag supersedes the dx-generated shell's viewport tag
-        // wholesale (Chrome/Safari/Firefox all take the last viewport tag as
-        // a unit, not a per-key merge) — so every key the shell's tag would
-        // otherwise have provided must be present here, or the device falls
-        // back to the 980px desktop-width layout viewport. Each key is
-        // pinned individually so trimming any one of them fails the test.
+        // @law: browser viewport contract — this runtime tag supersedes the
+        // dx-generated shell's viewport tag wholesale (Chrome/Safari/Firefox
+        // all take the last viewport tag as a unit, not a per-key merge), so
+        // every key the shell's tag would otherwise have provided must be
+        // present here, or the device falls back to the 980px desktop-width
+        // layout viewport. Each key is pinned individually.
         for key in [
             "width=device-width",
             "initial-scale=1.0",
