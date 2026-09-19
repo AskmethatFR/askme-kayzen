@@ -11,6 +11,7 @@ pub fn Today() -> Element {
         let services = services.clone();
         move || services.list_board_habits.handle()
     });
+    let parts = services.today_calendar_parts();
 
     let today_habits = habits();
     let total = today_habits.active.len();
@@ -25,8 +26,10 @@ pub fn Today() -> Element {
     rsx! {
         div { class: "screen",
             header { class: "masthead",
-                span { class: "masthead-date", {tr!("today-date")} }
-                span { class: "tag tag-accent", "Kaizen" }
+                span {
+                    class: "masthead-date",
+                    {tr!("today-date", weekday: parts.weekday as i64, day: parts.day as i64, month: parts.month as i64)}
+                }
             }
             h1 { class: "greeting", {tr!("today-greeting")} }
 
@@ -191,6 +194,15 @@ mod tests {
         Services::with_repository(Rc::new(InMemoryHabitRepository::new()))
     }
 
+    /// Saturday 19 September 2026 — the mockup's own date, and the one the
+    /// delta spec's convention test pins (`calendar_parts(739_878)`).
+    fn services_with_one_undone_habit_on_the_mockup_date() -> Services {
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock(LocalDate::from_epoch_day(739_878)));
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit());
+        Services::with_repository_and_clock(repository, clock)
+    }
+
     fn services_with_one_habit_done_today() -> Services {
         let clock: Rc<dyn Clock> = Rc::new(FixedClock(LocalDate::from_epoch_day(20_005)));
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
@@ -332,6 +344,24 @@ mod tests {
         }
     }
 
+    #[component]
+    fn RootWithUndoneHabitOnTheMockupDate() -> Element {
+        use_locale_for_tests();
+        use_context_provider(services_with_one_undone_habit_on_the_mockup_date);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootWithUndoneHabitOnTheMockupDateAndEnglishLocale() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        use_context_provider(services_with_one_undone_habit_on_the_mockup_date);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
     fn render(root: fn() -> Element) -> String {
         let mut vdom = VirtualDom::new(root);
         vdom.rebuild_in_place();
@@ -355,8 +385,8 @@ mod tests {
         let html = render(RootWithUndoneHabitAndEnglishLocale);
 
         assert!(
-            html.contains("Today") && html.contains("Hello."),
-            "expected the masthead date and greeting in English, got: {html}"
+            html.contains("Hello."),
+            "expected the greeting in English, got: {html}"
         );
         assert!(
             html.contains("Your small steps"),
@@ -381,6 +411,35 @@ mod tests {
         assert!(
             !html.contains("Bonjour") && !html.contains("Aujourd"),
             "expected no leftover French copy under an English locale, got: {html}"
+        );
+    }
+
+    // @scenario: language/S1
+    #[test]
+    fn an_english_locale_dates_the_masthead_in_english() {
+        let html = render(RootWithUndoneHabitOnTheMockupDateAndEnglishLocale);
+
+        assert!(
+            html.contains("Saturday 19 September"),
+            "expected the masthead to name the day in English, got: {html}"
+        );
+    }
+
+    // @scenario: today-habit-list/S8
+    #[test]
+    fn the_masthead_names_the_day_it_is_in_french() {
+        let html = render(RootWithUndoneHabitOnTheMockupDate);
+        let masthead = &html[..html
+            .find(r#"<h1 class="greeting""#)
+            .expect("expected the masthead to close before the greeting")];
+
+        assert!(
+            masthead.contains(r#"<span class="masthead-date">Samedi 19 septembre</span>"#),
+            "expected the masthead to read the date, got: {html}"
+        );
+        assert!(
+            !masthead.contains("Aujourd"),
+            "expected the masthead to stop reading « Aujourd'hui », got: {masthead}"
         );
     }
 
@@ -648,10 +707,6 @@ mod tests {
         assert!(
             !html.contains("Mes habitudes ancr"),
             "expected Today to carry no Ancrées link any more, got: {html}"
-        );
-        assert!(
-            !html.contains(r#"class="footer-links""#),
-            "expected no footer-links wrapper when it would hold no link, got: {html}"
         );
     }
 

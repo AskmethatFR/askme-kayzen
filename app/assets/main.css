@@ -74,10 +74,15 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* ---- Screen shell ---- */
+/* ---- Screen shell ----
+   `overflow: hidden` is the masthead disc's frame: the disc bleeds 80px past
+   the right edge and 90px above the content, and the screen box is exactly
+   the frame the mockup crops it in. The bottom bar is a sibling of `.screen`,
+   so no chrome is clipped. */
 .screen {
   max-width: var(--screen-max-width);
   margin: 0 auto;
+  overflow: hidden;
   padding: calc(var(--space-5) + env(safe-area-inset-top, 0px))
            calc(var(--space-5) + env(safe-area-inset-right, 0px))
            calc(var(--space-7) + env(safe-area-inset-bottom, 0px))
@@ -129,34 +134,34 @@ body {
   stroke-linejoin: round;
 }
 
-/* ---- Masthead ---- */
+/* ---- Masthead ----
+   The mockup bundle carries no rule under a masthead and no brand tag: one
+   dated line, normal case, soft ink. */
 .masthead {
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding-bottom: var(--space-2);
-  border-bottom: 2px solid var(--color-ink);
 }
-/* A soft tint disc behind the masthead's top-right corner — decoration only:
-   it takes no layout space, no pointer events, and paints behind the copy. */
+/* The tint disc bleeds off the top-right corner — decoration only: it takes
+   no layout space, no pointer events, and paints behind the copy. `.screen`
+   clips the bleed so it can never create horizontal scroll. */
 .masthead::before {
   content: "";
   position: absolute;
-  top: calc(-1 * var(--space-5));
-  right: calc(-1 * var(--space-4));
-  width: 96px;
-  height: 96px;
+  top: -90px;
+  right: -80px;
+  width: 260px;
+  height: 230px;
   border-radius: 50%;
   background: var(--color-tint);
-  opacity: .7;
   pointer-events: none;
   z-index: -1;
 }
 .masthead-date {
   font-size: 13px;
-  letter-spacing: .12em;
-  text-transform: uppercase;
+  font-weight: 500;
+  letter-spacing: .02em;
   color: var(--color-ink-soft);
 }
 

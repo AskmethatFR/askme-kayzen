@@ -55,7 +55,6 @@ Feature: List the board habits for today
     And it offers a link to the paused screen
     And it offers the add-habit gesture
 
-  @wip
   @scenario:S8
   Scenario: The masthead names the day it is
     Given today is Saturday 19 September 2026

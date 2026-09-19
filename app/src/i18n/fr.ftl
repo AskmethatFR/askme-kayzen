@@ -1,4 +1,25 @@
-today-date = Aujourd'hui
+today-date = { $weekday ->
+    [0] Lundi
+    [1] Mardi
+    [2] Mercredi
+    [3] Jeudi
+    [4] Vendredi
+    [5] Samedi
+   *[6] Dimanche
+} { $day } { $month ->
+    [1] janvier
+    [2] février
+    [3] mars
+    [4] avril
+    [5] mai
+    [6] juin
+    [7] juillet
+    [8] août
+    [9] septembre
+    [10] octobre
+    [11] novembre
+   *[12] décembre
+}
 today-greeting = Bonjour.
 today-empty-lede-1 = Rien pour l'instant. Et c'est très bien.
 today-empty-lede-2 = Une seule toute petite habitude suffit pour commencer.

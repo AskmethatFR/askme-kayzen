@@ -18,7 +18,7 @@ use kayzen_core::habit_management::use_cases::mark_done::MarkDone;
 use kayzen_core::habit_management::use_cases::pause_habit::PauseHabit;
 use kayzen_core::habit_management::use_cases::readmit_habit::ReadmitHabit;
 use kayzen_core::habit_management::use_cases::resume_habit::ResumeHabit;
-use kayzen_core::shared::clock::{Clock, SystemClock};
+use kayzen_core::shared::clock::{CalendarParts, Clock, SystemClock, calendar_parts};
 use kayzen_core::shared::guid_generator::UuidGenerator;
 
 /// The default daily goal offered to every new habit — a flexible target, not
@@ -45,6 +45,7 @@ pub struct Services {
     pub anchor_habit: AnchorHabit,
     pub list_anchored_habits: ListAnchoredHabits,
     pub list_paused_habits: ListPausedHabits,
+    clock: Rc<dyn Clock>,
 }
 
 impl Services {
@@ -95,8 +96,16 @@ impl Services {
             anchor_habit: AnchorHabit::new(Rc::clone(&habit_repository)),
             list_anchored_habits: ListAnchoredHabits::new(Rc::clone(&habit_repository)),
             list_paused_habits: ListPausedHabits::new(Rc::clone(&habit_repository)),
-            add_habit: AddHabit::new(habit_repository, Rc::new(UuidGenerator), clock),
+            add_habit: AddHabit::new(habit_repository, Rc::new(UuidGenerator), Rc::clone(&clock)),
+            clock,
         }
+    }
+
+    /// The one seam a dated surface reads "today" through: the same clock the
+    /// services already resolve today from, so a screen's date and its
+    /// completions can never disagree by construction.
+    pub fn today_calendar_parts(&self) -> CalendarParts {
+        calendar_parts(self.clock.today())
     }
 }
 
