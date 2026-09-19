@@ -47,3 +47,12 @@ Feature: List the board habits for today
     Given a board holding one active habit
     When the Today screen renders
     Then no link to the paused screen is offered
+
+  @wip
+  @scenario:S7
+  Scenario: A board whose only habits are in pause keeps the invitation to add
+    Given a board holding one habit in pause and nothing active
+    When the Today screen renders
+    Then the summary card, the habit-list heading and the week link are hidden
+    And it offers a link to the paused screen
+    And it offers the add-habit gesture
