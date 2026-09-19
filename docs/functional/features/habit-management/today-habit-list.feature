@@ -31,3 +31,19 @@ Feature: List the board habits for today
     And it shows the call to action « Rien pour l'instant. Et c'est très bien. Une seule toute petite habitude suffit pour commencer. »
     And the add-habit gesture is the only interactive element in the screen's content
     And the day's tally, the habit-list heading, and the week link are hidden
+
+  @wip
+  @scenario:S5
+  Scenario: Aujourd'hui hands the paused habits over to their own screen
+    Given a board holding one active habit and one habit in pause
+    When the Today screen renders
+    Then it lists the active habit only
+    And it no longer shows the paused zone « En pause · aucune pression »
+    And it offers a link to the paused screen naming the paused count
+
+  @wip
+  @scenario:S6
+  Scenario: No paused link is offered when nothing is in pause
+    Given a board holding one active habit
+    When the Today screen renders
+    Then no link to the paused screen is offered

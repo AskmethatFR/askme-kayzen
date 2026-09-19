@@ -8,7 +8,7 @@ Feature: Pause a habit and resume it
   Scenario: Pausing a habit moves it out of the daily list
     Given an active habit on the board
     When the user pauses it
-    Then it leaves the Today list and appears in the paused zone
+    Then it leaves the Today list and appears on the paused screen
 
   @scenario:S2
   Scenario: Resuming a paused habit brings it back in one gesture
