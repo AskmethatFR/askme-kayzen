@@ -3,75 +3,86 @@
    pebble shapes for everything the thumb touches. */
 
 @font-face {
-  font-family: 'Fraunces';
-  src: url('Fraunces-Variable.woff2') format('woff2');
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
+    font-family: 'Fraunces';
+    src: url('Fraunces-Variable.woff2') format('woff2');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
 }
 
 @font-face {
-  font-family: 'Figtree';
-  src: url('Figtree-Variable.woff2') format('woff2');
-  font-weight: 300 900;
-  font-style: normal;
-  font-display: swap;
+    font-family: 'Figtree';
+    src: url('Figtree-Variable.woff2') format('woff2');
+    font-weight: 300 900;
+    font-style: normal;
+    font-display: swap;
 }
 
 :root {
-  /* Palette */
-  --color-paper: #F4F1EA;
-  --color-card: #FBF9F4;
-  --color-ink: #2A2622;
-  --color-ink-soft: #6B645C;
-  --color-on-ink-soft: #B9B1A5;
-  --color-rule: #DCD5C8;
-  --color-accent: #0088b0;
-  --color-accent-text: #00708F;
-  --color-accent-hover: #005A73;
-  --color-tint: #DDEEF3;
-  --color-on-tint: #00506A;
-  --color-on-accent: #FBF9F4;
-  --color-anchored: #7A5E24;
-  --color-anchored-tint: #EFE3C8;
-  --color-shadow: 42, 38, 34;
+    /* Palette */
+    --color-paper: #F4F1EA;
+    --color-card: #FBF9F4;
+    --color-ink: #2A2622;
+    --color-ink-soft: #6B645C;
+    --color-on-ink-soft: #B9B1A5;
+    --color-rule: #DCD5C8;
+    --color-accent: #0088b0;
+    --color-accent-text: #00708F;
+    --color-accent-hover: #005A73;
+    --color-tint: #DDEEF3;
+    --color-on-tint: #00506A;
+    --color-on-accent: #FBF9F4;
+    --color-anchored: #7A5E24;
+    --color-anchored-tint: #EFE3C8;
+    --color-shadow: 42, 38, 34;
 
-  --color-ritual-ground: #12303A;
-  --color-ritual-track: #1C4552;
-  --color-ritual-run: #2E6B7E;
-  --color-ritual-ink: #F4F1EA;
-  --color-ritual-ink-soft: #A9BEC4;
+    --color-ritual-ground: #12303A;
+    --color-ritual-track: #1C4552;
+    --color-ritual-run: #2E6B7E;
+    --color-ritual-ink: #F4F1EA;
+    --color-ritual-ink-soft: #A9BEC4;
 
-  /* Space & shape */
-  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
-  --space-5: 24px; --space-6: 32px; --space-7: 48px;
-  --screen-max-width: 620px;
-  --bottom-nav-height: 64px;
-  --bottom-nav-offset: 20px;
-  --radius-bar: 4px;
-  --radius-field: 22px;
-  --radius-card: 20px;
-  --radius-habit: 24px;
-  --radius-pill: 30px;
-  --radius-pebble: 48% 52% 46% 54% / 55% 47% 53% 45%;
-  --shadow-sm: 0 1px 2px rgba(var(--color-shadow), .06);
-  --shadow-md: 0 2px 10px rgba(var(--color-shadow), .10);
+    /* Space & shape */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+    --space-7: 48px;
+    --screen-max-width: 620px;
+    --bottom-nav-height: 64px;
+    --bottom-nav-offset: 20px;
+    --radius-bar: 4px;
+    --radius-field: 22px;
+    --radius-card: 20px;
+    --radius-habit: 24px;
+    --radius-pill: 30px;
+    --radius-pebble: 48% 52% 46% 54% / 55% 47% 53% 45%;
+    --shadow-sm: 0 1px 2px rgba(var(--color-shadow), .06);
+    --shadow-md: 0 2px 10px rgba(var(--color-shadow), .10);
 
-  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
-  --font-body: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+    --font-body: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
-* { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+}
 
 body {
-  background: var(--color-paper);
-  color: var(--color-ink);
-  font-family: var(--font-body);
-  font-size: 17px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    font-size: 17px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
 }
 
 /* ---- Screen shell ----
@@ -80,151 +91,172 @@ body {
    the frame the mockup crops it in. The bottom bar is a sibling of `.screen`,
    so no chrome is clipped. */
 .screen {
-  max-width: var(--screen-max-width);
-  margin: 0 auto;
-  overflow: hidden;
-  padding: calc(var(--space-5) + env(safe-area-inset-top, 0px))
-           calc(var(--space-5) + env(safe-area-inset-right, 0px))
-           calc(var(--space-7) + env(safe-area-inset-bottom, 0px))
-           calc(var(--space-5) + env(safe-area-inset-left, 0px));
-  animation: kzUp .3s ease both;
+    max-width: var(--screen-max-width);
+    margin: 0px auto;
+    overflow: hidden;
+    padding: calc(var(--space-7) + env(safe-area-inset-top, 0px)) calc(var(--space-5) + env(safe-area-inset-right, 0px)) calc(var(--space-7) + env(safe-area-inset-bottom, 0px)) calc(var(--space-5) + env(safe-area-inset-left, 0px));
+    animation: kzUp .3s ease both;
 }
+
+.screen:before {
+    content: "";
+    background: var(--color-tint);
+    pointer-events: none;
+    z-index: -1;
+    border-radius: 50%;
+    width: 210px;
+    height: 210px;
+    position: absolute;
+    top: -110px;
+    right: -65px;
+}
+
 
 /* ---- Bottom nav ---- */
 .main-screen-frame > .screen {
-  /* content clears the bar: nav height + its bottom offset + the screen's own bottom breathing room */
-  padding-bottom: calc(var(--bottom-nav-height) + var(--bottom-nav-offset) + var(--space-7) + env(safe-area-inset-bottom, 0px));
+    /* content clears the bar: nav height + its bottom offset + the screen's own bottom breathing room */
+    padding-bottom: calc(var(--bottom-nav-height) + var(--bottom-nav-offset) + var(--space-7) + env(safe-area-inset-bottom, 0px));
 }
+
 .bottom-nav {
-  position: fixed;
-  bottom: calc(var(--bottom-nav-offset) + env(safe-area-inset-bottom, 0px));
-  left: calc(var(--space-4) + env(safe-area-inset-left, 0px));
-  right: calc(var(--space-4) + env(safe-area-inset-right, 0px));
-  max-width: calc(var(--screen-max-width) - 2 * var(--space-4));
-  margin-inline: auto;
-  height: var(--bottom-nav-height);
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  background: var(--color-ink);
-  border-radius: var(--radius-pill);
-  box-shadow: var(--shadow-md);
+    position: fixed;
+    bottom: calc(var(--bottom-nav-offset) + env(safe-area-inset-bottom, 0px));
+    left: calc(var(--space-4) + env(safe-area-inset-left, 0px));
+    right: calc(var(--space-4) + env(safe-area-inset-right, 0px));
+    max-width: calc(var(--screen-max-width) - 2 * var(--space-4));
+    margin-inline: auto;
+    height: var(--bottom-nav-height);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    background: var(--color-ink);
+    border-radius: var(--radius-pill);
+    box-shadow: var(--shadow-md);
 }
+
 .bottom-nav a {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  min-width: 64px;
-  min-height: 44px;
-  font-size: 12px;
-  text-decoration: none;
-  color: var(--color-on-ink-soft);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-width: 64px;
+    min-height: 44px;
+    font-size: 12px;
+    text-decoration: none;
+    color: var(--color-on-ink-soft);
 }
-.bottom-nav a[aria-current="page"] { color: var(--color-paper); font-weight: 600; }
-.bottom-nav a:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+
+.bottom-nav a[aria-current="page"] {
+    color: var(--color-paper);
+    font-weight: 600;
+}
+
+.bottom-nav a:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+}
+
 .bottom-nav-icon {
-  width: 22px;
-  height: 22px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 /* ---- Masthead ----
    The mockup bundle carries no rule under a masthead and no brand tag: one
    dated line, normal case, soft ink. */
 .masthead {
-  position: relative;
-  display: flex;
-  align-items: center;
-  padding-bottom: var(--space-2);
+    position: relative;
+    display: flex;
+    align-items: center;
+    padding-bottom: var(--space-2);
 }
-/* The tint disc bleeds off the top-right corner — decoration only: it takes
-   no layout space, no pointer events, and paints behind the copy. `.screen`
-   clips the bleed so it can never create horizontal scroll. */
-.masthead::before {
-  content: "";
-  position: absolute;
-  top: -90px;
-  right: -80px;
-  width: 260px;
-  height: 230px;
-  border-radius: 50%;
-  background: var(--color-tint);
-  pointer-events: none;
-  z-index: -1;
-}
+
 .masthead-date {
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: .02em;
-  color: var(--color-ink-soft);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: .02em;
+    color: var(--color-ink-soft);
 }
 
 /* ---- Headings ---- */
 .greeting {
-  font-family: var(--font-display);
-  font-size: clamp(30px, 8.2vw, 56px);
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  text-wrap: balance;
-  margin: var(--space-5) 0 var(--space-3);
-  padding-bottom: var(--space-4);
+    font-family: var(--font-display);
+    font-size: clamp(30px, 8.2vw, 56px);
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 0;
+    padding-bottom: var(--space-4);
 }
+
 .lede {
-  font-style: italic;
-  font-size: clamp(18px, 4.8vw, 22px);
-  color: var(--color-ink);
-  margin: 0;
+    font-size: clamp(18px, 4.8vw, 22px);
+    color: var(--color-ink);
+    margin: 0 0 2rem 0;
+    font-weight: 600;
+    width: 270px;
+    font-family: var(--font-display);
 }
+
 /* Each eyebrow starts a section: generous white above (the "cut"), tight below
    toward its own content. White does the separating — never rules or cards. */
 .eyebrow {
-  font-size: 12px;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-  color: var(--color-ink-soft);
-  margin: var(--space-6) 0 var(--space-3);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-ink-soft);
+    margin: var(--space-5) 0 var(--space-3);
 }
 
 /* ---- Habit list ----
    Every habit sits on its own card, stacked with a small gap — the card is the
    shape; no separator rule anywhere. */
 .habit-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
 }
+
 .habit-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-5);
-  background: var(--color-card);
-  border-radius: var(--radius-habit);
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-4) var(--space-4) var(--space-4) var(--space-5);
+    background: var(--color-card);
+    border-radius: var(--radius-habit);
 }
-.habit-body { flex: 1; min-width: 0; }
+
+.habit-body {
+    flex: 1;
+    min-width: 0;
+}
+
 .habit-name {
-  display: inline-block;
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--color-ink);
-  text-decoration: none;
+    display: inline-block;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--color-ink);
+    text-decoration: none;
 }
-.habit-name:hover { color: var(--color-accent-text); }
+
+.habit-name:hover {
+    color: var(--color-accent-text);
+}
+
 .habit-meta,
 .quiet-note {
-  font-size: 14px;
-  color: var(--color-ink-soft);
-  margin: 2px 0 0;
+    font-size: 14px;
+    color: var(--color-ink-soft);
+    margin: 2px 0 0;
 }
 
 /* ---- Summary card (Today screen) ----
@@ -233,196 +265,239 @@ body {
    by two nuances of the same shape (06-style-galets rule #32). The tally
    beside it carries the count. */
 .summary-card {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: 14px var(--space-4);
-  background: var(--color-card);
-  border-radius: var(--radius-card);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: 14px var(--space-4);
+    background: var(--color-card);
+    border-radius: var(--radius-card);
 }
+
 .pebble {
-  width: 22px;
-  height: 18px;
-  border-radius: 50%;
-  background: transparent;
-  border: 2px solid var(--color-ink-soft);
+    width: 22px;
+    height: 18px;
+    border-radius: 50%;
+    background: transparent;
+    border: 2px solid var(--color-ink-soft);
 }
+
 .pebble.is-done {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
+    background: var(--color-accent);
+    border-color: var(--color-accent);
 }
+
 .summary-tally {
-  margin: 0 0 0 auto;
-  font-size: 14px;
-  color: var(--color-ink-soft);
+    margin: 0 0 0 auto;
+    font-size: 14px;
+    color: var(--color-ink-soft);
 }
 
 /* ---- Resume affordance (habit at rest) ---- */
 .resume-link,
 .readmit {
-  flex: none;
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  font-size: 15px;
-  color: var(--color-accent-text);
-  cursor: pointer;
-  text-decoration: none;
+    flex: none;
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    font-size: 15px;
+    color: var(--color-accent-text);
+    cursor: pointer;
+    text-decoration: none;
 }
+
 .resume-link:hover,
-.readmit:hover { text-decoration: underline; }
+.readmit:hover {
+    text-decoration: underline;
+}
+
 .resume-link:focus-visible,
-.readmit:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+.readmit:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+}
 
 /* ---- Round target (mark done) ---- */
 .target {
-  position: relative;
-  flex: none;
-  width: 52px;
-  height: 52px;
-  border-radius: var(--radius-pebble);
-  border: 2px dashed var(--color-rule);
-  background: var(--color-paper);
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  transition: border-color .15s ease, transform .1s ease;
+    position: relative;
+    flex: none;
+    width: 52px;
+    height: 52px;
+    border-radius: var(--radius-pebble);
+    border: 2px dashed var(--color-rule);
+    background: var(--color-paper);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: border-color .15s ease, transform .1s ease;
 }
-.target:hover { border-color: var(--color-accent); }
-.target:active { transform: scale(.94); }
-.target:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+
+.target:hover {
+    border-color: var(--color-accent);
+}
+
+.target:active {
+    transform: scale(.94);
+}
+
+.target:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+}
 
 .target-ink {
-  position: absolute;
-  inset: 5px;
-  border-radius: var(--radius-pebble);
-  background: var(--color-accent);
-  transform: scale(0);
-  opacity: 0;
+    position: absolute;
+    inset: 5px;
+    border-radius: var(--radius-pebble);
+    background: var(--color-accent);
+    transform: scale(0);
+    opacity: 0;
 }
-.target.is-done { border-color: var(--color-accent); border-style: solid; }
+
+.target.is-done {
+    border-color: var(--color-accent);
+    border-style: solid;
+}
+
 .target.is-done .target-ink {
-  transform: scale(1);
-  opacity: 1;
-  animation: kzStamp .35s cubic-bezier(.2, .8, .3, 1.2) both;
+    transform: scale(1);
+    opacity: 1;
+    animation: kzStamp .35s cubic-bezier(.2, .8, .3, 1.2) both;
 }
+
 /* The check is the done state's shape cue (06-style-galets rule #32), not
    colour alone; it is a child of .target-ink so it inherits the stamp. */
 .target-check {
-  width: 26px;
-  height: 26px;
-  fill: none;
-  stroke: var(--color-on-accent);
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+    width: 26px;
+    height: 26px;
+    fill: none;
+    stroke: var(--color-on-accent);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
+
 .target-ink {
-  display: grid;
-  place-items: center;
+    display: grid;
+    place-items: center;
 }
+
 .target.is-done::after {
-  content: "";
-  position: absolute;
-  inset: -2px;
-  border-radius: var(--radius-pebble);
-  border: 2px solid var(--color-accent-hover);
-  animation: kzRing .5s ease-out both;
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: var(--radius-pebble);
+    border: 2px solid var(--color-accent-hover);
+    animation: kzRing .5s ease-out both;
 }
 
 /* ---- Footer / links ---- */
 .tally {
-  margin: var(--space-6) 0 var(--space-4);
-  font-size: 17px;
-  color: var(--color-ink-soft);
+    margin: var(--space-6) 0 var(--space-4);
+    font-size: 17px;
+    color: var(--color-ink-soft);
 }
+
 .quiet-link {
-  display: inline-block;
-  color: var(--color-accent-text);
-  text-decoration: none;
-  font-size: 17px;
+    display: inline-block;
+    color: var(--color-accent-text);
+    text-decoration: none;
+    font-size: 17px;
 }
-.quiet-link:hover { text-decoration: underline; }
+
+.quiet-link:hover {
+    text-decoration: underline;
+}
+
 .footer-links {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
 }
+
 .footer-links .quiet-link {
-  display: flex;
-  align-items: center;
-  min-height: 44px;
+    display: flex;
+    align-items: center;
+    min-height: 44px;
 }
-.add-cta { margin-top: var(--space-6); }
+
+.add-cta {
+    margin-top: var(--space-6);
+}
 
 /* ---- Practice staircase (Detail screen) ----
    One bar per calendar day over the last seven. A day without practice keeps
    its bar at low opacity: present, never a gap and never a warning. */
 .staircase {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--space-2);
-  height: 64px;
-  margin: var(--space-5) 0 var(--space-6);
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-2);
+    height: 64px;
+    margin: var(--space-5) 0 var(--space-6);
 }
+
 /* Height is normalized to the window's own maximum goal (--day-ratio, 0..1),
    never an absolute minute value: floor 8px + up to 56px of ratio exactly
    fills the 64px .staircase container (8 + 56 = 64), so the tallest bar
    always reaches the top and no bar can overflow by construction. */
 .day-bar {
-  width: 14px;
-  min-height: 8px;
-  height: calc(8px + var(--day-ratio, 1) * 56px);
-  background: var(--color-rule);
-  border-radius: var(--radius-bar) var(--radius-bar) 0 0;
-  opacity: 0.35;
+    width: 14px;
+    min-height: 8px;
+    height: calc(8px + var(--day-ratio, 1) * 56px);
+    background: var(--color-rule);
+    border-radius: var(--radius-bar) var(--radius-bar) 0 0;
+    opacity: 0.35;
 }
+
 .day-bar.is-done {
-  background: var(--color-accent);
-  opacity: 1;
+    background: var(--color-accent);
+    opacity: 1;
 }
 
 /* ---- Recap zone (Detail screen) ----
    A quiet read of the habit's whole life: figures on the left, their label
    beside them, and one adaptive sentence that never blames. */
 .recap {
-  margin: var(--space-6) 0;
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--color-rule);
+    margin: var(--space-6) 0;
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-rule);
 }
+
 .recap-figures {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+    list-style: none;
+    margin: 0;
+    padding: 0;
 }
+
 .recap-figure {
-  font-family: var(--font-display);
-  display: inline-block;
-  min-width: 44px;
-  font-variant-numeric: tabular-nums;
-  color: var(--color-ink);
+    font-family: var(--font-display);
+    display: inline-block;
+    min-width: 44px;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ink);
 }
+
 .recap-label {
-  color: var(--color-ink-soft);
-  font-size: 14px;
+    color: var(--color-ink-soft);
+    font-size: 14px;
 }
 
 /* ---- Week recap (Week screen) ----
    One large figure standing for practice accumulated across every habit,
    and one gentle word for how the week is living right now. */
 .week-figure {
-  font-family: var(--font-display);
-  font-size: clamp(30px, 8vw, 44px);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--color-ink);
-  margin: var(--space-5) 0 var(--space-2);
+    font-family: var(--font-display);
+    font-size: clamp(30px, 8vw, 44px);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ink);
+    margin: var(--space-5) 0 var(--space-2);
 }
+
 .week-word {
-  font-size: 17px;
-  color: var(--color-ink-soft);
-  margin: 0;
+    font-size: 17px;
+    color: var(--color-ink-soft);
+    margin: 0;
 }
 
 /* ---- Rhythm row (Week screen) ----
@@ -430,20 +505,22 @@ body {
    never density: a day without practice keeps its dot at the same faint
    opacity idiom as .day-bar — present, never a gap, never a warning. */
 .rhythm {
-  display: flex;
-  gap: var(--space-2);
-  margin: var(--space-4) 0 var(--space-2);
+    display: flex;
+    gap: var(--space-2);
+    margin: var(--space-4) 0 var(--space-2);
 }
+
 .rhythm-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: var(--radius-pebble);
-  background: var(--color-rule);
-  opacity: 0.35;
+    width: 10px;
+    height: 10px;
+    border-radius: var(--radius-pebble);
+    background: var(--color-rule);
+    opacity: 0.35;
 }
+
 .rhythm-dot.is-practised {
-  background: var(--color-accent);
-  opacity: 1;
+    background: var(--color-accent);
+    opacity: 1;
 }
 
 /* ---- Habit journey rows (Week screen) ----
@@ -453,28 +530,33 @@ body {
    already draws the seven days once, the curve draws the same window's
    lived history. A habit not practised in the window has no curve at all. */
 .week-habits {
-  margin-top: var(--space-5);
+    margin-top: var(--space-5);
 }
+
 .week-habit {
-  padding: var(--space-4) 0;
-  border-top: 1px solid var(--color-rule);
+    padding: var(--space-4) 0;
+    border-top: 1px solid var(--color-rule);
 }
+
 .week-habit-title {
-  font-weight: 600;
-  margin: 0;
+    font-weight: 600;
+    margin: 0;
 }
+
 .week-habit-journey {
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-  color: var(--color-ink-soft);
-  margin: 2px 0 var(--space-2);
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ink-soft);
+    margin: 2px 0 var(--space-2);
 }
+
 .week-curve {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--space-1);
-  height: 32px;
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-1);
+    height: 32px;
 }
+
 /* Height is normalized to the row's own maximum practised goal
    (--practice-ratio, 0..1), never an absolute minute value: floor 6px +
    up to 26px of ratio exactly fills the 32px .week-curve container
@@ -482,78 +564,126 @@ body {
    overflow by construction. Every bar drawn here stands for a practised
    day, so the accent carries no second state. */
 .practice-bar {
-  width: 10px;
-  min-height: 6px;
-  height: calc(6px + var(--practice-ratio, 1) * 26px);
-  background: var(--color-accent);
-  border-radius: var(--radius-bar) var(--radius-bar) 0 0;
-  /* composited 3.62:1 on --color-paper -- SC 1.4.11 floor is 3:1 */
-  opacity: 1;
+    width: 10px;
+    min-height: 6px;
+    height: calc(6px + var(--practice-ratio, 1) * 26px);
+    background: var(--color-accent);
+    border-radius: var(--radius-bar) var(--radius-bar) 0 0;
+    /* composited 3.62:1 on --color-paper -- SC 1.4.11 floor is 3:1 */
+    opacity: 1;
 }
 
 /* ---- Broadsheet components (for later screens) ---- */
 .btn {
-  font-family: var(--font-body);
-  font-size: 17px;
-  padding: var(--space-3) var(--space-5);
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--color-ink);
-  background: transparent;
-  color: var(--color-ink);
-  cursor: pointer;
-  text-decoration: none;
-  display: inline-block;
+    font-family: var(--font-body);
+    font-size: 17px;
+    padding: var(--space-3) var(--space-5);
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--color-ink);
+    background: transparent;
+    color: var(--color-ink);
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
 }
-.btn-primary { background: var(--color-accent-text); border-color: var(--color-accent-text); color: var(--color-on-accent); }
-.btn-primary:hover { background: var(--color-accent-hover); border-color: var(--color-accent-hover); }
-.btn-secondary { border-color: var(--color-rule); }
-.btn-block { display: block; width: 100%; text-align: center; }
-.btn-block + .btn-block { margin-top: var(--space-4); }
+
+.btn-primary {
+    background: var(--color-accent-text);
+    border-color: var(--color-accent-text);
+    color: var(--color-on-accent);
+}
+
+.btn-primary:hover {
+    background: var(--color-accent-hover);
+    border-color: var(--color-accent-hover);
+}
+
+.btn-secondary {
+    border-color: var(--color-rule);
+}
+
+.btn-block {
+    display: block;
+    width: 100%;
+    text-align: center;
+}
+
+.btn-block + .btn-block {
+    margin-top: var(--space-4);
+}
 
 .tag {
-  font-size: 12px;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  padding: 3px var(--space-2);
-  border-radius: var(--radius-pill);
-  background: var(--color-tint);
-  color: var(--color-on-tint);
+    font-size: 12px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    padding: 3px var(--space-2);
+    border-radius: var(--radius-pill);
+    background: var(--color-tint);
+    color: var(--color-on-tint);
 }
-.tag-accent { background: var(--color-tint); color: var(--color-on-tint); }
 
-.field { display: block; margin-bottom: var(--space-4); }
-.input {
-  width: 100%;
-  font-family: var(--font-body);
-  font-size: 18px;
-  padding: var(--space-3);
-  border: 1px solid var(--color-rule);
-  border-radius: var(--radius-field);
-  background: var(--color-card);
+.tag-accent {
+    background: var(--color-tint);
+    color: var(--color-on-tint);
 }
-.input:focus-visible { outline: 2px solid var(--color-accent); border-color: var(--color-accent); }
+
+.field {
+    display: block;
+    margin-bottom: var(--space-4);
+}
+
+.input {
+    width: 100%;
+    font-family: var(--font-body);
+    font-size: 18px;
+    padding: var(--space-3);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-field);
+    background: var(--color-card);
+}
+
+.input:focus-visible {
+    outline: 2px solid var(--color-accent);
+    border-color: var(--color-accent);
+}
 
 /* ---- Ready-made idea rows (Add screen) ---- */
-.idea-name { display: inline-block; font-size: clamp(19px, 5.4vw, 24px); font-weight: 600; color: var(--color-ink); }
-.add-target {
-  position: relative;
-  flex: none;
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-pebble);
-  border: 2px solid var(--color-accent);
-  background: transparent;
-  color: var(--color-accent-text);
-  font-size: 24px;
-  line-height: 1;
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  transition: background-color .15s ease, transform .1s ease;
+.idea-name {
+    display: inline-block;
+    font-size: clamp(19px, 5.4vw, 24px);
+    font-weight: 600;
+    color: var(--color-ink);
 }
-.add-target:hover { background: var(--color-tint); }
-.add-target:active { transform: scale(.94); }
-.add-target:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+
+.add-target {
+    position: relative;
+    flex: none;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-pebble);
+    border: 2px solid var(--color-accent);
+    background: transparent;
+    color: var(--color-accent-text);
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: background-color .15s ease, transform .1s ease;
+}
+
+.add-target:hover {
+    background: var(--color-tint);
+}
+
+.add-target:active {
+    transform: scale(.94);
+}
+
+.add-target:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+}
 
 /* ---- Ritual (practice timer) ---- */
 /* Fills the viewport (min so a taller-than-viewport screen still scrolls
@@ -562,59 +692,75 @@ body {
    the stop link share the leftover space via auto margins, so the slack
    splits above and below instead of collecting under the fold. */
 .screen.ritual {
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  min-height: 100dvh;
-  color: var(--color-ritual-ink);
-  background: var(--color-ritual-ground);
-  box-shadow: 0 0 0 100vmax var(--color-ritual-ground);
-  clip-path: inset(0 -100vmax);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
+    color: var(--color-ritual-ink);
+    background: var(--color-ritual-ground);
+    box-shadow: 0 0 0 100vmax var(--color-ritual-ground);
+    clip-path: inset(0 -100vmax);
 }
+
 html:has(.screen.ritual),
-body:has(.screen.ritual) { background: var(--color-ritual-ground); }
-.screen.ritual .quiet-note { color: var(--color-ritual-ink-soft); }
-.screen.ritual .quiet-link { color: var(--color-ritual-ink); }
+body:has(.screen.ritual) {
+    background: var(--color-ritual-ground);
+}
+
+.screen.ritual .quiet-note {
+    color: var(--color-ritual-ink-soft);
+}
+
+.screen.ritual .quiet-link {
+    color: var(--color-ritual-ink);
+}
+
 .ritual-dial {
-  position: relative;
-  width: 220px;
-  height: 220px;
-  margin: auto auto var(--space-6);
-  display: grid;
-  place-items: center;
+    position: relative;
+    width: 220px;
+    height: 220px;
+    margin: auto auto var(--space-6);
+    display: grid;
+    place-items: center;
 }
+
 .ritual-breath {
-  position: absolute;
-  inset: 28px;
-  border-radius: var(--radius-pebble);
-  background: var(--color-ritual-run);
-  opacity: .35;
-  animation: kzBreathe 8s ease-in-out infinite;
+    position: absolute;
+    inset: 28px;
+    border-radius: var(--radius-pebble);
+    background: var(--color-ritual-run);
+    opacity: .35;
+    animation: kzBreathe 8s ease-in-out infinite;
 }
+
 /* Stacked in the same grid cell (not two grid auto-rows) so the countdown
    reads inside the ring instead of below it. */
 .ritual-ring,
 .ritual-countdown {
-  grid-area: 1 / 1;
+    grid-area: 1 / 1;
 }
+
 .ritual-ring {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  transform: rotate(-90deg);
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
 }
+
 .ritual-ring-track {
-  fill: none;
-  stroke: var(--color-ritual-track);
-  stroke-width: 4;
+    fill: none;
+    stroke: var(--color-ritual-track);
+    stroke-width: 4;
 }
+
 .ritual-ring-run {
-  fill: none;
-  stroke: var(--color-ritual-run);
-  stroke-width: 4;
-  stroke-linecap: round;
+    fill: none;
+    stroke: var(--color-ritual-run);
+    stroke-width: 4;
+    stroke-linecap: round;
 }
+
 /* position: relative is the stacking lift, not decoration: it puts this
    grid item on the z-index:auto positioned paint step alongside the
    absolutely positioned .ritual-breath, so DOM order (this rule comes
@@ -624,45 +770,95 @@ body:has(.screen.ritual) { background: var(--color-ritual-ground); }
    remove this as "redundant with grid placement" (595697e did, and it
    silently hid the digits behind the breathing circle). */
 .ritual-countdown {
-  position: relative;
-  font-size: clamp(30px, 8vw, 44px);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  font-family: var(--font-display);
-  color: var(--color-ritual-ink);
+    position: relative;
+    font-size: clamp(30px, 8vw, 44px);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    font-family: var(--font-display);
+    color: var(--color-ritual-ink);
 }
+
 /* Invisible by design: this element's only job is to fire an
    animationiteration event every .25s so the countdown re-reads the clock.
    It must keep animating under prefers-reduced-motion — it moves no pixel,
    so silencing it would freeze the countdown instead of calming the screen. */
 .ritual-tick {
-  position: absolute;
-  width: 0;
-  height: 0;
-  opacity: 0;
-  pointer-events: none;
-  animation: kzTick .25s linear infinite;
+    position: absolute;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    pointer-events: none;
+    animation: kzTick .25s linear infinite;
 }
 
 .screen.ritual > .quiet-link {
-  margin-bottom: auto;
+    margin-bottom: auto;
 }
+
 .screen.ritual > .btn {
-  margin-top: var(--space-4);
+    margin-top: var(--space-4);
 }
 
 /* ---- Animations ---- */
-@keyframes kzStamp   { 0% { transform: scale(.35); opacity: 0; } 55% { transform: scale(1.12); } 100% { transform: scale(1); opacity: 1; } }
-@keyframes kzRing    { 0% { transform: scale(.55); opacity: .55; } 100% { transform: scale(2); opacity: 0; } }
-@keyframes kzUp      { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-@keyframes kzBreathe { 0%, 100% { transform: scale(.86); } 50% { transform: scale(1.08); } }
-@keyframes kzTick     { from { opacity: 0; } to { opacity: 0; } }
+@keyframes kzStamp {
+    0% {
+        transform: scale(.35);
+        opacity: 0;
+    }
+    55% {
+        transform: scale(1.12);
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes kzRing {
+    0% {
+        transform: scale(.55);
+        opacity: .55;
+    }
+    100% {
+        transform: scale(2);
+        opacity: 0;
+    }
+}
+
+@keyframes kzUp {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@keyframes kzBreathe {
+    0%, 100% {
+        transform: scale(.86);
+    }
+    50% {
+        transform: scale(1.08);
+    }
+}
+
+@keyframes kzTick {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 0;
+    }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .screen,
-  .target.is-done .target-ink,
-  .target.is-done::after,
-  .ritual-breath {
-    animation: none;
-  }
+    .screen,
+    .target.is-done .target-ink,
+    .target.is-done::after,
+    .ritual-breath {
+        animation: none;
+    }
 }
