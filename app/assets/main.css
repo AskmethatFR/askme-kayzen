@@ -374,7 +374,7 @@ body {
   height: calc(6px + var(--practice-ratio, 1) * 26px);
   background: var(--color-accent);
   border-radius: var(--radius-bar) var(--radius-bar) 0 0;
-  /* composited 3.65:1 on --color-paper -- SC 1.4.11 floor is 3:1 */
+  /* composited 3.62:1 on --color-paper -- SC 1.4.11 floor is 3:1 */
   opacity: 1;
 }
 
