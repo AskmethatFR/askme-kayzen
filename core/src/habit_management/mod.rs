@@ -32,4 +32,5 @@ pub mod queries {
     pub mod get_week_recap;
     pub mod list_anchored_habits;
     pub mod list_board_habits;
+    pub mod list_paused_habits;
 }
