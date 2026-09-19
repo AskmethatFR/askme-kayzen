@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use crate::habit_management::domain::habit_repository::HabitRepository;
+use crate::habit_management::domain::lifecycle_state::LifecycleState;
 use crate::habit_management::queries::list_board_habits::PausedHabit;
 
 #[derive(Clone)]
@@ -14,7 +15,15 @@ impl ListPausedHabits {
     }
 
     pub fn handle(&self) -> Vec<PausedHabit> {
-        Vec::new()
+        self.repository
+            .all()
+            .into_iter()
+            .filter(|habit| habit.state() == LifecycleState::Paused)
+            .map(|habit| PausedHabit {
+                id: habit.id().value().to_string(),
+                title: habit.title().value().to_string(),
+            })
+            .collect()
     }
 }
 

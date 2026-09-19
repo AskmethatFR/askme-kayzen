@@ -9,6 +9,7 @@ use kayzen_core::habit_management::queries::get_habit_detail::GetHabitDetail;
 use kayzen_core::habit_management::queries::get_week_recap::GetWeekRecap;
 use kayzen_core::habit_management::queries::list_anchored_habits::ListAnchoredHabits;
 use kayzen_core::habit_management::queries::list_board_habits::ListBoardHabits;
+use kayzen_core::habit_management::queries::list_paused_habits::ListPausedHabits;
 use kayzen_core::habit_management::use_cases::add_habit::AddHabit;
 use kayzen_core::habit_management::use_cases::anchor_habit::AnchorHabit;
 use kayzen_core::habit_management::use_cases::grow_goal::GrowGoal;
@@ -43,6 +44,8 @@ pub struct Services {
     pub readmit_habit: ReadmitHabit,
     pub anchor_habit: AnchorHabit,
     pub list_anchored_habits: ListAnchoredHabits,
+    #[allow(dead_code, reason = "consumer is the paused screen, landing in #59")]
+    pub list_paused_habits: ListPausedHabits,
 }
 
 impl Services {
@@ -92,6 +95,7 @@ impl Services {
             readmit_habit: ReadmitHabit::new(Rc::clone(&habit_repository)),
             anchor_habit: AnchorHabit::new(Rc::clone(&habit_repository)),
             list_anchored_habits: ListAnchoredHabits::new(Rc::clone(&habit_repository)),
+            list_paused_habits: ListPausedHabits::new(Rc::clone(&habit_repository)),
             add_habit: AddHabit::new(habit_repository, Rc::new(UuidGenerator), clock),
         }
     }
