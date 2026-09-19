@@ -93,30 +93,74 @@ mod tests {
         &nav[open..marker + close + 1]
     }
 
+    fn link_body<'a>(nav: &'a str, href: &str) -> &'a str {
+        let marker = format!(r#"<a href="{href}""#);
+        let open = nav
+            .find(&marker)
+            .unwrap_or_else(|| panic!("expected a bar link to {href}, got: {nav}"));
+        let after_open = &nav[open..];
+        let close = after_open
+            .find("</a>")
+            .expect("expected the bar link to close");
+        &after_open[..close]
+    }
+
     // @scenario: bottom-nav/S1
     #[test]
     fn the_bar_shows_on_the_three_main_screens_with_its_destinations_in_order() {
         for path in ["/", "/week", "/anchored"] {
             let html = render_route(path, langid!("fr"));
+
+            assert_eq!(
+                html.matches(r#"<nav class="bottom-nav""#).count(),
+                1,
+                "expected exactly one bar on {path}, got: {html}"
+            );
             let nav = nav_slice(&html);
 
+            assert!(
+                nav.contains(r#"aria-label="Navigation principale""#),
+                "expected the bar to name itself for assistive technology on {path}, got: {nav}"
+            );
             assert_eq!(
                 nav.matches("<a ").count(),
                 3,
                 "expected exactly three destinations in the bar on {path}, got: {nav}"
             );
-            let today = nav.find("Aujourd&#39;hui").unwrap_or_else(|| {
-                panic!("expected the Aujourd'hui destination on {path}, got: {nav}")
+            assert_eq!(
+                nav.matches(r#"aria-hidden="true""#).count(),
+                3,
+                "expected every destination icon hidden from assistive technology on {path}, got: {nav}"
+            );
+            assert_eq!(
+                nav.matches(r#"class="bottom-nav-label""#).count(),
+                3,
+                "expected every destination to carry its label hook on {path}, got: {nav}"
+            );
+
+            for (href, visible) in [
+                ("/", "Aujourd&#39;hui"),
+                ("/week", "Semaine"),
+                ("/anchored", "Ancrées"),
+            ] {
+                assert!(
+                    link_body(nav, href).contains(&format!(">{visible}</span>")),
+                    "expected the {href} destination to read {visible} on {path}, got: {nav}"
+                );
+            }
+
+            let today = nav.find(">Aujourd&#39;hui</span>").unwrap_or_else(|| {
+                panic!("expected the visible Aujourd'hui destination on {path}, got: {nav}")
             });
-            let week = nav.find("Semaine").unwrap_or_else(|| {
-                panic!("expected the Semaine destination on {path}, got: {nav}")
+            let week = nav.find(">Semaine</span>").unwrap_or_else(|| {
+                panic!("expected the visible Semaine destination on {path}, got: {nav}")
             });
-            let anchored = nav.find("Ancrées").unwrap_or_else(|| {
-                panic!("expected the Ancrées destination on {path}, got: {nav}")
+            let anchored = nav.find(">Ancrées</span>").unwrap_or_else(|| {
+                panic!("expected the visible Ancrées destination on {path}, got: {nav}")
             });
             assert!(
                 today < week && week < anchored,
-                "expected the destinations ordered Aujourd'hui, Semaine, Ancrées on {path}, got: {nav}"
+                "expected the visible destinations ordered Aujourd'hui, Semaine, Ancrées on {path}, got: {nav}"
             );
         }
     }
@@ -152,7 +196,11 @@ mod tests {
     // @scenario: bottom-nav/S2
     #[test]
     fn the_current_destination_is_marked_once_and_matches_the_route() {
-        for (path, href) in [("/", "/"), ("/week", "/week"), ("/anchored", "/anchored")] {
+        for (path, href, visible) in [
+            ("/", "/", "Aujourd&#39;hui"),
+            ("/week", "/week", "Semaine"),
+            ("/anchored", "/anchored", "Ancrées"),
+        ] {
             let html = render_route(path, langid!("fr"));
             let nav = nav_slice(&html);
 
@@ -165,6 +213,10 @@ mod tests {
             assert!(
                 tag.contains(&format!(r#"href="{href}""#)),
                 "expected the current-page marker on {path} to sit on the {href} link, got: {tag}"
+            );
+            assert!(
+                tag.contains(&format!(r#"aria-label="{visible} · navigation""#)),
+                "expected the current-page link on {path} to announce {visible} then navigation, got: {tag}"
             );
         }
     }
@@ -196,18 +248,25 @@ mod tests {
         let html = render_route("/", langid!("en"));
         let nav = nav_slice(&html);
 
+        for (href, visible) in [("/", "Today"), ("/week", "Week"), ("/anchored", "Anchored")] {
+            assert!(
+                link_body(nav, href).contains(&format!(">{visible}</span>")),
+                "expected the {href} destination to read {visible} under English, got: {nav}"
+            );
+        }
+
         let today = nav
-            .find("Today")
-            .unwrap_or_else(|| panic!("expected the Today destination under English, got: {nav}"));
+            .find(">Today</span>")
+            .unwrap_or_else(|| panic!("expected the visible Today destination, got: {nav}"));
         let week = nav
-            .find("Week")
-            .unwrap_or_else(|| panic!("expected the Week destination under English, got: {nav}"));
-        let anchored = nav.find("Anchored").unwrap_or_else(|| {
-            panic!("expected the Anchored destination under English, got: {nav}")
-        });
+            .find(">Week</span>")
+            .unwrap_or_else(|| panic!("expected the visible Week destination, got: {nav}"));
+        let anchored = nav
+            .find(">Anchored</span>")
+            .unwrap_or_else(|| panic!("expected the visible Anchored destination, got: {nav}"));
         assert!(
             today < week && week < anchored,
-            "expected the English destinations ordered Today, Week, Anchored, got: {nav}"
+            "expected the visible English destinations ordered Today, Week, Anchored, got: {nav}"
         );
         for marker in ["Aujourd", "Semaine", "Ancrées"] {
             assert!(
