@@ -104,22 +104,12 @@ pub fn Today() -> Element {
                     }
                 }
 
-                if has_active_habits || !today_habits.paused.is_empty() {
+                if !today_habits.paused.is_empty() {
                     div { class: "footer-links",
-                        if has_active_habits {
-                            Link {
-                                class: "quiet-link",
-                                to: Route::Week {},
-                                {tr!("today-week-link")}
-                                span { class: "week-link-arrow", "aria-hidden": "true", "→" }
-                            }
-                        }
-                        if !today_habits.paused.is_empty() {
-                            Link {
-                                class: "quiet-link",
-                                to: Route::Paused {},
-                                {tr!("today-paused-link", count: paused_count as i64)}
-                            }
+                        Link {
+                            class: "quiet-link",
+                            to: Route::Paused {},
+                            {tr!("today-paused-link", count: paused_count as i64)}
                         }
                     }
                 }
@@ -417,10 +407,6 @@ mod tests {
             "expected the tally in English, got: {html}"
         );
         assert!(
-            html.contains("See how I&#39;m growing · this week"),
-            "expected the week link in English, got: {html}"
-        );
-        assert!(
             !html.contains("Bonjour") && !html.contains("Aujourd"),
             "expected no leftover French copy under an English locale, got: {html}"
         );
@@ -672,9 +658,12 @@ mod tests {
             !html.contains("Vos petits pas"),
             "expected the habit-list heading to be hidden when nothing is active, got: {html}"
         );
+        let screen_content = &html[..html
+            .find(r#"<nav class="bottom-nav""#)
+            .expect("the bar renders on Today")];
         assert!(
-            !html.contains("Voir comment je grandis"),
-            "expected the week link to be hidden when nothing is active, got: {html}"
+            !screen_content.contains(r#"href="/week""#),
+            "expected the week link to have left Today entirely, got: {screen_content}"
         );
         assert!(
             html.contains("Un seul petit pas suffit"),
@@ -691,32 +680,27 @@ mod tests {
     }
 
     #[test]
-    fn the_footer_links_wrapper_holds_only_the_week_link_when_nothing_is_paused() {
+    fn the_footer_links_wrapper_is_absent_when_nothing_is_paused() {
         let html = render(RootWithUndoneHabit);
-        let section = footer_links_section(&html);
 
         assert!(
-            section.contains("Voir comment je grandis · cette semaine"),
-            "expected the Week link inside the footer-links wrapper, got: {section}"
-        );
-        assert!(
-            !section.contains("en pause"),
-            "expected no paused link inside the wrapper when nothing is paused, got: {section}"
+            !html.contains(r#"class="footer-links""#),
+            "expected no footer-links wrapper when nothing is paused, got: {html}"
         );
     }
 
     #[test]
-    fn the_footer_links_wrapper_stacks_the_week_and_paused_links_when_something_is_paused() {
+    fn the_footer_links_wrapper_holds_the_paused_link_alone_when_something_is_paused() {
         let html = render(RootWithThreeActiveAndOnePausedHabit);
         let section = footer_links_section(&html);
 
         assert!(
-            section.contains("Voir comment je grandis · cette semaine"),
-            "expected the Week link inside the footer-links wrapper, got: {section}"
+            section.contains("1 en pause · aucune pression"),
+            "expected the paused link inside the footer-links wrapper, got: {section}"
         );
         assert!(
-            section.contains("1 en pause · aucune pression"),
-            "expected the paused link inside the same footer-links wrapper, got: {section}"
+            !section.contains("href=\"/week\""),
+            "expected the Week link to have left the wrapper, got: {section}"
         );
     }
 
@@ -728,16 +712,30 @@ mod tests {
             !html.contains("Mes habitudes ancr"),
             "expected Today to carry no Ancrées link any more, got: {html}"
         );
+        assert!(
+            !html.contains(r#"class="footer-links""#),
+            "expected no footer-links wrapper when it would hold no link, got: {html}"
+        );
     }
 
     #[test]
-    fn the_week_link_carries_its_decorative_arrow() {
+    fn the_week_link_is_gone_from_today() {
         let html = render(RootWithUndoneHabit);
-        let section = footer_links_section(&html);
+        let screen_content = &html[..html
+            .find(r#"<nav class="bottom-nav""#)
+            .expect("the bar renders on Today")];
 
         assert!(
-            section.contains(r#"class="week-link-arrow""#) && section.contains("→"),
-            "expected the week link to carry its decorative arrow, got: {section}"
+            !screen_content.contains("Voir comment je grandis"),
+            "expected no week link copy in Today's content, got: {screen_content}"
+        );
+        assert!(
+            !screen_content.contains("week-link-arrow"),
+            "expected no week-link arrow in Today's content, got: {screen_content}"
+        );
+        assert!(
+            !screen_content.contains(r#"href="/week""#),
+            "expected no link to the Week screen in Today's content, got: {screen_content}"
         );
     }
 
@@ -774,8 +772,8 @@ mod tests {
             "expected the habit-list eyebrow to be hidden, got: {html}"
         );
         assert!(
-            !html.contains("Voir comment je grandis"),
-            "expected the week link to be hidden on an empty board, got: {html}"
+            !screen_content.contains(r#"href="/week""#),
+            "expected no week link in the screen's content on an empty board, got: {screen_content}"
         );
     }
 

@@ -30,7 +30,6 @@ today-habit-meta = every day · { $minutes } min
 today-done-aria = Done today · { $title }
 today-mark-done-aria = Mark as done · { $title }
 today-tally = { $done } of { $total } · that's already something.
-today-week-link = See how I'm growing · this week
 today-paused-link = { $count } paused · no pressure
 paused-heading = Paused
 paused-empty-note = Nothing here. Everything is back in your daily life.

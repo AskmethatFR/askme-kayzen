@@ -353,12 +353,8 @@ body {
 .footer-links .quiet-link {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   min-height: 44px;
 }
-/* Decorative chevron on the week link: aria-hidden, so it is pure ornament —
-   the label alone carries the meaning. */
-.week-link-arrow { color: var(--color-accent); }
 .add-cta { margin-top: var(--space-6); }
 
 /* ---- Practice staircase (Detail screen) ----
