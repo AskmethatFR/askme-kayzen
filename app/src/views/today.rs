@@ -583,10 +583,14 @@ mod tests {
             html.contains("+ Ajouter une toute petite habitude"),
             "expected the add-habit gesture to be offered, got: {html}"
         );
-        let interactive_elements = html.matches("<a ").count() + html.matches("<button").count();
+        let screen_content = &html[..html
+            .find(r#"<nav class="bottom-nav""#)
+            .expect("the bar renders on Today")];
+        let interactive_elements =
+            screen_content.matches("<a ").count() + screen_content.matches("<button").count();
         assert_eq!(
             interactive_elements, 1,
-            "expected the add-habit gesture to be the only interactive element, got: {html}"
+            "expected the add-habit gesture to be the only interactive element in the screen's content, got: {html}"
         );
         assert!(
             !html.contains("Vos petits pas"),

@@ -24,6 +24,7 @@
   --color-card: #FBF9F4;
   --color-ink: #2A2622;
   --color-ink-soft: #6B645C;
+  --color-on-ink-soft: #B9B1A5;
   --color-rule: #DCD5C8;
   --color-accent: #0088b0;
   --color-accent-text: #00708F;
@@ -44,6 +45,9 @@
   /* Space & shape */
   --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
   --space-5: 24px; --space-6: 32px; --space-7: 48px;
+  --screen-max-width: 620px;
+  --bottom-nav-height: 64px;
+  --bottom-nav-offset: 20px;
   --radius-bar: 4px;
   --radius-field: 22px;
   --radius-pill: 30px;
@@ -70,13 +74,57 @@ body {
 
 /* ---- Screen shell ---- */
 .screen {
-  max-width: 620px;
+  max-width: var(--screen-max-width);
   margin: 0 auto;
   padding: calc(var(--space-5) + env(safe-area-inset-top, 0px))
            calc(var(--space-5) + env(safe-area-inset-right, 0px))
            calc(var(--space-7) + env(safe-area-inset-bottom, 0px))
            calc(var(--space-5) + env(safe-area-inset-left, 0px));
   animation: kzUp .3s ease both;
+}
+
+/* ---- Bottom nav ---- */
+.main-screen-frame > .screen {
+  /* content clears the bar: nav height + its bottom offset + the screen's own bottom breathing room */
+  padding-bottom: calc(var(--bottom-nav-height) + var(--bottom-nav-offset) + var(--space-7) + env(safe-area-inset-bottom, 0px));
+}
+.bottom-nav {
+  position: fixed;
+  bottom: calc(var(--bottom-nav-offset) + env(safe-area-inset-bottom, 0px));
+  left: calc(var(--space-4) + env(safe-area-inset-left, 0px));
+  right: calc(var(--space-4) + env(safe-area-inset-right, 0px));
+  max-width: calc(var(--screen-max-width) - 2 * var(--space-4));
+  margin-inline: auto;
+  height: var(--bottom-nav-height);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  background: var(--color-ink);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-md);
+}
+.bottom-nav a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 64px;
+  min-height: 44px;
+  font-size: 12px;
+  text-decoration: none;
+  color: var(--color-on-ink-soft);
+}
+.bottom-nav a[aria-current="page"] { color: var(--color-paper); font-weight: 600; }
+.bottom-nav a:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+.bottom-nav-icon {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* ---- Masthead ---- */

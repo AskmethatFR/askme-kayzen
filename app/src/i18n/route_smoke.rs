@@ -36,7 +36,7 @@ fn RouteSmokeRoot(path: &'static str, locale: LanguageIdentifier) -> Element {
     }
 }
 
-fn render_route(path: &'static str, locale: LanguageIdentifier) -> String {
+pub(crate) fn render_route(path: &'static str, locale: LanguageIdentifier) -> String {
     let mut vdom = VirtualDom::new_with_props(RouteSmokeRoot, RouteSmokeRootProps { path, locale });
     vdom.rebuild_in_place();
     dioxus_ssr::render(&vdom)
