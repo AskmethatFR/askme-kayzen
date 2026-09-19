@@ -131,11 +131,27 @@ body {
 
 /* ---- Masthead ---- */
 .masthead {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding-bottom: var(--space-2);
   border-bottom: 2px solid var(--color-ink);
+}
+/* A soft tint disc behind the masthead's top-right corner — decoration only:
+   it takes no layout space, no pointer events, and paints behind the copy. */
+.masthead::before {
+  content: "";
+  position: absolute;
+  top: calc(-1 * var(--space-5));
+  right: calc(-1 * var(--space-4));
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: var(--color-tint);
+  opacity: .7;
+  pointer-events: none;
+  z-index: -1;
 }
 .masthead-date {
   font-size: 13px;
@@ -172,20 +188,29 @@ body {
   margin: var(--space-6) 0 var(--space-3);
 }
 
-/* ---- Habit list ---- */
-.habit-list { list-style: none; margin: 0; padding: 0; }
+/* ---- Habit list ----
+   Every habit sits on its own card, stacked with a small gap — the card is the
+   shape; no separator rule anywhere. */
+.habit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
 .habit-row {
   display: flex;
   align-items: center;
   gap: var(--space-4);
-  padding: var(--space-4) 0;
-  border-top: 1px solid var(--color-rule);
+  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-5);
+  background: var(--color-card);
+  border-radius: var(--radius-habit);
 }
-.habit-row:first-child { border-top: none; }
 .habit-body { flex: 1; min-width: 0; }
 .habit-name {
   display: inline-block;
-  font-size: clamp(19px, 5.4vw, 24px);
+  font-size: 17px;
   font-weight: 600;
   color: var(--color-ink);
   text-decoration: none;
@@ -198,8 +223,32 @@ body {
   margin: 2px 0 0;
 }
 
-/* ---- Paused zone (Today screen) ---- */
-.habit-row.is-paused .habit-name { color: var(--color-ink-soft); }
+/* ---- Summary card (Today screen) ----
+   One pebble per active habit: filled when it was practised today, the plain
+   rule colour otherwise. Presence, never a figure — the tally beside it
+   carries the count. */
+.summary-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 14px var(--space-4);
+  background: var(--color-card);
+  border-radius: var(--radius-card);
+}
+.pebble {
+  width: 22px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-rule);
+}
+.pebble.is-done { background: var(--color-accent); }
+.summary-tally {
+  margin: 0 0 0 auto;
+  font-size: 14px;
+  color: var(--color-ink-soft);
+}
+
+/* ---- Resume affordance (habit at rest) ---- */
 .resume-link,
 .readmit {
   flex: none;
@@ -224,7 +273,7 @@ body {
   width: 52px;
   height: 52px;
   border-radius: var(--radius-pebble);
-  border: 2px solid var(--color-rule);
+  border: 2px dashed var(--color-rule);
   background: var(--color-paper);
   cursor: pointer;
   display: grid;
@@ -252,7 +301,7 @@ body {
   transform: scale(0);
   opacity: 0;
 }
-.target.is-done { border-color: var(--color-accent); }
+.target.is-done { border-color: var(--color-accent); border-style: solid; }
 .target.is-done::before { opacity: 0; }
 .target.is-done .target-ink {
   transform: scale(1);

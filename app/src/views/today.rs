@@ -19,7 +19,8 @@ pub fn Today() -> Element {
         .iter()
         .filter(|habit| habit.done_today)
         .count();
-    let has_anchored_habits = today_habits.has_anchored_habits();
+    let paused_count = today_habits.paused.len();
+    let has_active_habits = !today_habits.active.is_empty();
 
     rsx! {
         div { class: "screen",
@@ -44,77 +45,63 @@ pub fn Today() -> Element {
             } else {
                 p { class: "lede", {tr!("today-lede")} }
 
-                p { class: "eyebrow", {tr!("today-eyebrow-active")} }
-                ul { class: "habit-list",
-                    for habit in today_habits.active {
-                        li { key: "{habit.id}", class: "habit-row",
-                            div { class: "habit-body",
-                                Link {
-                                    class: "habit-name",
-                                    to: Route::HabitDetail { id: habit.id.clone() },
-                                    "{habit.title}"
-                                }
-                                div {
-                                    class: "habit-meta",
-                                    {tr!("today-habit-meta", minutes: habit.minutes as i64)}
-                                }
-                            }
-                            button {
-                                class: if habit.done_today { "target is-done" } else { "target" },
-                                aria_label: if habit.done_today { tr!("today-done-aria", title: habit.title.clone()) } else { tr!("today-mark-done-aria", title: habit.title.clone()) },
-                                onclick: {
-                                    let services = services.clone();
-                                    let id = habit.id.clone();
-                                    move |_| habits.set(mark_done_and_relist(&services, &id))
-                                },
-                                span { class: "target-ink" }
+                if has_active_habits {
+                    div { class: "summary-card",
+                        for habit in today_habits.active.iter() {
+                            span {
+                                key: "{habit.id}",
+                                class: if habit.done_today { "pebble is-done" } else { "pebble" },
                             }
                         }
+                        p {
+                            class: "summary-tally",
+                            {tr!("today-tally", done: done as i64, total: total as i64)}
+                        }
                     }
-                }
 
-                if !today_habits.paused.is_empty() {
-                    p { class: "eyebrow", {tr!("today-paused-eyebrow")} }
+                    p { class: "eyebrow", {tr!("today-eyebrow-active")} }
                     ul { class: "habit-list",
-                        for habit in today_habits.paused {
-                            li { key: "{habit.id}", class: "habit-row is-paused",
+                        for habit in today_habits.active {
+                            li { key: "{habit.id}", class: "habit-row",
                                 div { class: "habit-body",
                                     Link {
                                         class: "habit-name",
                                         to: Route::HabitDetail { id: habit.id.clone() },
                                         "{habit.title}"
                                     }
+                                    div {
+                                        class: "habit-meta",
+                                        {tr!("today-habit-meta", minutes: habit.minutes as i64)}
+                                    }
                                 }
                                 button {
-                                    class: "resume-link",
-                                    aria_label: tr!("today-resume-aria", title: habit.title.clone()),
+                                    class: if habit.done_today { "target is-done" } else { "target" },
+                                    aria_label: if habit.done_today { tr!("today-done-aria", title: habit.title.clone()) } else { tr!("today-mark-done-aria", title: habit.title.clone()) },
                                     onclick: {
                                         let services = services.clone();
                                         let id = habit.id.clone();
-                                        move |_| habits.set(resume_and_relist(&services, &id))
+                                        move |_| habits.set(mark_done_and_relist(&services, &id))
                                     },
-                                    {tr!("today-resume-label")}
+                                    span { class: "target-ink" }
                                 }
                             }
                         }
                     }
                 }
 
-                p {
-                    class: "tally",
-                    {tr!("today-tally", done: done as i64, total: total as i64)}
-                }
                 div { class: "footer-links",
-                    Link {
-                        class: "quiet-link",
-                        to: Route::Week {},
-                        {tr!("today-week-link")}
-                    }
-                    if has_anchored_habits {
+                    if has_active_habits {
                         Link {
                             class: "quiet-link",
-                            to: Route::Anchored {},
-                            {tr!("today-anchored-link", count: today_habits.anchored_count as i64)}
+                            to: Route::Week {},
+                            {tr!("today-week-link")}
+                        }
+                    }
+                    if !today_habits.paused.is_empty() {
+                        Link {
+                            class: "quiet-link",
+                            to: Route::Paused {},
+                            {tr!("today-paused-link", count: paused_count as i64)}
                         }
                     }
                 }
@@ -128,12 +115,6 @@ pub fn Today() -> Element {
             }
         }
     }
-}
-
-#[must_use]
-fn resume_and_relist(services: &Services, id: &str) -> TodayHabits {
-    services.resume_habit.execute(id).ok();
-    services.list_board_habits.handle()
 }
 
 #[must_use]
@@ -177,6 +158,26 @@ mod tests {
         )
     }
 
+    fn a_second_habit() -> Habit {
+        Habit::new(
+            HabitId::new("test-2").unwrap(),
+            HabitTitle::new("Move a little".to_string()).unwrap(),
+            Goal::new(2).unwrap(),
+            LocalDate::from_epoch_day(20_000),
+        )
+    }
+
+    fn a_paused_habit() -> Habit {
+        let mut paused = Habit::new(
+            HabitId::new("test-3").unwrap(),
+            HabitTitle::new("Breathe".to_string()).unwrap(),
+            Goal::new(2).unwrap(),
+            LocalDate::from_epoch_day(20_000),
+        );
+        paused.pause().expect("a fresh habit is active");
+        paused
+    }
+
     fn services_with_one_undone_habit() -> Services {
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
         repository.save(&a_habit());
@@ -204,17 +205,20 @@ mod tests {
         Services::with_repository(repository)
     }
 
-    fn services_with_one_active_and_one_paused_habit() -> Services {
+    fn services_with_two_active_one_done_and_one_paused_habit() -> Services {
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock(LocalDate::from_epoch_day(20_005)));
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
-        repository.save(&a_habit());
-        let mut paused = Habit::new(
-            HabitId::new("test-2").unwrap(),
-            HabitTitle::new("Move a little".to_string()).unwrap(),
-            Goal::new(2).unwrap(),
-            LocalDate::from_epoch_day(20_000),
-        );
-        paused.pause().expect("a fresh habit is active");
-        repository.save(&paused);
+        let mut done = a_habit();
+        done.toggle_done(clock.today());
+        repository.save(&done);
+        repository.save(&a_second_habit());
+        repository.save(&a_paused_habit());
+        Services::with_repository_and_clock(repository, clock)
+    }
+
+    fn services_with_one_paused_habit_only() -> Services {
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_paused_habit());
         Services::with_repository(repository)
     }
 
@@ -246,9 +250,18 @@ mod tests {
     }
 
     #[component]
-    fn RootWithActiveAndPausedHabit() -> Element {
+    fn RootWithTwoActiveAndOnePausedHabit() -> Element {
         use_locale_for_tests();
-        use_context_provider(services_with_one_active_and_one_paused_habit);
+        use_context_provider(services_with_two_active_one_done_and_one_paused_habit);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootWithOnePausedHabitOnly() -> Element {
+        use_locale_for_tests();
+        use_context_provider(services_with_one_paused_habit_only);
         rsx! {
             Router::<Route> {}
         }
@@ -282,18 +295,9 @@ mod tests {
     }
 
     #[component]
-    fn RootWithActiveAndPausedHabitAndEnglishLocale() -> Element {
+    fn RootWithTwoActiveAndOnePausedHabitAndEnglishLocale() -> Element {
         use_locale_for_tests_as(langid!("en"));
-        use_context_provider(services_with_one_active_and_one_paused_habit);
-        rsx! {
-            Router::<Route> {}
-        }
-    }
-
-    #[component]
-    fn RootWithAnchoredHabitAndEnglishLocale() -> Element {
-        use_locale_for_tests_as(langid!("en"));
-        use_context_provider(services_with_one_anchored_habit);
+        use_context_provider(services_with_two_active_one_done_and_one_paused_habit);
         rsx! {
             Router::<Route> {}
         }
@@ -326,7 +330,7 @@ mod tests {
     fn footer_links_section(html: &str) -> &str {
         let start = html
             .find(r#"<div class="footer-links">"#)
-            .expect("expected a footer-links wrapper around the two navigation links");
+            .expect("expected a footer-links wrapper around the footer navigation links");
         let after_open = &html[start..];
         let end = after_open
             .find("</div>")
@@ -387,22 +391,28 @@ mod tests {
 
     // @scenario: language/S1
     #[test]
-    fn an_english_locale_renders_the_paused_zone_and_anchored_link_in_english() {
-        let paused_html = render(RootWithActiveAndPausedHabitAndEnglishLocale);
-        assert!(
-            paused_html.contains("Paused · no pressure"),
-            "expected the paused-zone eyebrow in English, got: {paused_html}"
-        );
-        assert!(
-            paused_html.contains(r#"aria-label="Resume · Move a little""#)
-                && paused_html.contains(">Resume<"),
-            "expected the resume affordance in English, got: {paused_html}"
-        );
+    fn an_english_locale_renders_today_and_its_paused_link_in_english() {
+        let html = render(RootWithTwoActiveAndOnePausedHabitAndEnglishLocale);
 
-        let anchored_html = render(RootWithAnchoredHabitAndEnglishLocale);
         assert!(
-            anchored_html.contains("My anchored habits · 1"),
-            "expected the anchored-link copy in English, got: {anchored_html}"
+            html.contains("Today") && html.contains("Hello."),
+            "expected the masthead date and greeting in English, got: {html}"
+        );
+        assert!(
+            html.contains("Your small steps") && html.contains("1 of 2 ·"),
+            "expected the active board in English, got: {html}"
+        );
+        assert!(
+            html.contains("1 paused · no pressure"),
+            "expected the paused link's copy in English, got: {html}"
+        );
+        assert!(
+            !html.contains("Mes habitudes ancr"),
+            "expected no Ancrées link on Today any more, got: {html}"
+        );
+        assert!(
+            !html.contains("Bonjour") && !html.contains("Aujourd"),
+            "expected no leftover French copy under an English locale, got: {html}"
         );
     }
 
@@ -440,25 +450,12 @@ mod tests {
             "expected the target to be stamped after the click, got: {html}"
         );
         assert!(
+            html.contains(r#"class="pebble is-done""#),
+            "expected the summary pebble to be filled after the click, got: {html}"
+        );
+        assert!(
             html.contains("1 sur 1 ·"),
             "expected the tally to count the freshly-done habit, got: {html}"
-        );
-    }
-
-    #[test]
-    fn clicking_reprendre_moves_the_habit_out_of_the_paused_zone() {
-        let mut screen = Screen::open(RootWithActiveAndPausedHabit);
-
-        screen.click("Reprendre · Move a little");
-
-        let html = screen.html();
-        assert!(
-            !html.contains("En pause"),
-            "expected the paused zone to disappear once its only habit resumes, got: {html}"
-        );
-        assert!(
-            html.contains("0 sur 2 ·"),
-            "expected the resumed habit to join the active tally, got: {html}"
         );
     }
 
@@ -487,91 +484,157 @@ mod tests {
         );
     }
 
-    // @scenario: pause-resume/S1
     #[test]
-    fn a_paused_habit_renders_under_the_paused_eyebrow_and_the_tally_counts_only_active() {
-        let html = render(RootWithActiveAndPausedHabit);
+    fn the_summary_card_fills_the_pebble_of_a_habit_done_today() {
+        let html = render(RootWithHabitDoneToday);
 
         assert!(
-            html.contains("En pause") && html.contains("aucune pression"),
-            "expected the paused-zone eyebrow, got: {html}"
+            html.contains(r#"class="summary-card""#),
+            "expected the summary card in the active board, got: {html}"
         );
         assert!(
-            html.contains("Move a little"),
-            "expected the paused habit's title to render, got: {html}"
+            html.contains(r#"class="pebble is-done""#),
+            "expected the done habit's pebble to be filled, got: {html}"
         );
-        assert!(
-            html.contains("sur 1 ·"),
-            "expected the tally's total to count the active habit only, not the paused one, got: {html}"
+        assert_eq!(
+            html.matches(r#"class="pebble is-done""#).count(),
+            1,
+            "expected the done habit's pebble to be the only one, got: {html}"
+        );
+        assert_eq!(
+            html.matches(r#"class="pebble""#).count(),
+            0,
+            "expected no empty pebble when the only active habit is done today, got: {html}"
         );
     }
 
-    // @scenario: pause-resume/S2
+    // @scenario: today-habit-list/S5
     #[test]
-    fn a_paused_row_carries_its_resume_affordance() {
-        let html = render(RootWithActiveAndPausedHabit);
+    fn a_paused_habit_leaves_today_for_its_own_screen_behind_a_link_naming_the_count() {
+        let html = render(RootWithTwoActiveAndOnePausedHabit);
 
         assert!(
-            html.contains("Reprendre"),
-            "expected the paused row to offer a one-tap resume gesture, got: {html}"
+            html.contains("Read one page") && html.contains("Move a little"),
+            "expected the active habits to stay listed, got: {html}"
+        );
+        assert!(
+            !html.contains("Breathe"),
+            "expected the paused habit to leave Today entirely, got: {html}"
+        );
+        assert!(
+            !html.contains("En pause"),
+            "expected the paused zone to be gone from Today, got: {html}"
+        );
+        assert!(
+            html.contains(r#"href="/paused""#) && html.contains("1 en pause · aucune pression"),
+            "expected a link to the paused screen naming the paused count, got: {html}"
+        );
+        assert_eq!(
+            html.matches(r#"class="pebble""#).count(),
+            1,
+            "expected one empty pebble for the one active habit not done today, got: {html}"
+        );
+        assert_eq!(
+            html.matches(r#"class="pebble is-done""#).count(),
+            1,
+            "expected one filled pebble for the one active habit done today, got: {html}"
+        );
+        assert!(
+            html.contains("1 sur 2 ·"),
+            "expected the tally to count the active habits only, got: {html}"
         );
     }
 
-    // @scenario: anchor-habit/S2
+    // @scenario: today-habit-list/S6
     #[test]
-    fn the_ancrees_link_renders_with_the_count_when_a_habit_is_anchored() {
-        let html = render(RootWithAnchoredHabit);
-
-        assert!(
-            html.contains("Mes habitudes ancrées · 1"),
-            "expected the Ancrées link's full copy naming the count, got: {html}"
-        );
-    }
-
-    #[test]
-    fn the_ancrees_link_is_absent_when_nothing_is_anchored() {
+    fn no_paused_link_is_offered_when_nothing_is_paused() {
         let html = render(RootWithUndoneHabit);
+
+        assert!(
+            !html.contains(r#"href="/paused""#),
+            "expected no link to the paused screen when nothing is in pause, got: {html}"
+        );
+        assert!(
+            !html.contains("en pause"),
+            "expected no paused link copy when nothing is in pause, got: {html}"
+        );
+    }
+
+    // @scenario: today-habit-list/S7
+    #[test]
+    fn a_board_whose_only_habits_are_paused_keeps_the_invitation_to_add() {
+        let html = render(RootWithOnePausedHabitOnly);
+
+        assert!(
+            !html.contains(r#"class="summary-card""#),
+            "expected no summary card when nothing is active, got: {html}"
+        );
+        assert!(
+            !html.contains("Vos petits pas"),
+            "expected the habit-list heading to be hidden when nothing is active, got: {html}"
+        );
+        assert!(
+            !html.contains("Voir comment je grandis"),
+            "expected the week link to be hidden when nothing is active, got: {html}"
+        );
+        assert!(
+            html.contains("Un seul petit pas suffit"),
+            "expected the lede to stay visible, got: {html}"
+        );
+        assert!(
+            html.contains(r#"href="/paused""#) && html.contains("1 en pause · aucune pression"),
+            "expected the paused link to stay visible, got: {html}"
+        );
+        assert!(
+            html.contains("+ Ajouter une toute petite habitude"),
+            "expected the add-habit gesture to stay visible, got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_footer_links_wrapper_holds_only_the_week_link_when_nothing_is_paused() {
+        let html = render(RootWithUndoneHabit);
+        let section = footer_links_section(&html);
+
+        assert!(
+            section.contains("Voir comment je grandis · cette semaine"),
+            "expected the Week link inside the footer-links wrapper, got: {section}"
+        );
+        assert!(
+            !section.contains("en pause"),
+            "expected no paused link inside the wrapper when nothing is paused, got: {section}"
+        );
+    }
+
+    #[test]
+    fn the_footer_links_wrapper_stacks_the_week_and_paused_links_when_something_is_paused() {
+        let html = render(RootWithTwoActiveAndOnePausedHabit);
+        let section = footer_links_section(&html);
+
+        assert!(
+            section.contains("Voir comment je grandis · cette semaine"),
+            "expected the Week link inside the footer-links wrapper, got: {section}"
+        );
+        assert!(
+            section.contains("1 en pause · aucune pression"),
+            "expected the paused link inside the same footer-links wrapper, got: {section}"
+        );
+    }
+
+    #[test]
+    fn today_renders_no_ancrees_link_even_when_a_habit_is_anchored() {
+        let html = render(RootWithAnchoredHabit);
 
         assert!(
             !html.contains("Mes habitudes ancr"),
-            "expected no Ancrées link when nothing is anchored, got: {html}"
-        );
-    }
-
-    #[test]
-    fn the_footer_links_stack_inside_one_wrapper_when_the_ancrees_link_is_present() {
-        let html = render(RootWithAnchoredHabit);
-        let section = footer_links_section(&html);
-
-        assert!(
-            section.contains("Voir comment je grandis · cette semaine"),
-            "expected the Week link inside the footer-links wrapper, got: {section}"
-        );
-        assert!(
-            section.contains("Mes habitudes ancrées · 1"),
-            "expected the Ancrées link inside the same footer-links wrapper, got: {section}"
-        );
-    }
-
-    #[test]
-    fn the_footer_links_wrapper_holds_only_the_week_link_when_nothing_is_anchored() {
-        let html = render(RootWithUndoneHabit);
-        let section = footer_links_section(&html);
-
-        assert!(
-            section.contains("Voir comment je grandis · cette semaine"),
-            "expected the Week link inside the footer-links wrapper, got: {section}"
-        );
-        assert!(
-            !section.contains("Mes habitudes ancr"),
-            "expected no Ancrées link inside the wrapper when nothing is anchored, got: {section}"
+            "expected Today to carry no Ancrées link any more, got: {html}"
         );
     }
 
     // @scenario: persistence/S3
     // @scenario: today-habit-list/S4
     #[test]
-    fn an_empty_board_shows_the_invitation_and_hides_the_tally_heading_and_week_link() {
+    fn an_empty_board_shows_the_invitation_and_hides_the_summary_heading_and_week_link() {
         let html = render(RootWithNoHabit);
 
         assert!(
@@ -593,12 +656,12 @@ mod tests {
             "expected the add-habit gesture to be the only interactive element in the screen's content, got: {html}"
         );
         assert!(
-            !html.contains("Vos petits pas"),
-            "expected the habit-list eyebrow to be hidden, got: {html}"
+            !html.contains(r#"class="summary-card""#),
+            "expected no summary card on an empty board, got: {html}"
         );
         assert!(
-            !html.contains("class=\"tally\""),
-            "expected no tally on an empty board, got: {html}"
+            !html.contains("Vos petits pas"),
+            "expected the habit-list eyebrow to be hidden, got: {html}"
         );
         assert!(
             !html.contains("Voir comment je grandis"),
@@ -620,33 +683,6 @@ mod tests {
         assert!(
             !html.contains(r#"class="empty-state""#),
             "expected the empty-state branch to stay absent once a habit exists, got: {html}"
-        );
-    }
-
-    #[test]
-    fn the_paused_zone_is_absent_when_nothing_is_paused() {
-        let html = render(RootWithUndoneHabit);
-
-        assert!(
-            !html.contains("En pause"),
-            "expected no paused-zone eyebrow when nothing is paused, got: {html}"
-        );
-    }
-
-    // @scenario: pause-resume/S2
-    #[test]
-    fn resume_and_relist_resumes_the_habit_and_returns_the_refreshed_board() {
-        let services = services_with_one_active_and_one_paused_habit();
-
-        let board = super::resume_and_relist(&services, "test-2");
-
-        assert!(
-            board.active.iter().any(|habit| habit.id == "test-2"),
-            "expected the resumed habit to reappear in active, got: {board:?}"
-        );
-        assert!(
-            !board.paused.iter().any(|habit| habit.id == "test-2"),
-            "expected the resumed habit to leave the paused zone, got: {board:?}"
         );
     }
 

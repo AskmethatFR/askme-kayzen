@@ -32,7 +32,6 @@ Feature: List the board habits for today
     And the add-habit gesture is the only interactive element in the screen's content
     And the day's tally, the habit-list heading, and the week link are hidden
 
-  @wip
   @scenario:S5
   Scenario: Aujourd'hui hands the paused habits over to their own screen
     Given a board holding one active habit and one habit in pause
@@ -41,14 +40,12 @@ Feature: List the board habits for today
     And it no longer shows the paused zone « En pause · aucune pression »
     And it offers a link to the paused screen naming the paused count
 
-  @wip
   @scenario:S6
   Scenario: No paused link is offered when nothing is in pause
     Given a board holding one active habit
     When the Today screen renders
     Then no link to the paused screen is offered
 
-  @wip
   @scenario:S7
   Scenario: A board whose only habits are in pause keeps the invitation to add
     Given a board holding one habit in pause and nothing active
