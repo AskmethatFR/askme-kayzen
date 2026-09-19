@@ -459,6 +459,8 @@ body {
   box-shadow: 0 0 0 100vmax var(--color-ritual-ground);
   clip-path: inset(0 -100vmax);
 }
+html:has(.screen.ritual),
+body:has(.screen.ritual) { background: var(--color-ritual-ground); }
 .screen.ritual .quiet-note { color: var(--color-ritual-ink-soft); }
 .screen.ritual .quiet-link { color: var(--color-ritual-ink); }
 .ritual-dial {
