@@ -80,17 +80,63 @@ The current version is **`0.0.1` → `versionCode 1`**, chosen deliberately as a
 
 **What the alternative would have cost:** under the frozen function `0.1.0` yields `versionCode 1000`. Uploading it first would have set the floor at 1000 and made **every** `0.0.x` version permanently un-uploadable — the entire shakedown rail, gone before the first bug was found. This was caught by hand during the cycle that wrote this node, one step before the upload. It is the reason this document is a runbook and not a paragraph in a README.
 
-**3 — Build the unsigned bundle, then sign it.** Two invocations, in that order: the release build produces the unsigned, aligned, correctly-versioned bundle, and the signing step signs it with the key from step 1 and re-verifies both the signature and the alignment on the **signed** bytes. Read each script's own header for its interface — this node does not restate it, and a restatement here would be wrong the first time a flag changes.
+**3 — Build the unsigned bundle, then sign it.** Two invocations, in that order:
 
-The signing script takes the keystore path, alias and both passwords from the environment, and nothing from the command line. Set them in the shell for the duration of the step; do not persist them in a shell profile.
+```bash
+# Build the unsigned, aligned, versioned AAB
+scripts/android-bundle.sh
+# → prints: /path/to/kayzen-app/build/outputs/bundle/release/app-release.aab
 
-**4 — Confirm the signature is by the intended alias**, not merely that the bundle verifies. See the standing rule above: exit 0 and `jar verified.` are printed for a bundle signed by the *wrong* alias. The signing script performs this check; if you verify by hand, verify the alias by hand too.
+# Sign it (reads keystore + passwords from environment, NOT command line)
+export ANDROID_SIGN_KEYSTORE="$HOME/.kayzen/upload.jks"
+export ANDROID_SIGN_KEY_ALIAS="upload"
+export ANDROID_SIGN_STORE_PASSWORD="<store-password>"
+export ANDROID_SIGN_KEY_PASSWORD="<key-password>"
+export NDK_HOME="$HOME/Library/Android/sdk/ndk/25.2.9519653"  # macOS; adjust per OS
+scripts/android-sign.sh app-release.aab
+# → prints: app-release-signed.aab
+# → re-verifies signature + 16 KB alignment on signed bytes
+unset ANDROID_SIGN_STORE_PASSWORD ANDROID_SIGN_KEY_PASSWORD
+```
 
-**5 — Upload by hand to the internal-testing track, and enable Play App Signing at that upload. ⚠ IRREVERSIBLE.** In the Play Console, on the app listing for the package id, create an internal-testing release and upload the signed bundle. Accept Play App Signing when offered — this is the moment the custody arrangement described above is established.
+Do not persist the passwords in a shell profile. Set them for the duration of the step, then unset.
 
-Confirm the release shows the expected `versionCode` before finalising. After this step, that number is the floor, permanently.
+**4 — Confirm the signature is by the intended alias**, not merely that the bundle verifies. The signing script performs this check automatically (step 3's output includes alias verification). If you verify by hand:
 
-**6 — Attest it.** Paste the outcome back into the issue in plain text: the version uploaded, the `versionCode` the Console shows, the track, and the date. Until that record exists, the automated publish slice has not started — see the two-leg rule above.
+```bash
+keytool -printcert -jarfile app-release-signed.aab | grep -i "owner\|SHA256"
+# → should show alias "upload" and the fingerprint you recorded in step 1
+```
+
+See the standing rule above: exit 0 and `jar verified.` are printed for a bundle signed by the *wrong* alias. Only an explicit alias check distinguishes the two.
+
+**5 — Upload by hand to the internal-testing track, and enable Play App Signing at that upload. ⚠ IRREVERSIBLE.**
+
+In the Play Console (play.google.com/console):
+1. Select the app `com.askmethat.kayzen`
+2. Go to **Testing → Internal testing**
+3. Click **Create new release**
+4. Upload `app-release-signed.aab`
+5. **Accept Play App Signing** when offered — this is the moment the custody arrangement described above is established
+6. Confirm the release shows `versionCode 1` before finalising
+7. Click **Review release** → **Start rollout to Internal testing**
+
+After this step, `versionCode 1` is the floor, permanently.
+
+**6 — Attest it.** Paste the outcome back into issue #28 in plain text:
+
+```
+## Manual upload attestation
+
+- **Version**: 0.0.1
+- **versionCode**: 1
+- **Track**: internal testing
+- **Play App Signing**: enabled
+- **Date**: <YYYY-MM-DD>
+- **Console URL**: <link to the release>
+```
+
+Until that record exists, the automated publish slice (S4) has not started — see the two-leg rule above.
 
 ## The Play-side prerequisites (one-time, outside this repository)
 
