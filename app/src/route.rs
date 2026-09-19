@@ -4,16 +4,18 @@ use dioxus::prelude::*;
 #[derive(Routable, Clone, Debug, PartialEq)]
 #[rustfmt::skip]
 pub enum Route {
-    #[route("/")]
-    Today {},
+    #[layout(MainScreenFrame)]
+        #[route("/")]
+        Today {},
+        #[route("/week")]
+        Week {},
+        #[route("/anchored")]
+        Anchored {},
+    #[end_layout]
     #[route("/habit/:id/ritual")]
     Ritual { id: String },
     #[route("/habit/:id")]
     HabitDetail { id: String },
-    #[route("/week")]
-    Week {},
-    #[route("/anchored")]
-    Anchored {},
     #[route("/add")]
     AddHabit {},
     #[route("/:..segments")]

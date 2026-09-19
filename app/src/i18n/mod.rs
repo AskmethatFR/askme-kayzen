@@ -1,6 +1,6 @@
 mod locale_choice;
 #[cfg(test)]
-mod route_smoke;
+pub(crate) mod route_smoke;
 
 use dioxus_i18n::prelude::I18nConfig;
 use dioxus_i18n::unic_langid::langid;
