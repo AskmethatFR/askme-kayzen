@@ -227,6 +227,7 @@ mod tests {
         for path in [
             "/habit/route-smoke-1",
             "/habit/route-smoke-1/ritual",
+            "/paused",
             "/add",
         ] {
             let html = render_route(path, langid!("fr"));

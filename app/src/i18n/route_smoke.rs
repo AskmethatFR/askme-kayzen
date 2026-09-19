@@ -42,13 +42,14 @@ pub(crate) fn render_route(path: &'static str, locale: LanguageIdentifier) -> St
     dioxus_ssr::render(&vdom)
 }
 
-fn every_route() -> [&'static str; 7] {
+fn every_route() -> [&'static str; 8] {
     [
         "/",
         "/habit/route-smoke-1",
         "/habit/route-smoke-1/ritual",
         "/week",
         "/anchored",
+        "/paused",
         "/add",
         "/this-route-does-not-exist",
     ]
