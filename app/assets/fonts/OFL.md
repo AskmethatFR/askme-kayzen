@@ -1,5 +1,9 @@
 Copyright 2014 - 2023 Adobe (http://www.adobe.com/), with Reserved Font Name ‘Source’. All Rights Reserved. Source is a trademark of Adobe in the United States and/or other countries.
 
+Copyright 2020 The Fraunces Project Authors (https://github.com/undercasetype/Fraunces)
+
+Copyright 2022 The Figtree Project Authors (https://github.com/erikdkennedy/figtree)
+
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 
 This license is copied below, and is also available with a FAQ at: http://scripts.sil.org/OFL

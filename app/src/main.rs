@@ -13,6 +13,14 @@ use views::DataUnavailable;
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
+const FRAUNCES_FONT: Asset = asset!(
+    "/assets/fonts/Fraunces-Variable.woff2",
+    AssetOptions::builder().with_hash_suffix(false)
+);
+const FIGTREE_FONT: Asset = asset!(
+    "/assets/fonts/Figtree-Variable.woff2",
+    AssetOptions::builder().with_hash_suffix(false)
+);
 const VIEWPORT_CONTENT: &str = "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover";
 
 fn main() {
@@ -56,6 +64,15 @@ fn app_shell(services: Option<Services>) -> Element {
         document::Meta { name: "viewport", content: VIEWPORT_CONTENT }
         document::Link { rel: "icon", href: FAVICON }
         document::Link { rel: "stylesheet", href: MAIN_CSS }
+        for font in [FRAUNCES_FONT, FIGTREE_FONT] {
+            document::Link {
+                rel: "preload",
+                href: font,
+                r#as: "font",
+                r#type: "font/woff2",
+                crossorigin: "anonymous",
+            }
+        }
         {content}
     }
 }
@@ -199,6 +216,48 @@ mod tests {
             !html.contains("masthead-date"),
             "expected the Router/Today screen NOT to be rendered, got: {html}"
         );
+    }
+
+    fn head_elements_of_app_shell() -> Vec<RecordedHeadElement> {
+        let spy = Rc::new(HeadElementSpy::default());
+        SHARED_HEAD_SPY.with(|cell| *cell.borrow_mut() = Some(spy.clone() as Rc<dyn Document>));
+        let _guard = SharedHeadSpyGuard;
+        let mut vdom = VirtualDom::new(AppShellWithHeadSpy);
+        vdom.rebuild_in_place();
+        spy.head_elements.take()
+    }
+
+    fn attribute<'a>(element: &'a RecordedHeadElement, key: &str) -> Option<&'a str> {
+        element
+            .attributes
+            .iter()
+            .find(|(name, _)| name == key)
+            .map(|(_, value)| value.as_str())
+    }
+
+    #[test]
+    fn app_shell_preloads_each_bundled_font_under_the_unhashed_name_main_css_references() {
+        let head_elements = head_elements_of_app_shell();
+
+        for font_file in ["Fraunces-Variable.woff2", "Figtree-Variable.woff2"] {
+            let preload = head_elements
+                .iter()
+                .find(|element| {
+                    element.name == "link"
+                        && attribute(element, "rel") == Some("preload")
+                        && attribute(element, "href")
+                            .is_some_and(|href| href.ends_with(&format!("/{font_file}")))
+                })
+                .unwrap_or_else(|| {
+                    panic!("expected a <link rel=\"preload\"> whose href ends with /{font_file}")
+                });
+            assert_eq!(attribute(preload, "as"), Some("font"));
+            assert_eq!(attribute(preload, "type"), Some("font/woff2"));
+            assert!(
+                attribute(preload, "crossOrigin").is_some(),
+                "a font preload without crossorigin is fetched twice"
+            );
+        }
     }
 
     #[test]
