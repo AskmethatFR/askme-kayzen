@@ -89,19 +89,22 @@ pub fn Today() -> Element {
                     }
                 }
 
-                div { class: "footer-links",
-                    if has_active_habits {
-                        Link {
-                            class: "quiet-link",
-                            to: Route::Week {},
-                            {tr!("today-week-link")}
+                if has_active_habits || !today_habits.paused.is_empty() {
+                    div { class: "footer-links",
+                        if has_active_habits {
+                            Link {
+                                class: "quiet-link",
+                                to: Route::Week {},
+                                {tr!("today-week-link")}
+                                span { class: "week-link-arrow", "aria-hidden": "true", "→" }
+                            }
                         }
-                    }
-                    if !today_habits.paused.is_empty() {
-                        Link {
-                            class: "quiet-link",
-                            to: Route::Paused {},
-                            {tr!("today-paused-link", count: paused_count as i64)}
+                        if !today_habits.paused.is_empty() {
+                            Link {
+                                class: "quiet-link",
+                                to: Route::Paused {},
+                                {tr!("today-paused-link", count: paused_count as i64)}
+                            }
                         }
                     }
                 }
@@ -205,13 +208,21 @@ mod tests {
         Services::with_repository(repository)
     }
 
-    fn services_with_two_active_one_done_and_one_paused_habit() -> Services {
+    fn services_with_three_active_two_done_and_one_paused_habit() -> Services {
         let clock: Rc<dyn Clock> = Rc::new(FixedClock(LocalDate::from_epoch_day(20_005)));
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
-        let mut done = a_habit();
-        done.toggle_done(clock.today());
-        repository.save(&done);
+        let mut first_done = a_habit();
+        first_done.toggle_done(clock.today());
+        repository.save(&first_done);
         repository.save(&a_second_habit());
+        let mut last_done = Habit::new(
+            HabitId::new("test-4").unwrap(),
+            HabitTitle::new("Write a line".to_string()).unwrap(),
+            Goal::new(3).unwrap(),
+            LocalDate::from_epoch_day(20_000),
+        );
+        last_done.toggle_done(clock.today());
+        repository.save(&last_done);
         repository.save(&a_paused_habit());
         Services::with_repository_and_clock(repository, clock)
     }
@@ -250,9 +261,9 @@ mod tests {
     }
 
     #[component]
-    fn RootWithTwoActiveAndOnePausedHabit() -> Element {
+    fn RootWithThreeActiveAndOnePausedHabit() -> Element {
         use_locale_for_tests();
-        use_context_provider(services_with_two_active_one_done_and_one_paused_habit);
+        use_context_provider(services_with_three_active_two_done_and_one_paused_habit);
         rsx! {
             Router::<Route> {}
         }
@@ -295,9 +306,9 @@ mod tests {
     }
 
     #[component]
-    fn RootWithTwoActiveAndOnePausedHabitAndEnglishLocale() -> Element {
+    fn RootWithThreeActiveAndOnePausedHabitAndEnglishLocale() -> Element {
         use_locale_for_tests_as(langid!("en"));
-        use_context_provider(services_with_two_active_one_done_and_one_paused_habit);
+        use_context_provider(services_with_three_active_two_done_and_one_paused_habit);
         rsx! {
             Router::<Route> {}
         }
@@ -392,14 +403,14 @@ mod tests {
     // @scenario: language/S1
     #[test]
     fn an_english_locale_renders_today_and_its_paused_link_in_english() {
-        let html = render(RootWithTwoActiveAndOnePausedHabitAndEnglishLocale);
+        let html = render(RootWithThreeActiveAndOnePausedHabitAndEnglishLocale);
 
         assert!(
             html.contains("Today") && html.contains("Hello."),
             "expected the masthead date and greeting in English, got: {html}"
         );
         assert!(
-            html.contains("Your small steps") && html.contains("1 of 2 ·"),
+            html.contains("Your small steps") && html.contains("2 of 3 ·"),
             "expected the active board in English, got: {html}"
         );
         assert!(
@@ -511,10 +522,12 @@ mod tests {
     // @scenario: today-habit-list/S5
     #[test]
     fn a_paused_habit_leaves_today_for_its_own_screen_behind_a_link_naming_the_count() {
-        let html = render(RootWithTwoActiveAndOnePausedHabit);
+        let html = render(RootWithThreeActiveAndOnePausedHabit);
 
         assert!(
-            html.contains("Read one page") && html.contains("Move a little"),
+            html.contains("Read one page")
+                && html.contains("Move a little")
+                && html.contains("Write a line"),
             "expected the active habits to stay listed, got: {html}"
         );
         assert!(
@@ -529,18 +542,25 @@ mod tests {
             html.contains(r#"href="/paused""#) && html.contains("1 en pause · aucune pression"),
             "expected a link to the paused screen naming the paused count, got: {html}"
         );
+        assert!(
+            html.contains(
+                r#"<span class="pebble is-done"></span><span class="pebble"></span><span class="pebble is-done"></span>"#
+            ),
+            "expected one pebble per active habit in board order, filled exactly for the two \
+             done today, got: {html}"
+        );
+        assert_eq!(
+            html.matches(r#"class="pebble is-done""#).count(),
+            2,
+            "expected two filled pebbles for the two active habits done today, got: {html}"
+        );
         assert_eq!(
             html.matches(r#"class="pebble""#).count(),
             1,
             "expected one empty pebble for the one active habit not done today, got: {html}"
         );
-        assert_eq!(
-            html.matches(r#"class="pebble is-done""#).count(),
-            1,
-            "expected one filled pebble for the one active habit done today, got: {html}"
-        );
         assert!(
-            html.contains("1 sur 2 ·"),
+            html.contains("2 sur 3 ·"),
             "expected the tally to count the active habits only, got: {html}"
         );
     }
@@ -608,7 +628,7 @@ mod tests {
 
     #[test]
     fn the_footer_links_wrapper_stacks_the_week_and_paused_links_when_something_is_paused() {
-        let html = render(RootWithTwoActiveAndOnePausedHabit);
+        let html = render(RootWithThreeActiveAndOnePausedHabit);
         let section = footer_links_section(&html);
 
         assert!(
@@ -628,6 +648,21 @@ mod tests {
         assert!(
             !html.contains("Mes habitudes ancr"),
             "expected Today to carry no Ancrées link any more, got: {html}"
+        );
+        assert!(
+            !html.contains(r#"class="footer-links""#),
+            "expected no footer-links wrapper when it would hold no link, got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_week_link_carries_its_decorative_arrow() {
+        let html = render(RootWithUndoneHabit);
+        let section = footer_links_section(&html);
+
+        assert!(
+            section.contains(r#"class="week-link-arrow""#) && section.contains("→"),
+            "expected the week link to carry its decorative arrow, got: {section}"
         );
     }
 

@@ -91,7 +91,7 @@ fn every_route_under_every_carried_locale_renders_with_no_bidi_residue() {
     }
 }
 
-fn french_markers() -> [&'static str; 7] {
+fn french_markers() -> [&'static str; 9] {
     [
         "Aujourd'hui",
         "habitude",
@@ -100,6 +100,8 @@ fn french_markers() -> [&'static str; 7] {
         "Reprendre",
         "Ajouter",
         "Désolé",
+        "en pause · aucune pression",
+        "Tout est de retour",
     ]
 }
 

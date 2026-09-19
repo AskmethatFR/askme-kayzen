@@ -224,9 +224,10 @@ body {
 }
 
 /* ---- Summary card (Today screen) ----
-   One pebble per active habit: filled when it was practised today, the plain
-   rule colour otherwise. Presence, never a figure — the tally beside it
-   carries the count. */
+   One pebble per active habit: an outlined pebble when it was not practised
+   today, a filled accent pebble when it was — the state reads by fill, never
+   by two nuances of the same shape (06-style-galets rule #32). The tally
+   beside it carries the count. */
 .summary-card {
   display: flex;
   align-items: center;
@@ -239,9 +240,13 @@ body {
   width: 22px;
   height: 18px;
   border-radius: 50%;
-  background: var(--color-rule);
+  background: transparent;
+  border: 2px solid var(--color-ink-soft);
 }
-.pebble.is-done { background: var(--color-accent); }
+.pebble.is-done {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
 .summary-tally {
   margin: 0 0 0 auto;
   font-size: 14px;
@@ -284,15 +289,6 @@ body {
 .target:active { transform: scale(.94); }
 .target:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
 
-/* empty state: a small ink dot in the middle */
-.target::before {
-  content: "";
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: var(--color-ink-soft);
-  opacity: .5;
-}
-
 .target-ink {
   position: absolute;
   inset: 5px;
@@ -302,7 +298,6 @@ body {
   opacity: 0;
 }
 .target.is-done { border-color: var(--color-accent); border-style: solid; }
-.target.is-done::before { opacity: 0; }
 .target.is-done .target-ink {
   transform: scale(1);
   opacity: 1;
@@ -338,8 +333,12 @@ body {
 .footer-links .quiet-link {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   min-height: 44px;
 }
+/* Decorative chevron on the week link: aria-hidden, so it is pure ornament —
+   the label alone carries the meaning. */
+.week-link-arrow { color: var(--color-accent); }
 .add-cta { margin-top: var(--space-6); }
 
 /* ---- Practice staircase (Detail screen) ----

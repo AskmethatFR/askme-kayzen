@@ -139,6 +139,18 @@ mod tests {
         }
     }
 
+    #[component]
+    fn RootAtEmptyPausedScreenAndEnglishLocale() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/paused")));
+        });
+        use_context_provider(|| Services::with_repository(Rc::new(InMemoryHabitRepository::new())));
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
     fn render(root: fn() -> Element) -> String {
         let mut vdom = VirtualDom::new(root);
         vdom.rebuild_in_place();
@@ -157,6 +169,10 @@ mod tests {
         assert!(
             html.contains("Lire une page") && html.contains("Bouger un peu"),
             "expected both habits at rest to be listed, got: {html}"
+        );
+        assert!(
+            html.contains(r#"href="/habit/h-1""#) && html.contains(r#"href="/habit/h-2""#),
+            "expected each habit at rest to link to its own detail screen, got: {html}"
         );
         assert!(
             html.contains(r#"aria-label="La reprendre · Lire une page""#),
@@ -200,6 +216,17 @@ mod tests {
         assert!(
             !html.contains("La reprendre") && !html.contains("En pause"),
             "expected no leftover French copy under an English locale, got: {html}"
+        );
+    }
+
+    // @scenario: language/S1
+    #[test]
+    fn an_english_locale_renders_the_empty_paused_screen_in_english() {
+        let html = render(RootAtEmptyPausedScreenAndEnglishLocale);
+
+        assert!(
+            html.contains("Nothing here. Everything is back in your daily life."),
+            "expected the empty-note copy in English, got: {html}"
         );
     }
 
