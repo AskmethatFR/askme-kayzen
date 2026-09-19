@@ -39,11 +39,15 @@
   --color-ritual-track: #1C4552;
   --color-ritual-run: #2E6B7E;
   --color-ritual-ink: #F4F1EA;
+  --color-ritual-ink-soft: #A9BEC4;
 
   /* Space & shape */
   --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
   --space-5: 24px; --space-6: 32px; --space-7: 48px;
-  --radius: 2px;
+  --radius-bar: 4px;
+  --radius-field: 22px;
+  --radius-pill: 30px;
+  --radius-pebble: 48% 52% 46% 54% / 55% 47% 53% 45%;
   --shadow-sm: 0 1px 2px rgba(var(--color-shadow), .06);
   --shadow-md: 0 2px 10px rgba(var(--color-shadow), .10);
 
@@ -169,7 +173,7 @@ body {
   flex: none;
   width: 52px;
   height: 52px;
-  border-radius: 50%;
+  border-radius: var(--radius-pebble);
   border: 2px solid var(--color-rule);
   background: var(--color-paper);
   cursor: pointer;
@@ -193,7 +197,7 @@ body {
 .target-ink {
   position: absolute;
   inset: 5px;
-  border-radius: 50%;
+  border-radius: var(--radius-pebble);
   background: var(--color-accent);
   transform: scale(0);
   opacity: 0;
@@ -209,7 +213,7 @@ body {
   content: "";
   position: absolute;
   inset: -2px;
-  border-radius: 50%;
+  border-radius: var(--radius-pebble);
   border: 2px solid var(--color-accent-hover);
   animation: kzRing .5s ease-out both;
 }
@@ -258,7 +262,7 @@ body {
   min-height: 8px;
   height: calc(8px + var(--day-ratio, 1) * 56px);
   background: var(--color-rule);
-  border-radius: var(--radius) var(--radius) 0 0;
+  border-radius: var(--radius-bar) var(--radius-bar) 0 0;
   opacity: 0.35;
 }
 .day-bar.is-done {
@@ -320,7 +324,7 @@ body {
 .rhythm-dot {
   width: 10px;
   height: 10px;
-  border-radius: 50%;
+  border-radius: var(--radius-pebble);
   background: var(--color-rule);
   opacity: 0.35;
 }
@@ -369,7 +373,7 @@ body {
   min-height: 6px;
   height: calc(6px + var(--practice-ratio, 1) * 26px);
   background: var(--color-accent);
-  border-radius: var(--radius) var(--radius) 0 0;
+  border-radius: var(--radius-bar) var(--radius-bar) 0 0;
   /* composited 3.65:1 on --color-paper -- SC 1.4.11 floor is 3:1 */
   opacity: 1;
 }
@@ -379,7 +383,7 @@ body {
   font-family: var(--font-body);
   font-size: 17px;
   padding: var(--space-3) var(--space-5);
-  border-radius: var(--radius);
+  border-radius: var(--radius-pill);
   border: 1px solid var(--color-ink);
   background: transparent;
   color: var(--color-ink);
@@ -398,7 +402,7 @@ body {
   letter-spacing: .1em;
   text-transform: uppercase;
   padding: 3px var(--space-2);
-  border-radius: var(--radius);
+  border-radius: var(--radius-pill);
   background: var(--color-tint);
   color: var(--color-on-tint);
 }
@@ -411,7 +415,7 @@ body {
   font-size: 18px;
   padding: var(--space-3);
   border: 1px solid var(--color-rule);
-  border-radius: var(--radius);
+  border-radius: var(--radius-field);
   background: var(--color-card);
 }
 .input:focus-visible { outline: 2px solid var(--color-accent); border-color: var(--color-accent); }
@@ -423,7 +427,7 @@ body {
   flex: none;
   width: 44px;
   height: 44px;
-  border-radius: 50%;
+  border-radius: var(--radius-pebble);
   border: 2px solid var(--color-accent);
   background: transparent;
   color: var(--color-accent-text);
@@ -450,7 +454,13 @@ body {
   flex-direction: column;
   min-height: 100vh;
   min-height: 100dvh;
+  color: var(--color-ritual-ink);
+  background: var(--color-ritual-ground);
+  box-shadow: 0 0 0 100vmax var(--color-ritual-ground);
+  clip-path: inset(0 -100vmax);
 }
+.screen.ritual .quiet-note { color: var(--color-ritual-ink-soft); }
+.screen.ritual .quiet-link { color: var(--color-ritual-ink); }
 .ritual-dial {
   position: relative;
   width: 220px;
@@ -462,9 +472,9 @@ body {
 .ritual-breath {
   position: absolute;
   inset: 28px;
-  border-radius: 50%;
-  background: var(--color-tint);
-  opacity: .85;
+  border-radius: var(--radius-pebble);
+  background: var(--color-ritual-run);
+  opacity: .35;
   animation: kzBreathe 8s ease-in-out infinite;
 }
 /* Stacked in the same grid cell (not two grid auto-rows) so the countdown
@@ -481,12 +491,12 @@ body {
 }
 .ritual-ring-track {
   fill: none;
-  stroke: var(--color-rule);
+  stroke: var(--color-ritual-track);
   stroke-width: 4;
 }
 .ritual-ring-run {
   fill: none;
-  stroke: var(--color-accent);
+  stroke: var(--color-ritual-run);
   stroke-width: 4;
   stroke-linecap: round;
 }
@@ -503,7 +513,8 @@ body {
   font-size: clamp(30px, 8vw, 44px);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--color-ink);
+  font-family: var(--font-display);
+  color: var(--color-ritual-ink);
 }
 /* Invisible by design: this element's only job is to fire an
    animationiteration event every .25s so the countdown re-reads the clock.
