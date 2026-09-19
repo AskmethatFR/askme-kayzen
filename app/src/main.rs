@@ -30,8 +30,6 @@ fn App() -> Element {
 /// actual data directory.
 fn app_root(services_fn: impl FnOnce() -> Option<Services> + 'static) -> Element {
     use_init_i18n(i18n::config);
-    // Dependency injection, Dioxus-style: provide the composition root once at the
-    // top of the tree; every child screen reads it with `use_context::<Services>()`.
     let services = use_hook(services_fn);
     app_shell(services)
 }
@@ -209,9 +207,6 @@ mod tests {
         SHARED_HEAD_SPY.with(|cell| *cell.borrow_mut() = Some(spy.clone() as Rc<dyn Document>));
         let _guard = SharedHeadSpyGuard;
 
-        // Seeded over `Some(services)` — the live-session path every real
-        // launch takes — not `None`/`DataUnavailable`, so this cannot pass
-        // by luck of which branch happens to carry the meta.
         let mut vdom = VirtualDom::new(AppShellWithHeadSpy);
         vdom.rebuild_in_place();
 
@@ -238,12 +233,12 @@ mod tests {
             .map(|(_, value)| value.clone())
             .expect("expected the viewport meta to carry a content attribute");
 
-        // This runtime tag supersedes the dx-generated shell's viewport tag
-        // wholesale (Chrome/Safari/Firefox all take the last viewport tag as
-        // a unit, not a per-key merge) — so every key the shell's tag would
-        // otherwise have provided must be present here, or the device falls
-        // back to the 980px desktop-width layout viewport. Each key is
-        // pinned individually so trimming any one of them fails the test.
+        // @law: browser viewport contract — this runtime tag supersedes the
+        // dx-generated shell's viewport tag wholesale (Chrome/Safari/Firefox
+        // all take the last viewport tag as a unit, not a per-key merge), so
+        // every key the shell's tag would otherwise have provided must be
+        // present here, or the device falls back to the 980px desktop-width
+        // layout viewport. Each key is pinned individually.
         for key in [
             "width=device-width",
             "initial-scale=1.0",
