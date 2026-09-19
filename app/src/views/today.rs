@@ -439,6 +439,11 @@ mod tests {
             !masthead.contains("Aujourd"),
             "expected the masthead to stop reading « Aujourd'hui », got: {masthead}"
         );
+        assert!(
+            !masthead.contains("Kaizen") && !masthead.contains(r#"class="tag tag-accent""#),
+            "expected Today's masthead to carry no brand tag (DataUnavailable keeps its own), \
+             got: {masthead}"
+        );
     }
 
     // @scenario: language/S1
@@ -720,11 +725,16 @@ mod tests {
 
     #[test]
     fn the_week_link_is_gone_from_today() {
-        let html = render(RootWithUndoneHabit);
+        let html = render(RootWithThreeActiveAndOnePausedHabit);
         let screen_content = &html[..html
             .find(r#"<nav class="bottom-nav""#)
             .expect("the bar renders on Today")];
 
+        assert!(
+            screen_content.contains(r#"class="footer-links""#),
+            "expected the paused wrapper to render on this board, so restoring the week link \
+             inside it would show, got: {screen_content}"
+        );
         assert!(
             !screen_content.contains("Voir comment je grandis"),
             "expected no week link copy in Today's content, got: {screen_content}"
