@@ -85,7 +85,19 @@ pub fn Today() -> Element {
                                         let id = habit.id.clone();
                                         move |_| habits.set(mark_done_and_relist(&services, &id))
                                     },
-                                    span { class: "target-ink" }
+                                    if habit.done_today {
+                                        span { class: "target-ink",
+                                            svg {
+                                                class: "target-check",
+                                                view_box: "0 0 24 24",
+                                                "aria-hidden": "true",
+                                                "focusable": "false",
+                                                path { d: "M5 12l5 5L19 7" }
+                                            }
+                                        }
+                                    } else {
+                                        span { class: "target-ink" }
+                                    }
                                 }
                             }
                         }
@@ -520,6 +532,10 @@ mod tests {
             "expected the target to be stamped after the click, got: {html}"
         );
         assert!(
+            html.contains(r#"class="target-check""#),
+            "expected the stamped target to show its check, got: {html}"
+        );
+        assert!(
             html.contains(r#"class="pebble is-done""#),
             "expected the summary pebble to be filled after the click, got: {html}"
         );
@@ -547,6 +563,10 @@ mod tests {
         assert!(
             html.contains("target is-done"),
             "expected the done target to be stamped, got: {html}"
+        );
+        assert!(
+            html.contains(r#"class="target-check""#),
+            "expected the stamped target to show its check, got: {html}"
         );
         assert!(
             html.contains(r#"aria-label="Fait aujourd&#39;hui · Read one page""#),

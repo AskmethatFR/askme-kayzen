@@ -308,6 +308,21 @@ body {
   opacity: 1;
   animation: kzStamp .35s cubic-bezier(.2, .8, .3, 1.2) both;
 }
+/* The check is the done state's shape cue (06-style-galets rule #32), not
+   colour alone; it is a child of .target-ink so it inherits the stamp. */
+.target-check {
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: var(--color-on-accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.target-ink {
+  display: grid;
+  place-items: center;
+}
 .target.is-done::after {
   content: "";
   position: absolute;
