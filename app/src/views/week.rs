@@ -758,7 +758,7 @@ mod tests {
     // S5 only covers growing. `LightenGoal` is a delivered, wired use case
     // (issue #13), so a history whose maximum practised goal sits mid-row,
     // not last, is reachable today; this test pins the boundary the
-    // normalization rule (`bar_ratios`, above) must hold on it.
+    // normalization rule (`practice_ratios`, above) must hold on it.
     #[test]
     fn a_lightened_row_still_normalizes_on_its_own_maximum_practised_goal() {
         let html = render(RootAtWeekScreenWithALightenedHabit);
