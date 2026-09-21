@@ -749,28 +749,45 @@ mod tests {
     }
 
     #[test]
-    fn the_practice_action_sits_directly_under_the_week_card() {
+    fn the_primary_action_lives_in_a_dock_after_the_week_card() {
         let html = render(RootAtKnownHabit);
 
         let card = html
             .find(r#"class="week-card""#)
             .expect("expected the week card");
-        let action = html
-            .find(r#"class="btn btn-primary btn-block action-primary""#)
-            .expect("expected the full-width practice action");
+        let dock = html
+            .find(r#"class="action-dock""#)
+            .expect("expected the primary action to live in its own dock");
         let pace = html
             .find(r#"class="pace-grid""#)
             .expect("expected the pace zone");
         assert!(
-            card < action && action < pace,
-            "expected the action between the week card and the pace zone, got: {html}"
+            card < dock && dock < pace,
+            "expected the dock after the week card and before the settings, so \
+             the reading order still meets the action first, got: {html}"
         );
         assert!(
-            html.contains(r#"class="action-glyph""#)
+            html.contains(r#"class="btn btn-primary btn-block action-primary""#)
+                && html.contains(r#"class="action-glyph""#)
                 && html.contains(r#"href="/habit/h-1/ritual""#)
                 && html.contains(">Commencer ma pratique<"),
-            "expected the action to keep its destination, its label and its \
-             decorative triangle, got: {html}"
+            "expected the dock to keep the action's destination, its label and \
+             its decorative triangle, got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_paused_actions_resume_gesture_lives_in_a_dock_too() {
+        let html = render(RootAtPausedHabit);
+
+        assert!(
+            html.contains(r#"class="action-dock""#),
+            "expected the resume gesture to live in the screen's dock, got: {html}"
+        );
+        assert!(
+            html.contains(r#"class="btn btn-primary btn-block""#)
+                && html.contains(">La reprendre<"),
+            "expected the docked resume gesture to keep its pill and its label, got: {html}"
         );
     }
 
