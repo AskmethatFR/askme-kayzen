@@ -5,9 +5,9 @@ use kayzen_core::habit_management::queries::get_week_recap::WeekMessage;
 
 /// The tinted card's staircase box, in the SVG's own user units, and the
 /// radius of the pebble standing on the trace's last point.
-const SPARK_WIDTH: f64 = 110.0;
-const SPARK_HEIGHT: f64 = 56.0;
-const SPARK_DOT_RADIUS: f64 = 5.0;
+const STAIRCASE_WIDTH: f64 = 110.0;
+const STAIRCASE_HEIGHT: f64 = 56.0;
+const STAIRCASE_DOT_RADIUS: f64 = 5.0;
 
 #[component]
 pub fn Week() -> Element {
@@ -18,7 +18,7 @@ pub fn Week() -> Element {
         "week-minutes-practised",
         count: recap.minutes_practised as i64
     );
-    let staircase = spark_points(&recap.rhythm);
+    let staircase = staircase_points(&recap.rhythm);
     let staircase_trace = staircase
         .iter()
         .map(|(x, y)| format!("{x:.2},{y:.2}"))
@@ -36,8 +36,8 @@ pub fn Week() -> Element {
                     span { class: "week-figure-label", "{legend}" }
                 }
                 svg {
-                    class: "week-spark",
-                    view_box: "0 0 {SPARK_WIDTH} {SPARK_HEIGHT}",
+                    class: "week-staircase",
+                    view_box: "0 0 {STAIRCASE_WIDTH} {STAIRCASE_HEIGHT}",
                     "aria-hidden": "true",
                     "focusable": "false",
                     polyline { points: "{staircase_trace}" }
@@ -45,7 +45,7 @@ pub fn Week() -> Element {
                         circle {
                             cx: "{end_x:.2}",
                             cy: "{end_y:.2}",
-                            r: "{SPARK_DOT_RADIUS}",
+                            r: "{STAIRCASE_DOT_RADIUS}",
                         }
                     }
                 }
@@ -109,31 +109,37 @@ pub fn Week() -> Element {
 /// draws, read oldest day first, stepping up once per day practised and
 /// holding its level across a day of rest. Two points per day — the rise
 /// and the flat run that follows it — so a rest day is a plateau, never a
-/// fall. The vertical span is inset by the end pebble's radius (nothing is
-/// clipped) and scaled by the window's own length, so seven practised days
+/// fall. Both spans are inset by the end pebble's radius, so neither the
+/// trace's stroke nor that pebble is clipped by the viewBox, and the
+/// vertical one is scaled by the window's own length: seven practised days
 /// climb to the top while seven days of rest leave one flat trace at the
 /// bottom. Core hands over the booleans (adr-0010: core returns numbers,
 /// the view decides how to draw them) — the shape is the view's call.
 #[must_use]
-fn spark_points(rhythm: &[bool]) -> Vec<(f64, f64)> {
+fn staircase_points(rhythm: &[bool]) -> Vec<(f64, f64)> {
     let days = rhythm.len() as f64;
     if days == 0.0 {
         return Vec::new();
     }
 
-    let day_width = SPARK_WIDTH / days;
-    let top = SPARK_DOT_RADIUS;
-    let bottom = SPARK_HEIGHT - SPARK_DOT_RADIUS;
+    let left = STAIRCASE_DOT_RADIUS;
+    let right = STAIRCASE_WIDTH - STAIRCASE_DOT_RADIUS;
+    let top = STAIRCASE_DOT_RADIUS;
+    let bottom = STAIRCASE_HEIGHT - STAIRCASE_DOT_RADIUS;
+    let day_width = (right - left) / days;
     let level = |practised_days: f64| bottom - (practised_days / days) * (bottom - top);
 
-    let mut points = vec![(0.0, level(0.0))];
+    let mut points = vec![(left, level(0.0))];
     let mut practised_days = 0.0;
     for (day_offset, practised) in rhythm.iter().enumerate() {
         if *practised {
             practised_days += 1.0;
-            points.push((day_offset as f64 * day_width, level(practised_days)));
+            points.push((left + day_offset as f64 * day_width, level(practised_days)));
         }
-        points.push(((day_offset as f64 + 1.0) * day_width, level(practised_days)));
+        points.push((
+            left + (day_offset as f64 + 1.0) * day_width,
+            level(practised_days),
+        ));
     }
 
     points
@@ -1146,10 +1152,10 @@ mod tests {
         }
     }
 
-    /// The `<svg class="week-spark" …>` opening tag of the tinted card.
+    /// The `<svg class="week-staircase" …>` opening tag of the tinted card.
     fn the_staircase_tag(html: &str) -> &str {
         let start = html
-            .find(r#"<svg class="week-spark""#)
+            .find(r#"<svg class="week-staircase""#)
             .expect("the staircase renders");
         let end = start + html[start..].find('>').expect("the tag closes");
         &html[start..end]
@@ -1193,7 +1199,7 @@ mod tests {
     /// the bottom bar's own `<circle cx>` can never satisfy it first.
     fn a_staircase_attribute(html: &str, name: &str) -> f64 {
         let from_staircase = &html[html
-            .find(r#"<svg class="week-spark""#)
+            .find(r#"<svg class="week-staircase""#)
             .expect("the staircase renders")..];
         let needle = format!(r#"{name}=""#);
         let start = from_staircase.find(&needle).expect("the attribute renders") + needle.len();
@@ -1223,6 +1229,13 @@ mod tests {
             points.windows(2).all(|pair| pair[0].1 == pair[1].1),
             "the whole trace stays at one level, got: {html}"
         );
+        assert_eq!(
+            points[0],
+            (5.0, 51.0),
+            "a week without practice rests on the bottom of the box, inset by \
+             the end pebble's radius so neither the trace nor the pebble is \
+             clipped, got: {html}"
+        );
     }
 
     // @scenario: week-recap/S10
@@ -1242,9 +1255,10 @@ mod tests {
             "the trace never falls, got: {html}"
         );
         assert_eq!(
-            the_staircases_last_point(&html).1,
-            5.0,
-            "seven practised days reach the top of the box, got: {html}"
+            the_staircases_last_point(&html),
+            (105.0, 5.0),
+            "seven practised days reach the top of the box and end one pebble \
+             radius short of its right edge, so the end pebble fits, got: {html}"
         );
     }
 
@@ -1266,8 +1280,9 @@ mod tests {
         );
         assert_eq!(
             the_staircases_last_point(&html).0,
-            110.0,
-            "the trace ends on the last day of the window, got: {html}"
+            105.0,
+            "the trace ends on the last day of the window, one pebble radius \
+             short of the box's right edge, got: {html}"
         );
     }
 

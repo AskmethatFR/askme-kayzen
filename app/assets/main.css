@@ -530,13 +530,13 @@ body {
 /* Stroke, caps and colour live here, never in the markup. The staircase is
    decorative — the figure and the rhythm row already say the same week — so
    it stays out of the accessibility tree in the view. */
-.week-spark {
+.week-staircase {
     flex: none;
     width: 110px;
     height: 56px;
 }
 
-.week-spark polyline {
+.week-staircase polyline {
     fill: none;
     stroke: var(--color-accent);
     stroke-width: 3;
@@ -544,7 +544,7 @@ body {
     stroke-linejoin: round;
 }
 
-.week-spark circle {
+.week-staircase circle {
     fill: var(--color-accent);
 }
 
@@ -557,8 +557,11 @@ body {
 
 /* ---- Rhythm row (Week screen) ----
    One dot per day over the rolling seven-day window, oldest first. Presence,
-   never density: a day without practice keeps its dot, present, never a gap,
-   never a warning. */
+   never density: a day without practice keeps its dot at the same faint
+   opacity idiom as .day-bar — present, never a gap, never a warning. The
+   opacity is load-bearing: at full strength the unlit rule falls to 2.80:1
+   against the accent, under the 3:1 SC 1.4.11 floor an all-chroma signal
+   needs — composited faint it holds 3.31:1. */
 .rhythm {
     display: flex;
     gap: var(--space-2);
@@ -570,10 +573,12 @@ body {
     height: 12px;
     border-radius: var(--radius-pebble);
     background: var(--color-rule);
+    opacity: 0.35;
 }
 
 .rhythm-dot.is-practised {
     background: var(--color-accent);
+    opacity: 1;
 }
 
 /* ---- Habit cards (Week screen) ----
