@@ -620,8 +620,8 @@ body {
 
 /* ---- Rhythm row (Week screen) ----
    One dot per day over the rolling seven-day window, oldest first. Presence,
-   never density: a day without practice keeps its dot at the same faint
-   opacity idiom as .day-bar — present, never a gap, never a warning. The
+   never density: a day without practice keeps its dot faint — present,
+   never a gap, never a warning. The
    opacity is load-bearing: at full strength the unlit rule falls to 2.80:1
    against the accent, under the 3:1 SC 1.4.11 floor an all-chroma signal
    needs — composited faint it holds 3.31:1. */

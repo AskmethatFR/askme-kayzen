@@ -286,7 +286,7 @@ fn day_pebble_class(done: bool, is_today: bool) -> &'static str {
 /// Each day's pebble size relative to its own window's tallest goal
 /// (adr-0010: core returns numbers, the view decides how to draw them) —
 /// never an absolute minute value. Same normalization as the one the Week
-/// screen uses (owner ruling, 2026-08-21): the staircase draws one habit's
+/// screen uses (owner ruling, 2026-08-21): the week draws one habit's
 /// own trajectory, so there is no cross-habit comparison to lose.
 /// `unwrap_or(1)` only guards an
 /// empty slice; `days` always holds `WINDOW_DAYS` entries in practice, so it
