@@ -35,6 +35,7 @@
     --color-on-accent: #FBF9F4;
     --color-anchored: #7A5E24;
     --color-anchored-tint: #EFE3C8;
+    --color-tile-neutral: #ECE7DE;
     --color-shadow: 42, 38, 34;
 
     --color-ritual-ground: #12303A;
@@ -518,35 +519,6 @@ body {
     margin-top: var(--space-6);
 }
 
-/* ---- Practice staircase (Detail screen) ----
-   One bar per calendar day over the last seven. A day without practice keeps
-   its bar at low opacity: present, never a gap and never a warning. */
-.staircase {
-    display: flex;
-    align-items: flex-end;
-    gap: var(--space-2);
-    height: 64px;
-    margin: var(--space-5) 0 var(--space-6);
-}
-
-/* Height is normalized to the window's own maximum goal (--day-ratio, 0..1),
-   never an absolute minute value: floor 8px + up to 56px of ratio exactly
-   fills the 64px .staircase container (8 + 56 = 64), so the tallest bar
-   always reaches the top and no bar can overflow by construction. */
-.day-bar {
-    width: 14px;
-    min-height: 8px;
-    height: calc(8px + var(--day-ratio, 1) * 56px);
-    background: var(--color-rule);
-    border-radius: var(--radius-bar) var(--radius-bar) 0 0;
-    opacity: 0.35;
-}
-
-.day-bar.is-done {
-    background: var(--color-accent);
-    opacity: 1;
-}
-
 /* ---- Recap zone (Detail screen) ----
    A quiet read of the habit's whole life: figures on the left, their label
    beside them, and one adaptive sentence that never blames. */
@@ -774,6 +746,236 @@ body {
 
 .btn-block + .btn-block {
     margin-top: var(--space-4);
+}
+
+/* ---- Detail screen (one habit, where the user acts) ----
+   The frame's own rhythm: one column, 24px between its blocks, no decorative
+   pebble. The global `.screen:before` disc is switched off here — the screen
+   carries no galet of its own — on the same class-on-`.screen` idiom as
+   `.screen.ritual`. `.detail-back` is a flex item of that column, so it needs
+   `align-self` or it would stretch to the full width. */
+.screen.detail {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+}
+
+.screen.detail:before {
+    content: none;
+}
+
+.screen.detail .recap {
+    margin: 0;
+}
+
+.detail-back {
+    align-self: flex-start;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--color-card);
+}
+
+.detail-back:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+}
+
+.detail-back-icon {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: var(--color-ink);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Title and dose read as one block: the global `.greeting` rule keeps its own
+   padding, so this wrapper adds no gap of its own. The dose is the quiet
+   sub-line — never `.lede`, which six other views still emit. */
+.detail-head {
+    display: flex;
+    flex-direction: column;
+}
+
+.dose {
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--color-ink-soft);
+    margin: 0;
+}
+
+/* ---- Week card (Detail screen) ----
+   One pebble per calendar day over the last seven, oldest first, on a card
+   this screen alone owns. A practised day is filled in accent; a day without
+   practice keeps its pebble in plain outline — presence or absence of a fill,
+   never two nuances of one shape (06-style-galets rule #32). Today — the last
+   of the seven — is told apart by its dashed outline until it is practised.
+   Size is normalized to the window's own maximum goal (--day-ratio, 0..1),
+   never an absolute minute value: the tallest pebble fills the track and no
+   pebble can overflow by construction. The size scale (.6 + .4 x ratio) keeps
+   even the smallest day visible. */
+.week-card {
+    background: var(--color-card);
+    border-radius: var(--radius-habit);
+    padding: 18px 20px;
+}
+
+.pebble-track {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.day-pebble {
+    --pebble-scale: calc(.6 + .4 * var(--day-ratio, 1));
+    width: calc(24px * var(--pebble-scale));
+    height: calc(20px * var(--pebble-scale));
+    border-radius: 50%;
+    background: transparent;
+    border: 2px solid var(--color-rule);
+}
+
+.day-pebble.is-done {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+}
+
+.day-pebble.is-today {
+    border-style: dashed;
+    border-color: var(--color-on-ink-soft);
+}
+
+/* The practice action: the same full-width pill as `.btn-primary`, lifted to
+   a taller flex row that centres its decorative triangle before the label. */
+.action-primary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 60px;
+    font-size: 17px;
+    font-weight: 600;
+}
+
+.action-glyph {
+    width: 18px;
+    height: 18px;
+    fill: var(--color-on-accent);
+}
+
+/* ---- Pace zone (Detail screen) ----
+   The heading keeps its "generous above, tight below" idiom, then the two
+   gestures sit side by side as tiles — the growth tile in the app's tint, the
+   easing tile in the warm neutral it alone uses. */
+.pace {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.pace-heading {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 500;
+    margin: 0;
+}
+
+.pace-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.pace-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 72px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-field);
+    font-family: var(--font-body);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-on-tint);
+    cursor: pointer;
+}
+
+.pace-tile.is-grow {
+    background: var(--color-tint);
+}
+
+.pace-tile.is-lighten {
+    background: var(--color-tile-neutral);
+}
+
+.pace-tile:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+}
+
+.pace-glyph {
+    font-size: 20px;
+    line-height: 1;
+}
+
+/* ---- End-of-life gestures (Detail screen) ----
+   Two lines under a hairline, recessed: text-only rows with a decorative
+   glyph, the anchoring one carrying the ocre pair this screen already uses
+   for an acquired habit. */
+.lifecycle {
+    border-top: 1.5px solid var(--color-rule);
+}
+
+.lifecycle-gesture {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    min-height: 56px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    text-align: left;
+    font-family: var(--font-body);
+    font-size: 16px;
+    color: var(--color-ink);
+    cursor: pointer;
+}
+
+.lifecycle-gesture:first-child {
+    border-bottom: 1.5px solid var(--color-rule);
+}
+
+.lifecycle-gesture.is-anchor {
+    color: var(--color-anchored);
+}
+
+.lifecycle-gesture:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+}
+
+.lifecycle-icon {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: var(--color-ink-soft);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.lifecycle-gesture.is-anchor .lifecycle-icon {
+    stroke: var(--color-anchored);
 }
 
 .tag {
