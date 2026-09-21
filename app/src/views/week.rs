@@ -210,32 +210,38 @@ mod tests {
     }
 
     // Test List — Week screen render (@feature:week-recap):
-    // - the figure states minutes practised across every habit (S1).
+    // - the tinted card holds the figure and its legend apart: the figure
+    //   prints the sum of minutes practised across every habit, the legend
+    //   pluralises without reprinting it (S1).
     // - paused and anchored habits still count toward the figure (S2, sum half
     //   only — see get_week_recap.rs's test of the same name for the split).
     // - a fresh week reads its gentle word (S3).
     // - a week without recent practice reads rest, without blame (S4).
-    // - the masthead back-link returns to Aujourd'hui.
-    // - each habit's row reads its journey, one bar per day practised, not
-    //   one per recorded goal step (S5), each bar's height normalized to
-    //   that row's own maximum practised goal, never an absolute minute
-    //   value (owner decision, 2026-08-21: relative progression, not
-    //   absolute effort).
-    // - a never-practised habit's row draws no curve at all — no empty
-    //   container either — while its title and journey line still render
-    //   (S7).
+    // - the screen carries no masthead and no way back to Aujourd'hui: the
+    //   bottom bar is the navigation (no scenario — the bar is chrome, see
+    //   adr-0021).
+    // - the tinted card's staircase is derived from the rhythm, aria-hidden,
+    //   and ends on the last summit it reached (S10).
+    // - each habit is a card whose line reads its goal at the right, and
+    //   whose pebble band draws one pebble per day practised, not one per
+    //   recorded goal step (S5), each pebble's size normalized to that
+    //   row's own maximum practised goal, never an absolute minute value
+    //   (owner decision, 2026-08-21: relative progression, not absolute
+    //   effort).
+    // - a never-practised habit's row draws no band at all — no empty
+    //   container either — while its title and goal line still render (S7).
     // - a row lightened back down (its maximum practised goal sits
     //   mid-history, not last) still normalizes on that row's own maximum,
-    //   never on its current goal — no bar may exceed its container.
+    //   never on its current goal — no pebble may exceed its container.
     // - the rhythm row shows seven dots, oldest first, lit on practiced days
     //   and faint on the rest, never a gap (S6).
     // - only a habit practised at least once in the rolling window draws a
-    //   curve at all; a habit not practised in the window gets nothing else
+    //   band at all; a habit not practised in the window gets nothing else
     //   added — no counter, no mark of absence (S8).
-    // - the mini-curve reads the same rolling seven days as the rhythm: a
-    //   habit last practised six days back still draws a bar, eight days
+    // - the pebble band reads the same rolling seven days as the rhythm: a
+    //   habit last practised six days back still draws a pebble, eight days
     //   back draws none (S9).
-    // - the curve's aria-label states how many days were practised, correct
+    // - the band's aria-label states how many days were practised, correct
     //   singular/plural, in both fr and en (language/S4).
 
     // @scenario: week-recap/S1
@@ -244,9 +250,16 @@ mod tests {
         let html = render(RootAtWeekScreen);
 
         assert!(
-            html.contains("30 minutes de pratique accumulées"),
-            "expected the large figure to name accumulated practice, never \
-             gain over the starting goal, got: {html}"
+            html.contains(r#"class="week-tint-card""#),
+            "expected the figure to live on a tinted card, got: {html}"
+        );
+        assert!(
+            html.contains(
+                r#"<span class="week-figure">30</span><span class="week-figure-label">minutes de pratique accumulées</span>"#
+            ),
+            "expected the figure and its legend apart — the figure prints the \
+             sum, the legend names accumulated practice and never gain over \
+             the starting goal, got: {html}"
         );
         assert!(
             html.contains("Vous avancez"),
@@ -288,7 +301,9 @@ mod tests {
         let html = render(RootAtWeekScreenWithPausedAndAnchoredHabits);
 
         assert!(
-            html.contains("35 minutes de pratique accumulées"),
+            html.contains(
+                r#"<span class="week-figure">35</span><span class="week-figure-label">minutes de pratique accumulées</span>"#
+            ),
             "pausing or anchoring must never take lived minutes back, got: {html}"
         );
     }
@@ -319,7 +334,9 @@ mod tests {
             "expected the fresh-start word, an empty start is still a start, got: {html}"
         );
         assert!(
-            html.contains("0 minutes de pratique accumulées"),
+            html.contains(
+                r#"<span class="week-figure">0</span><span class="week-figure-label">minutes de pratique accumulées</span>"#
+            ),
             "a fresh week's figure is never a bare zero — it always carries \
              its label, got: {html}"
         );
@@ -378,18 +395,31 @@ mod tests {
         let html = render(RootAtWeekScreenWithOneMinute);
 
         assert!(
-            html.contains("1 minute de pratique accumulée"),
+            html.contains(
+                r#"<span class="week-figure">1</span><span class="week-figure-label">minute de pratique accumulée</span>"#
+            ),
             "one minute must read the singular form, never the plural, got: {html}"
         );
     }
 
     #[test]
-    fn the_masthead_back_link_returns_to_aujourdhui() {
+    fn the_week_screen_carries_no_masthead_and_no_way_back_to_aujourdhui() {
         let html = render(RootAtWeekScreen);
 
+        let screen_content = &html[..html
+            .find(r#"<nav class="bottom-nav""#)
+            .expect("the bar renders on Week")];
         assert!(
-            html.contains(r#"href="/""#) && html.contains("Aujourd&#39;hui"),
-            "expected the masthead back-link idiom to Aujourd'hui, got: {html}"
+            !screen_content.contains("masthead"),
+            "the bottom bar is the navigation — the screen carries no masthead, got: {screen_content}"
+        );
+        assert!(
+            !screen_content.contains("Aujourd&#39;hui"),
+            "the back-link to Aujourd'hui left the screen for the bar, got: {screen_content}"
+        );
+        assert!(
+            html.contains(r#"aria-label="Aujourd&#39;hui · navigation""#),
+            "the bar still reaches Aujourd'hui, got: {html}"
         );
     }
 
@@ -435,8 +465,8 @@ mod tests {
 
     /// Ordered list of every `--practice-ratio: N` value found in the
     /// rendered HTML, parsed as `f64`, in document order — lets a test pin
-    /// the mini-curve's normalized bar heights and their order, not just
-    /// the bar count.
+    /// the band's normalized pebble sizes and their order, not just the
+    /// pebble count.
     fn rendered_bar_ratios(html: &str) -> Vec<f64> {
         const NEEDLE: &str = "--practice-ratio: ";
         html.match_indices(NEEDLE)
@@ -502,19 +532,24 @@ mod tests {
 
     // @scenario: week-recap/S5
     #[test]
-    fn each_habit_row_reads_its_journey_with_one_bar_per_day_practised() {
+    fn each_habit_row_reads_its_goal_with_one_pebble_per_day_practised() {
         let html = render(RootAtWeekScreenWithAGrowingHabit);
 
         assert!(
-            html.contains("3 → 5 min"),
+            html.contains(r#"class="week-habit-goal">3 → 5 min<"#),
             "expected the row to read the starting and current goal, got: {html}"
+        );
+        assert_eq!(
+            html.matches(r#"class="week-pebble""#).count(),
+            4,
+            "expected one pebble per day practised (four), not one per recorded \
+             goal step (three), got: {html}"
         );
         assert_eq!(
             rendered_bar_ratios(&html),
             vec![0.8, 1.0, 1.0, 1.0],
-            "expected one bar per day practised (four), not one per recorded \
-             goal step (three), each normalized to the row's own maximum (5) \
-             so the tallest bars read 1.0, got: {html}"
+            "expected each pebble's size normalized to the row's own maximum \
+             (5) so the tallest reads 1.0, got: {html}"
         );
     }
 
@@ -546,8 +581,8 @@ mod tests {
         let html = render(RootAtWeekScreenWithAGrowingHabitInEnglish);
 
         assert!(
-            html.contains(r#"class="week-habit-journey">3 to 5 min<"#),
-            "expected the week-habit-journey paragraph to read the starting/current \
+            html.contains(r#"class="week-habit-goal">3 to 5 min<"#),
+            "expected the week-habit-goal line to read the starting/current \
              goal through the i18n layer under English, not a language-neutral \
              literal, got: {html}"
         );
@@ -575,12 +610,12 @@ mod tests {
         let html = render(RootAtWeekScreenWithAFreshHabit);
 
         assert!(
-            html.contains("5 → 5 min"),
-            "expected an empty start to still read as a start, got: {html}"
+            html.contains(r#"class="week-habit-goal">5 min<"#),
+            "expected a goal that has not moved to read without an arrow, got: {html}"
         );
         assert!(
-            !html.contains("week-curve"),
-            "no day has been practised yet — the curve container itself \
+            !html.contains("week-curve") && !html.contains("week-pebble"),
+            "no day has been practised yet — the band container itself \
              must not render, not even empty, got: {html}"
         );
     }
@@ -607,12 +642,14 @@ mod tests {
         let html = render(RootAtWeekScreenWithAFreshHabitAndEnglishLocale);
 
         assert!(
-            html.contains(r#"<h1 class="greeting">This week</h1>"#),
+            html.contains(r#"<h1 class="week-heading">This week</h1>"#),
             "expected the week heading in English, got: {html}"
         );
         assert!(
-            html.contains(r#"class="week-figure">0 minutes practised<"#),
-            "expected the accumulated-minutes figure in English, got: {html}"
+            html.contains(
+                r#"<span class="week-figure">0</span><span class="week-figure-label">minutes practised</span>"#
+            ),
+            "expected the accumulated-minutes figure and its legend in English, got: {html}"
         );
         assert!(
             html.contains(r#"class="week-word">A perfect start. Everything is still ahead.<"#),
@@ -724,10 +761,10 @@ mod tests {
     }
 
     /// The exact `<div class="week-curve">...</div>` markup of the first
-    /// curve rendered — lets a test assert byte-for-byte what a row's curve
+    /// curve rendered — lets a test assert byte-for-byte what a row's band
     /// carries, not just whether one class token is present. `.week-curve`
-    /// never carries a second class or variant now that a curve either draws
-    /// bars or does not render at all, so a single needle is enough.
+    /// never carries a second class or variant now that a band either draws
+    /// pebbles or does not render at all, so a single needle is enough.
     fn the_week_curve_html(html: &str) -> &str {
         const CLOSE: &str = "</div>";
         let start = html
@@ -754,9 +791,9 @@ mod tests {
         );
         assert_eq!(
             the_week_curve_html(&html),
-            r#"<div class="week-curve" aria-label="Trajectoire de Lire une page, de 5 à 5 minutes, 1 jour pratiqué"><span class="practice-bar" style="--practice-ratio: 1"></span></div>"#,
-            "the practised row must gain nothing beyond its bars and its \
-             enriched aria-label; the unpractised row must draw no curve at \
+            r#"<div class="week-curve" aria-label="Trajectoire de Lire une page, de 5 à 5 minutes, 1 jour pratiqué"><span class="week-pebble" style="--practice-ratio: 1"></span></div>"#,
+            "the practised row must gain nothing beyond its pebbles and its \
+             enriched aria-label; the unpractised row must draw no band at \
              all — no counter, no mark of absence"
         );
     }
@@ -806,58 +843,88 @@ mod tests {
     // NumberLiteral variant key (fr.ftl's `[0]`) before computing the CLDR
     // plural category — undocumented in this crate's code.
     #[component]
-    fn WeekMinutesPractisedAtZeroOneTwoFr() -> Element {
+    fn WeekMinutesAndLegendAtZeroOneTwoFr() -> Element {
         crate::i18n::use_locale_for_tests();
         rsx! {
-            p { {tr!("week-minutes-practised", minutes: 0i64)} }
-            p { {tr!("week-minutes-practised", minutes: 1i64)} }
-            p { {tr!("week-minutes-practised", minutes: 2i64)} }
+            p {
+                span { class: "week-figure", "0" }
+                span { class: "week-figure-label", {tr!("week-minutes-practised", count: 0i64)} }
+            }
+            p {
+                span { class: "week-figure", "1" }
+                span { class: "week-figure-label", {tr!("week-minutes-practised", count: 1i64)} }
+            }
+            p {
+                span { class: "week-figure", "2" }
+                span { class: "week-figure-label", {tr!("week-minutes-practised", count: 2i64)} }
+            }
         }
     }
 
     #[component]
-    fn WeekMinutesPractisedAtZeroOneTwoEn() -> Element {
+    fn WeekMinutesAndLegendAtZeroOneTwoEn() -> Element {
         use_locale_for_tests_as(langid!("en"));
         rsx! {
-            p { {tr!("week-minutes-practised", minutes: 0i64)} }
-            p { {tr!("week-minutes-practised", minutes: 1i64)} }
-            p { {tr!("week-minutes-practised", minutes: 2i64)} }
+            p {
+                span { class: "week-figure", "0" }
+                span { class: "week-figure-label", {tr!("week-minutes-practised", count: 0i64)} }
+            }
+            p {
+                span { class: "week-figure", "1" }
+                span { class: "week-figure-label", {tr!("week-minutes-practised", count: 1i64)} }
+            }
+            p {
+                span { class: "week-figure", "2" }
+                span { class: "week-figure-label", {tr!("week-minutes-practised", count: 2i64)} }
+            }
         }
     }
 
     #[test]
     fn the_week_figure_reads_the_right_plural_form_at_zero_one_and_two_in_french() {
-        let html = render(WeekMinutesPractisedAtZeroOneTwoFr);
+        let html = render(WeekMinutesAndLegendAtZeroOneTwoFr);
 
         assert!(
-            html.contains("<p>0 minutes de pratique accumulées</p>"),
-            "expected n=0 to read the plural — the D1 divergence from \
-             recap-minutes-label, got: {html}"
+            html.contains(
+                r#"<p><span class="week-figure">0</span><span class="week-figure-label">minutes de pratique accumulées</span></p>"#
+            ),
+            "expected n=0 to keep the figure and read the plural — the D1 \
+             divergence from recap-minutes-label, got: {html}"
         );
         assert!(
-            html.contains("<p>1 minute de pratique accumulée</p>"),
+            html.contains(
+                r#"<p><span class="week-figure">1</span><span class="week-figure-label">minute de pratique accumulée</span></p>"#
+            ),
             "expected n=1 to read the singular, got: {html}"
         );
         assert!(
-            html.contains("<p>2 minutes de pratique accumulées</p>"),
+            html.contains(
+                r#"<p><span class="week-figure">2</span><span class="week-figure-label">minutes de pratique accumulées</span></p>"#
+            ),
             "expected n=2 to read the plural, got: {html}"
         );
     }
 
     #[test]
     fn the_week_figure_reads_the_right_plural_form_at_zero_one_and_two_in_english() {
-        let html = render(WeekMinutesPractisedAtZeroOneTwoEn);
+        let html = render(WeekMinutesAndLegendAtZeroOneTwoEn);
 
         assert!(
-            html.contains("<p>0 minutes practised</p>"),
+            html.contains(
+                r#"<p><span class="week-figure">0</span><span class="week-figure-label">minutes practised</span></p>"#
+            ),
             "expected n=0 to read the plural (English `other` covers 0), got: {html}"
         );
         assert!(
-            html.contains("<p>1 minute practised</p>"),
+            html.contains(
+                r#"<p><span class="week-figure">1</span><span class="week-figure-label">minute practised</span></p>"#
+            ),
             "expected n=1 to read the singular, got: {html}"
         );
         assert!(
-            html.contains("<p>2 minutes practised</p>"),
+            html.contains(
+                r#"<p><span class="week-figure">2</span><span class="week-figure-label">minutes practised</span></p>"#
+            ),
             "expected n=2 to read the plural, got: {html}"
         );
     }
@@ -965,6 +1032,185 @@ mod tests {
         assert!(
             two.contains("2 days practised"),
             "expected the plural count in the curve's aria-label, got: {two}"
+        );
+    }
+
+    #[component]
+    fn RootAtWeekScreenWithAFullWeek() -> Element {
+        crate::i18n::use_locale_for_tests();
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| {
+            let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = a_habit("h-1", 5, TODAY - 6);
+            for days_back in 0..7 {
+                habit.toggle_done(LocalDate::from_epoch_day(TODAY - days_back));
+            }
+            repository.save(&habit);
+            services_with(repository)
+        });
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    /// The `<svg class="week-spark" …>` opening tag of the tinted card.
+    fn the_staircase_tag(html: &str) -> &str {
+        let start = html
+            .find(r#"<svg class="week-spark""#)
+            .expect("the staircase renders");
+        let end = start + html[start..].find('>').expect("the tag closes");
+        &html[start..end]
+    }
+
+    /// The `points` attribute of the staircase, parsed into coordinates.
+    fn the_staircase_points(html: &str) -> Vec<(f64, f64)> {
+        const NEEDLE: &str = r#"points=""#;
+        let start = html
+            .find(NEEDLE)
+            .expect("the staircase renders")
+            + NEEDLE.len();
+        let end = start
+            + html[start..]
+                .find('"')
+                .expect("the points attribute closes");
+        html[start..end]
+            .split(' ')
+            .map(|pair| {
+                let (x, y) = pair.split_once(',').expect("a point reads x,y");
+                (
+                    x.parse().expect("x parses as f64"),
+                    y.parse().expect("y parses as f64"),
+                )
+            })
+            .collect()
+    }
+
+    fn the_staircases_last_point(html: &str) -> (f64, f64) {
+        *the_staircase_points(html)
+            .last()
+            .expect("the trace has an end")
+    }
+
+    /// Counts the rising (`dx == 0`) and flat (`dy == 0`) segments of a trace.
+    fn staircase_segments(points: &[(f64, f64)]) -> (usize, usize) {
+        points.windows(2).fold((0, 0), |(rises, flats), pair| {
+            let ((x0, y0), (x1, y1)) = (pair[0], pair[1]);
+            (rises + usize::from(x0 == x1), flats + usize::from(y0 == y1))
+        })
+    }
+
+    /// The value of a numeric attribute, read from the staircase onwards so
+    /// the bottom bar's own `<circle cx>` can never satisfy it first.
+    fn a_staircase_attribute(html: &str, name: &str) -> f64 {
+        let from_staircase = &html[html
+            .find(r#"<svg class="week-spark""#)
+            .expect("the staircase renders")..];
+        let needle = format!(r#"{name}=""#);
+        let start = from_staircase
+            .find(&needle)
+            .expect("the attribute renders")
+            + needle.len();
+        let end = start
+            + from_staircase[start..]
+                .find('"')
+                .expect("the attribute closes");
+        from_staircase[start..end]
+            .parse()
+            .expect("the attribute parses as f64")
+    }
+
+    // @scenario: week-recap/S10
+    #[test]
+    fn the_staircase_holds_flat_when_the_week_holds_no_practice() {
+        let html = render(RootAtRestingWeekScreen);
+        let points = the_staircase_points(&html);
+
+        let (rises, flats) = staircase_segments(&points);
+        assert_eq!(
+            (rises, flats),
+            (0, 7),
+            "seven days without practice draw seven flat runs and no step, \
+             got: {html}"
+        );
+        assert!(
+            points.windows(2).all(|pair| pair[0].1 == pair[1].1),
+            "the whole trace stays at one level, got: {html}"
+        );
+    }
+
+    // @scenario: week-recap/S10
+    #[test]
+    fn the_staircase_rises_once_per_day_practised() {
+        let html = render(RootAtWeekScreenWithAFullWeek);
+        let points = the_staircase_points(&html);
+
+        let (rises, flats) = staircase_segments(&points);
+        assert_eq!(
+            (rises, flats),
+            (7, 7),
+            "seven practised days step up once each, got: {html}"
+        );
+        assert!(
+            points.windows(2).all(|pair| pair[0].1 >= pair[1].1),
+            "the trace never falls, got: {html}"
+        );
+        assert_eq!(
+            the_staircases_last_point(&html).1,
+            5.0,
+            "seven practised days reach the top of the box, got: {html}"
+        );
+    }
+
+    // @scenario: week-recap/S10
+    #[test]
+    fn the_staircase_holds_its_level_across_a_rest_day() {
+        let html = render(RootAtWeekScreen);
+        let points = the_staircase_points(&html);
+
+        assert_eq!(
+            staircase_segments(&points),
+            (3, 7),
+            "three practised days rise three times, and every day — a day of \
+             rest included — holds its own flat run, got: {html}"
+        );
+        assert!(
+            points.windows(2).all(|pair| pair[0].1 >= pair[1].1),
+            "a day of rest is a plateau, never a fall, got: {html}"
+        );
+        assert_eq!(
+            the_staircases_last_point(&html).0,
+            110.0,
+            "the trace ends on the last day of the window, got: {html}"
+        );
+    }
+
+    // @scenario: week-recap/S10
+    #[test]
+    fn the_staircase_stays_out_of_the_accessibility_tree() {
+        let html = render(RootAtWeekScreen);
+
+        assert!(
+            the_staircase_tag(&html).contains(r#"aria-hidden="true""#),
+            "the rhythm row already says the seven days in dots — the \
+             staircase must stay out of the accessibility tree, got: {html}"
+        );
+    }
+
+    // @scenario: week-recap/S10
+    #[test]
+    fn the_staircase_ends_on_its_last_traced_point() {
+        let html = render(RootAtWeekScreen);
+        let (x, y) = the_staircases_last_point(&html);
+
+        assert_eq!(
+            (
+                a_staircase_attribute(&html, "cx"),
+                a_staircase_attribute(&html, "cy")
+            ),
+            (x, y),
+            "the end pebble sits on the last point of the trace, got: {html}"
         );
     }
 }
