@@ -929,10 +929,13 @@ mod tests {
     #[test]
     fn the_week_draws_one_pebble_for_each_day_inside_its_card() {
         let html = render(RootAtKnownHabit);
-
         assert!(
             html.contains(r#"class="week-card""#) && html.contains(r#"class="pebble-track""#),
             "expected the seven days to live in a card, got: {html}"
+        );
+        assert!(
+            html.contains(r#"aria-label="Vos sept derniers jours, objectif actuel 5 minutes""#),
+            "expected the band to keep its own accessible name, got: {html}"
         );
         assert_eq!(
             html.matches("day-pebble").count(),
