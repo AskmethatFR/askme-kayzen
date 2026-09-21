@@ -405,7 +405,7 @@ mod tests {
             "expected the pace heading in English, got: {html}"
         );
         assert!(
-            html.contains(">Start my practice<"),
+            html.contains(">Start<"),
             "expected the start-ritual gesture in English, got: {html}"
         );
         assert!(
@@ -702,7 +702,7 @@ mod tests {
         let html = render(RootAtKnownHabit);
 
         assert!(
-            html.contains("Commencer ma pratique"),
+            html.contains("Commencer"),
             "expected the ritual gesture in its neutral, duration-free wording, got: {html}"
         );
         assert!(
@@ -834,7 +834,7 @@ mod tests {
             html.contains(r#"class="btn btn-primary btn-block action-primary""#)
                 && html.contains(r#"class="action-glyph""#)
                 && html.contains(r#"href="/habit/h-1/ritual""#)
-                && html.contains(">Commencer ma pratique<"),
+                && html.contains(">Commencer<"),
             "expected the dock to keep the action's destination, its label and \
              its decorative triangle, got: {html}"
         );
@@ -853,7 +853,7 @@ mod tests {
 
         assert!(
             dock_actions.contains(r#"href="/habit/h-1/ritual""#)
-                && dock_actions.contains(">Commencer ma pratique<"),
+                && dock_actions.contains(">Commencer<"),
             "expected the practice gesture to stay in the dock, got: {html}"
         );
         assert!(
@@ -1039,7 +1039,7 @@ mod tests {
             "expected no lighten-goal gesture on a paused habit, got: {html}"
         );
         assert!(
-            !html.contains("Commencer ma pratique"),
+            !html.contains("Commencer"),
             "expected no ritual gesture on a paused habit, got: {html}"
         );
         assert!(
@@ -1066,7 +1066,7 @@ mod tests {
             "expected no goal-adjustment gesture on an anchored habit, got: {html}"
         );
         assert!(
-            !html.contains("Commencer ma pratique"),
+            !html.contains("Commencer"),
             "expected no ritual gesture on an anchored habit, got: {html}"
         );
         assert!(

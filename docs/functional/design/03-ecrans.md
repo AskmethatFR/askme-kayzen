@@ -80,7 +80,7 @@ déplacée ailleurs. Le récap informe, il ne recueille rien.
 - ~~**Calendrier** en points, sans chiffres.~~ **Supprimé du détail** (2026-07-27) — l'escalier
   de pratique porte déjà fait/pas-fait par jour, plus la hauteur d'effort que les points
   n'avaient pas. Deux dessins pour la même information contredisent la sobriété de l'écran.
-- Bouton **« Commencer ma pratique »** (ouvre le rituel) — le libellé n'annonce aucune
+- Bouton **« Commencer »** (ouvre le rituel) — le libellé n'annonce aucune
   durée : la dose vient de l'objectif de l'habitude, pas du bouton, et le rituel n'a
   jamais été 1 min pour toutes. *(Corrigé 2026-08-19 — issue #12. Ce que le rituel
   chronomètre reste ouvert, voir issue #13.)*
@@ -167,7 +167,7 @@ pratique, et « La reprendre ». Renvoyer à Aujourd'hui cacherait l'écran qu'o
 de dessiner et éloignerait l'utilisateur de son geste d'annulation. L'écran se relit
 donc sur place. Épinglé par `[[pause-resume]]` S4.
 
-**Ce que le détail d'une habitude en pause n'offre plus.** Ni « Commencer ma pratique », ni
+**Ce que le détail d'une habitude en pause n'offre plus.** Ni « Commencer », ni
 « Passer à N+1 min », ni « Alléger à N−1 min ». Une pause est un vrai repos : rien à
 pratiquer, rien à ajuster. Le domaine, lui, n'interdit rien — c'est l'écran qui cesse
 de proposer, jamais la règle qui se met à refuser (même logique que Q3 pour *marquer

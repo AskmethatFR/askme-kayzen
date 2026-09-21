@@ -466,7 +466,7 @@ mod tests {
 
         let html = screen.html();
         assert!(
-            html.contains("Commencer ma pratique"),
+            html.contains("Commencer"),
             "expected the habit detail screen (not Today) to render after stopping, got: {html}"
         );
         assert!(
