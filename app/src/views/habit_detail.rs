@@ -61,17 +61,19 @@ pub fn HabitDetail(id: String) -> Element {
 
                         {week}
 
-                        Link {
-                            class: "btn btn-primary btn-block action-primary",
-                            to: Route::Ritual { id: habit.id.clone() },
-                            svg {
-                                class: "action-glyph",
-                                view_box: "0 0 24 24",
-                                "aria-hidden": "true",
-                                "focusable": "false",
-                                path { d: "M7 5l12 7-12 7z" }
+                        div { class: "action-dock",
+                            Link {
+                                class: "btn btn-primary btn-block action-primary",
+                                to: Route::Ritual { id: habit.id.clone() },
+                                svg {
+                                    class: "action-glyph",
+                                    view_box: "0 0 24 24",
+                                    "aria-hidden": "true",
+                                    "focusable": "false",
+                                    path { d: "M7 5l12 7-12 7z" }
+                                }
+                                {tr!("start-ritual-label")}
                             }
-                            {tr!("start-ritual-label")}
                         }
 
                         div { class: "pace",
@@ -151,15 +153,17 @@ pub fn HabitDetail(id: String) -> Element {
 
                         {week}
 
-                        button {
-                            class: "btn btn-primary btn-block",
-                            aria_label: tr!("resume-habit-aria", title: habit.title.clone()),
-                            onclick: {
-                                let services = services.clone();
-                                let id = id.clone();
-                                move |_| detail.set(resume_and_reload(&services, &id))
-                            },
-                            {tr!("resume-habit-label")}
+                        div { class: "action-dock",
+                            button {
+                                class: "btn btn-primary btn-block",
+                                aria_label: tr!("resume-habit-aria", title: habit.title.clone()),
+                                onclick: {
+                                    let services = services.clone();
+                                    let id = id.clone();
+                                    move |_| detail.set(resume_and_reload(&services, &id))
+                                },
+                                {tr!("resume-habit-label")}
+                            }
                         }
                     }
                 },

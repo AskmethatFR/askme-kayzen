@@ -55,6 +55,7 @@
     --screen-max-width: 620px;
     --bottom-nav-height: 64px;
     --bottom-nav-offset: 20px;
+    --action-dock-height: 60px;
     --radius-bar: 4px;
     --radius-field: 22px;
     --radius-card: 20px;
@@ -730,6 +731,35 @@ body {
     display: flex;
     flex-direction: column;
     gap: var(--space-5);
+    /* The action dock below is a fixed child of this box. `.screen`'s entry
+       animation moves `transform`, which would capture `position: fixed` for
+       its duration (adr-0021's MUST NOT) — so this screen fades in instead of
+       rising, and its dock is viewport-relative from the first paint. */
+    animation-name: kzFade;
+    /* content clears the dock: its height, its bottom offset, and one more of
+       the same so the last gesture never sits flush against the pill */
+    padding-bottom: calc(var(--action-dock-height) + 2 * var(--space-5) + env(safe-area-inset-bottom, 0px));
+}
+
+/* The screen's one action, held at the foot of the viewport so it stays within
+   thumb reach in every state. Content, never chrome: this route mounts no bar
+   (adr-0021), so the dock scopes itself here rather than in the layout. */
+.action-dock {
+    position: fixed;
+    bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+    left: calc(var(--space-5) + env(safe-area-inset-left, 0px));
+    right: calc(var(--space-5) + env(safe-area-inset-right, 0px));
+    max-width: calc(var(--screen-max-width) - 2 * var(--space-5));
+    margin-inline: auto;
+}
+
+/* The docked gesture's geometry belongs to the dock: one flex row, centred,
+   at the dock's height — whether or not it carries a glyph to its left. */
+.action-dock .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--action-dock-height);
 }
 
 .screen.detail:before {
@@ -818,14 +848,10 @@ body {
     border-color: var(--color-on-ink-soft);
 }
 
-/* The practice action: the same full-width pill as `.btn-primary`, lifted to
-   a taller flex row that centres its decorative triangle before the label. */
+/* The practice action: the dock's pill, with its decorative triangle held off
+   the label by a gap. */
 .action-primary {
-    display: flex;
-    align-items: center;
-    justify-content: center;
     gap: 10px;
-    min-height: 60px;
     font-size: 17px;
     font-weight: 600;
 }
@@ -1159,6 +1185,15 @@ body:has(.screen.ritual) {
     }
 }
 
+@keyframes kzFade {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
 @keyframes kzUp {
     from {
         opacity: 0;
@@ -1189,7 +1224,10 @@ body:has(.screen.ritual) {
 }
 
 @media (prefers-reduced-motion: reduce) {
+    /* `.screen.detail` re-declares `animation-name` (see its own rule), so it
+       out-specifies the `.screen` line above and has to be silenced here too. */
     .screen,
+    .screen.detail,
     .target.is-done .target-ink,
     .target.is-done::after,
     .ritual-breath {
