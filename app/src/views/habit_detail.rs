@@ -223,7 +223,7 @@ fn recap_copy_key(message: RecapMessage) -> &'static str {
     }
 }
 
-/// Each day's bar height relative to its own window's tallest goal
+/// Each day's pebble size relative to its own window's tallest goal
 /// (adr-0010: core returns numbers, the view decides how to draw them) —
 /// never an absolute minute value. Same normalization as the one the Week
 /// screen uses (owner ruling, 2026-08-21): the staircase draws one habit's
@@ -373,12 +373,12 @@ mod tests {
         let html = render(RootAtKnownHabitAndEnglishLocale);
 
         assert!(
-            html.contains(r#"class="lede">every day · 5 min<"#),
-            "expected the active-dose lede in English, got: {html}"
+            html.contains(r#"class="dose">every day · 5 min<"#),
+            "expected the active-dose line in English, got: {html}"
         );
         assert!(
-            html.contains(r#"class="eyebrow">Adjust, at your own pace<"#),
-            "expected the adjust-goal eyebrow in English, got: {html}"
+            html.contains(r#"class="pace-heading">Adjust, at your own pace<"#),
+            "expected the pace heading in English, got: {html}"
         );
         assert!(
             html.contains(">Start my practice<"),
@@ -657,10 +657,10 @@ mod tests {
 
     /// Ordered list of every `--day-ratio: N` value found in the rendered
     /// HTML, parsed as `f64`, in document order — lets a test pin the
-    /// staircase's normalized bar heights and their order, not just the bar
+    /// week's normalized pebble sizes and their order, not just the pebble
     /// count (same normalization the Week screen uses, owner ruling,
     /// 2026-08-21).
-    fn day_bar_ratios(html: &str) -> Vec<f64> {
+    fn day_pebble_ratios(html: &str) -> Vec<f64> {
         const NEEDLE: &str = "--day-ratio: ";
         html.match_indices(NEEDLE)
             .map(|(index, _)| {
@@ -867,30 +867,170 @@ mod tests {
 
     // @scenario: practice-staircase/S5
     #[test]
-    fn the_staircase_draws_one_bar_for_each_day_of_the_window() {
+    fn the_week_draws_one_pebble_for_each_day_inside_its_card() {
         let html = render(RootAtKnownHabit);
 
+        assert!(
+            html.contains(r#"class="week-card""#)
+                && html.contains(r#"class="pebble-track""#),
+            "expected the seven days to live in a card, got: {html}"
+        );
         assert_eq!(
-            html.matches("day-bar").count(),
+            html.matches("day-pebble").count(),
             7,
-            "expected one bar per calendar day of the window, got: {html}"
+            "expected one pebble per calendar day of the window, got: {html}"
         );
     }
 
     // @scenario: practice-staircase/S2
     #[test]
-    fn only_the_practised_days_are_filled_and_the_rest_stay_faint() {
+    fn only_the_practised_days_are_filled_and_the_rest_stay_in_outline() {
         let html = render(RootAtFloorHabitDoneToday);
 
         assert_eq!(
-            html.matches("day-bar").count(),
+            html.matches("day-pebble").count(),
             7,
-            "expected the missed days to keep their bar rather than leave a gap, got: {html}"
+            "expected the missed days to keep their pebble rather than leave a gap, got: {html}"
         );
         assert_eq!(
             html.matches("is-done").count(),
             1,
             "expected only the one practised day filled, got: {html}"
+        );
+        assert_eq!(
+            html.matches("is-today").count(),
+            0,
+            "expected today to read filled like any practised day, never dashed, got: {html}"
+        );
+    }
+
+    // @scenario: practice-staircase/S7
+    #[test]
+    fn today_is_told_apart_by_a_dashed_outline_until_it_is_practised() {
+        let html = render(RootAtKnownHabit);
+
+        assert_eq!(
+            html.matches("is-today").count(),
+            1,
+            "expected exactly one pebble to stand for today, got: {html}"
+        );
+        let today = &html[html
+            .rfind(r#"class="day-pebble"#)
+            .expect("expected at least one pebble in the week")..];
+        assert!(
+            today.starts_with(r#"class="day-pebble is-today""#),
+            "expected today, the last of the seven, to carry the dashed outline, got: {today}"
+        );
+        assert!(
+            !html.contains("is-done"),
+            "expected no practised day for a habit never marked done, got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_detail_opens_on_a_round_back_gesture_named_by_its_own_key() {
+        let html = render(RootAtKnownHabit);
+
+        assert!(
+            html.contains(r#"aria-label="Retour à aujourd'hui""#),
+            "expected the back gesture to be announced by its own key, got: {html}"
+        );
+        assert!(
+            html.contains(r#"class="detail-back""#)
+                && html.contains(r#"class="detail-back-icon""#),
+            "expected a round back target carrying its chevron, got: {html}"
+        );
+        assert!(
+            !html.contains("quiet-link"),
+            "expected the old masthead text link to be gone, got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_practice_action_sits_directly_under_the_week_card() {
+        let html = render(RootAtKnownHabit);
+
+        let card = html
+            .find(r#"class="week-card""#)
+            .expect("expected the week card");
+        let action = html
+            .find(r#"class="btn btn-primary btn-block action-primary""#)
+            .expect("expected the full-width practice action");
+        let pace = html
+            .find(r#"class="pace-grid""#)
+            .expect("expected the pace zone");
+        assert!(
+            card < action && action < pace,
+            "expected the action between the week card and the pace zone, got: {html}"
+        );
+        assert!(
+            html.contains(r#"class="action-glyph""#)
+                && html.contains(r#"href="/habit/h-1/ritual""#)
+                && html.contains(">Commencer ma pratique<"),
+            "expected the action to keep its destination, its label and its \
+             decorative triangle, got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_pace_zone_is_a_heading_over_two_tiles_with_their_glyphs() {
+        let html = render(RootAtKnownHabit);
+
+        assert!(
+            html.contains(r#"<h2 class="pace-heading">Ajuster, à votre rythme</h2>"#),
+            "expected the pace heading as an h2, got: {html}"
+        );
+        assert_eq!(
+            html.matches(r#"class="pace-tile is-grow""#).count(),
+            1,
+            "expected one growing tile, got: {html}"
+        );
+        assert_eq!(
+            html.matches(r#"class="pace-tile is-lighten""#).count(),
+            1,
+            "expected one lightening tile, got: {html}"
+        );
+        assert!(
+            html.contains(r#"class="pace-glyph""#)
+                && html.contains(">+<")
+                && html.contains(">−<"),
+            "expected each tile to carry its decorative glyph, got: {html}"
+        );
+        assert!(
+            html.contains(">Passer à 6 min<") && html.contains(">Alléger à 4 min<"),
+            "expected the tile labels unchanged, got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_end_of_life_gestures_are_lines_under_a_fine_rule() {
+        let html = render(RootAtKnownHabit);
+
+        assert!(
+            html.contains(r#"class="lifecycle""#),
+            "expected the end-of-life lines to sit in one block, got: {html}"
+        );
+        assert_eq!(
+            html.matches(r#"class="lifecycle-gesture""#).count(),
+            1,
+            "expected one plain end-of-life line, got: {html}"
+        );
+        assert_eq!(
+            html.matches(r#"class="lifecycle-gesture is-anchor""#).count(),
+            1,
+            "expected the anchoring line to carry the ocre modifier, got: {html}"
+        );
+        assert!(
+            html.contains(">Mettre en pause, sans culpabilité<")
+                && html.contains(">L&#39;ancrer · elle est devenue naturelle<"),
+            "expected the end-of-life gestures' copy unchanged, got: {html}"
+        );
+        assert!(
+            html.contains("aria-label=\"Mettre en pause, sans culpabilité · Lire une page\"")
+                && html.contains(
+                    "aria-label=\"L&#39;ancrer · elle est devenue naturelle · Lire une page\""
+                ),
+            "expected the click handles unchanged, got: {html}"
         );
     }
 
@@ -909,9 +1049,9 @@ mod tests {
             "expected the resume gesture to be offered, got: {html}"
         );
         assert_eq!(
-            html.matches("day-bar").count(),
+            html.matches("day-pebble").count(),
             7,
-            "expected the practice staircase to stay on a paused habit, got: {html}"
+            "expected the practice week to stay on a paused habit, got: {html}"
         );
         assert!(
             !html.contains("Passer à"),
@@ -940,9 +1080,9 @@ mod tests {
             "expected the anchored banner naming the dose, got: {html}"
         );
         assert_eq!(
-            html.matches("day-bar").count(),
+            html.matches("day-pebble").count(),
             7,
-            "expected the practice staircase to stay on an anchored habit, got: {html}"
+            "expected the practice week to stay on an anchored habit, got: {html}"
         );
         assert!(
             !html.contains("Passer à") && !html.contains("Alléger à"),
@@ -987,8 +1127,8 @@ mod tests {
         let html = render(RootAtUnknownHabit);
 
         assert!(
-            !html.contains("day-bar"),
-            "expected no staircase for a missing habit, got: {html}"
+            !html.contains("day-pebble"),
+            "expected no week of pebbles for a missing habit, got: {html}"
         );
         assert!(
             html.contains("Cette habitude") && html.contains("plus sur votre liste"),
@@ -1165,38 +1305,38 @@ mod tests {
         );
     }
 
-    // Test List — staircase bar-height normalization (fix/practice-staircase-
-    // overflow, owner ruling 2026-08-21). Each bar's height is relative to
+    // Test List — week pebble-size normalization (fix/practice-staircase-
+    // overflow, owner ruling 2026-08-21). Each pebble's size is relative to
     // its own window's tallest goal, never an absolute minute value (the
     // same normalization the Week screen uses — owner ruling, 2026-08-21).
     // No scenario in practice-staircase.feature names normalization
     // directly — it is a rendering concern the feature's Given/When/Then
     // are silent on — so
     // these tests are left unanchored, each with a comment stating why.
-    // - a flat window (goal never changed) normalizes every bar to 1.0.
+    // - a flat window (goal never changed) normalizes every pebble to 1.0.
     // - a window whose goal grew mid-way normalizes on the window's own
-    //   maximum, ascending ratios, last bar at 1.0.
+    //   maximum, ascending ratios, last pebble at 1.0.
     // - a window whose maximum sits mid-history (grown then lightened, not
     //   the last day) still normalizes on that maximum, never on the current
-    //   goal — no bar may exceed its container.
+    //   goal — no pebble may exceed the tallest one.
     // - a purely descending window (lightened once, maximum on the first
     //   day only) still normalizes on that first-day maximum.
     // - a window whose maximum sits on the last day only (grown today, the
-    //   single most common gesture right before opening the staircase)
+    //   single most common gesture right before opening the detail)
     //   still normalizes on that last-day maximum.
 
     // Unanchored: no scenario names normalization; S5 (window is seven days)
-    // is already pinned by the day-bar count tests above. RootAtKnownHabit's
+    // is already pinned by the day-pebble count tests above. RootAtKnownHabit's
     // habit never grows, so every one of its seven days shares the same goal
     // (5) — the window's maximum equals every day's goal.
     #[test]
-    fn a_flat_window_normalizes_every_bar_to_full_height() {
+    fn a_flat_window_normalizes_every_pebble_to_full_size() {
         let html = render(RootAtKnownHabit);
 
         assert_eq!(
-            day_bar_ratios(&html),
+            day_pebble_ratios(&html),
             vec![1.0; 7],
-            "expected every bar to reach full height when the goal never \
+            "expected every pebble to reach full size when the goal never \
              changed across the window, got: {html}"
         );
     }
@@ -1237,9 +1377,9 @@ mod tests {
         let html = render(RootAtHabitGrownMidWindow);
 
         assert_eq!(
-            day_bar_ratios(&html),
+            day_pebble_ratios(&html),
             vec![5.0 / 6.0, 5.0 / 6.0, 5.0 / 6.0, 5.0 / 6.0, 1.0, 1.0, 1.0],
-            "expected the days before the growth to sit below full height and \
+            "expected the days before the growth to sit below full size and \
              the days at or after it to reach it, got: {html}"
         );
     }
@@ -1286,10 +1426,10 @@ mod tests {
     fn a_window_grown_then_lightened_still_normalizes_on_its_own_maximum() {
         let html = render(RootAtHabitGrownThenLightenedMidWindow);
 
-        let ratios = day_bar_ratios(&html);
+        let ratios = day_pebble_ratios(&html);
         assert!(
             ratios.iter().all(|&ratio| ratio <= 1.0),
-            "no bar may exceed its container: {ratios:?}"
+            "no pebble may exceed the tallest one: {ratios:?}"
         );
         assert_eq!(
             ratios,
@@ -1303,7 +1443,7 @@ mod tests {
                 5.0 / 6.0
             ],
             "expected the window's own maximum (6, reached on days 3-4) to \
-             normalize every bar, not the current goal (5, which the window \
+             normalize every pebble, not the current goal (5, which the window \
              lightened back down to), got: {html}"
         );
     }
@@ -1341,15 +1481,15 @@ mod tests {
     // goal — the window's own maximum sits on the first day alone, a
     // purely descending profile. A `.max()` taken over
     // `days.iter().skip(1)` would miss it entirely and overflow the first
-    // bar's container.
+    // pebble's size.
     #[test]
     fn a_window_only_lightened_normalizes_on_its_first_day() {
         let html = render(RootAtHabitLightenedEarlyInWindow);
 
-        let ratios = day_bar_ratios(&html);
+        let ratios = day_pebble_ratios(&html);
         assert!(
             ratios.iter().all(|&ratio| ratio <= 1.0),
-            "no bar may exceed its container: {ratios:?}"
+            "no pebble may exceed the tallest one: {ratios:?}"
         );
         assert_eq!(
             ratios,
@@ -1362,7 +1502,7 @@ mod tests {
                 5.0 / 6.0,
                 5.0 / 6.0
             ],
-            "expected the first day's goal (6) to normalize every bar, got: {html}"
+            "expected the first day's goal (6) to normalize every pebble, got: {html}"
         );
     }
 
@@ -1396,7 +1536,7 @@ mod tests {
     // Unanchored: see the Test List comment above. Window is 20_014..=20_020;
     // the habit starts at goal 5 and grow(20_020) raises it to 6 only from
     // today — the window's own maximum sits on the last day alone, the most
-    // common gesture right before opening the staircase.
+    // common gesture right before opening the detail.
     // `a_window_grown_mid_way_normalizes_ascending_to_its_own_maximum`
     // places the maximum on the last THREE days and does not discriminate
     // this narrower case.
@@ -1405,7 +1545,7 @@ mod tests {
         let html = render(RootAtHabitGrownOnTheLastDay);
 
         assert_eq!(
-            day_bar_ratios(&html),
+            day_pebble_ratios(&html),
             vec![
                 5.0 / 6.0,
                 5.0 / 6.0,
@@ -1415,7 +1555,7 @@ mod tests {
                 5.0 / 6.0,
                 1.0
             ],
-            "expected the last day's raised goal (6) to normalize every bar, got: {html}"
+            "expected the last day's raised goal (6) to normalize every pebble, got: {html}"
         );
     }
 
