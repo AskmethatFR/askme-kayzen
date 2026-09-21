@@ -24,6 +24,7 @@
     --color-card: #FBF9F4;
     --color-ink: #2A2622;
     --color-ink-soft: #6B645C;
+    --color-ink-mid: #4A443E;
     --color-on-ink-soft: #B9B1A5;
     --color-rule: #DCD5C8;
     --color-accent: #0088b0;
@@ -57,6 +58,7 @@
     --radius-field: 22px;
     --radius-card: 20px;
     --radius-habit: 24px;
+    --radius-tint: 26px;
     --radius-pill: 30px;
     --radius-pebble: 48% 52% 46% 54% / 55% 47% 53% 45%;
     --shadow-sm: 0 1px 2px rgba(var(--color-shadow), .06);
@@ -483,36 +485,92 @@ body {
 }
 
 /* ---- Week recap (Week screen) ----
-   One large figure standing for practice accumulated across every habit,
-   and one gentle word for how the week is living right now. */
+   The week is a reading, never a gesture: a title alone, one tinted card
+   holding the accumulated figure and its staircase, the week's word, the
+   rhythm in dots, then one card per habit — cards separated by a gap, never
+   by a rule. */
+.week-heading {
+    font-family: var(--font-display);
+    font-size: 40px;
+    font-weight: 500;
+    margin: 0;
+}
+
+.week-tint-card {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-4);
+    margin-top: var(--space-5);
+    padding: var(--space-5) var(--space-5) var(--space-4);
+    background: var(--color-tint);
+    border-radius: var(--radius-tint);
+}
+
+.week-tint-figure {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
 .week-figure {
     font-family: var(--font-display);
-    font-size: clamp(30px, 8vw, 44px);
-    font-weight: 700;
+    font-size: 56px;
+    font-weight: 500;
+    line-height: 1;
     font-variant-numeric: tabular-nums;
-    color: var(--color-ink);
-    margin: var(--space-5) 0 var(--space-2);
+    color: var(--color-on-tint);
+}
+
+.week-figure-label {
+    font-size: 15px;
+    color: var(--color-on-tint);
+}
+
+/* Stroke, caps and colour live here, never in the markup. The staircase is
+   decorative — the figure and the rhythm row already say the same week — so
+   it stays out of the accessibility tree in the view. */
+.week-staircase {
+    flex: none;
+    width: 110px;
+    height: 56px;
+}
+
+.week-staircase polyline {
+    fill: none;
+    stroke: var(--color-accent);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.week-staircase circle {
+    fill: var(--color-accent);
 }
 
 .week-word {
-    font-size: 17px;
-    color: var(--color-ink-soft);
-    margin: 0;
+    font-family: var(--font-display);
+    font-size: 19px;
+    color: var(--color-ink-mid);
+    margin: var(--space-5) 0 0;
 }
 
 /* ---- Rhythm row (Week screen) ----
    One dot per day over the rolling seven-day window, oldest first. Presence,
    never density: a day without practice keeps its dot at the same faint
-   opacity idiom as .day-bar — present, never a gap, never a warning. */
+   opacity idiom as .day-bar — present, never a gap, never a warning. The
+   opacity is load-bearing: at full strength the unlit rule falls to 2.80:1
+   against the accent, under the 3:1 SC 1.4.11 floor an all-chroma signal
+   needs — composited faint it holds 3.31:1. */
 .rhythm {
     display: flex;
     gap: var(--space-2);
-    margin: var(--space-4) 0 var(--space-2);
+    margin-top: var(--space-5);
 }
 
 .rhythm-dot {
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
     border-radius: var(--radius-pebble);
     background: var(--color-rule);
     opacity: 0.35;
@@ -523,54 +581,69 @@ body {
     opacity: 1;
 }
 
-/* ---- Habit journey rows (Week screen) ----
-   Every habit gets a row, whatever its lifecycle state — no gesture, no id.
-   Each mini-curve draws one bar per day practised in the rolling seven-day
-   window, never one per recorded goal step: the week's rhythm row above
-   already draws the seven days once, the curve draws the same window's
-   lived history. A habit not practised in the window has no curve at all. */
+/* ---- Habit cards (Week screen) ----
+   Every habit gets its own card, whatever its lifecycle state — no gesture,
+   no id. Each band draws one pebble per day practised in the rolling
+   seven-day window, never one per recorded goal step: the rhythm row above
+   already draws the seven days once, the band draws the same window's lived
+   history. A habit not practised in the window has no band at all. */
 .week-habits {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
     margin-top: var(--space-5);
 }
 
 .week-habit {
-    padding: var(--space-4) 0;
-    border-top: 1px solid var(--color-rule);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: var(--color-card);
+    border-radius: var(--radius-habit);
+}
+
+.week-habit-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
 }
 
 .week-habit-title {
+    font-size: 15px;
     font-weight: 600;
     margin: 0;
 }
 
-.week-habit-journey {
-    font-size: 14px;
+.week-habit-goal {
+    flex: none;
+    font-size: 15px;
     font-variant-numeric: tabular-nums;
     color: var(--color-ink-soft);
-    margin: 2px 0 var(--space-2);
+    margin: 0;
 }
 
 .week-curve {
     display: flex;
     align-items: flex-end;
-    gap: var(--space-1);
-    height: 32px;
+    gap: var(--space-2);
+    height: 24px;
 }
 
-/* Height is normalized to the row's own maximum practised goal
-   (--practice-ratio, 0..1), never an absolute minute value: floor 6px +
-   up to 26px of ratio exactly fills the 32px .week-curve container
-   (6 + 26 = 32), so the tallest bar always reaches the top and no bar can
-   overflow by construction. Every bar drawn here stands for a practised
-   day, so the accent carries no second state. */
-.practice-bar {
-    width: 10px;
-    min-height: 6px;
-    height: calc(6px + var(--practice-ratio, 1) * 26px);
+/* Size is normalized to the row's own maximum practised goal
+   (--practice-ratio, 0..1), never an absolute minute value: the tallest
+   pebble fills the 24px .week-curve container and the others follow in
+   proportion. The floor keeps a pebble visible on a row whose tallest day
+   dwarfs the rest. Every pebble drawn here stands for a practised day, so
+   the accent carries no second state. */
+.week-pebble {
+    min-width: 6px;
+    min-height: 5px;
+    width: calc(30px * var(--practice-ratio, 1));
+    height: calc(24px * var(--practice-ratio, 1));
     background: var(--color-accent);
-    border-radius: var(--radius-bar) var(--radius-bar) 0 0;
-    /* composited 3.62:1 on --color-paper -- SC 1.4.11 floor is 3:1 */
-    opacity: 1;
+    border-radius: var(--radius-pebble);
 }
 
 /* ---- Broadsheet components (for later screens) ---- */
