@@ -753,7 +753,7 @@ body {
     );
 }
 
-/* The screen's one action, held at the foot of the viewport so it stays within
+/* The screen's actions, held at the foot of the viewport so they stay within
    thumb reach in every state. Content, never chrome: this route mounts no bar
    (adr-0021), so the dock scopes itself here rather than in the layout. */
 .action-dock {
@@ -763,15 +763,43 @@ body {
     right: calc(var(--space-5) + env(safe-area-inset-right, 0px));
     max-width: calc(var(--screen-max-width) - 2 * var(--space-5));
     margin-inline: auto;
+    display: flex;
+    gap: 10px;
 }
 
-/* The docked gesture's geometry belongs to the dock: one flex row, centred,
-   at the dock's height — whether or not it carries a glyph to its left. */
+/* The docked gestures' geometry belongs to the dock: one flex row, centred, at
+   the dock's height — whether or not a gesture carries a glyph to its left.
+   `min-width: 0` lets a long label shrink and wrap rather than widen the dock
+   past the viewport. */
 .action-dock .btn {
+    flex: 1;
+    min-width: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     min-height: var(--action-dock-height);
+}
+
+/* The gesture that says the day is done takes only the room its own copy
+   needs, so the practice gesture keeps the width it had when the dock carried
+   one control. */
+.action-dock .action-done {
+    flex: 0 1 auto;
+    gap: 8px;
+}
+
+.action-done.is-done {
+    border-color: var(--color-accent);
+}
+
+.action-done-check {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: var(--color-accent);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 .screen.detail:before {

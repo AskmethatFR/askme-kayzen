@@ -74,6 +74,25 @@ pub fn HabitDetail(id: String) -> Element {
                                 }
                                 {tr!("start-ritual-label")}
                             }
+                            button {
+                                class: if habit.done_today { "btn btn-secondary action-done is-done" } else { "btn btn-secondary action-done" },
+                                aria_label: if habit.done_today { tr!("habit-detail-done-aria", title: habit.title.clone()) } else { tr!("habit-detail-mark-done-aria", title: habit.title.clone()) },
+                                onclick: {
+                                    let services = services.clone();
+                                    let id = id.clone();
+                                    move |_| detail.set(mark_done_and_reload(&services, &id))
+                                },
+                                if habit.done_today {
+                                    svg {
+                                        class: "action-done-check",
+                                        view_box: "0 0 24 24",
+                                        "aria-hidden": "true",
+                                        "focusable": "false",
+                                        path { d: "M5 12l5 5L19 7" }
+                                    }
+                                }
+                                {tr!("habit-detail-mark-done-label")}
+                            }
                         }
 
                         div { class: "pace",
@@ -204,6 +223,12 @@ fn lighten_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> 
 #[must_use]
 fn pause_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
     services.pause_habit.execute(id).ok();
+    services.get_habit_detail.handle(id)
+}
+
+#[must_use]
+fn mark_done_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
+    services.mark_done.execute(id).ok();
     services.get_habit_detail.handle(id)
 }
 
@@ -387,6 +412,11 @@ mod tests {
             html.contains(r#"aria-label="Pause, no guilt · Lire une page""#)
                 && html.contains(">Pause, no guilt<"),
             "expected the pause gesture in English, got: {html}"
+        );
+        assert!(
+            html.contains(r#"aria-label="It&#39;s done · Lire une page""#)
+                && html.contains(">It&#39;s done<"),
+            "expected the day-is-done gesture in English, got: {html}"
         );
     }
 
@@ -586,6 +616,36 @@ mod tests {
     }
 
     #[test]
+    fn mark_done_and_reload_records_today_and_returns_the_refreshed_detail() {
+        let services = services_with_one_habit();
+
+        let detail = mark_done_and_reload(&services, "h-1");
+
+        assert_eq!(
+            detail.map(|d| d.done_today),
+            Some(true),
+            "expected the gesture to have run before the screen re-reads the habit"
+        );
+    }
+
+    #[test]
+    fn a_second_tap_through_the_detail_gesture_un_records_today() {
+        let services = services_with_one_habit();
+
+        let recorded = mark_done_and_reload(&services, "h-1");
+        let un_recorded = mark_done_and_reload(&services, "h-1");
+
+        assert_eq!(
+            (
+                recorded.map(|d| d.done_today),
+                un_recorded.map(|d| d.done_today)
+            ),
+            (Some(true), Some(false)),
+            "expected the same-day toggle to hold from the detail screen too"
+        );
+    }
+
+    #[test]
     fn anchor_and_reload_anchors_the_habit_and_returns_the_refreshed_detail() {
         let services = services_with_one_habit();
 
@@ -700,12 +760,12 @@ mod tests {
             "expected the missed days to keep their pebble rather than leave a gap, got: {html}"
         );
         assert_eq!(
-            html.matches("is-done").count(),
+            html.matches("day-pebble is-done").count(),
             1,
             "expected only the one practised day filled, got: {html}"
         );
         assert_eq!(
-            html.matches("is-today").count(),
+            html.matches("day-pebble is-today").count(),
             0,
             "expected today to read filled like any practised day, never dashed, got: {html}"
         );
@@ -777,6 +837,101 @@ mod tests {
                 && html.contains(">Commencer ma pratique<"),
             "expected the dock to keep the action's destination, its label and \
              its decorative triangle, got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_dock_offers_the_practice_gesture_beside_the_one_that_says_the_day_is_done() {
+        let html = render(RootAtKnownHabit);
+
+        let dock = &html[html
+            .find(r#"class="action-dock""#)
+            .expect("expected the dock")..];
+        let dock_actions = &dock[..dock
+            .find(r#"class="pace-grid""#)
+            .expect("expected the pace zone to close the dock's block")];
+
+        assert!(
+            dock_actions.contains(r#"href="/habit/h-1/ritual""#)
+                && dock_actions.contains(">Commencer ma pratique<"),
+            "expected the practice gesture to stay in the dock, got: {html}"
+        );
+        assert!(
+            dock_actions.contains(">C&#39;est fait<"),
+            "expected the gesture that says the day is done to sit in the same \
+             dock as the practice one, got: {html}"
+        );
+    }
+
+    #[test]
+    fn before_today_is_recorded_the_done_gesture_reads_as_the_offer() {
+        let html = render(RootAtKnownHabit);
+
+        assert!(
+            html.contains("aria-label=\"C&#39;est fait · Lire une page\""),
+            "expected the offer to record today, got: {html}"
+        );
+        assert!(
+            !html.contains("Fait aujourd"),
+            "expected no recorded-today wording before the gesture has been used, got: {html}"
+        );
+    }
+
+    #[test]
+    fn once_today_is_recorded_the_done_gesture_states_the_fact() {
+        let html = render(RootAtFloorHabitDoneToday);
+
+        assert!(
+            html.contains("aria-label=\"Fait aujourd&#39;hui · Lire une page\""),
+            "expected the recorded fact to be announced, got: {html}"
+        );
+        assert!(
+            html.contains(r#"class="btn btn-secondary action-done is-done""#)
+                && html.contains(r#"class="action-done-check""#)
+                && html.contains(">C&#39;est fait<"),
+            "expected the done state to carry its own shape cue and to keep the \
+             owner's words, got: {html}"
+        );
+        assert!(
+            html.contains(
+                r#"<svg class="action-done-check" viewBox="0 0 24 24" aria-hidden="true" focusable="false">"#
+            ),
+            "expected the check to stay decorative — the gesture's own words \
+             already carry the fact, got: {html}"
+        );
+    }
+
+    // @scenario: mark-done/S4
+    #[test]
+    fn saying_its_done_from_the_habit_s_own_screen_records_today_without_the_ritual() {
+        let mut screen = Screen::open(RootAtKnownHabit);
+
+        screen.click("C'est fait · Lire une page");
+
+        let html = screen.html();
+        assert!(
+            html.contains("aria-label=\"Fait aujourd&#39;hui · Lire une page\""),
+            "expected the day to read as recorded from the habit's own screen, got: {html}"
+        );
+        assert!(
+            html.contains(r#"class="screen detail""#) && !html.contains(r#"class="screen ritual""#),
+            "expected the gesture to happen on the habit's screen, never by \
+             entering the ritual, got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_paused_and_anchored_docks_carry_no_done_gesture() {
+        let paused = render(RootAtPausedHabit);
+        let anchored = render(RootAtAnchoredHabit);
+
+        assert!(
+            !paused.contains("C&#39;est fait"),
+            "expected no done gesture on a paused habit, got: {paused}"
+        );
+        assert!(
+            !anchored.contains("C&#39;est fait"),
+            "expected no done gesture on an anchored habit, got: {anchored}"
         );
     }
 
