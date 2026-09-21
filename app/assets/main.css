@@ -56,6 +56,7 @@
     --bottom-nav-height: 64px;
     --bottom-nav-offset: 20px;
     --action-dock-height: 60px;
+    --lifecycle-gesture-height: 56px;
     --radius-bar: 4px;
     --radius-field: 22px;
     --radius-card: 20px;
@@ -736,9 +737,20 @@ body {
        its duration (adr-0021's MUST NOT) — so this screen fades in instead of
        rising, and its dock is viewport-relative from the first paint. */
     animation-name: kzFade;
-    /* content clears the dock: its height, its bottom offset, and one more of
-       the same so the last gesture never sits flush against the pill */
-    padding-bottom: calc(var(--action-dock-height) + 2 * var(--space-5) + env(safe-area-inset-bottom, 0px));
+    /* The whole fixed foot — the end-of-life lines and the action dock — is
+       space the flow cannot see, so the screen reserves it: the dock, the gap
+       above it, the two-line block over that, and one more breathing space. On
+       a viewport too short for the content the page scrolls, rather than
+       hiding a control behind the stack. */
+    padding-bottom: calc(
+        var(--space-5)
+        + var(--action-dock-height)
+        + var(--space-3)
+        + 2 * var(--lifecycle-gesture-height)
+        + var(--space-1)
+        + var(--space-5)
+        + env(safe-area-inset-bottom, 0px)
+    );
 }
 
 /* The screen's one action, held at the foot of the viewport so it stays within
@@ -923,17 +935,27 @@ body {
 /* ---- End-of-life gestures (Detail screen) ----
    Two lines under a hairline, recessed: text-only rows with a decorative
    glyph, the anchoring one carrying the ocre pair this screen already uses
-   for an acquired habit. */
+   for an acquired habit. Like the action dock they are held at the foot of
+   the viewport, stacked above it — and, like it, they are space the flow
+   cannot see, which is why `.screen.detail` reserves their height. */
 .lifecycle {
+    position: fixed;
+    /* clears the dock: its bottom offset, its height, then a breath */
+    bottom: calc(var(--space-5) + var(--action-dock-height) + var(--space-3) + env(safe-area-inset-bottom, 0px));
+    left: calc(var(--space-5) + env(safe-area-inset-left, 0px));
+    right: calc(var(--space-5) + env(safe-area-inset-right, 0px));
+    max-width: calc(var(--screen-max-width) - 2 * var(--space-5));
+    margin-inline: auto;
     border-top: 1.5px solid var(--color-rule);
 }
 
 .lifecycle-gesture {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: var(--space-3);
     width: 100%;
-    min-height: 56px;
+    min-height: var(--lifecycle-gesture-height);
     padding: 0;
     background: transparent;
     border: none;
