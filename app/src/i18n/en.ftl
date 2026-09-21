@@ -73,9 +73,9 @@ resume-habit-aria = Resume it · { $title }
 habit-not-found-message = This habit is no longer on your list.
 habit-not-found-back-link = Back to Today
 week-heading = This week
-week-minutes-practised = { $minutes ->
-    [one] { $minutes } minute practised
-   *[other] { $minutes } minutes practised
+week-minutes-practised = { $count ->
+    [one] minute practised
+   *[other] minutes practised
 }
 week-message-fresh-start = A perfect start. Everything is still ahead.
 week-message-resting = This week is resting. It's here whenever you're ready, no rush.
@@ -85,7 +85,10 @@ week-curve-aria = { $title }'s journey, from { $starting_goal } to { $current_go
     [one] { $practised_days } day practised
    *[other] { $practised_days } days practised
 }
-week-habit-journey = { $starting_goal } to { $current_goal } min
+week-habit-goal = { $changed ->
+    [yes] { $starting_goal } to { $current_goal } min
+   *[no] { $goal } min
+}
 ritual-not-found-message = This habit is no longer on your list.
 ritual-not-found-back-link = Back to Today
 ritual-paused-message = This habit is resting right now. It's here whenever you're ready, no rush.

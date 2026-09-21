@@ -1,23 +1,56 @@
 use crate::composition::Services;
 use crate::i18n::{tr, tr_key};
-use crate::route::Route;
 use dioxus::prelude::*;
 use kayzen_core::habit_management::queries::get_week_recap::WeekMessage;
+
+/// The tinted card's staircase box, in the SVG's own user units, and the
+/// radius of the pebble standing on the trace's last point.
+const SPARK_WIDTH: f64 = 110.0;
+const SPARK_HEIGHT: f64 = 56.0;
+const SPARK_DOT_RADIUS: f64 = 5.0;
 
 #[component]
 pub fn Week() -> Element {
     let services = use_context::<Services>();
     let recap = use_signal(move || services.get_week_recap.handle());
     let recap = recap();
-    let figure = tr!("week-minutes-practised", minutes: recap.minutes_practised as i64);
+    let legend = tr!(
+        "week-minutes-practised",
+        count: recap.minutes_practised as i64
+    );
+    let staircase = spark_points(&recap.rhythm);
+    let staircase_trace = staircase
+        .iter()
+        .map(|(x, y)| format!("{x:.2},{y:.2}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let staircase_end = staircase.last().copied();
 
     rsx! {
         div { class: "screen",
-            header { class: "masthead",
-                Link { class: "quiet-link", to: Route::Today {}, {tr!("masthead-back-to-today")} }
+            h1 { class: "week-heading", {tr!("week-heading")} }
+
+            div { class: "week-tint-card",
+                div { class: "week-tint-figure",
+                    span { class: "week-figure", "{recap.minutes_practised}" }
+                    span { class: "week-figure-label", "{legend}" }
+                }
+                svg {
+                    class: "week-spark",
+                    view_box: "0 0 {SPARK_WIDTH} {SPARK_HEIGHT}",
+                    "aria-hidden": "true",
+                    "focusable": "false",
+                    polyline { points: "{staircase_trace}" }
+                    if let Some((end_x, end_y)) = staircase_end {
+                        circle {
+                            cx: "{end_x:.2}",
+                            cy: "{end_y:.2}",
+                            r: "{SPARK_DOT_RADIUS}",
+                        }
+                    }
+                }
             }
-            h1 { class: "greeting", {tr!("week-heading")} }
-            p { class: "week-figure", "{figure}" }
+
             p { class: "week-word", {tr_key(week_copy_key(recap.message))} }
 
             div { class: "rhythm", "aria-label": tr!("week-rhythm-aria"),
@@ -32,14 +65,18 @@ pub fn Week() -> Element {
             div { class: "week-habits",
                 for (row_offset, habit) in recap.habits.iter().enumerate() {
                     div { key: "{row_offset}", class: "week-habit",
-                        p { class: "week-habit-title", "{habit.title}" }
-                        p {
-                            class: "week-habit-journey",
-                            {tr!(
-                                "week-habit-journey",
-                                starting_goal: habit.starting_goal as i64,
-                                current_goal: habit.current_goal as i64
-                            )}
+                        div { class: "week-habit-head",
+                            p { class: "week-habit-title", "{habit.title}" }
+                            p {
+                                class: "week-habit-goal",
+                                {tr!(
+                                    "week-habit-goal",
+                                    changed: if habit.current_goal == habit.starting_goal { "no" } else { "yes" },
+                                    goal: habit.current_goal as i64,
+                                    starting_goal: habit.starting_goal as i64,
+                                    current_goal: habit.current_goal as i64
+                                )}
+                            }
                         }
                         if !habit.practised_day_goals.is_empty() {
                             div {
@@ -51,11 +88,11 @@ pub fn Week() -> Element {
                                     current_goal: habit.current_goal as i64,
                                     practised_days: habit.practised_day_goals.len() as i64
                                 ),
-                                for (bar_offset, ratio) in bar_ratios(&habit.practised_day_goals).into_iter().enumerate()
+                                for (pebble_offset, ratio) in practice_ratios(&habit.practised_day_goals).into_iter().enumerate()
                                 {
                                     span {
-                                        key: "{bar_offset}",
-                                        class: "practice-bar",
+                                        key: "{pebble_offset}",
+                                        class: "week-pebble",
                                         style: "--practice-ratio: {ratio}",
                                     }
                                 }
@@ -68,7 +105,41 @@ pub fn Week() -> Element {
     }
 }
 
-/// Each bar's height relative to its own row's tallest practised goal
+/// The tinted card's staircase: the same seven booleans the rhythm row
+/// draws, read oldest day first, stepping up once per day practised and
+/// holding its level across a day of rest. Two points per day — the rise
+/// and the flat run that follows it — so a rest day is a plateau, never a
+/// fall. The vertical span is inset by the end pebble's radius (nothing is
+/// clipped) and scaled by the window's own length, so seven practised days
+/// climb to the top while seven days of rest leave one flat trace at the
+/// bottom. Core hands over the booleans (adr-0010: core returns numbers,
+/// the view decides how to draw them) — the shape is the view's call.
+#[must_use]
+fn spark_points(rhythm: &[bool]) -> Vec<(f64, f64)> {
+    let days = rhythm.len() as f64;
+    if days == 0.0 {
+        return Vec::new();
+    }
+
+    let day_width = SPARK_WIDTH / days;
+    let top = SPARK_DOT_RADIUS;
+    let bottom = SPARK_HEIGHT - SPARK_DOT_RADIUS;
+    let level = |practised_days: f64| bottom - (practised_days / days) * (bottom - top);
+
+    let mut points = vec![(0.0, level(0.0))];
+    let mut practised_days = 0.0;
+    for (day_offset, practised) in rhythm.iter().enumerate() {
+        if *practised {
+            practised_days += 1.0;
+            points.push((day_offset as f64 * day_width, level(practised_days)));
+        }
+        points.push(((day_offset as f64 + 1.0) * day_width, level(practised_days)));
+    }
+
+    points
+}
+
+/// Each pebble's size relative to its own row's tallest practised goal
 /// (adr-0010: core returns numbers, the view decides how to draw them) —
 /// never an absolute minute value. The owner's call: a 2→3 habit and a
 /// 30→32 habit draw the same shape, because the row shows relative
@@ -77,7 +148,7 @@ pub fn Week() -> Element {
 /// `.week-curve` is not rendered at all in that case), so it never actually
 /// influences a returned ratio.
 #[must_use]
-fn bar_ratios(practised_day_goals: &[u32]) -> Vec<f64> {
+fn practice_ratios(practised_day_goals: &[u32]) -> Vec<f64> {
     let row_max = practised_day_goals.iter().copied().max().unwrap_or(1) as f64;
     practised_day_goals
         .iter()
@@ -467,7 +538,7 @@ mod tests {
     /// rendered HTML, parsed as `f64`, in document order — lets a test pin
     /// the band's normalized pebble sizes and their order, not just the
     /// pebble count.
-    fn rendered_bar_ratios(html: &str) -> Vec<f64> {
+    fn rendered_practice_ratios(html: &str) -> Vec<f64> {
         const NEEDLE: &str = "--practice-ratio: ";
         html.match_indices(NEEDLE)
             .map(|(index, _)| {
@@ -546,7 +617,7 @@ mod tests {
              goal step (three), got: {html}"
         );
         assert_eq!(
-            rendered_bar_ratios(&html),
+            rendered_practice_ratios(&html),
             vec![0.8, 1.0, 1.0, 1.0],
             "expected each pebble's size normalized to the row's own maximum \
              (5) so the tallest reads 1.0, got: {html}"
@@ -692,7 +763,7 @@ mod tests {
     fn a_lightened_row_still_normalizes_on_its_own_maximum_practised_goal() {
         let html = render(RootAtWeekScreenWithALightenedHabit);
 
-        let ratios = rendered_bar_ratios(&html);
+        let ratios = rendered_practice_ratios(&html);
         assert!(
             ratios.iter().all(|&ratio| ratio <= 1.0),
             "no bar may exceed its container: {ratios:?}"
@@ -832,7 +903,7 @@ mod tests {
              outside it and must draw none, got: {html}"
         );
         assert_eq!(
-            rendered_bar_ratios(&html),
+            rendered_practice_ratios(&html),
             vec![1.0],
             "the one habit inside the window must draw exactly one bar, \
              got: {html}"
@@ -1067,10 +1138,7 @@ mod tests {
     /// The `points` attribute of the staircase, parsed into coordinates.
     fn the_staircase_points(html: &str) -> Vec<(f64, f64)> {
         const NEEDLE: &str = r#"points=""#;
-        let start = html
-            .find(NEEDLE)
-            .expect("the staircase renders")
-            + NEEDLE.len();
+        let start = html.find(NEEDLE).expect("the staircase renders") + NEEDLE.len();
         let end = start
             + html[start..]
                 .find('"')
@@ -1108,10 +1176,7 @@ mod tests {
             .find(r#"<svg class="week-spark""#)
             .expect("the staircase renders")..];
         let needle = format!(r#"{name}=""#);
-        let start = from_staircase
-            .find(&needle)
-            .expect("the attribute renders")
-            + needle.len();
+        let start = from_staircase.find(&needle).expect("the attribute renders") + needle.len();
         let end = start
             + from_staircase[start..]
                 .find('"')
