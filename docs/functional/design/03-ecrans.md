@@ -26,7 +26,8 @@ Le cœur « Kaizen » : montrer qu'on grandit, jamais culpabiliser.
   l'objectif en vigueur chaque jour pratiqué. *(Corrigé 2026-08-20 — issue #22. Remplace
   « minutes gagnées depuis les débuts (somme de `current − steps[0]`) » : un gain sur
   l'objectif de départ affiche « 0 » à qui pratique fidèlement sans jamais grandir, ce que
-  le ton de l'écran interdit. Même règle que le récap du détail, voir `[[habit-stats]]`.)*
+  le ton de l'écran interdit. La même règle valait pour le récap du détail, retiré depuis
+  (2026-09-21) — voir `[[feature-catalog]]` F-8.)*
 - Par habitude : l'évolution « 2 → 4 min » avec une mini-courbe, **une barre par jour
   pratiqué** dans la fenêtre glissante de sept jours, du plus ancien au plus récent.
   Chaque barre se tient à **l'objectif en vigueur ce jour-là**. Les hauteurs sont
