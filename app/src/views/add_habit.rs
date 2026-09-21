@@ -43,10 +43,24 @@ pub fn AddHabit() -> Element {
     let idea_keys = use_signal(two_random_idea_keys);
     let name_label = tr!("add-habit-name-input-label");
 
+    let back_link = rsx! {
+        Link {
+            class: "detail-back",
+            to: Route::Today {},
+            aria_label: tr!("detail-back-to-today"),
+            svg {
+                class: "detail-back-icon",
+                view_box: "0 0 24 24",
+                "aria-hidden": "true",
+                "focusable": "false",
+                path { d: "M15 5l-7 7 7 7" }
+            }
+        }
+    };
     rsx! {
         div { class: "screen",
             header { class: "masthead",
-                Link { class: "quiet-link", to: Route::Today {}, {tr!("masthead-back-to-today")} }
+                {back_link}
             }
             h1 { class: "greeting", {tr!("add-habit-heading")} }
             p { class: "lede", {tr!("add-habit-lede")} }
