@@ -42,10 +42,6 @@ impl TodayHabits {
     pub fn is_empty(&self) -> bool {
         self.active.is_empty() && self.paused.is_empty() && self.anchored_count == 0
     }
-
-    pub fn has_anchored_habits(&self) -> bool {
-        self.anchored_count > 0
-    }
 }
 
 impl ListBoardHabits {
@@ -336,37 +332,6 @@ mod tests {
             let result = query.handle();
 
             assert_eq!(result.is_empty(), expected, "case: {label}");
-        }
-    }
-
-    #[test]
-    fn has_anchored_habits_reflects_the_anchored_count_boundary() {
-        type Setup = fn(&InMemoryHabitRepository);
-        let cases: Vec<(&str, Setup, bool)> = vec![
-            (
-                "zero anchored habits",
-                |_repository: &InMemoryHabitRepository| {},
-                false,
-            ),
-            (
-                "exactly one anchored habit",
-                |repository: &InMemoryHabitRepository| {
-                    let mut anchored = a_habit();
-                    anchored.anchor().expect("a fresh habit is active");
-                    repository.save(&anchored);
-                },
-                true,
-            ),
-        ];
-
-        for (label, setup, expected) in cases {
-            let repository = Rc::new(InMemoryHabitRepository::new());
-            setup(&repository);
-            let query = list_over(Rc::clone(&repository));
-
-            let result = query.handle();
-
-            assert_eq!(result.has_anchored_habits(), expected, "case: {label}");
         }
     }
 }

@@ -1,4 +1,25 @@
-today-date = Today
+today-date = { $weekday ->
+    [0] Monday
+    [1] Tuesday
+    [2] Wednesday
+    [3] Thursday
+    [4] Friday
+    [5] Saturday
+   *[6] Sunday
+} { $day } { $month ->
+    [1] January
+    [2] February
+    [3] March
+    [4] April
+    [5] May
+    [6] June
+    [7] July
+    [8] August
+    [9] September
+    [10] October
+    [11] November
+   *[12] December
+}
 today-greeting = Hello.
 today-empty-lede-1 = Nothing yet. And that's perfectly fine.
 today-empty-lede-2 = One tiny habit is enough to start.
@@ -8,12 +29,10 @@ today-eyebrow-active = Your small steps
 today-habit-meta = every day · { $minutes } min
 today-done-aria = Done today · { $title }
 today-mark-done-aria = Mark as done · { $title }
-today-paused-eyebrow = Paused · no pressure
-today-resume-aria = Resume · { $title }
-today-resume-label = Resume
 today-tally = { $done } of { $total } · that's already something.
-today-week-link = See how I'm growing · this week
-today-anchored-link = My anchored habits · { $count }
+today-paused-link = { $count } paused · no pressure
+paused-heading = Paused
+paused-empty-note = Nothing here. Everything is back in your daily life.
 not-found-title = This page doesn't exist.
 not-found-today-link = Today
 staircase-aria = Your last seven days, current goal { $goal } minutes

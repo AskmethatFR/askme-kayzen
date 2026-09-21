@@ -12,6 +12,8 @@ pub enum Route {
         #[route("/anchored")]
         Anchored {},
     #[end_layout]
+    #[route("/paused")]
+    Paused {},
     #[route("/habit/:id/ritual")]
     Ritual { id: String },
     #[route("/habit/:id")]
@@ -44,6 +46,7 @@ mod tests {
             ),
             (Route::Week {}, "/week"),
             (Route::Anchored {}, "/anchored"),
+            (Route::Paused {}, "/paused"),
             (Route::AddHabit {}, "/add"),
         ]
     }
