@@ -36,23 +36,6 @@ paused-empty-note = Rien ici. Tout est de retour dans votre quotidien.
 not-found-title = Cette page n'existe pas.
 not-found-today-link = Aujourd'hui
 staircase-aria = Vos sept derniers jours, objectif actuel { $goal } minutes
-recap-days-done-label = { $count ->
-    [one] réalisé
-   *[other] réalisés
-}
-recap-empty-days-label = { $count ->
-    [one] autre jour
-   *[other] autres jours
-}
-recap-minutes-label = { $count ->
-    [one] minute de pratique accumulée
-   *[other] minutes de pratique accumulées
-}
-recap-growths-label = fois grandie
-recap-lightenings-label = fois allégée
-recap-message-fresh-start = Un début parfait. Tout est encore devant.
-recap-message-resting = Elle se repose en ce moment. Elle vous attend, sans presser.
-recap-message-growing = Vous la faites vivre, à votre rythme.
 masthead-back-to-today = ← Aujourd'hui
 detail-back-to-today = Retour à aujourd'hui
 habit-detail-active-dose = chaque jour · { $goal } min

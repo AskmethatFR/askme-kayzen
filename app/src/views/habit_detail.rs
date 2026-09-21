@@ -1,11 +1,10 @@
 use crate::composition::Services;
-use crate::i18n::{tr, tr_key};
+use crate::i18n::tr;
 use crate::route::Route;
 use dioxus::prelude::*;
 use kayzen_core::habit_management::queries::get_habit_detail::HabitDetail as HabitDetailData;
 use kayzen_core::habit_management::queries::get_habit_detail::HabitState;
 use kayzen_core::habit_management::queries::get_habit_detail::PracticeDay;
-use kayzen_core::habit_management::queries::get_habit_detail::RecapMessage;
 
 #[component]
 pub fn HabitDetail(id: String) -> Element {
@@ -47,43 +46,6 @@ pub fn HabitDetail(id: String) -> Element {
                                 style: "--day-ratio: {ratio}",
                             }
                         }
-                    }
-                }
-            };
-
-            let recap = {
-                let days_done_label =
-                    tr!("recap-days-done-label", count: habit.recap.days_done as i64);
-                let empty_days_label =
-                    tr!("recap-empty-days-label", count: habit.recap.empty_days as i64);
-                let minutes_label =
-                    tr!("recap-minutes-label", count: habit.recap.minutes_practised as i64);
-
-                rsx! {
-                    section { class: "recap",
-                        ul { class: "recap-figures",
-                            li {
-                                span { class: "recap-figure", "{habit.recap.days_done}" }
-                                span { class: "recap-label", "{days_done_label}" }
-                            }
-                            li {
-                                span { class: "recap-figure", "{habit.recap.empty_days}" }
-                                span { class: "recap-label", "{empty_days_label}" }
-                            }
-                            li {
-                                span { class: "recap-figure", "{habit.recap.minutes_practised}" }
-                                span { class: "recap-label", "{minutes_label}" }
-                            }
-                            li {
-                                span { class: "recap-figure", "{habit.recap.growths}" }
-                                span { class: "recap-label", {tr!("recap-growths-label")} }
-                            }
-                            li {
-                                span { class: "recap-figure", "{habit.recap.lightenings}" }
-                                span { class: "recap-label", {tr!("recap-lightenings-label")} }
-                            }
-                        }
-                        p { class: "quiet-note", {tr_key(recap_copy_key(habit.recap.message))} }
                     }
                 }
             };
@@ -140,8 +102,6 @@ pub fn HabitDetail(id: String) -> Element {
                             }
                         }
 
-                        {recap}
-
                         div { class: "lifecycle",
                             button {
                                 class: "lifecycle-gesture",
@@ -191,8 +151,6 @@ pub fn HabitDetail(id: String) -> Element {
 
                         {week}
 
-                        {recap}
-
                         button {
                             class: "btn btn-primary btn-block",
                             aria_label: tr!("resume-habit-aria", title: habit.title.clone()),
@@ -214,8 +172,6 @@ pub fn HabitDetail(id: String) -> Element {
                         }
 
                         {week}
-
-                        {recap}
                     }
                 },
             }
@@ -257,15 +213,6 @@ fn resume_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
 fn anchor_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
     services.anchor_habit.execute(id).ok();
     services.get_habit_detail.handle(id)
-}
-
-#[must_use]
-fn recap_copy_key(message: RecapMessage) -> &'static str {
-    match message {
-        RecapMessage::FreshStart => "recap-message-fresh-start",
-        RecapMessage::Resting => "recap-message-resting",
-        RecapMessage::Growing => "recap-message-growing",
-    }
 }
 
 /// One day's pebble class: filled in accent when the day was practised, in
@@ -324,17 +271,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn every_recap_copy_key_resolves_in_both_catalogues() {
-        let (fr_ids, en_ids) = crate::i18n::catalogue_ids();
-
-        for message in RecapMessage::ALL {
-            let key = recap_copy_key(message);
-            assert!(fr_ids.contains(key), "expected {key} to resolve in fr.ftl");
-            assert!(en_ids.contains(key), "expected {key} to resolve in en.ftl");
-        }
-    }
-
     fn a_habit() -> Habit {
         Habit::new(
             HabitId::new("h-1").unwrap(),
@@ -354,8 +290,8 @@ mod tests {
         Services::with_repository(Rc::new(InMemoryHabitRepository::new()))
     }
 
-    // A habit at the floor, done today: the recap reads today's completion, so
-    // this fixture pins the singular form on the recap (slice 8).
+    // A habit at the floor, done today: today's practice is recorded, so every
+    // pebble is filled and no day carries the dashed "today" outline.
     fn services_with_a_floor_habit_done_today() -> Services {
         let clock: Rc<dyn Clock> = Rc::new(FixedClock(LocalDate::from_epoch_day(20_005)));
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
@@ -448,10 +384,6 @@ mod tests {
                 && html.contains(">Pause, no guilt<"),
             "expected the pause gesture in English, got: {html}"
         );
-        assert!(
-            html.contains(r#"class="quiet-note">A perfect start. Everything is still ahead.<"#),
-            "expected the fresh-start recap message in English, got: {html}"
-        );
     }
 
     #[component]
@@ -480,182 +412,6 @@ mod tests {
         habit.anchor().expect("a fresh habit is active");
         repository.save(&habit);
         Services::with_repository(repository)
-    }
-
-    fn services_with_a_habit_thirty_days_old_done_twelve_days() -> Services {
-        let today = LocalDate::from_epoch_day(20_000);
-        let clock: Rc<dyn Clock> = Rc::new(FixedClock(today));
-        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
-        let mut habit = Habit::new(
-            HabitId::new("h-1").unwrap(),
-            HabitTitle::new("Lire une page".to_string()).unwrap(),
-            Goal::new(5).unwrap(),
-            LocalDate::from_epoch_day(19_971),
-        );
-        for days_back in 0..12 {
-            habit.toggle_done(LocalDate::from_epoch_day(19_971 + days_back));
-        }
-        repository.save(&habit);
-        Services::with_repository_and_clock(repository, clock)
-    }
-
-    #[component]
-    fn RootAtThirtyDayHabitDoneTwelve() -> Element {
-        crate::i18n::use_locale_for_tests();
-        use_hook(|| {
-            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
-        });
-        use_context_provider(services_with_a_habit_thirty_days_old_done_twelve_days);
-        rsx! {
-            Router::<Route> {}
-        }
-    }
-
-    fn services_with_a_habit_grown_three_times_and_lightened_once() -> Services {
-        let today = LocalDate::from_epoch_day(20_005);
-        let clock: Rc<dyn Clock> = Rc::new(FixedClock(today));
-        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
-        let mut habit = Habit::new(
-            HabitId::new("h-1").unwrap(),
-            HabitTitle::new("Lire une page".to_string()).unwrap(),
-            Goal::new(5).unwrap(),
-            LocalDate::from_epoch_day(20_000),
-        );
-        for _ in 0..3 {
-            habit.grow(today);
-        }
-        habit.lighten(today);
-        repository.save(&habit);
-        Services::with_repository_and_clock(repository, clock)
-    }
-
-    fn services_with_a_habit_done_twice_at_five_then_once_at_six() -> Services {
-        let today = LocalDate::from_epoch_day(20_005);
-        let clock: Rc<dyn Clock> = Rc::new(FixedClock(today));
-        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
-        let mut habit = Habit::new(
-            HabitId::new("h-1").unwrap(),
-            HabitTitle::new("Lire une page".to_string()).unwrap(),
-            Goal::new(5).unwrap(),
-            LocalDate::from_epoch_day(20_000),
-        );
-        habit.toggle_done(LocalDate::from_epoch_day(20_003));
-        habit.toggle_done(LocalDate::from_epoch_day(20_004));
-        habit.grow(today);
-        habit.toggle_done(today);
-        repository.save(&habit);
-        Services::with_repository_and_clock(repository, clock)
-    }
-
-    fn services_with_a_habit_resting_for_ten_days() -> Services {
-        let today = LocalDate::from_epoch_day(20_020);
-        let clock: Rc<dyn Clock> = Rc::new(FixedClock(today));
-        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
-        let mut habit = Habit::new(
-            HabitId::new("h-1").unwrap(),
-            HabitTitle::new("Lire une page".to_string()).unwrap(),
-            Goal::new(5).unwrap(),
-            LocalDate::from_epoch_day(20_000),
-        );
-        habit.toggle_done(today.minus_days(10));
-        repository.save(&habit);
-        Services::with_repository_and_clock(repository, clock)
-    }
-
-    #[component]
-    fn RootAtHabitRestingForTenDays() -> Element {
-        crate::i18n::use_locale_for_tests();
-        use_hook(|| {
-            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
-        });
-        use_context_provider(services_with_a_habit_resting_for_ten_days);
-        rsx! {
-            Router::<Route> {}
-        }
-    }
-
-    fn services_with_a_brand_new_habit() -> Services {
-        let today = LocalDate::from_epoch_day(20_000);
-        let clock: Rc<dyn Clock> = Rc::new(FixedClock(today));
-        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
-        repository.save(&Habit::new(
-            HabitId::new("h-1").unwrap(),
-            HabitTitle::new("Lire une page".to_string()).unwrap(),
-            Goal::new(5).unwrap(),
-            today,
-        ));
-        Services::with_repository_and_clock(repository, clock)
-    }
-
-    #[component]
-    fn RootAtBrandNewHabit() -> Element {
-        crate::i18n::use_locale_for_tests();
-        use_hook(|| {
-            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
-        });
-        use_context_provider(services_with_a_brand_new_habit);
-        rsx! {
-            Router::<Route> {}
-        }
-    }
-
-    #[component]
-    fn RootAtHabitDoneTwiceAtFiveThenOnceAtSix() -> Element {
-        crate::i18n::use_locale_for_tests();
-        use_hook(|| {
-            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
-        });
-        use_context_provider(services_with_a_habit_done_twice_at_five_then_once_at_six);
-        rsx! {
-            Router::<Route> {}
-        }
-    }
-
-    #[component]
-    fn RootAtHabitGrownThreeTimesLightenedOnce() -> Element {
-        crate::i18n::use_locale_for_tests();
-        use_hook(|| {
-            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
-        });
-        use_context_provider(services_with_a_habit_grown_three_times_and_lightened_once);
-        rsx! {
-            Router::<Route> {}
-        }
-    }
-
-    // Five pairwise-distinct values, one per HabitRecap field — mirrors
-    // get_habit_detail's field-integrity fixture, one layer up.
-    fn services_with_a_habit_with_five_pairwise_distinct_recap_figures() -> Services {
-        let today = LocalDate::from_epoch_day(20_006);
-        let clock: Rc<dyn Clock> = Rc::new(FixedClock(today));
-        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
-        let mut habit = Habit::new(
-            HabitId::new("h-1").unwrap(),
-            HabitTitle::new("Lire une page".to_string()).unwrap(),
-            Goal::new(10).unwrap(),
-            LocalDate::from_epoch_day(20_000),
-        );
-        habit.grow(LocalDate::from_epoch_day(20_001));
-        habit.grow(LocalDate::from_epoch_day(20_002));
-        habit.lighten(LocalDate::from_epoch_day(20_003));
-        habit.toggle_done(LocalDate::from_epoch_day(20_000));
-        habit.toggle_done(LocalDate::from_epoch_day(20_001));
-        habit.toggle_done(LocalDate::from_epoch_day(20_004));
-        habit.toggle_done(today);
-        repository.save(&habit);
-        Services::with_repository_and_clock(repository, clock)
-    }
-
-    #[component]
-    fn RootAtHabitWithFivePairwiseDistinctRecapFigures() -> Element {
-        crate::i18n::use_locale_for_tests();
-        use_hook(|| {
-            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
-        });
-        use_context_provider(services_with_a_habit_with_five_pairwise_distinct_recap_figures);
-        rsx! {
-            Router::<Route> {}
-        }
     }
 
     #[component]
@@ -698,16 +454,6 @@ mod tests {
         let mut vdom = VirtualDom::new(root);
         vdom.rebuild_in_place();
         dioxus_ssr::render(&vdom)
-    }
-
-    // Asserts the figure and its label sit adjacent, as the SAME field: a
-    // `contains(number) && contains(word)` pair passes even when the numbers
-    // and words belong to two DIFFERENT rows swapped with each other. This
-    // checks the actual rendered adjacency, so a field swap fails it.
-    fn figure_pair(html: &str, figure: impl std::fmt::Display, label: &str) -> bool {
-        html.contains(&format!(
-            "<span class=\"recap-figure\">{figure}</span><span class=\"recap-label\">{label}</span>"
-        ))
     }
 
     /// Ordered list of every `--day-ratio: N` value found in the rendered
@@ -1195,171 +941,6 @@ mod tests {
         );
     }
 
-    // @scenario: habit-stats/S1
-    #[test]
-    fn the_recap_names_the_days_without_practice_and_never_a_failure() {
-        let html = render(RootAtThirtyDayHabitDoneTwelve);
-
-        assert!(
-            figure_pair(&html, 12, "réalisés"),
-            "expected 12 days done to be shown, got: {html}"
-        );
-        assert!(
-            figure_pair(&html, 18, "autres jours"),
-            "expected the 18 days without practice to be shown, got: {html}"
-        );
-        let lowercase_html = html.to_lowercase();
-        for forbidden in [
-            "échec", "raté", "manqué", "perdu", "oublié", "failed", "vide",
-        ] {
-            assert!(
-                !lowercase_html.contains(forbidden),
-                "expected no failure word in the recap, got: {html}"
-            );
-        }
-    }
-
-    #[test]
-    fn the_recap_is_shown_whatever_the_habits_state() {
-        for root in [RootAtKnownHabit, RootAtPausedHabit, RootAtAnchoredHabit] {
-            let html = render(root);
-
-            assert!(
-                html.contains("class=\"recap\""),
-                "expected the recap zone on every habit state, got: {html}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_single_day_reads_in_the_singular() {
-        let html = render(RootAtFloorHabitDoneToday);
-
-        assert!(
-            figure_pair(&html, 1, "réalisé"),
-            "expected the singular form for a single day done, got: {html}"
-        );
-        assert!(
-            !figure_pair(&html, 1, "réalisés"),
-            "expected no plural form for a single day done, got: {html}"
-        );
-    }
-
-    // @scenario: habit-stats/S2
-    #[test]
-    fn the_recap_shows_how_often_the_goal_moved() {
-        let html = render(RootAtHabitGrownThreeTimesLightenedOnce);
-
-        assert!(
-            figure_pair(&html, 3, "fois grandie"),
-            "expected three growths to be shown, got: {html}"
-        );
-        assert!(
-            figure_pair(&html, 1, "fois allégée"),
-            "expected one lightening to be shown, got: {html}"
-        );
-        assert_eq!(
-            html.matches("class=\"recap-figure\"").count(),
-            5,
-            "expected no sixth recap row for the current goal, got: {html}"
-        );
-    }
-
-    // @scenario: habit-stats/S3
-    #[test]
-    fn the_recap_shows_the_minutes_practised() {
-        let html = render(RootAtHabitDoneTwiceAtFiveThenOnceAtSix);
-
-        assert!(
-            figure_pair(&html, 16, "minutes de pratique accumulées"),
-            "expected the sixteen practised minutes to be shown, got: {html}"
-        );
-    }
-
-    // No Gherkin scenario names this field-by-field integrity (mirrors
-    // get_habit_detail's `the_recap_carries_each_figure_in_its_own_field`, one
-    // layer up: cargo-mutants never mutates rsx! markup, and a
-    // `contains(number) && contains(word)` pair passes on a swapped field just
-    // as readily as on the right one — this is exactly how B1 shipped green).
-    // Five pairwise-distinct figures make any swap observable.
-    #[test]
-    fn the_recap_view_carries_each_figure_in_its_own_field() {
-        let html = render(RootAtHabitWithFivePairwiseDistinctRecapFigures);
-
-        assert!(
-            figure_pair(&html, 4, "réalisés"),
-            "expected days_done in its own field, got: {html}"
-        );
-        assert!(
-            figure_pair(&html, 3, "autres jours"),
-            "expected empty_days in its own field, got: {html}"
-        );
-        assert!(
-            figure_pair(&html, 43, "minutes de pratique accumulées"),
-            "expected minutes_practised in its own field, got: {html}"
-        );
-        assert!(
-            figure_pair(&html, 2, "fois grandie"),
-            "expected growths in its own field, got: {html}"
-        );
-        assert!(
-            figure_pair(&html, 1, "fois allégée"),
-            "expected lightenings in its own field, got: {html}"
-        );
-    }
-
-    // @scenario: habit-stats/S4 — the fixture practises the habit once before
-    // the 10 empty days (N3): the bare "no completion for the last 10 days"
-    // Given also fit a never-practised habit, which reads FreshStart, not
-    // this resting sentence.
-    #[test]
-    fn a_resting_habits_recap_acknowledges_the_rest_without_blaming() {
-        let html = render(RootAtHabitRestingForTenDays);
-
-        assert!(
-            html.contains("Elle se repose en ce moment"),
-            "expected the resting sentence to be shown, got: {html}"
-        );
-        let lowercase_html = html.to_lowercase();
-        for forbidden in [
-            "échec", "raté", "manqué", "perdu", "oublié", "failed", "vide",
-        ] {
-            assert!(
-                !lowercase_html.contains(forbidden),
-                "expected no failure word in a resting recap, got: {html}"
-            );
-        }
-    }
-
-    // @scenario: habit-stats/S5
-    #[test]
-    fn a_brand_new_habits_recap_opens_on_a_perfect_start() {
-        let html = render(RootAtBrandNewHabit);
-
-        assert!(
-            html.contains("Un début parfait"),
-            "expected the fresh-start sentence to be shown, got: {html}"
-        );
-    }
-
-    // plural() is app-crate code, excluded from the mutation scope
-    // (.cargo/mutants.toml) — this branch was invisible to both gates until
-    // this assertion. Zero reads as singular in French ("0 réalisé", never
-    // "0 réalisés").
-    #[test]
-    fn zero_reads_in_the_singular() {
-        let html = render(RootAtBrandNewHabit);
-
-        assert!(
-            figure_pair(&html, 0, "réalisé"),
-            "expected the singular form at zero, got: {html}"
-        );
-        assert!(
-            !figure_pair(&html, 0, "réalisés"),
-            "expected no plural form at zero, got: {html}"
-        );
-    }
-
     // Test List — week pebble-size normalization (fix/practice-staircase-
     // overflow, owner ruling 2026-08-21). Each pebble's size is relative to
     // its own window's tallest goal, never an absolute minute value (the
@@ -1611,67 +1192,6 @@ mod tests {
                 1.0
             ],
             "expected the last day's raised goal (6) to normalize every pebble, got: {html}"
-        );
-    }
-
-    // @algo: fluent-rs resolves a Fluent select expression by trying a
-    // NumberLiteral variant key before computing the CLDR plural category —
-    // undocumented in this crate's code. French CLDR's `one` covers {0,1},
-    // so recap-minutes-label carries no `[0]` override in fr.ftl.
-    #[component]
-    fn RecapMinutesLabelAtZeroOneTwoFr() -> Element {
-        crate::i18n::use_locale_for_tests();
-        rsx! {
-            p { "0:" {tr!("recap-minutes-label", count: 0i64)} }
-            p { "1:" {tr!("recap-minutes-label", count: 1i64)} }
-            p { "2:" {tr!("recap-minutes-label", count: 2i64)} }
-        }
-    }
-
-    #[component]
-    fn RecapMinutesLabelAtZeroOneTwoEn() -> Element {
-        use_locale_for_tests_as(langid!("en"));
-        rsx! {
-            p { "0:" {tr!("recap-minutes-label", count: 0i64)} }
-            p { "1:" {tr!("recap-minutes-label", count: 1i64)} }
-            p { "2:" {tr!("recap-minutes-label", count: 2i64)} }
-        }
-    }
-
-    #[test]
-    fn the_minutes_label_reads_the_right_plural_form_at_zero_one_and_two_in_french() {
-        let html = render(RecapMinutesLabelAtZeroOneTwoFr);
-
-        assert!(
-            html.contains("<p>0:minute de pratique accumulée</p>"),
-            "expected n=0 to read the singular (French `one` covers 0, matching \
-             the old plural(count, one, many) helper's count > 1 branch), got: {html}"
-        );
-        assert!(
-            html.contains("<p>1:minute de pratique accumulée</p>"),
-            "expected n=1 to read the singular, got: {html}"
-        );
-        assert!(
-            html.contains("<p>2:minutes de pratique accumulées</p>"),
-            "expected n=2 to read the plural, got: {html}"
-        );
-    }
-
-    #[test]
-    fn the_minutes_label_reads_the_right_plural_form_at_zero_one_and_two_in_english() {
-        let html = render(RecapMinutesLabelAtZeroOneTwoEn);
-
-        assert!(
-            html.contains("<p>0:minutes practised</p>"),
-            "expected n=0 to read the plural (English `other` covers 0), got: {html}"
-        );
-        assert!(
-            html.contains("<p>1:minute practised</p>"),
-            "expected n=1 to read the singular, got: {html}"
-        );
-        assert!(
-            html.contains("<p>2:minutes practised</p>"),
-            "expected n=2 to read the plural, got: {html}"
         );
     }
 }
