@@ -577,7 +577,9 @@ mod tests {
             .expect("the first card renders");
 
         assert!(
-            heading < count_tally && count_tally < daily_life_tally && daily_life_tally < first_card,
+            heading < count_tally
+                && count_tally < daily_life_tally
+                && daily_life_tally < first_card,
             "expected the heading, then the two tallies in their current order, then the \
              cards — got: {html}"
         );
