@@ -1126,6 +1126,26 @@ mod tests {
         }
     }
 
+    #[component]
+    fn RootAtWeekScreenWithPracticeOnOddDays() -> Element {
+        crate::i18n::use_locale_for_tests();
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| {
+            let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = a_habit("h-1", 5, TODAY - 6);
+            for days_back in [6, 4, 2] {
+                habit.toggle_done(LocalDate::from_epoch_day(TODAY - days_back));
+            }
+            repository.save(&habit);
+            services_with(repository)
+        });
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
     /// The `<svg class="week-spark" …>` opening tag of the tinted card.
     fn the_staircase_tag(html: &str) -> &str {
         let start = html
@@ -1231,14 +1251,14 @@ mod tests {
     // @scenario: week-recap/S10
     #[test]
     fn the_staircase_holds_its_level_across_a_rest_day() {
-        let html = render(RootAtWeekScreen);
+        let html = render(RootAtWeekScreenWithPracticeOnOddDays);
         let points = the_staircase_points(&html);
 
         assert_eq!(
             staircase_segments(&points),
             (3, 7),
-            "three practised days rise three times, and every day — a day of \
-             rest included — holds its own flat run, got: {html}"
+            "practice on the window's days 1, 3 and 5 steps up three times, and \
+             every rest day between two practised ones holds a flat run, got: {html}"
         );
         assert!(
             points.windows(2).all(|pair| pair[0].1 >= pair[1].1),
