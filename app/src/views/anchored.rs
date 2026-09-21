@@ -1,6 +1,5 @@
 use crate::composition::Services;
 use crate::i18n::{tr, tr_key};
-use crate::route::Route;
 use dioxus::prelude::*;
 use kayzen_core::habit_management::domain::habit::Habit;
 use kayzen_core::habit_management::queries::list_anchored_habits::AnchoredScreen;
@@ -18,22 +17,30 @@ pub fn Anchored() -> Element {
     let mut readmit_error: Signal<Option<(String, &'static str)>> = use_signal(|| None);
 
     rsx! {
-        div { class: "screen",
-            header { class: "masthead",
-                Link { class: "quiet-link", to: Route::Today {}, {tr!("masthead-back-to-today")} }
-            }
+        div { class: "screen anchored",
             h1 { class: "greeting", {tr!("anchored-heading")} }
+            p { class: "tally", {tr!("anchored-count-tally", count: count)} }
+            p { class: "tally", {tr!("anchored-daily-life-tally", count: screen().in_daily_life as i64, max: max)} }
             ul { class: "habit-list",
                 for habit in screen().habits {
-                    li { key: "{habit.id}", class: "habit-row",
-                        div { class: "habit-body",
-                            span { class: "habit-name", "{habit.title}" }
-                            if let Some((_, message_key)) = readmit_error()
-                                .as_ref()
-                                .filter(|(row_id, _)| row_id == &habit.id)
-                            {
-                                p { class: "quiet-note", {tr_key(message_key)} }
+                    li { key: "{habit.id}", class: "habit-row is-anchored",
+                        div { class: "habit-head",
+                            span { class: "habit-pebble", "aria-hidden": "true",
+                                svg {
+                                    class: "habit-pebble-icon",
+                                    view_box: "0 0 24 24",
+                                    "focusable": "false",
+                                    ellipse { cx: "12", cy: "15", rx: "7", ry: "4.5" }
+                                    path { d: "M12 10.5V4" }
+                                }
                             }
+                            span { class: "habit-name", "{habit.title}" }
+                        }
+                        if let Some((_, message_key)) = readmit_error()
+                            .as_ref()
+                            .filter(|(row_id, _)| row_id == &habit.id)
+                        {
+                            p { class: "quiet-note", {tr_key(message_key)} }
                         }
                         button {
                             class: "readmit",
@@ -53,8 +60,6 @@ pub fn Anchored() -> Element {
                     }
                 }
             }
-            p { class: "tally", {tr!("anchored-count-tally", count: count)} }
-            p { class: "tally", {tr!("anchored-daily-life-tally", count: screen().in_daily_life as i64, max: max)} }
         }
     }
 }
@@ -83,6 +88,7 @@ mod tests {
     use super::*;
     use crate::composition::Services;
     use crate::i18n::{use_locale_for_tests, use_locale_for_tests_as};
+    use crate::route::Route;
     use crate::views::click_harness::Screen;
     use dioxus::history::{MemoryHistory, provide_history_context};
     use dioxus_i18n::unic_langid::langid;
@@ -463,21 +469,53 @@ mod tests {
         }
     }
 
+    /// The `<div class="habit-head">…</div>` opening line of the first card, sliced
+    /// whole so a test can assert what that line holds — and what it does not.
+    fn the_first_head_line(html: &str) -> &str {
+        const OPEN: &str = r#"<div class="habit-head">"#;
+        const CLOSE: &str = "</div>";
+        let start = html
+            .find(OPEN)
+            .expect("expected an anchored card to open on a head line");
+        let end = html[start..]
+            .find(CLOSE)
+            .map(|offset| start + offset + CLOSE.len())
+            .expect(".habit-head div must close");
+        &html[start..end]
+    }
+
     #[test]
-    fn the_ancrees_row_wraps_the_habit_name_in_the_habit_body_layout_wrapper() {
+    fn the_ancrees_card_opens_on_a_head_line_holding_the_decorative_pebble_and_the_title() {
         let html = render(RootAtAnchoredScreen);
 
+        assert_eq!(
+            html.matches(r#"<div class="habit-head">"#).count(),
+            2,
+            "expected one head line per anchored habit, got: {html}"
+        );
+        let head = the_first_head_line(&html);
         assert!(
-            html.contains(
-                r#"<div class="habit-body"><span class="habit-name">Lire une page</span></div>"#
-            ),
-            "expected the habit name wrapped in the house habit-body layout element \
-             (see today.rs), got: {html}"
+            head.contains(r#"class="habit-pebble""#),
+            "expected the decorative pebble on the head line, got: {head}"
+        );
+        assert!(
+            head.contains(r#"aria-hidden="true""#),
+            "expected the pebble hidden from assistive technology: every card on this \
+             screen is anchored, so it distinguishes nothing, got: {head}"
+        );
+        assert!(
+            !head.contains("aria-label"),
+            "expected the pebble to announce nothing — it must not carry a name of its \
+             own (the readmit aria-label is the test handle), got: {head}"
+        );
+        assert!(
+            head.contains(r#"<span class="habit-name">Lire une page</span>"#),
+            "expected the title on the head line, got: {head}"
         );
     }
 
     #[test]
-    fn the_refusal_note_renders_inside_the_habit_body_wrapper_not_as_a_flex_row_sibling() {
+    fn the_refusal_note_renders_between_the_refused_rows_head_line_and_its_readmit_button() {
         let mut screen = Screen::open(RootAtAnchoredScreenWithFullDailyLife);
 
         screen.click("La remettre dans mon quotidien · Lire une page");
@@ -487,10 +525,95 @@ mod tests {
             "Le quotidien est complet · pour la remettre, ancrez-en une autre d&#39;abord";
         assert!(
             html.contains(&format!(
-                r#"<p class="quiet-note">{message}</p></div><button"#
+                r#"</div><p class="quiet-note">{message}</p><button"#
             )),
-            "expected the refusal note nested inside the habit-body wrapper, closed before \
-             the readmit button — not a direct child of the flex habit-row, got: {html}"
+            "expected the refusal note to own its own line, under the refused row's head \
+             line and above its readmit button — not a sibling inside the head line, got: {html}"
+        );
+        assert!(
+            !the_first_head_line(&html).contains("quiet-note"),
+            "expected the refusal note out of the head line, got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_ancrees_screen_carries_no_masthead_and_no_way_back_to_aujourdhui() {
+        let html = render(RootAtAnchoredScreen);
+
+        let screen_content = &html[..html
+            .find(r#"<nav class="bottom-nav""#)
+            .expect("the bar renders on Ancrées")];
+        assert!(
+            !screen_content.contains("masthead"),
+            "the bottom bar is the navigation — the screen carries no masthead, got: {screen_content}"
+        );
+        assert!(
+            !screen_content.contains("Aujourd&#39;hui"),
+            "the back-link to Aujourd'hui left the screen for the bar, got: {screen_content}"
+        );
+        assert!(
+            html.contains(r#"aria-label="Aujourd&#39;hui · navigation""#),
+            "the bar still reaches Aujourd'hui, got: {html}"
+        );
+    }
+
+    // @scenario: anchor-habit/S2
+    // @scenario: readmit-habit/S4
+    #[test]
+    fn the_two_tallies_sit_between_the_heading_and_the_cards_in_order() {
+        let html = render(RootAtAnchoredScreen);
+
+        let heading = html
+            .find(r#"class="greeting""#)
+            .expect("the heading renders");
+        let count_tally = html
+            .find(r#"class="tally">2 · devenues naturelles<"#)
+            .expect("the anchored-count tally renders");
+        let daily_life_tally = html
+            .find(r#"class="tally">Vous suivez 0 / 5 habitudes en parallèle<"#)
+            .expect("the daily-life tally renders");
+        let first_card = html
+            .find(r#"class="habit-head""#)
+            .expect("the first card renders");
+
+        assert!(
+            heading < count_tally
+                && count_tally < daily_life_tally
+                && daily_life_tally < first_card,
+            "expected the heading, then the two tallies in their current order, then the \
+             cards — got: {html}"
+        );
+    }
+
+    /// The order in which the cards' two lines appear, as the words `head` and
+    /// `readmit` — lets a test pin the column shape per card (head, then button)
+    /// instead of the presence of one occurrence of each.
+    fn card_line_order(html: &str) -> Vec<&'static str> {
+        let mut markers: Vec<(usize, &'static str)> = Vec::new();
+        for (index, _) in html.match_indices(r#"<div class="habit-head">"#) {
+            markers.push((index, "head"));
+        }
+        for (index, _) in html.match_indices(r#"<button class="readmit""#) {
+            markers.push((index, "readmit"));
+        }
+        markers.sort_by_key(|(index, _)| *index);
+        markers.into_iter().map(|(_, line)| line).collect()
+    }
+
+    #[test]
+    fn each_anchored_habit_is_a_card_that_lays_its_head_line_above_its_readmit_button() {
+        let html = render(RootAtAnchoredScreen);
+
+        assert_eq!(
+            html.matches(r#"class="habit-row is-anchored""#).count(),
+            2,
+            "expected the anchored-card modifier on every anchored row, got: {html}"
+        );
+        assert_eq!(
+            card_line_order(&html),
+            vec!["head", "readmit", "head", "readmit"],
+            "expected each card to read as a column — its head line first, its readmit \
+             button under it — never the row's old side-by-side shape, got: {html}"
         );
     }
 }

@@ -294,15 +294,22 @@ body {
     color: var(--color-ink-soft);
 }
 
-/* ---- Resume affordance (habit at rest) ---- */
+/* ---- Resume affordance (habit at rest) ----
+   A text-only affordance that must still be a 44px touch target on both
+   screens that carry it (En pause, Ancrées): the vertical centring keeps the
+   label in the middle of that taller box rather than at its top. */
 .resume-link,
 .readmit {
     flex: none;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
     background: none;
     border: none;
     padding: 0;
     font: inherit;
     font-size: 15px;
+    font-weight: 600;
     color: var(--color-accent-text);
     cursor: pointer;
     text-decoration: none;
@@ -317,6 +324,87 @@ body {
 .readmit:focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 3px;
+}
+
+/* ---- Ancrées screen (acquired habits) ----
+   Its own pebble, ochre and anchored bottom-left, where the global disc is
+   cyan and top-right. `.screen` declares no `position`, and the global disc
+   gets away with it only because a top-corner offset lands it in the frame
+   either way; a bottom-left one has no such luck, so this screen — and only
+   this screen — scopes itself a positioning context, the `.screen.ritual`
+   idiom. The disc keeps `z-index: -1` and `pointer-events: none` from the
+   base rule, so the content paints above it without any stacking lift.
+
+   `min-height` is what puts the pebble at the *frame's* bottom rather than at
+   the content's: `.screen` hugs its content, so on a board holding one or two
+   habits the box ends mid-page and `bottom` measures from there, leaving the
+   galet floating in the middle instead of sitting level with the bottom bar.
+   Filling the viewport restores the mockup's frame; the 100vh/100dvh pair
+   mirrors `.screen.ritual`'s own idiom (dvh last, for the mobile URL bar). */
+.screen.anchored {
+    position: relative;
+    min-height: 100vh;
+    min-height: 100dvh;
+}
+
+.screen.anchored:before {
+    background: var(--color-anchored-tint);
+    width: 240px;
+    height: 200px;
+    top: auto;
+    right: auto;
+    left: -70px;
+    bottom: 60px;
+    opacity: .6;
+}
+
+.screen.anchored .habit-list {
+    margin-top: var(--space-5);
+}
+
+/* The card reads as a column — head line, then the gesture under it — where
+   Today's row stays side-by-side: a modifier, never the shared `.habit-row`. */
+.habit-row.is-anchored {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+}
+
+.habit-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+/* Same drawing as the bar's Ancrées destination, dressed in the ochre pair
+   this screen finally puts to use. Decorative: every card here is anchored,
+   so the pebble distinguishes nothing and stays out of the accessibility
+   tree (aria-hidden in the view). */
+.habit-pebble {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--color-anchored-tint);
+}
+
+.habit-pebble-icon {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: var(--color-anchored);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* The gesture starts the card's second line, flush left — not pushed to the
+   row's end the way the shared rule's flex row would place it. */
+.screen.anchored .readmit {
+    align-self: flex-start;
 }
 
 /* ---- Round target (mark done) ---- */
@@ -393,10 +481,13 @@ body {
     animation: kzRing .5s ease-out both;
 }
 
-/* ---- Footer / links ---- */
+/* ---- Footer / links ----
+   `.tally` has exactly one emitter — the Ancrées screen — and no longer sits
+   at the foot of it: read as a sub-heading under the title now, it tightens
+   to a smaller size and a shorter margin than the footer it used to be. */
 .tally {
-    margin: var(--space-6) 0 var(--space-4);
-    font-size: 17px;
+    margin: 0 0 var(--space-1);
+    font-size: 15px;
     color: var(--color-ink-soft);
 }
 
