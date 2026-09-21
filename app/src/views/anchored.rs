@@ -1,6 +1,5 @@
 use crate::composition::Services;
 use crate::i18n::{tr, tr_key};
-use crate::route::Route;
 use dioxus::prelude::*;
 use kayzen_core::habit_management::domain::habit::Habit;
 use kayzen_core::habit_management::queries::list_anchored_habits::AnchoredScreen;
@@ -18,22 +17,30 @@ pub fn Anchored() -> Element {
     let mut readmit_error: Signal<Option<(String, &'static str)>> = use_signal(|| None);
 
     rsx! {
-        div { class: "screen",
-            header { class: "masthead",
-                Link { class: "quiet-link", to: Route::Today {}, {tr!("masthead-back-to-today")} }
-            }
+        div { class: "screen anchored",
             h1 { class: "greeting", {tr!("anchored-heading")} }
+            p { class: "tally", {tr!("anchored-count-tally", count: count)} }
+            p { class: "tally", {tr!("anchored-daily-life-tally", count: screen().in_daily_life as i64, max: max)} }
             ul { class: "habit-list",
                 for habit in screen().habits {
-                    li { key: "{habit.id}", class: "habit-row",
-                        div { class: "habit-body",
-                            span { class: "habit-name", "{habit.title}" }
-                            if let Some((_, message_key)) = readmit_error()
-                                .as_ref()
-                                .filter(|(row_id, _)| row_id == &habit.id)
-                            {
-                                p { class: "quiet-note", {tr_key(message_key)} }
+                    li { key: "{habit.id}", class: "habit-row is-anchored",
+                        div { class: "habit-head",
+                            span { class: "habit-pebble", "aria-hidden": "true",
+                                svg {
+                                    class: "habit-pebble-icon",
+                                    view_box: "0 0 24 24",
+                                    "focusable": "false",
+                                    ellipse { cx: "12", cy: "15", rx: "7", ry: "4.5" }
+                                    path { d: "M12 10.5V4" }
+                                }
                             }
+                            span { class: "habit-name", "{habit.title}" }
+                        }
+                        if let Some((_, message_key)) = readmit_error()
+                            .as_ref()
+                            .filter(|(row_id, _)| row_id == &habit.id)
+                        {
+                            p { class: "quiet-note", {tr_key(message_key)} }
                         }
                         button {
                             class: "readmit",
@@ -53,8 +60,6 @@ pub fn Anchored() -> Element {
                     }
                 }
             }
-            p { class: "tally", {tr!("anchored-count-tally", count: count)} }
-            p { class: "tally", {tr!("anchored-daily-life-tally", count: screen().in_daily_life as i64, max: max)} }
         }
     }
 }
@@ -83,6 +88,7 @@ mod tests {
     use super::*;
     use crate::composition::Services;
     use crate::i18n::{use_locale_for_tests, use_locale_for_tests_as};
+    use crate::route::Route;
     use crate::views::click_harness::Screen;
     use dioxus::history::{MemoryHistory, provide_history_context};
     use dioxus_i18n::unic_langid::langid;
