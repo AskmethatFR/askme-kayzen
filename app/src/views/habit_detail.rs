@@ -18,17 +18,34 @@ pub fn HabitDetail(id: String) -> Element {
 
     match detail() {
         Some(habit) => {
-            let staircase = rsx! {
+            let back_link = rsx! {
+                Link {
+                    class: "detail-back",
+                    to: Route::Today {},
+                    aria_label: tr!("detail-back-to-today"),
+                    svg {
+                        class: "detail-back-icon",
+                        view_box: "0 0 24 24",
+                        "aria-hidden": "true",
+                        "focusable": "false",
+                        path { d: "M15 5l-7 7 7 7" }
+                    }
+                }
+            };
+
+            let week = rsx! {
                 div {
-                    class: "staircase",
+                    class: "week-card",
                     "aria-label": tr!("staircase-aria", goal: habit.current_goal as i64),
-                    for (day_offset, (day, ratio)) in
-                        habit.days.iter().zip(day_ratios(&habit.days)).enumerate()
-                    {
-                        span {
-                            key: "{day_offset}",
-                            class: if day.done { "day-bar is-done" } else { "day-bar" },
-                            style: "--day-ratio: {ratio}",
+                    div { class: "pebble-track",
+                        for (day_offset, (day, ratio)) in
+                            habit.days.iter().zip(day_ratios(&habit.days)).enumerate()
+                        {
+                            span {
+                                key: "{day_offset}",
+                                class: day_pebble_class(day.done, day_offset + 1 == habit.days.len()),
+                                style: "--day-ratio: {ratio}",
+                            }
                         }
                     }
                 }
@@ -74,77 +91,106 @@ pub fn HabitDetail(id: String) -> Element {
 
             match habit.state {
                 HabitState::Active => rsx! {
-                    div { class: "screen",
-                        header { class: "masthead",
-                            Link { class: "quiet-link", to: Route::Today {}, {tr!("masthead-back-to-today")} }
+                    div { class: "screen detail",
+                        {back_link}
+                        header { class: "detail-head",
+                            h1 { class: "greeting", "{habit.title}" }
+                            span { class: "dose", {tr!("habit-detail-active-dose", goal: habit.current_goal as i64)} }
                         }
-                        h1 { class: "greeting", "{habit.title}" }
-                        p { class: "lede", {tr!("habit-detail-active-dose", goal: habit.current_goal as i64)} }
 
-                        {staircase}
-
-                        {recap}
-
-                        p { class: "eyebrow", {tr!("adjust-goal-eyebrow")} }
-                        button {
-                            class: "btn btn-block",
-                            aria_label: tr!("grow-goal-aria", goal: habit.next_goal_up as i64, title: habit.title.clone()),
-                            onclick: {
-                                let services = services.clone();
-                                let id = id.clone();
-                                move |_| detail.set(grow_and_reload(&services, &id))
-                            },
-                            {tr!("grow-goal-label", goal: habit.next_goal_up as i64)}
-                        }
-                        button {
-                            class: "btn btn-block",
-                            aria_label: tr!("lighten-goal-aria", goal: habit.next_goal_down as i64, title: habit.title.clone()),
-                            onclick: {
-                                let services = services.clone();
-                                let id = id.clone();
-                                move |_| detail.set(lighten_and_reload(&services, &id))
-                            },
-                            {tr!("lighten-goal-label", goal: habit.next_goal_down as i64)}
-                        }
+                        {week}
 
                         Link {
-                            class: "btn btn-primary btn-block",
+                            class: "btn btn-primary btn-block action-primary",
                             to: Route::Ritual { id: habit.id.clone() },
+                            svg {
+                                class: "action-glyph",
+                                view_box: "0 0 24 24",
+                                "aria-hidden": "true",
+                                "focusable": "false",
+                                path { d: "M7 5l12 7-12 7z" }
+                            }
                             {tr!("start-ritual-label")}
                         }
 
-                        button {
-                            class: "btn btn-block",
-                            aria_label: tr!("pause-habit-aria", title: habit.title.clone()),
-                            onclick: {
-                                let services = services.clone();
-                                let id = id.clone();
-                                move |_| detail.set(pause_and_reload(&services, &id))
-                            },
-                            {tr!("pause-habit-label")}
+                        div { class: "pace",
+                            h2 { class: "pace-heading", {tr!("adjust-goal-eyebrow")} }
+                            div { class: "pace-grid",
+                                button {
+                                    class: "pace-tile is-grow",
+                                    aria_label: tr!("grow-goal-aria", goal: habit.next_goal_up as i64, title: habit.title.clone()),
+                                    onclick: {
+                                        let services = services.clone();
+                                        let id = id.clone();
+                                        move |_| detail.set(grow_and_reload(&services, &id))
+                                    },
+                                    span { class: "pace-glyph", "aria-hidden": "true", "+" }
+                                    span { class: "pace-label", {tr!("grow-goal-label", goal: habit.next_goal_up as i64)} }
+                                }
+                                button {
+                                    class: "pace-tile is-lighten",
+                                    aria_label: tr!("lighten-goal-aria", goal: habit.next_goal_down as i64, title: habit.title.clone()),
+                                    onclick: {
+                                        let services = services.clone();
+                                        let id = id.clone();
+                                        move |_| detail.set(lighten_and_reload(&services, &id))
+                                    },
+                                    span { class: "pace-glyph", "aria-hidden": "true", "−" }
+                                    span { class: "pace-label", {tr!("lighten-goal-label", goal: habit.next_goal_down as i64)} }
+                                }
+                            }
                         }
 
-                        button {
-                            class: "btn btn-block",
-                            aria_label: tr!("anchor-habit-aria", title: habit.title.clone()),
-                            onclick: {
-                                let services = services.clone();
-                                let id = id.clone();
-                                move |_| detail.set(anchor_and_reload(&services, &id))
-                            },
-                            {tr!("anchor-habit-label")}
+                        {recap}
+
+                        div { class: "lifecycle",
+                            button {
+                                class: "lifecycle-gesture",
+                                aria_label: tr!("pause-habit-aria", title: habit.title.clone()),
+                                onclick: {
+                                    let services = services.clone();
+                                    let id = id.clone();
+                                    move |_| detail.set(pause_and_reload(&services, &id))
+                                },
+                                svg {
+                                    class: "lifecycle-icon",
+                                    view_box: "0 0 24 24",
+                                    "aria-hidden": "true",
+                                    "focusable": "false",
+                                    path { d: "M9 6v12M15 6v12" }
+                                }
+                                {tr!("pause-habit-label")}
+                            }
+                            button {
+                                class: "lifecycle-gesture is-anchor",
+                                aria_label: tr!("anchor-habit-aria", title: habit.title.clone()),
+                                onclick: {
+                                    let services = services.clone();
+                                    let id = id.clone();
+                                    move |_| detail.set(anchor_and_reload(&services, &id))
+                                },
+                                svg {
+                                    class: "lifecycle-icon",
+                                    view_box: "0 0 24 24",
+                                    "aria-hidden": "true",
+                                    "focusable": "false",
+                                    ellipse { cx: "12", cy: "15", rx: "7", ry: "4.5" }
+                                    path { d: "M12 10.5V4" }
+                                }
+                                {tr!("anchor-habit-label")}
+                            }
                         }
                     }
                 },
                 HabitState::Paused => rsx! {
-                    div { class: "screen",
-                        header { class: "masthead",
-                            Link { class: "quiet-link", to: Route::Today {}, {tr!("masthead-back-to-today")} }
+                    div { class: "screen detail",
+                        {back_link}
+                        header { class: "detail-head",
+                            h1 { class: "greeting", "{habit.title}" }
+                            span { class: "dose", {tr!("habit-detail-paused-dose", goal: habit.current_goal as i64)} }
                         }
-                        h1 { class: "greeting", "{habit.title}" }
-                        p { class: "lede", {tr!("habit-detail-paused-dose", goal: habit.current_goal as i64)} }
 
-                        {staircase}
+                        {week}
 
                         {recap}
 
@@ -161,14 +207,14 @@ pub fn HabitDetail(id: String) -> Element {
                     }
                 },
                 HabitState::Anchored => rsx! {
-                    div { class: "screen",
-                        header { class: "masthead",
-                            Link { class: "quiet-link", to: Route::Today {}, {tr!("masthead-back-to-today")} }
+                    div { class: "screen detail",
+                        {back_link}
+                        header { class: "detail-head",
+                            h1 { class: "greeting", "{habit.title}" }
+                            span { class: "dose", {tr!("habit-detail-anchored-dose", goal: habit.current_goal as i64)} }
                         }
-                        h1 { class: "greeting", "{habit.title}" }
-                        p { class: "lede", {tr!("habit-detail-anchored-dose", goal: habit.current_goal as i64)} }
 
-                        {staircase}
+                        {week}
 
                         {recap}
                     }
@@ -220,6 +266,20 @@ fn recap_copy_key(message: RecapMessage) -> &'static str {
         RecapMessage::FreshStart => "recap-message-fresh-start",
         RecapMessage::Resting => "recap-message-resting",
         RecapMessage::Growing => "recap-message-growing",
+    }
+}
+
+/// One day's pebble class: filled in accent when the day was practised, in
+/// plain outline when it was not, and in dashed outline for today while
+/// nothing has been done — the shape cue that tells today apart without
+/// leaning on colour alone (06-style-galets rule #32). `days` always ends on
+/// today (get_habit_detail's window), so the caller reads it off the offset.
+#[must_use]
+fn day_pebble_class(done: bool, is_today: bool) -> &'static str {
+    match (done, is_today) {
+        (true, _) => "day-pebble is-done",
+        (false, true) => "day-pebble is-today",
+        (false, false) => "day-pebble",
     }
 }
 
@@ -871,8 +931,7 @@ mod tests {
         let html = render(RootAtKnownHabit);
 
         assert!(
-            html.contains(r#"class="week-card""#)
-                && html.contains(r#"class="pebble-track""#),
+            html.contains(r#"class="week-card""#) && html.contains(r#"class="pebble-track""#),
             "expected the seven days to live in a card, got: {html}"
         );
         assert_eq!(
@@ -932,12 +991,11 @@ mod tests {
         let html = render(RootAtKnownHabit);
 
         assert!(
-            html.contains(r#"aria-label="Retour à aujourd'hui""#),
+            html.contains(r#"aria-label="Retour à aujourd&#39;hui""#),
             "expected the back gesture to be announced by its own key, got: {html}"
         );
         assert!(
-            html.contains(r#"class="detail-back""#)
-                && html.contains(r#"class="detail-back-icon""#),
+            html.contains(r#"class="detail-back""#) && html.contains(r#"class="detail-back-icon""#),
             "expected a round back target carrying its chevron, got: {html}"
         );
         assert!(
@@ -991,9 +1049,7 @@ mod tests {
             "expected one lightening tile, got: {html}"
         );
         assert!(
-            html.contains(r#"class="pace-glyph""#)
-                && html.contains(">+<")
-                && html.contains(">−<"),
+            html.contains(r#"class="pace-glyph""#) && html.contains(">+<") && html.contains(">−<"),
             "expected each tile to carry its decorative glyph, got: {html}"
         );
         assert!(
@@ -1016,7 +1072,8 @@ mod tests {
             "expected one plain end-of-life line, got: {html}"
         );
         assert_eq!(
-            html.matches(r#"class="lifecycle-gesture is-anchor""#).count(),
+            html.matches(r#"class="lifecycle-gesture is-anchor""#)
+                .count(),
             1,
             "expected the anchoring line to carry the ocre modifier, got: {html}"
         );

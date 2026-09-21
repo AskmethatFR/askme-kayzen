@@ -55,6 +55,7 @@ recap-message-fresh-start = A perfect start. Everything is still ahead.
 recap-message-resting = It's resting right now. It's here whenever you're ready, no rush.
 recap-message-growing = You're keeping it alive, at your own pace.
 masthead-back-to-today = ← Today
+detail-back-to-today = Back to today
 habit-detail-active-dose = every day · { $goal } min
 habit-detail-paused-dose = paused · { $goal } min
 habit-detail-anchored-dose = anchored · { $goal } min
