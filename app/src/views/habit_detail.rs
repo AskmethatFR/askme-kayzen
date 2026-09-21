@@ -61,7 +61,6 @@ pub fn HabitDetail(id: String) -> Element {
 
                 rsx! {
                     section { class: "recap",
-                        p { class: "eyebrow", {tr!("recap-eyebrow")} }
                         ul { class: "recap-figures",
                             li {
                                 span { class: "recap-figure", "{habit.recap.days_done}" }
@@ -448,10 +447,6 @@ mod tests {
             html.contains(r#"aria-label="Pause, no guilt · Lire une page""#)
                 && html.contains(">Pause, no guilt<"),
             "expected the pause gesture in English, got: {html}"
-        );
-        assert!(
-            html.contains(r#"class="eyebrow">Your story<"#),
-            "expected the recap eyebrow in English, got: {html}"
         );
         assert!(
             html.contains(r#"class="quiet-note">A perfect start. Everything is still ahead.<"#),

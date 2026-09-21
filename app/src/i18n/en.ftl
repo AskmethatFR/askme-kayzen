@@ -36,7 +36,6 @@ paused-empty-note = Nothing here. Everything is back in your daily life.
 not-found-title = This page doesn't exist.
 not-found-today-link = Today
 staircase-aria = Your last seven days, current goal { $goal } minutes
-recap-eyebrow = Your story
 recap-days-done-label = { $count ->
     [one] day done
    *[other] days done
