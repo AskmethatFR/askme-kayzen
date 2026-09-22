@@ -1119,6 +1119,18 @@ grep -q -- '--retry' "$CURL_SHIM_ARGV_LOG" && publish_retry_flag="yes"
 assert_eq "no" "$publish_retry_flag" \
     "android-publish.sh: no curl invocation carries --retry (AC 16)"
 
+# A media upload does NOT live on the metadata root: Play serves it from
+# `/upload/androidpublisher/v3/...`. Posting the .aab to the metadata root
+# makes the server parse the ZIP as JSON and answer HTTP 400 with the
+# bundle's own magic quoted back ("Unexpected token.\nPK\u0003\u0004").
+# The insert and track-update URLs were pinned; this one was not, which is
+# precisely why it was the one that was wrong.
+publish_upload_url="no"
+grep -q '^POST upload https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/com.askmethat.kayzen/edits/edit-42/bundles?uploadType=media$' \
+    "$CURL_SHIM_CALL_LOG" && publish_upload_url="yes"
+assert_eq "yes" "$publish_upload_url" \
+    "android-publish.sh: the bundle goes to the /upload/ media endpoint, not the metadata root"
+
 # AC 12 -- a DRAFT release on the internal track, and the track's existing
 # releases survive the write (D7's read-modify-write, not a wholesale
 # replacement: a replace would drop versionCode 1 from the listing).
