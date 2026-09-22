@@ -18,7 +18,7 @@ answers:
 
 # Execution guide — the first upload (steps 3-6)
 
-> **Prerequisites**: The runbook at [[android-play-release-runbook]] documents **why** the procedure is ordered this way and **what** each step protects. This guide documents **how** to execute steps 3-6 on the current machine, with the exact commands and expected outputs. Steps 1-2 are already done: the upload keystore exists at `~/.kayzen/upload.jks` and the workspace version is `0.0.1`.
+> **Prerequisites**: The runbook at [[android-play-release-runbook]] documents **why** the procedure is ordered this way and **what** each step protects. This guide documents **how** to execute steps 3-6 on the current machine, with the exact commands and expected outputs. Steps 1-2 are already done: the upload keystore exists at `~/.kayzen/upload.jks` and the workspace version is `0.0.2`.
 
 ## Before you start
 
