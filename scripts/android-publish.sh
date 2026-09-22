@@ -71,6 +71,11 @@ fi
     || preflight_fail "version '$VERSION' has versionCode $derived_code, but $VERSION_CODE was given -- refusing to publish a code the version does not derive"
 
 API_ROOT="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PLAY_PACKAGE_NAME"
+# @law: Play serves a media upload from a different path than its metadata
+# endpoints -- the bundle POST must carry the `/upload/` segment. Without it
+# the server parses the .aab as JSON and answers HTTP 400, quoting the ZIP
+# magic back at you ("Unexpected token.\nPK\u0003\u0004").
+UPLOAD_ROOT="https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/$PLAY_PACKAGE_NAME"
 PLAY_TRACK_ID="internal"
 WORK_DIR="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
 header_file="$(mktemp "$WORK_DIR/play-auth-header-XXXXXX")"
@@ -141,7 +146,7 @@ echo "==> bundle-upload" >&2
 upload_status="$(curl -sS -o "$upload_body" -w '%{http_code}' \
     -X POST -H @"$header_file" -H 'Content-Type: application/octet-stream' \
     --data-binary @"$AAB" \
-    "$API_ROOT/edits/$edit_id/bundles?uploadType=media" 2>/dev/null)" || upload_status="transport"
+    "$UPLOAD_ROOT/edits/$edit_id/bundles?uploadType=media" 2>/dev/null)" || upload_status="transport"
 case "$upload_status" in
     transport) fail_step "bundle-upload" "curl could not complete the request (transport failure)" ;;
     2*) : ;;
