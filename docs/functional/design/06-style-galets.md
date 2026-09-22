@@ -96,7 +96,13 @@ document les contredit.
 
 ## Aperçu des écrans
 
-Captures de l'app (web, largeur mobile).
+Captures de l'app elle-même (build web, viewport 360 × 800 — le format 20:9 d'un Galaxy S,
+celui que reçoit l'app Android). Elles se régénèrent, jamais à la main :
+
+```sh
+dx build --platform web
+python3 docs/functional/design/images/build_captures.py
+```
 
 ### Aujourd'hui
 ![Écran Aujourd'hui](images/01-aujourdhui.png)

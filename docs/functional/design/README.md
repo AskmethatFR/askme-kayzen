@@ -17,7 +17,7 @@ Ce dossier fige le produit pour le réécrire en **Rust** (Dioxus), écran par �
 | [`05-style-graphique.md`](05-style-graphique.md) | Style « Broadsheet » — **remplacé**, conservé pour ses icônes, animations et règles d'accent |
 | [`06-style-galets.md`](06-style-galets.md) | Style « Galets » en vigueur : couleurs, typographie, formes + aperçu des écrans |
 | [`06-mise-en-place-rust.md`](../../technical/design/06-mise-en-place-rust.md) | Tuto de création du projet Rust (Dioxus) |
-| [`images/`](images/) | Captures des six écrans de l'app (style Galets) |
+| [`images/`](images/) | Captures des six écrans de l'app (style Galets) + `build_captures.py`, qui les régénère |
 
 ## En une phrase
 
