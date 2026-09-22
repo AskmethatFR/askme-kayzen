@@ -167,7 +167,7 @@ Developer's first failing test of a slice is the scenario, and dropping the
 | 5 `pause-resume` | `[[pause-resume]]` | S1–S4, covered (S3 pins Q1 — a paused habit keeps its seat; S4 pins the rest screen, added this cycle) |
 | 6 `anchor` | `[[anchor-habit]]` | S1–S4, covered (S3 pins Q3, S4 pins "no suggestion") |
 | 7 `readmit` | `[[readmit-habit]]` | S1–S4, covered (S2 pins the full-life refusal, S3 the retaken-title refusal, S4 the parallel-count footer with a paused habit in the fixture) |
-| 8 `stats-board` | `[[habit-stats]]` | S1–S5, covered |
+| 8 `stats-board` | ~~`habit-stats`~~ | **retired 2026-09-21** (owner ruling) — the recap left the detail screen, its scenarios and tests with it; its figures are already told by `[[week-recap]]` |
 
 ## Per-slice aggregate growth (so nothing is forgotten — technical shape in `[[adr-0007-habit-lifecycle-aggregate]]`)
 
@@ -283,7 +283,7 @@ implementation and shipped locked.
 
 | # | Decision |
 |---|---|
-| D1 | The recap is a **zone of the detail screen**, not a 7th screen ⇒ one more field `recap: HabitRecap` on the `HabitDetail` DTO, computed in `GetHabitDetail::handle`. No `GetHabitStats`, no route, no `Services` field. The planned `get-habit-stats/` anchor of [[adr-0006-cqrs-light]] is stale |
+| D1 | The recap is a **zone of the detail screen**, not a 7th screen ⇒ one more field `recap: HabitRecap` on the `HabitDetail` DTO, computed in `GetHabitDetail::handle`. No `GetHabitStats`, no route, no `Services` field. The planned `get-habit-stats/` anchor of [[adr-0006-cqrs-light]] is stale. **Retired 2026-09-21** (owner ruling): the field, the zone and this precedent are gone with F-8 |
 | D2 | **Minutes = Σ of the goals of the done days** (total practised). Never Σ(`current − steps[0]`) — the old formula would read "0" to a regular practitioner |
 | D3 | **Inclusive span**: every day from creation to today counts, done or not. `days_done + empty_days = age in days`. A habit created today and not done reads « 0 réalisé · 1 autre jour » — the `FreshStart` message carries the gentleness |
 | D4 | The recap shows in **all 3 states** (Active / Paused / Anchored) — it is a reading, not a gesture; the rest screens forbid gestures only |

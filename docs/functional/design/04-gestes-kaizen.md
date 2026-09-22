@@ -1,6 +1,6 @@
 # 4 · Les six gestes Kaizen
 
-1. **Le rituel de la minute** (kaizen 一分間) — « Commencer ma pratique » : un minuteur
+1. **Le rituel de la minute** (kaizen 一分間) — « Commencer » : un minuteur
    doux avec respiration, réglé sur **l'objectif de l'habitude**. Le principe n'est pas la
    durée, c'est de ne pas casser la chaîne intérieure. Anti-échec par design : à zéro le
    minuteur s'arrête et attend, il ne valide rien tout seul.

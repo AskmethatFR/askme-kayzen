@@ -36,25 +36,8 @@ paused-empty-note = Nothing here. Everything is back in your daily life.
 not-found-title = This page doesn't exist.
 not-found-today-link = Today
 staircase-aria = Your last seven days, current goal { $goal } minutes
-recap-eyebrow = Your story
-recap-days-done-label = { $count ->
-    [one] day done
-   *[other] days done
-}
-recap-empty-days-label = { $count ->
-    [one] other day
-   *[other] other days
-}
-recap-minutes-label = { $count ->
-    [one] minute practised
-   *[other] minutes practised
-}
-recap-growths-label = times grown
-recap-lightenings-label = times lightened
-recap-message-fresh-start = A perfect start. Everything is still ahead.
-recap-message-resting = It's resting right now. It's here whenever you're ready, no rush.
-recap-message-growing = You're keeping it alive, at your own pace.
 masthead-back-to-today = ← Today
+detail-back-to-today = Back to today
 habit-detail-active-dose = every day · { $goal } min
 habit-detail-paused-dose = paused · { $goal } min
 habit-detail-anchored-dose = anchored · { $goal } min
@@ -63,7 +46,10 @@ grow-goal-label = Move to { $goal } min
 grow-goal-aria = Move to { $goal } min · { $title }
 lighten-goal-label = Lighten to { $goal } min
 lighten-goal-aria = Lighten to { $goal } min · { $title }
-start-ritual-label = Start my practice
+start-ritual-label = Start
+habit-detail-mark-done-label = It's done
+habit-detail-mark-done-aria = It's done · { $title }
+habit-detail-done-aria = Done today · { $title }
 pause-habit-label = Pause, no guilt
 pause-habit-aria = Pause, no guilt · { $title }
 anchor-habit-label = Anchor it · it's become natural

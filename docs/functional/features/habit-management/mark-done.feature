@@ -21,3 +21,9 @@ Feature: Mark a habit done today
     Given a habit id that matches no habit
     When the user marks it done
     Then the gesture is rejected and no completion is recorded
+
+  @scenario:S4
+  Scenario: Saying a habit is done from its own screen
+    Given an active habit with no completion for today
+    When the user says it is done from the habit's own screen
+    Then today's local date is recorded, without entering the ritual

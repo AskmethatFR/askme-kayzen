@@ -35,6 +35,7 @@
     --color-on-accent: #FBF9F4;
     --color-anchored: #7A5E24;
     --color-anchored-tint: #EFE3C8;
+    --color-tile-neutral: #ECE7DE;
     --color-shadow: 42, 38, 34;
 
     --color-ritual-ground: #12303A;
@@ -54,6 +55,8 @@
     --screen-max-width: 620px;
     --bottom-nav-height: 64px;
     --bottom-nav-offset: 20px;
+    --action-dock-height: 60px;
+    --lifecycle-gesture-height: 56px;
     --radius-bar: 4px;
     --radius-field: 22px;
     --radius-card: 20px;
@@ -518,63 +521,6 @@ body {
     margin-top: var(--space-6);
 }
 
-/* ---- Practice staircase (Detail screen) ----
-   One bar per calendar day over the last seven. A day without practice keeps
-   its bar at low opacity: present, never a gap and never a warning. */
-.staircase {
-    display: flex;
-    align-items: flex-end;
-    gap: var(--space-2);
-    height: 64px;
-    margin: var(--space-5) 0 var(--space-6);
-}
-
-/* Height is normalized to the window's own maximum goal (--day-ratio, 0..1),
-   never an absolute minute value: floor 8px + up to 56px of ratio exactly
-   fills the 64px .staircase container (8 + 56 = 64), so the tallest bar
-   always reaches the top and no bar can overflow by construction. */
-.day-bar {
-    width: 14px;
-    min-height: 8px;
-    height: calc(8px + var(--day-ratio, 1) * 56px);
-    background: var(--color-rule);
-    border-radius: var(--radius-bar) var(--radius-bar) 0 0;
-    opacity: 0.35;
-}
-
-.day-bar.is-done {
-    background: var(--color-accent);
-    opacity: 1;
-}
-
-/* ---- Recap zone (Detail screen) ----
-   A quiet read of the habit's whole life: figures on the left, their label
-   beside them, and one adaptive sentence that never blames. */
-.recap {
-    margin: var(--space-6) 0;
-    padding-top: var(--space-4);
-    border-top: 1px solid var(--color-rule);
-}
-
-.recap-figures {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-}
-
-.recap-figure {
-    font-family: var(--font-display);
-    display: inline-block;
-    min-width: 44px;
-    font-variant-numeric: tabular-nums;
-    color: var(--color-ink);
-}
-
-.recap-label {
-    color: var(--color-ink-soft);
-    font-size: 14px;
-}
-
 /* ---- Week recap (Week screen) ----
    The week is a reading, never a gesture: a title alone, one tinted card
    holding the accumulated figure and its staircase, the week's word, the
@@ -648,8 +594,8 @@ body {
 
 /* ---- Rhythm row (Week screen) ----
    One dot per day over the rolling seven-day window, oldest first. Presence,
-   never density: a day without practice keeps its dot at the same faint
-   opacity idiom as .day-bar — present, never a gap, never a warning. The
+   never density: a day without practice keeps its dot faint — present,
+   never a gap, never a warning. The
    opacity is load-bearing: at full strength the unlit rule falls to 2.80:1
    against the accent, under the 3:1 SC 1.4.11 floor an all-chroma signal
    needs — composited faint it holds 3.31:1. */
@@ -774,6 +720,306 @@ body {
 
 .btn-block + .btn-block {
     margin-top: var(--space-4);
+}
+
+/* ---- Detail screen (one habit, where the user acts) ----
+   The frame's own rhythm: one column, 24px between its blocks, no decorative
+   pebble. The global `.screen:before` disc is switched off here — the screen
+   carries no galet of its own — on the same class-on-`.screen` idiom as
+   `.screen.ritual`. `.detail-back` is a flex item of that column, so it needs
+   `align-self` or it would stretch to the full width. */
+.screen.detail {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    /* The action dock below is a fixed child of this box. `.screen`'s entry
+       animation moves `transform`, which would capture `position: fixed` for
+       its duration (adr-0021's MUST NOT) — so this screen fades in instead of
+       rising, and its dock is viewport-relative from the first paint. */
+    animation-name: kzFade;
+    /* The whole fixed foot — the end-of-life lines and the action dock — is
+       space the flow cannot see, so the screen reserves it: the dock, the gap
+       above it, the two-line block over that, and one more breathing space. On
+       a viewport too short for the content the page scrolls, rather than
+       hiding a control behind the stack. */
+    padding-bottom: calc(
+        var(--space-5)
+        + var(--action-dock-height)
+        + var(--space-3)
+        + 2 * var(--lifecycle-gesture-height)
+        + var(--space-1)
+        + var(--space-5)
+        + env(safe-area-inset-bottom, 0px)
+    );
+}
+
+/* The screen's actions, held at the foot of the viewport so they stay within
+   thumb reach in every state. Content, never chrome: this route mounts no bar
+   (adr-0021), so the dock scopes itself here rather than in the layout. */
+.action-dock {
+    position: fixed;
+    bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+    left: calc(var(--space-5) + env(safe-area-inset-left, 0px));
+    right: calc(var(--space-5) + env(safe-area-inset-right, 0px));
+    max-width: calc(var(--screen-max-width) - 2 * var(--space-5));
+    margin-inline: auto;
+    display: flex;
+    gap: 10px;
+}
+
+/* The docked gestures' geometry belongs to the dock: one flex row, centred, at
+   the dock's height — whether or not a gesture carries a glyph to its left.
+   `min-width: 0` lets a long label shrink and wrap rather than widen the dock
+   past the viewport. */
+.action-dock .btn {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--action-dock-height);
+}
+
+/* The gesture that says the day is done takes only the room its own copy
+   needs, so the practice gesture keeps the width it had when the dock carried
+   one control. */
+.action-dock .action-done {
+    flex: 0 1 auto;
+    gap: 8px;
+}
+
+.action-done.is-done {
+    border-color: var(--color-accent);
+}
+
+.action-done-check {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: var(--color-accent);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.screen.detail:before {
+    content: none;
+}
+
+.detail-back {
+    align-self: flex-start;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--color-card);
+}
+
+.detail-back:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+}
+
+.detail-back-icon {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: var(--color-ink);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Title and dose read as one block: the global `.greeting` rule keeps its own
+   padding, so this wrapper adds no gap of its own. The dose is the quiet
+   sub-line — never `.lede`, which six other views still emit. */
+.detail-head {
+    display: flex;
+    flex-direction: column;
+}
+
+.dose {
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--color-ink-soft);
+    margin: 0;
+}
+
+/* ---- Week card (Detail screen) ----
+   One pebble per calendar day over the last seven, oldest first, on a card
+   this screen alone owns. A practised day is filled in accent; a day without
+   practice keeps its pebble in plain outline — presence or absence of a fill,
+   never two nuances of one shape (06-style-galets rule #32). Today — the last
+   of the seven — is told apart by its dashed outline until it is practised.
+   Size is normalized to the window's own maximum goal (--day-ratio, 0..1),
+   never an absolute minute value: the tallest pebble fills the track and no
+   pebble can overflow by construction. The size scale (.6 + .4 x ratio) keeps
+   even the smallest day visible. */
+.week-card {
+    background: var(--color-card);
+    border-radius: var(--radius-habit);
+    padding: 18px 20px;
+}
+
+.pebble-track {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.day-pebble {
+    --pebble-scale: calc(.6 + .4 * var(--day-ratio, 1));
+    width: calc(24px * var(--pebble-scale));
+    height: calc(20px * var(--pebble-scale));
+    border-radius: 50%;
+    background: transparent;
+    border: 2px solid var(--color-rule);
+}
+
+.day-pebble.is-done {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+}
+
+.day-pebble.is-today {
+    border-style: dashed;
+    border-color: var(--color-on-ink-soft);
+}
+
+/* The practice action: the dock's pill, with its decorative triangle held off
+   the label by a gap. */
+.action-primary {
+    gap: 10px;
+    font-size: 17px;
+    font-weight: 600;
+}
+
+.action-glyph {
+    width: 18px;
+    height: 18px;
+    fill: var(--color-on-accent);
+}
+
+/* ---- Pace zone (Detail screen) ----
+   The heading keeps its "generous above, tight below" idiom, then the two
+   gestures sit side by side as tiles — the growth tile in the app's tint, the
+   easing tile in the warm neutral it alone uses. */
+.pace {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.pace-heading {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 500;
+    margin: 0;
+}
+
+.pace-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.pace-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 72px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-field);
+    font-family: var(--font-body);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-on-tint);
+    cursor: pointer;
+}
+
+.pace-tile.is-grow {
+    background: var(--color-tint);
+}
+
+.pace-tile.is-lighten {
+    background: var(--color-tile-neutral);
+}
+
+.pace-tile:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+}
+
+.pace-glyph {
+    font-size: 20px;
+    line-height: 1;
+}
+
+/* ---- End-of-life gestures (Detail screen) ----
+   Two lines under a hairline, recessed: text-only rows with a decorative
+   glyph, the anchoring one carrying the ocre pair this screen already uses
+   for an acquired habit. Like the action dock they are held at the foot of
+   the viewport, stacked above it — and, like it, they are space the flow
+   cannot see, which is why `.screen.detail` reserves their height. */
+.lifecycle {
+    position: fixed;
+    /* clears the dock: its bottom offset, its height, then a breath */
+    bottom: calc(var(--space-5) + var(--action-dock-height) + var(--space-3) + env(safe-area-inset-bottom, 0px));
+    left: calc(var(--space-5) + env(safe-area-inset-left, 0px));
+    right: calc(var(--space-5) + env(safe-area-inset-right, 0px));
+    max-width: calc(var(--screen-max-width) - 2 * var(--space-5));
+    margin-inline: auto;
+    border-top: 1.5px solid var(--color-rule);
+}
+
+.lifecycle-gesture {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    width: 100%;
+    min-height: var(--lifecycle-gesture-height);
+    padding: 0;
+    background: transparent;
+    border: none;
+    text-align: left;
+    font-family: var(--font-body);
+    font-size: 16px;
+    color: var(--color-ink);
+    cursor: pointer;
+}
+
+.lifecycle-gesture:first-child {
+    border-bottom: 1.5px solid var(--color-rule);
+}
+
+.lifecycle-gesture.is-anchor {
+    color: var(--color-anchored);
+}
+
+.lifecycle-gesture:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+}
+
+.lifecycle-icon {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: var(--color-ink-soft);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.lifecycle-gesture.is-anchor .lifecycle-icon {
+    stroke: var(--color-anchored);
 }
 
 .tag {
@@ -989,6 +1235,15 @@ body:has(.screen.ritual) {
     }
 }
 
+@keyframes kzFade {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
 @keyframes kzUp {
     from {
         opacity: 0;
@@ -1019,7 +1274,10 @@ body:has(.screen.ritual) {
 }
 
 @media (prefers-reduced-motion: reduce) {
+    /* `.screen.detail` re-declares `animation-name` (see its own rule), so it
+       out-specifies the `.screen` line above and has to be silenced here too. */
     .screen,
+    .screen.detail,
     .target.is-done .target-ink,
     .target.is-done::after,
     .ritual-breath {
