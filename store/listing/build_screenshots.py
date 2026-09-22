@@ -4,16 +4,17 @@ The Android app is a Dioxus WebView, so the web build renders the same DOM and
 the same stylesheet as the shipped binary -- these are captures of the app, not
 of the prototype mock-ups in docs/functional/design/images/.
 
-The viewport is a phone, not a 1080px-wide desktop: 360x640 CSS pixels at a
-device pixel ratio of 3 lands exactly on Play's 1080x1920 phone format while
-the layout stays the one a 360dp Android screen actually gets.
+The viewport is a phone, not a 1080px-wide desktop: the layout must be the one
+a 360dp Android screen gets, or the captures show a tablet column.
 
-Chrome pulls --window-size in two directions at once: the meta-viewport
-device-width it hands the page is the window divided by the scale factor, while
-the image it writes is the window multiplied by it. So the window is asked for
-at twice the CSS viewport -- which fixes the page at 360dp -- and the capture
-lands at 1440x2560, above the 1080x1920 Play expects and resampled down to it.
-Rendering at 3x instead would quadruple the pixels for no visible gain.
+Reaching 360dp takes a detour. `--window-size` IS the CSS viewport and the file
+Chrome writes is that window multiplied by the scale factor -- there is no
+division anywhere -- but Chrome clamps the window to a floor of 500 CSS pixels,
+in old and new headless alike. Asking for 360 lays the page out at 500 and then
+photographs the leftmost 360 of it: content silently cut off at the right edge.
+So the window is asked for at that 500-pixel floor and `html { zoom }` shrinks
+a CSS pixel by the same ratio, which puts the layout back at 360dp with nothing
+clipped. The capture lands above Play's 1080x1920 and is resampled down to it.
 
 The demo board is seeded straight into `localStorage` under the key the web
 composition root uses (`kayzen.habits.v1`), by injecting one script into a copy
@@ -46,9 +47,12 @@ OUT = os.path.join(ROOT, "store", "listing", "screenshots")
 WORK = os.path.join(ROOT, "target", "store-screenshots")
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 PORT = 8731
-VIEWPORT_W, VIEWPORT_H = 360, 640
-CAPTURE_DPR = 2
-WINDOW_W, WINDOW_H = VIEWPORT_W * CAPTURE_DPR, VIEWPORT_H * CAPTURE_DPR
+PHONE_CSS_WIDTH = 360
+CHROME_MIN_WINDOW_W = 500
+ZOOM = CHROME_MIN_WINDOW_W / PHONE_CSS_WIDTH
+VIEWPORT_W, VIEWPORT_H = PHONE_CSS_WIDTH, 640
+CAPTURE_DPR = 3
+WINDOW_W, WINDOW_H = CHROME_MIN_WINDOW_W, round(VIEWPORT_H * ZOOM)
 OUT_W, OUT_H = 1080, 1920
 CAPTURE_TIMEOUT = 90
 STORAGE_KEY = "kayzen.habits.v1"
@@ -125,6 +129,12 @@ def snapshot(locale):
 
 
 def stage(locale):
+    """Copy the build, seed the board, drop the remote fonts, pin the viewport.
+
+    The zoom is what buys a phone layout: Chrome refuses a window narrower
+    than 500 CSS pixels, so shrinking the CSS pixel by 500/360 is the only way
+    left to hand the page the 360dp viewport the Android app actually runs in.
+    """
     root = os.path.join(WORK, locale)
     if os.path.exists(root):
         shutil.rmtree(root)
@@ -139,6 +149,7 @@ def stage(locale):
     payload = json.dumps(json.dumps(snapshot(locale), ensure_ascii=False))
     seed = f"<script>localStorage.setItem({json.dumps(STORAGE_KEY)}, {payload});</script>"
     html = html.replace("<head>", "<head>\n" + seed, 1)
+    html = html.replace("</head>", f"<style>html{{zoom:{ZOOM:.6f}}}</style>\n</head>", 1)
     open(index, "w", encoding="utf-8").write(html)
     print(f"  staged {locale}: seeded board, dropped {before} remote font import(s)")
     return root
