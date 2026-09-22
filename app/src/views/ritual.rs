@@ -7,7 +7,9 @@ use kayzen_core::habit_management::queries::get_habit_detail::HabitState;
 use std::time::Duration;
 use web_time::Instant;
 
-const RING_RADIUS: f64 = 54.0;
+const RING_CENTER: f64 = 140.0;
+const RING_RADIUS: f64 = 124.0;
+const RING_HEAD_RADIUS: f64 = 7.0;
 
 #[component]
 pub fn Ritual(id: String) -> Element {
@@ -68,7 +70,7 @@ fn PracticeTimer(id: String, title: String, goal_minutes: u32) -> Element {
 
     rsx! {
         div { class: "screen ritual",
-            h1 { class: "greeting", "{title}" }
+            h1 { class: "greeting", "{title} · {goal_minutes} min" }
             PracticeCountdown {
                 title: title.clone(),
                 total,
@@ -114,16 +116,27 @@ fn PracticeCountdown(
             class: "ritual-dial",
             role: "timer",
             aria_label: tr!("ritual-timer-aria", title: title.clone()),
-            div { class: "ritual-breath" }
-            svg { class: "ritual-ring", view_box: "0 0 120 120",
-                circle { class: "ritual-ring-track", r: "{RING_RADIUS}", cx: "60", cy: "60" }
+            svg { class: "ritual-ring", view_box: "0 0 280 280",
+                circle {
+                    class: "ritual-ring-disc",
+                    r: "{RING_RADIUS}",
+                    cx: "{RING_CENTER}",
+                    cy: "{RING_CENTER}",
+                }
                 circle {
                     class: "ritual-ring-run",
                     r: "{RING_RADIUS}",
-                    cx: "60",
-                    cy: "60",
+                    cx: "{RING_CENTER}",
+                    cy: "{RING_CENTER}",
+                    transform: "rotate(-90 {RING_CENTER} {RING_CENTER})",
                     stroke_dasharray: "{ring_circumference()}",
                     stroke_dashoffset: "{ring_offset(remaining, total)}",
+                }
+                circle {
+                    class: "ritual-ring-head",
+                    r: "{RING_HEAD_RADIUS}",
+                    cx: "{ring_head_x(remaining, total)}",
+                    cy: "{ring_head_y(remaining, total)}",
                 }
             }
             div { class: "ritual-countdown", "{countdown_label(remaining)}" }
@@ -181,6 +194,21 @@ fn ring_circumference() -> f64 {
 #[must_use]
 fn ring_offset(remaining: u64, total: u64) -> f64 {
     ring_circumference() * (1.0 - remaining as f64 / total as f64)
+}
+
+#[must_use]
+fn ring_head_angle(remaining: u64, total: u64) -> f64 {
+    std::f64::consts::TAU * remaining as f64 / total as f64
+}
+
+#[must_use]
+fn ring_head_x(remaining: u64, total: u64) -> f64 {
+    RING_CENTER + RING_RADIUS * ring_head_angle(remaining, total).sin()
+}
+
+#[must_use]
+fn ring_head_y(remaining: u64, total: u64) -> f64 {
+    RING_CENTER - RING_RADIUS * ring_head_angle(remaining, total).cos()
 }
 
 #[cfg(test)]
@@ -438,6 +466,30 @@ mod tests {
         assert_eq!(ring_offset(0, 300), ring_circumference());
     }
 
+    #[test]
+    fn the_ring_head_rests_at_the_top_when_the_goal_is_untouched_or_fully_spent() {
+        for remaining in [0, 300] {
+            assert!((ring_head_x(remaining, 300) - RING_CENTER).abs() < 1e-9);
+            assert!((ring_head_y(remaining, 300) - (RING_CENTER - RING_RADIUS)).abs() < 1e-9);
+        }
+    }
+
+    #[test]
+    fn the_ring_head_stands_a_quarter_turn_clockwise_once_a_quarter_of_the_goal_is_left() {
+        assert!((ring_head_x(75, 300) - (RING_CENTER + RING_RADIUS)).abs() < 1e-9);
+        assert!((ring_head_y(75, 300) - RING_CENTER).abs() < 1e-9);
+    }
+
+    #[test]
+    fn the_ritual_heading_carries_the_habits_name_and_its_goal() {
+        let html = render(RootAtActiveHabitGoalFive);
+
+        assert!(
+            html.contains("Lire une page · 5 min"),
+            "expected the habit's name and its minutes above the dial, got: {html}"
+        );
+    }
+
     // @scenario: ritual/S1
     #[test]
     fn opening_the_ritual_counts_down_from_the_habits_own_goal_not_a_fixed_minute() {
@@ -676,6 +728,17 @@ mod tests {
         assert!(
             html.contains(&expected),
             "expected the ring's stroke-dashoffset to carry the computed value {expected}, got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_dial_head_carries_the_position_computed_from_remaining_and_total() {
+        let html = render(RootAtDialPartial);
+        let expected_x = format!("cx=\"{}\"", ring_head_x(210, 300));
+        let expected_y = format!("cy=\"{}\"", ring_head_y(210, 300));
+        assert!(
+            html.contains(&expected_x) && html.contains(&expected_y),
+            "expected the ring head at ({expected_x}, {expected_y}), got: {html}"
         );
     }
 

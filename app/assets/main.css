@@ -39,10 +39,10 @@
     --color-shadow: 42, 38, 34;
 
     --color-ritual-ground: #12303A;
-    --color-ritual-track: #1C4552;
-    --color-ritual-run: #2E6B7E;
+    --color-ritual-disc: #1C4552;
+    --color-ritual-rail: #2E6B7E;
     --color-ritual-ink: #F4F1EA;
-    --color-ritual-ink-soft: #A9BEC4;
+    --color-ritual-ink-soft: #B8D6DF;
 
     /* Space & shape */
     --space-1: 4px;
@@ -1113,35 +1113,55 @@ body {
     clip-path: inset(0 -100vmax);
 }
 
+/* The global decorative pebble carries the paper's tint; on the dark ground it
+   reads as a stray pale disc in the corner, so it is switched off here — same
+   class-on-`.screen` idiom as `.screen.detail`. */
+.screen.ritual:before {
+    content: none;
+}
+
 html:has(.screen.ritual),
 body:has(.screen.ritual) {
     background: var(--color-ritual-ground);
 }
 
-.screen.ritual .quiet-note {
+/* The dose line replaces the display-size title on this screen: the mockup
+   gives the habit's name and its minutes one small line above the dial, so
+   the dial — not the title — is what this screen is about. */
+.screen.ritual .greeting {
+    font-family: var(--font-body);
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.4;
+    letter-spacing: normal;
     color: var(--color-ritual-ink-soft);
+    padding-bottom: 0;
+}
+
+/* The gentle word is the only paragraph on the dark screen: the mockup gives
+   it the display face at its own size, in full ink — the soft tone is kept
+   for the dose line and for the way out. */
+.screen.ritual .quiet-note {
+    font-family: var(--font-display);
+    font-size: 22px;
+    line-height: 1.35;
+    color: var(--color-ritual-ink);
+    max-width: 290px;
+    margin: 8px auto 0;
 }
 
 .screen.ritual .quiet-link {
-    color: var(--color-ritual-ink);
+    color: var(--color-ritual-ink-soft);
+    font-size: 15px;
 }
 
 .ritual-dial {
     position: relative;
-    width: 220px;
-    height: 220px;
-    margin: auto auto var(--space-6);
+    width: min(280px, 100%);
+    aspect-ratio: 1;
+    margin: var(--space-5) auto 0;
     display: grid;
     place-items: center;
-}
-
-.ritual-breath {
-    position: absolute;
-    inset: 28px;
-    border-radius: var(--radius-pebble);
-    background: var(--color-ritual-run);
-    opacity: .35;
-    animation: kzBreathe 8s ease-in-out infinite;
 }
 
 /* Stacked in the same grid cell (not two grid auto-rows) so the countdown
@@ -1155,34 +1175,43 @@ body:has(.screen.ritual) {
     position: relative;
     width: 100%;
     height: 100%;
-    transform: rotate(-90deg);
 }
 
-.ritual-ring-track {
-    fill: none;
-    stroke: var(--color-ritual-track);
-    stroke-width: 4;
+/* The disc and the rail are one circle: the mockup draws them as two, at the
+   same radius, so the rail simply straddles the disc's edge. */
+.ritual-ring-disc {
+    fill: var(--color-ritual-disc);
+    stroke: var(--color-ritual-rail);
+    stroke-width: 3;
 }
 
+/* The remaining time, drawn as an arc that the head leads. Both carry the
+   soft tone the mockup reserves for them, so the ring reads as one gesture
+   against the countdown's full ink. */
 .ritual-ring-run {
     fill: none;
-    stroke: var(--color-ritual-run);
-    stroke-width: 4;
+    stroke: var(--color-ritual-ink-soft);
+    stroke-width: 3;
     stroke-linecap: round;
+}
+
+.ritual-ring-head {
+    fill: var(--color-ritual-ink-soft);
 }
 
 /* position: relative is the stacking lift, not decoration: it puts this
    grid item on the z-index:auto positioned paint step alongside the
-   absolutely positioned .ritual-breath, so DOM order (this rule comes
-   after .ritual-breath) decides paint order and the digits land on top.
-   Without it, grid items paint in the earlier in-flow step and
-   .ritual-breath — painted later — covers the countdown outright. Do not
-   remove this as "redundant with grid placement" (595697e did, and it
-   silently hid the digits behind the breathing circle). */
+   positioned `.ritual-ring`, so DOM order (this rule comes after
+   `.ritual-ring`) decides paint order and the digits land on top. Without
+   it, grid items paint in the earlier in-flow step and the ring — painted
+   later — covers the countdown outright. Do not remove this as "redundant
+   with grid placement" (595697e did, and it silently hid the digits behind
+   the pebble that used to sit here). */
 .ritual-countdown {
     position: relative;
-    font-size: clamp(30px, 8vw, 44px);
-    font-weight: 700;
+    font-size: clamp(52px, 16.5vw, 64px);
+    font-weight: 400;
+    letter-spacing: .01em;
     font-variant-numeric: tabular-nums;
     font-family: var(--font-display);
     color: var(--color-ritual-ink);
@@ -1201,12 +1230,31 @@ body:has(.screen.ritual) {
     animation: kzTick .25s linear infinite;
 }
 
+/* The way out sits under the gesture; both are pushed to the foot of the
+   screen by the gesture's own auto margin, as the mockup lays them out. */
 .screen.ritual > .quiet-link {
-    margin-bottom: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
 }
 
+/* The primary gesture inverts the paper: a cream pill on the dark ground,
+   where the app's cyan sits too close to that ground to read. */
 .screen.ritual > .btn {
-    margin-top: var(--space-4);
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--action-dock-height);
+    background: var(--color-ritual-ink);
+    border-color: var(--color-ritual-ink);
+    color: var(--color-ritual-ground);
+}
+
+.screen.ritual > .btn:hover {
+    background: var(--color-ritual-ink-soft);
+    border-color: var(--color-ritual-ink-soft);
 }
 
 /* ---- Animations ---- */
@@ -1255,15 +1303,6 @@ body:has(.screen.ritual) {
     }
 }
 
-@keyframes kzBreathe {
-    0%, 100% {
-        transform: scale(.86);
-    }
-    50% {
-        transform: scale(1.08);
-    }
-}
-
 @keyframes kzTick {
     from {
         opacity: 0;
@@ -1279,8 +1318,7 @@ body:has(.screen.ritual) {
     .screen,
     .screen.detail,
     .target.is-done .target-ink,
-    .target.is-done::after,
-    .ritual-breath {
+    .target.is-done::after {
         animation: none;
     }
 }

@@ -90,12 +90,14 @@ déplacée ailleurs. Le récap informe, il ne recueille rien.
 
 ## Rituel — la pratique (Timer)
 
-Minuteur doux : anneau de progression, cercle qui « respire », décompte `m:ss`. **Il
-chronomètre l'objectif de l'habitude**, pas une durée fixe — une habitude à 5 min ouvre
-un rituel de 5 min. *(Tranché 2026-08-20 par l'owner — issue #13, question laissée
-ouverte par #12. Remplace « minuteur doux de 60 s » : le rituel n'a jamais été une minute
-pour toutes, et le libellé du bouton ayant cessé d'annoncer une durée, la dose ne pouvait
-venir que de l'habitude.)*
+Minuteur doux : un disque sombre cerclé d'un anneau, dont l'arc de temps restant rétrécit —
+sa tête, un point clair, recule vers midi —, et le décompte `m:ss` au centre. Au-dessus du
+cadran, une ligne discrète porte le nom de l'habitude et sa dose (« S'étirer · 5 min »), là
+où les autres écrans portent un grand titre. **Il chronomètre l'objectif de l'habitude**,
+pas une durée fixe — une habitude à 5 min ouvre un rituel de 5 min. *(Tranché 2026-08-20 par
+l'owner — issue #13, question laissée ouverte par #12. Remplace « minuteur doux de 60 s » :
+le rituel n'a jamais été une minute pour toutes, et le libellé du bouton ayant cessé
+d'annoncer une durée, la dose ne pouvait venir que de l'habitude.)*
 - « J'ai terminé » → valide l'habitude et revient à l'accueil.
 - « Arrêter, ce n'est pas grave » / « Fermer » → revient au détail, sans validation.
 - **À zéro le minuteur s'arrête et attend.** Rien ne se valide tout seul : la validation
