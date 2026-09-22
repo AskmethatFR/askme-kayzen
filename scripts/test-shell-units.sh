@@ -189,10 +189,10 @@ assert_refuses "version_code_from_semver: patch far beyond int64" \
 # AC 8b: the real Cargo.toml -> versionCode binding must be provable by this
 # harness, which is exactly what extracting the reader out of
 # android-bundle.sh's inline awk (D-1) makes possible.
-assert_eq "0.0.1" "$(workspace_version "$ROOT/Cargo.toml")" \
-    "workspace_version: the real Cargo.toml -> 0.0.1"
-assert_eq "1" "$(version_code_from_semver "$(workspace_version "$ROOT/Cargo.toml")")" \
-    "workspace_version -> version_code_from_semver: the real Cargo.toml -> versionCode 1 (AC 8b)"
+assert_eq "0.0.2" "$(workspace_version "$ROOT/Cargo.toml")" \
+    "workspace_version: the real Cargo.toml -> 0.0.2"
+assert_eq "2" "$(version_code_from_semver "$(workspace_version "$ROOT/Cargo.toml")")" \
+    "workspace_version -> version_code_from_semver: the real Cargo.toml -> versionCode 2 (AC 8b)"
 
 write_cargo_toml_fixture() {
     printf '%s' "$2" > "$1"
@@ -245,11 +245,13 @@ rm -rf "$WSV_ROOT"
 
 # --- patch_version_code (B1) ------------------------------------------------
 # The dx-generated fixture always carries the sentinel `versionCode = 1`.
-# Cargo.toml's real version is 0.0.1, whose version_code_from_semver output
-# is ALSO 1 -- the exact collision that made the OLD "did the old value
-# survive the patch" check fire on its own success. patch_version_code must
-# tell "the substitution ran and produced 1" apart from "nothing ran and 1
-# was merely left over", which a text-only before/after comparison cannot.
+# At 0.0.1 the workspace's own version_code_from_semver output was ALSO 1 --
+# the exact collision that made the OLD "did the old value survive the patch"
+# check fire on its own success. The workspace has since moved past that
+# rung, but the collision stays reachable from any release whose code is 1,
+# so patch_version_code must still tell "the substitution ran and produced 1"
+# apart from "nothing ran and 1 was merely left over", which a text-only
+# before/after comparison cannot.
 PVC_ROOT="$(mktemp -d)"
 
 write_gradle_fixture() {

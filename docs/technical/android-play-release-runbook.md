@@ -76,7 +76,9 @@ Record the alias and both passwords in a password manager at this moment. There 
 
 **2 — Fix the workspace version. ⚠ IRREVERSIBLE ONCE STEP 5 COMPLETES.** The version in `Cargo.toml` is what the frozen function turns into the `versionCode` the store will remember forever. It must be set **before** building the bundle that gets uploaded — a bundle built at the wrong version is not patchable, it is rebuilt.
 
-The current version is **`0.0.1` → `versionCode 1`**, chosen deliberately as an error-shakedown rail: `0.0.2`, `0.0.3` and so on stay available for the round of releases whose purpose is to find out what breaks. `0.1.0` comes when the app is functional — a jump *upward* is always legal, only a decrease is refused.
+The rail starts at **`0.0.1` → `versionCode 1`**, chosen deliberately as an error-shakedown rail: `0.0.2`, `0.0.3` and so on stay available for the round of releases whose purpose is to find out what breaks. `0.1.0` comes when the app is functional — a jump *upward* is always legal, only a decrease is refused.
+
+The workspace now sits at **`0.0.2` → `versionCode 2`**, the rung AC 21 of issue #28 reserves for the first *automated* publish. Two assertions in `scripts/test-shell-units.sh` pin that number against the real `Cargo.toml`, so a bump that forgets this document fails the gate rather than shipping a stale runbook.
 
 **What the alternative would have cost:** under the frozen function `0.1.0` yields `versionCode 1000`. Uploading it first would have set the floor at 1000 and made **every** `0.0.x` version permanently un-uploadable — the entire shakedown rail, gone before the first bug was found. This was caught by hand during the cycle that wrote this node, one step before the upload. It is the reason this document is a runbook and not a paragraph in a README.
 
@@ -210,6 +212,6 @@ Until that record exists, the slice that built this workflow is not DONE — the
 
 Stated plainly, so nothing here is mistaken for routine:
 
-- **Steps 1 and 2 have landed.** The upload keystore exists outside the repository, and the workspace version sits at `0.0.1` — ahead of the upload it exists to protect.
+- **Steps 1 and 2 have landed.** The upload keystore exists outside the repository, and the workspace version sits at `0.0.2` — ahead of the upload it exists to protect.
 - **The automated publish path now exists**: one workflow and three scripts, with every refusal above checked before the first build step and exercised by `scripts/test-shell-units.sh`. What no local test can reach — that a real dispatch actually publishes, that the Environment gate really stops a non-reviewer, that Play accepts the bundle — is runbook-attested on issue #28 rather than dressed up as covered.
 - **The `versionCode` floor and the Play App Signing custody arrangement come from the first upload Play accepts** (steps 5 and 6 of the procedure). The Console is the only place those facts are visible; this repository cannot read them, which is why the workflow refuses a code the internal track already carries instead of trusting a number written down here.
