@@ -119,6 +119,11 @@ jobs:
           }
           echo "ANDROID_SIGN_KEYSTORE=$keystore" >> "$GITHUB_ENV"
 
+      # @law: `access_token_scopes` is explicit because the action defaults to
+      # `cloud-platform`, a scope that does NOT cover androidpublisher.googleapis.com
+      # -- Play refuses a default-scoped token with ACCESS_TOKEN_SCOPE_INSUFFICIENT
+      # (HTTP 403). Naming the single scope also keeps the token away from every
+      # other Cloud API this service account can reach.
       # @law: `create_credentials_file: false` keeps the service-account key
       # off the disk entirely -- the shell scripts below speak to the API
       # with the short-lived access token and nothing else, so the JSON
@@ -130,6 +135,7 @@ jobs:
           workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.PLAY_SERVICE_ACCOUNT }}
           token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
           create_credentials_file: false
           export_environment_variables: false
 
