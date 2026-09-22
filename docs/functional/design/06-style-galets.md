@@ -29,10 +29,10 @@ Ne jamais coder un hex en dur.
 | Teinte | `--color-tint` / `--color-on-tint` | `#DDEEF3` / `#00506A` | fonds teintés et leur texte |
 | Ancrée | `--color-anchored` / `--color-anchored-tint` | `#7A5E24` / `#EFE3C8` | habitudes acquises (ocre) |
 
-**Rituel (scopé par `.screen.ritual`)** : fond `#12303A`, piste de l'anneau `#1C4552`,
-progression et souffle `#2E6B7E`, texte `#F4F1EA` / `#A9BEC4`. Le fond sombre s'étend à
-`html` et `body` via `:has(.screen.ritual)`, pour qu'aucune bande claire n'apparaisse au
-défilement.
+**Rituel (scopé par `.screen.ritual`)** : fond `#12303A`, disque `#1C4552`, piste de
+l'anneau `#2E6B7E`, arc de temps restant et sa tête `#B8D6DF`, texte `#F4F1EA` /
+`#B8D6DF`. Le fond sombre s'étend à `html` et `body` via `:has(.screen.ritual)`, pour
+qu'aucune bande claire n'apparaisse au défilement.
 
 **Règle — pourquoi deux cyans :** `#0088b0` n'atteint que **3,6:1** sur le papier. Il reste
 l'accent des aplats (cibles, barres, points), où 3:1 suffit à un élément graphique ; tout
@@ -58,16 +58,18 @@ gardent le défaut signalé sous Broadsheet ; il attend toujours sa passe d'acce
 | Carte sur accent texte (bouton) | 5,4:1 |
 | Texte sur teinte | 7,5:1 |
 | Ocre sur teinte ocre | 4,8:1 |
-| Texte rituel / fond rituel | 12,3:1 (doux : 7,2:1) |
-| Progression de l'anneau / fond rituel | 2,3:1 — **décoratif, assumé** |
+| Texte rituel / fond rituel | 12,3:1 (doux : 9,1:1) |
+| Tête et arc restant du rituel / disque | 6,8:1 |
+| Piste de l'anneau / disque | 1,7:1 — **décoratif, assumé** |
 
 L'anneau du rituel ne porte aucune information que le compte à rebours ne donne pas déjà en
-chiffres : il est décoratif, et reste à la couleur de la maquette.
+chiffres, et il reste à la couleur de la maquette : la piste est décorative, l'arc n'est que
+la même information dite en longueur.
 
 ## Typographie
 
 - **Fraunces** (`--font-display`) pour les titres : salutation, grands chiffres du récap,
-  titre de la semaine.
+  titre de la semaine, décompte et parole douce du rituel.
 - **Figtree** (`--font-body`) pour tout le reste : texte courant, boutons, champs.
 - Les deux polices sont **embarquées** (`app/assets/fonts/`, variables, licence OFL) et
   préchargées par `app/src/main.rs` — l'app n'appelle plus Google Fonts et s'affiche
@@ -79,7 +81,7 @@ chiffres : il est décoratif, et reste à la couleur de la maquette.
 
 | Variable | Valeur | Usage |
 | --- | --- | --- |
-| `--radius-pebble` | `48% 52% 46% 54% / 55% 47% 53% 45%` | cible, points de rythme, ajout, souffle du rituel |
+| `--radius-pebble` | `48% 52% 46% 54% / 55% 47% 53% 45%` | cible, points de rythme, ajout |
 | `--radius-pill` | `30px` | boutons |
 | `--radius-field` | `22px` | champs de saisie |
 | `--radius-bar` | `4px` | sommet des barres de courbe |
@@ -88,7 +90,7 @@ Les ombres restent douces (`--shadow-sm` / `--shadow-md`), dérivées de l'encre
 
 ## Ce qui ne change pas
 
-Animations (`kzStamp`, `kzRing`, `kzUp`, `kzBreathe`, `kzTick` — ADR-0015), icônes et motifs
+Animations (`kzStamp`, `kzRing`, `kzUp`, `kzTick` — ADR-0015), icônes et motifs
 d'interaction décrits dans [`05-style-graphique.md`](05-style-graphique.md), sauf là où ce
 document les contredit.
 
