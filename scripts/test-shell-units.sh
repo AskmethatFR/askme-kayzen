@@ -339,10 +339,22 @@ grep -qE '^VERSION="\$1"' "$PLAY_BUNDLE" && bundle_positional_arg="yes"
 assert_eq "yes" "$bundle_positional_arg" \
     "android-bundle.sh: the version arrives as a mandatory positional argument, no parallel local path (AC 7)"
 
+# The read-back pin greps the ASSIGNMENT shape, never the bare name: the
+# writer's own call is `set_workspace_version "$REPO_ROOT/Cargo.toml"`, which
+# contains the substring `workspace_version "$REPO_ROOT/Cargo.toml"` -- a pin
+# on the bare name is satisfied by the writer alone and survived the
+# "delete the read-back" mutation when it was first written.
 bundle_readback="no"
-grep -qE 'workspace_version "\$REPO_ROOT/Cargo.toml"' "$PLAY_BUNDLE" && bundle_readback="yes"
+grep -qF '="$(workspace_version "$REPO_ROOT/Cargo.toml")"' "$PLAY_BUNDLE" && bundle_readback="yes"
 assert_eq "yes" "$bundle_readback" \
     "android-bundle.sh: the injected version is read back from the written Cargo.toml (AC 7)"
+
+# And the read-back must be COMPARED, not merely read: a write that silently
+# did not land has to refuse the release rather than ship a stale version.
+bundle_readback_checked="no"
+grep -qF '[ "$read_back" = "$VERSION" ]' "$PLAY_BUNDLE" && bundle_readback_checked="yes"
+assert_eq "yes" "$bundle_readback_checked" \
+    "android-bundle.sh: the read-back is compared to the injected version, so a write that did not land refuses (AC 7)"
 
 # --- release.yml: the version reaches the bundle (AC 5/8) -------------------
 # The workflow is the only caller, and the bundle's positional argument is
