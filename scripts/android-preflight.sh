@@ -68,12 +68,6 @@ env -u PLAY_ACCESS_TOKEN git --version >/dev/null 2>&1 \
 TARGET_SHA="$(git -C "$REPO_ROOT" rev-parse --verify "${GITHUB_SHA:-HEAD}^{commit}" 2>/dev/null)" \
     || preflight_fail "GITHUB_SHA '${GITHUB_SHA:-HEAD}' does not resolve to a commit in $REPO_ROOT"
 
-# @law: the frozen reader's stderr is captured and re-printed UNCHANGED, with
-# no prefix and no rewording -- the frozen library owns this message, the
-# runbook's failure table quotes it, and a wrapper that paraphrased it would
-# make the table and the log disagree at the moment an operator is reading
-# both.
-#
 # @law: the candidate filter is LOOSE (^v[0-9]) deliberately. A semantic
 # pre-filter would refuse a malformed tag here, in this script's own words --
 # the frozen version_code_from_semver must instead be the one that refuses it,
@@ -93,6 +87,11 @@ if [ "$candidate_count" -gt 1 ]; then
 fi
 
 VERSION="${candidate_tags#v}"
+# @law: the frozen reader's stderr is captured and re-printed UNCHANGED, with
+# no prefix and no rewording -- the frozen library owns this message, the
+# runbook's failure table quotes it, and a wrapper that paraphrased it would
+# make the table and the log disagree at the moment an operator is reading
+# both.
 if ! VERSION_CODE="$(version_code_from_semver "$VERSION" 2>&1)"; then
     printf '%s\n' "$VERSION_CODE" >&2
     exit 1
