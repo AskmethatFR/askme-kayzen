@@ -69,31 +69,35 @@ fn PracticeTimer(id: String, title: String, goal_minutes: u32) -> Element {
     let remaining = remaining_seconds(total, elapsed);
 
     rsx! {
-        div { class: "screen ritual",
-            h1 { class: "greeting", "{title} · {goal_minutes} min" }
-            PracticeCountdown {
-                title: title.clone(),
-                total,
-                remaining,
-                on_tick: move |()| now.set(Instant::now()),
+            div { class: "screen ritual",
+                h1 { class: "greeting", "{title} · {goal_minutes} min" }
+                PracticeCountdown {
+                    title: title.clone(),
+                    total,
+                    remaining,
+                    on_tick: move |()| now.set(Instant::now()),
+                }
+                h3
+                {
+                    class: "motivation", {tr!("ritual-gentle-word")}
+                }
+                button {
+                    class: "btn btn-primary btn-block",
+                    aria_label: tr!("ritual-complete-aria", title: title.clone()),
+                    onclick: {
+                        let services = services.clone();
+                        let id = id.clone();
+                        move |_| complete_and_go_home(&services, navigator, &id)
+                    },
+                    {tr!("ritual-complete-label")}
+                }
+                Link {
+                    class: "quiet-link",
+                    to: Route::HabitDetail { id: id.clone() },
+                    aria_label: tr!("ritual-stop-aria", title: title.clone()),
+                    {tr!("ritual-stop-label")}
+                }
             }
-            button {
-                class: "btn btn-primary btn-block",
-                aria_label: tr!("ritual-complete-aria", title: title.clone()),
-                onclick: {
-                    let services = services.clone();
-                    let id = id.clone();
-                    move |_| complete_and_go_home(&services, navigator, &id)
-                },
-                {tr!("ritual-complete-label")}
-            }
-            Link {
-                class: "quiet-link",
-                to: Route::HabitDetail { id: id.clone() },
-                aria_label: tr!("ritual-stop-aria", title: title.clone()),
-                {tr!("ritual-stop-label")}
-            }
-        }
     }
 }
 

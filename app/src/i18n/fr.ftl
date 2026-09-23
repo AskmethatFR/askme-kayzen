@@ -131,3 +131,4 @@ bottom-nav-anchored = Ancrées
 bottom-nav-today-aria = Aujourd'hui · navigation
 bottom-nav-week-aria = Semaine · navigation
 bottom-nav-anchored-aria = Ancrées · navigation
+
