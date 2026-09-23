@@ -2,14 +2,16 @@
 <!--
   Forked from the manifest dx v0.7.9 generates for this project
   (target/dx/kayzen-app/debug/android/app/app/src/main/AndroidManifest.xml),
-  with three edits: a literal launcher label on <application> and <activity>
+  with four edits: a literal launcher label on <application> and <activity>
   (see README, "Android (local, unsigned)" — strings.xml is regenerated on
   every build, so a literal is the only value that survives it),
   android:allowBackup="false" on <application> (owner-ruled: strict local,
-  no Auto Backup / device transfer of habit data — see README), and this
-  provenance comment. Everything else is untouched from the generated
-  source. Re-diff against a fresh debug build's generated manifest whenever
-  dx is upgraded.
+  no Auto Backup / device transfer of habit data — see README), the
+  phone-only <uses-feature> + <compatible-screens> pair below (owner-ruled:
+  distribution targets smartphones only — see README, "Android (release
+  bundle)"), and this provenance comment. Everything else is untouched from
+  the generated source. Re-diff against a fresh debug build's generated
+  manifest whenever dx is upgraded.
 
   While this fork is in place, every manifest-shaped Dioxus.toml key is
   inert: [application].android_manifest REPLACES the manifest rather than
@@ -28,6 +30,31 @@
     <!-- Permissions from Dioxus.toml [permissions] section -->
 
     <!-- Hardware features from Dioxus.toml [android] section -->
+
+    <!-- Owner-ruled: smartphone-only distribution. `telephony` is required so
+         Play withholds the app from Wi-Fi-only tablets and from automotive
+         head units; TV is already out (it would need `android.software.leanback`,
+         which is never declared). `compatible-screens` then pins the Play device
+         catalog to the small/normal buckets across every density, which is the
+         only declaration that literally says "phones, not tablets".
+         `<supports-screens android:largeScreens="false">` is ignored since
+         Android 3.2 and would do nothing. A device matching no entry here is
+         hidden from Play (sideload still works). -->
+    <uses-feature android:name="android.hardware.telephony" android:required="true" />
+    <compatible-screens>
+        <screen android:screenSize="small" android:screenDensity="ldpi" />
+        <screen android:screenSize="small" android:screenDensity="mdpi" />
+        <screen android:screenSize="small" android:screenDensity="hdpi" />
+        <screen android:screenSize="small" android:screenDensity="xhdpi" />
+        <screen android:screenSize="small" android:screenDensity="xxhdpi" />
+        <screen android:screenSize="small" android:screenDensity="xxxhdpi" />
+        <screen android:screenSize="normal" android:screenDensity="ldpi" />
+        <screen android:screenSize="normal" android:screenDensity="mdpi" />
+        <screen android:screenSize="normal" android:screenDensity="hdpi" />
+        <screen android:screenSize="normal" android:screenDensity="xhdpi" />
+        <screen android:screenSize="normal" android:screenDensity="xxhdpi" />
+        <screen android:screenSize="normal" android:screenDensity="xxxhdpi" />
+    </compatible-screens>
 
     <!-- Raw manifest XML from Dioxus.toml [android.raw.manifest] -->
     
