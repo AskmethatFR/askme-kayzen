@@ -165,7 +165,7 @@ jobs:
         id: bundle
         run: |
           set -euo pipefail
-          aab_path="$(scripts/android-bundle.sh)"
+          aab_path="$(scripts/android-bundle.sh "${{ steps.preflight.outputs.version }}")"
           echo "aab_path=$aab_path" >> "$GITHUB_OUTPUT"
 
       # Build and sign share this runner by design (AC 8, ADR-0020): the

@@ -344,6 +344,26 @@ grep -qE 'workspace_version "\$REPO_ROOT/Cargo.toml"' "$PLAY_BUNDLE" && bundle_r
 assert_eq "yes" "$bundle_readback" \
     "android-bundle.sh: the injected version is read back from the written Cargo.toml (AC 7)"
 
+# --- release.yml: the version reaches the bundle (AC 5/8) -------------------
+# The workflow is the only caller, and the bundle's positional argument is
+# mandatory: a step that forgot to pass it would refuse every release before
+# the build, so the wiring is pinned here rather than discovered in
+# production.
+RELEASE_WORKFLOW="$ROOT/.github/workflows/release.yml"
+workflow_passes_version="no"
+grep -qF 'scripts/android-bundle.sh "${{ steps.preflight.outputs.version }}"' "$RELEASE_WORKFLOW" \
+    && workflow_passes_version="yes"
+assert_eq "yes" "$workflow_passes_version" \
+    "release.yml: the bundle step passes the preflight-derived version (AC 5/8)"
+
+workflow_triggers="$(awk '
+    /^on:/ { in_on = 1; next }
+    /^[^[:space:]#]/ { in_on = 0 }
+    in_on && /^  [a-z_]+:/ { sub(/:.*/, ""); gsub(/ /, ""); print }
+' "$RELEASE_WORKFLOW")"
+assert_eq "workflow_dispatch" "$workflow_triggers" \
+    "release.yml: workflow_dispatch stays the ONLY trigger -- a tag is a gate, never a trigger (AC 8)"
+
 # --- patch_version_code (B1) ------------------------------------------------
 # The dx-generated fixture always carries the sentinel `versionCode = 1`.
 # At 0.0.1 the workspace's own version_code_from_semver output was ALSO 1 --
