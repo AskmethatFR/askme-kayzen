@@ -3,9 +3,17 @@
 # aligned, real launcher icon, correct versionCode/versionName. Nothing is
 # signed here -- that is scripts/android-sign.sh, a later slice.
 #
-# Usage: scripts/android-bundle.sh
+# Usage: scripts/android-bundle.sh <version>
 # Progress goes to stderr; the ONLY line on stdout is the produced AAB's
-# path, so `aab="$(scripts/android-bundle.sh)"` composes directly.
+# path, so `aab="$(scripts/android-bundle.sh "$version")"` composes directly.
+#
+# The version is a MANDATORY positional argument, never read from anywhere in
+# here: scripts/android-preflight.sh derives it from the release tag and hands
+# it over, so exactly one place decides what is being released. This script
+# injects it into [workspace.package].version before `dx` runs -- `dx` stamps
+# the bundle's versionName from that value, which app/Cargo.toml inherits with
+# `version.workspace = true` -- then reads it back off disk to prove the
+# injection landed.
 #
 # Two passes, not one, and in this order:
 #   1. `dx bundle` with --rustc-args carrying the 16 KB alignment flags
@@ -62,6 +70,17 @@ fail() {
     exit 1
 }
 
+[ $# -eq 1 ] || fail "usage: scripts/android-bundle.sh <version> (the version scripts/android-preflight.sh derived from the release tag)"
+VERSION="$1"
+# @law: validate BEFORE the first file touch. Every byte this script writes
+# into Cargo.toml must have passed the frozen reader first, so a refusal
+# happens while the checkout is still pristine -- the injection below is the
+# only place an unvalidated version could otherwise reach a file.
+if ! VERSION_CODE="$(version_code_from_semver "$VERSION" 2>&1)"; then
+    printf '%s\n' "$VERSION_CODE" >&2
+    fail "refusing the version '$VERSION' -- see the frozen reader's message above"
+fi
+
 [ -d "$ANDROID_HOME" ] || fail "no Android SDK at $ANDROID_HOME (set ANDROID_HOME)"
 [ -d "$NDK_HOME" ] || fail "no NDK at $NDK_HOME (set NDK_HOME)"
 [ -x "$JAVA_HOME/bin/java" ] || fail "no JDK 17 at $JAVA_HOME (set JAVA_HOME)"
@@ -98,6 +117,14 @@ elif [ "$toml_status" -ne 0 ]; then
     fail "app/Dioxus.toml preflight check failed unexpectedly (python exited $toml_status)"
 fi
 
+echo "==> injecting the release version into Cargo.toml" >&2
+set_workspace_version "$REPO_ROOT/Cargo.toml" "$VERSION" \
+    || fail "failed to write version '$VERSION' into $REPO_ROOT/Cargo.toml (see the diagnostic above)"
+read_back="$(workspace_version "$REPO_ROOT/Cargo.toml")" \
+    || fail "could not read the version back out of $REPO_ROOT/Cargo.toml after writing it"
+[ "$read_back" = "$VERSION" ] \
+    || fail "$REPO_ROOT/Cargo.toml reads back '$read_back' after writing '$VERSION' -- the injection did not land"
+
 echo "==> cleaning generated resources" >&2
 "$REPO_ROOT/scripts/android-icon.sh" clean "$GENERATED_RES" >&2
 
@@ -118,10 +145,6 @@ if grep -qiE 'storePassword|keyPassword|keyAlias|storeFile|signingConfig' "$BUIL
     rm -f "$BUILD_GRADLE"
     fail "$BUILD_GRADLE carries a cleartext signing config -- refusing to bundle"
 fi
-
-echo "==> reading the workspace version" >&2
-VERSION="$(workspace_version "$REPO_ROOT/Cargo.toml")"
-VERSION_CODE="$(version_code_from_semver "$VERSION")"
 
 echo "==> patching versionCode ($VERSION -> $VERSION_CODE)" >&2
 patch_version_code "$BUILD_GRADLE" "$VERSION_CODE" \

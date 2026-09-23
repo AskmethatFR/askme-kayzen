@@ -186,14 +186,10 @@ assert_refuses "version_code_from_semver: patch far beyond int64" \
     -- version_code_from_semver "0.0.9223372036854775808"
 
 # --- workspace_version ------------------------------------------------------
-# AC 8b: the real Cargo.toml -> versionCode binding must be provable by this
-# harness, which is exactly what extracting the reader out of
-# android-bundle.sh's inline awk (D-1) makes possible.
-assert_eq "0.0.2" "$(workspace_version "$ROOT/Cargo.toml")" \
-    "workspace_version: the real Cargo.toml -> 0.0.2"
-assert_eq "2" "$(version_code_from_semver "$(workspace_version "$ROOT/Cargo.toml")")" \
-    "workspace_version -> version_code_from_semver: the real Cargo.toml -> versionCode 2 (AC 8b)"
-
+# The reader survives as the bundle's READ-BACK oracle: the bundle writes the
+# injected version into Cargo.toml, then reads it back with this function to
+# prove the bytes on disk are the bytes it meant to write (AC 7). Preflight
+# no longer calls it -- the release version comes from the tag.
 write_cargo_toml_fixture() {
     printf '%s' "$2" > "$1"
 }
@@ -241,7 +237,112 @@ edition = "2024"
 assert_refuses "workspace_version: [workspace.package] present but no version key" \
     -- workspace_version "$WSV_ROOT/no-version-key.toml"
 
+# --- set_workspace_version (AC 7) -------------------------------------------
+# The bundle's writer, and the ONLY place an injected version reaches
+# Cargo.toml -- so its refusals are the whole injection surface. Nothing it
+# accepts can escape the quoted TOML string it writes into.
+write_cargo_toml_fixture "$WSV_ROOT/write-plain.toml" '[workspace]
+resolver = "3"
+members = ["core", "app"]
+
+[workspace.package]
+version = "0.0.2"
+edition = "2024"
+'
+set_workspace_version "$WSV_ROOT/write-plain.toml" "1.2.3"
+assert_eq "0" "$?" "set_workspace_version: a plain version writes and returns success"
+assert_eq "1.2.3" "$(workspace_version "$WSV_ROOT/write-plain.toml")" \
+    "set_workspace_version: the written version round-trips through workspace_version"
+assert_eq "1002003" "$(version_code_from_semver "$(workspace_version "$WSV_ROOT/write-plain.toml")")" \
+    "set_workspace_version -> version_code_from_semver: the written version derives its code (AC 7)"
+assert_eq "1" "$(grep -c 'edition = "2024"' "$WSV_ROOT/write-plain.toml" || true)" \
+    "set_workspace_version: only the version line is rewritten, the rest of the section survives"
+assert_eq "1" "$(grep -c 'members = \["core", "app"\]' "$WSV_ROOT/write-plain.toml" || true)" \
+    "set_workspace_version: the sections above [workspace.package] survive the rewrite"
+
+# The anchor is scoped to [workspace.package]: an earlier section's own
+# version line is neither the one rewritten nor a second candidate.
+write_cargo_toml_fixture "$WSV_ROOT/write-scoped.toml" '[package]
+version = "9.9.9"
+name = "not-the-workspace"
+
+[workspace.package]
+version = "0.0.2"
+edition = "2024"
+'
+set_workspace_version "$WSV_ROOT/write-scoped.toml" "2.0.0"
+assert_eq "2.0.0" "$(workspace_version "$WSV_ROOT/write-scoped.toml")" \
+    "set_workspace_version: rewrites [workspace.package].version, never an earlier [package] one"
+assert_eq "1" "$(grep -c 'version = "9.9.9"' "$WSV_ROOT/write-scoped.toml" || true)" \
+    "set_workspace_version: the earlier [package] version line is left untouched"
+
+# Refusals -- and every one of them must leave the file BYTE-IDENTICAL: a
+# writer that refused only after touching the file would already have broken
+# the checkout it runs in.
+write_cargo_toml_fixture "$WSV_ROOT/write-refuse.toml" '[workspace.package]
+version = "0.0.2"
+'
+write_refuse_before="$(cat "$WSV_ROOT/write-refuse.toml")"
+assert_refuses "set_workspace_version: a quote in the version" \
+    -- set_workspace_version "$WSV_ROOT/write-refuse.toml" '1.0.0"'
+assert_refuses "set_workspace_version: a newline in the version" \
+    -- set_workspace_version "$WSV_ROOT/write-refuse.toml" $'1.0.0\n2.0.0'
+assert_refuses "set_workspace_version: an empty version" \
+    -- set_workspace_version "$WSV_ROOT/write-refuse.toml" ""
+assert_refuses "set_workspace_version: nonexistent path" \
+    -- set_workspace_version "$WSV_ROOT/does-not-exist.toml" "1.0.0"
+assert_eq "$write_refuse_before" "$(cat "$WSV_ROOT/write-refuse.toml")" \
+    "set_workspace_version: every refusal leaves Cargo.toml byte-identical (validate before write)"
+
+# The anchor must be EXACTLY one line: zero or several are both ambiguous,
+# and an ambiguous anchor refuses rather than guessing which line is meant.
+write_cargo_toml_fixture "$WSV_ROOT/write-no-section.toml" '[package]
+version = "1.0.0"
+name = "not-a-workspace"
+'
+assert_refuses "set_workspace_version: no [workspace.package] section" \
+    -- set_workspace_version "$WSV_ROOT/write-no-section.toml" "1.0.0"
+
+write_cargo_toml_fixture "$WSV_ROOT/write-no-key.toml" '[workspace.package]
+edition = "2024"
+'
+assert_refuses "set_workspace_version: [workspace.package] with no version key" \
+    -- set_workspace_version "$WSV_ROOT/write-no-key.toml" "1.0.0"
+
+write_cargo_toml_fixture "$WSV_ROOT/write-two-keys.toml" '[workspace.package]
+version = "0.0.2"
+version = "0.0.3"
+'
+assert_refuses "set_workspace_version: two version lines in [workspace.package]" \
+    -- set_workspace_version "$WSV_ROOT/write-two-keys.toml" "1.0.0"
+
 rm -rf "$WSV_ROOT"
+
+# --- android-bundle.sh: validate before write (AC 7) ------------------------
+# The bundle itself cannot run here -- it needs an Android SDK, an NDK and
+# `dx` -- so the ordering AC 7 turns on is pinned structurally: the frozen
+# validator must run before the writer, and a rearrangement that put the
+# write first reddens this.
+PLAY_BUNDLE="$ROOT/scripts/android-bundle.sh"
+bundle_validation_line="$(grep -nE '^[^#]*version_code_from_semver' "$PLAY_BUNDLE" | head -1 | cut -d: -f1)"
+bundle_write_line="$(grep -nE '^[^#]*set_workspace_version' "$PLAY_BUNDLE" | head -1 | cut -d: -f1)"
+bundle_validate_first="no"
+if [ -n "$bundle_validation_line" ] && [ -n "$bundle_write_line" ] \
+    && [ "$bundle_validation_line" -lt "$bundle_write_line" ]; then
+    bundle_validate_first="yes"
+fi
+assert_eq "yes" "$bundle_validate_first" \
+    "android-bundle.sh: version_code_from_semver runs before set_workspace_version writes (AC 7)"
+
+bundle_positional_arg="no"
+grep -qE '^VERSION="\$1"' "$PLAY_BUNDLE" && bundle_positional_arg="yes"
+assert_eq "yes" "$bundle_positional_arg" \
+    "android-bundle.sh: the version arrives as a mandatory positional argument, no parallel local path (AC 7)"
+
+bundle_readback="no"
+grep -qE 'workspace_version "\$REPO_ROOT/Cargo.toml"' "$PLAY_BUNDLE" && bundle_readback="yes"
+assert_eq "yes" "$bundle_readback" \
+    "android-bundle.sh: the injected version is read back from the written Cargo.toml (AC 7)"
 
 # --- patch_version_code (B1) ------------------------------------------------
 # The dx-generated fixture always carries the sentinel `versionCode = 1`.
