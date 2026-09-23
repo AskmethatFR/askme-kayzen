@@ -1138,6 +1138,15 @@ body:has(.screen.ritual) {
     padding-bottom: 0;
 }
 
+.screen.ritual .motivation {
+    font-family: var(--font-display);
+    font-size: 22px;
+    line-height: 1.4;
+    font-weight: 500;
+    width: 80%;
+    align-self: center;
+}
+
 /* The gentle word is the only paragraph on the dark screen: the mockup gives
    it the display face at its own size, in full ink — the soft tone is kept
    for the dose line and for the way out. */
