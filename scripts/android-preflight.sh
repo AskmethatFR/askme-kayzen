@@ -1,23 +1,27 @@
 #!/usr/bin/env bash
 # Refuses a Play release BEFORE the first build step, in this order:
 #
-#   1. the ref being dispatched is not refs/heads/main            (AC 2)
-#   2. [workspace.package].version is rejected by the frozen
-#      version_code_from_semver, its message surfaced verbatim    (AC 4/5)
-#   3. the tag v<version> exists AND points at the commit being
-#      released -- missing and misplaced are distinct refusals    (AC 6)
-#   4. the derived versionCode is already on the internal-testing
-#      track, which Play would refuse anyway                      (AC 7)
+#   1. the ref being dispatched is not refs/heads/main            (AC 8)
+#   2. the commit being released does not carry exactly one tag
+#      vX.Y.Z: none, several, or one the frozen
+#      version_code_from_semver refuses                           (AC 1/2/3/4)
+#   3. the derived versionCode is already on the internal-testing
+#      track, which Play would refuse anyway                      (AC 8)
 #
 # The order is the design, not an accident of writing: each refusal is
 # cheaper and more fundamental than the next, and a release that fails two
 # of them must report the FIRST one.
 #
+# The version is DERIVED FROM THE TAG at the commit being released, never
+# read out of Cargo.toml: a tag is what an operator creates deliberately at
+# the commit they mean to ship, whereas a Cargo.toml version is a working-tree
+# value that nothing ties to the commit being released (owner ruling on issue
+# #73, reversing the version-source half of adr-0019).
+#
 # Usage: scripts/android-preflight.sh [repo-root]
 #   repo-root defaults to the repository this script lives in. It is the
-#   checkout the ref, the Cargo.toml and the tag are read from -- not the
-#   location of the Play scripts, which always come from this script's own
-#   tree.
+#   checkout the ref and the tags are read from -- not the location of the
+#   Play scripts, which always come from this script's own tree.
 #
 # Reads GITHUB_REF (required), GITHUB_SHA (defaults to HEAD off CI) and
 # PLAY_ACCESS_TOKEN (for the collision query, via scripts/android-play-track.sh)
@@ -64,28 +68,34 @@ env -u PLAY_ACCESS_TOKEN git --version >/dev/null 2>&1 \
 TARGET_SHA="$(git -C "$REPO_ROOT" rev-parse --verify "${GITHUB_SHA:-HEAD}^{commit}" 2>/dev/null)" \
     || preflight_fail "GITHUB_SHA '${GITHUB_SHA:-HEAD}' does not resolve to a commit in $REPO_ROOT"
 
-# @law: both readers' stderr is captured and re-printed UNCHANGED, with no
-# prefix and no rewording -- the frozen library owns these messages, the
-# runbook's failure table quotes them, and a wrapper that paraphrased one
-# would make the table and the log disagree at the moment an operator is
-# reading both.
-if ! VERSION="$(workspace_version "$REPO_ROOT/Cargo.toml" 2>&1)"; then
-    printf '%s\n' "$VERSION" >&2
-    exit 1
+# @law: the frozen reader's stderr is captured and re-printed UNCHANGED, with
+# no prefix and no rewording -- the frozen library owns this message, the
+# runbook's failure table quotes it, and a wrapper that paraphrased it would
+# make the table and the log disagree at the moment an operator is reading
+# both.
+#
+# @law: the candidate filter is LOOSE (^v[0-9]) deliberately. A semantic
+# pre-filter would refuse a malformed tag here, in this script's own words --
+# the frozen version_code_from_semver must instead be the one that refuses it,
+# so the message an operator reads is the one the runbook documents
+# (adr-0019:42-45). The filter answers exactly one question: could this tag
+# name a release version? What that version IS remains the frozen function's
+# business, and so does every reason to reject it.
+candidate_tags="$(git -C "$REPO_ROOT" tag --points-at "$TARGET_SHA" | grep -E '^v[0-9]' || true)"
+candidate_count="$(printf '%s\n' "$candidate_tags" | grep -c . || true)"
+
+if [ "$candidate_count" -eq 0 ]; then
+    fail "the commit being released ($TARGET_SHA) carries no release tag vX.Y.Z -- create it there before dispatching"
 fi
+if [ "$candidate_count" -gt 1 ]; then
+    candidate_list="$(printf '%s\n' "$candidate_tags" | paste -sd ' ' -)"
+    fail "the commit being released ($TARGET_SHA) carries several release tags ($candidate_list) -- exactly one vX.Y.Z is required"
+fi
+
+VERSION="${candidate_tags#v}"
 if ! VERSION_CODE="$(version_code_from_semver "$VERSION" 2>&1)"; then
     printf '%s\n' "$VERSION_CODE" >&2
     exit 1
-fi
-
-tag_status=0
-tag_sha="$(git -C "$REPO_ROOT" rev-parse -q --verify "refs/tags/v$VERSION^{commit}" 2>/dev/null)" \
-    || tag_status=$?
-if [ "$tag_status" -ne 0 ]; then
-    fail "no tag 'v$VERSION' exists in $REPO_ROOT -- create it at the commit being released ($TARGET_SHA) before dispatching"
-fi
-if [ "$tag_sha" != "$TARGET_SHA" ]; then
-    fail "tag 'v$VERSION' points at $tag_sha, not at the commit being released ($TARGET_SHA)"
 fi
 
 # @law: the query's stderr is deliberately NOT redirected: an operator whose

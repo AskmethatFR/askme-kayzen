@@ -811,10 +811,12 @@ assert_eq "yes" "$msg_track_delfail" \
 
 rm -rf "$PLAY_SHIM_DIR"
 
-# --- android-preflight.sh (AC 2/5/6/7/13) ---------------------------------
-# The refusals are ordered (ref -> version -> tag -> collision) and the
-# ORDER is the design: a fixture that violates several at once is the only
-# thing that proves the first one still wins.
+# --- android-preflight.sh (AC 1/2/3/4/6/8/10) -------------------------------
+# The version is DERIVED FROM THE TAG at the commit being released, never
+# read out of Cargo.toml (issue #73). The refusals are ordered
+# (ref -> tag/version -> collision) and the ORDER is the design: a fixture
+# that violates several at once is the only thing that proves the first one
+# still wins.
 PLAY_PREFLIGHT="$ROOT/scripts/android-preflight.sh"
 PLAY_PREFLIGHT_FIXTURE="$(mktemp -d)"
 PLAY_PREFLIGHT_SUMMARY="$(mktemp)"
@@ -822,17 +824,18 @@ PLAY_PREFLIGHT_OUTPUT="$(mktemp)"
 PREFLIGHT_SHIM_DIR="$(mktemp -d)"
 make_curl_shim "$PREFLIGHT_SHIM_DIR"
 
+# A preflight fixture is a git repository and NOTHING else: no Cargo.toml,
+# because the release path no longer reads one. The tags are what the tests
+# add on top.
 new_preflight_repo() {
-    local repo="$1" version="$2"
+    local repo="$1"
     mkdir -p "$repo"
     git -C "$repo" init -q -b main
     git -C "$repo" config user.email "preflight@test.invalid"
     git -C "$repo" config user.name "preflight fixture"
-    printf '[workspace]\nresolver = "3"\nmembers = ["core"]\n\n[workspace.package]\nversion = "%s"\nedition = "2024"\n' \
-        "$version" > "$repo/Cargo.toml"
     printf 'fixture\n' > "$repo/README.md"
     git -C "$repo" add -A
-    git -C "$repo" commit -qm "fixture at $version"
+    git -C "$repo" commit -qm "fixture commit"
 }
 
 run_preflight() {
@@ -847,9 +850,19 @@ run_preflight() {
         "$PLAY_PREFLIGHT" "$repo"
 }
 
-PREFLIGHT_REPO="$PLAY_PREFLIGHT_FIXTURE/repo-0.0.2"
-new_preflight_repo "$PREFLIGHT_REPO" "0.0.2"
+# The happy-path fixture: one commit, tagged v0.1.2 (versionCode 1002).
+PREFLIGHT_REPO="$PLAY_PREFLIGHT_FIXTURE/repo-0.1.2"
+new_preflight_repo "$PREFLIGHT_REPO"
+git -C "$PREFLIGHT_REPO" tag v0.1.2
 PREFLIGHT_REF="refs/heads/main"
+
+# AC 6 -- a structural pin, not a behavioural one: preflight must never read
+# [workspace.package].version again. The tag is the only version source, and
+# a grep is the only thing that keeps the dependency from creeping back.
+preflight_reads_workspace_version="no"
+grep -q 'workspace_version' "$PLAY_PREFLIGHT" && preflight_reads_workspace_version="yes"
+assert_eq "no" "$preflight_reads_workspace_version" \
+    "android-preflight.sh: never reads [workspace.package].version -- the tag is the only version source (AC 6)"
 
 # AC 2 -- the ref refusal, first in the order.
 PREFLIGHT_REF="refs/heads/feature/not-main"
@@ -871,82 +884,172 @@ err_preflight_noref="$(env -u GITHUB_REF \
 assert_eq "2" "$status_preflight_noref" \
     "android-preflight.sh: an unset GITHUB_REF exits 2 (preflight -- nothing to compare, not a ref that is wrong)"
 
-# AC 5 -- the frozen function's own message, verbatim, and BEFORE the tag
-# check: this fixture has no v-tag at all, so a wrong order would surface
-# the tag refusal instead.
-new_preflight_repo "$PLAY_PREFLIGHT_FIXTURE/repo-bad-version" "1.0.1000"
-err_preflight_version="$(run_preflight "$PLAY_PREFLIGHT_FIXTURE/repo-bad-version" 2>&1 1>/dev/null)"
-status_preflight_version=$?
-assert_eq "1" "$status_preflight_version" \
-    "android-preflight.sh: a version the frozen function refuses fails the run (AC 5)"
-case "$err_preflight_version" in
-    *"version_code_from_semver: '1.0.1000' is not a bare major.minor.patch, each component 0-999 (no v prefix, no -pre/+build suffix)"*) \
-        msg_preflight_version="yes" ;;
-    *) msg_preflight_version="no" ;;
+# AC 2 -- zero candidate tags at the commit being released: a distinct
+# refusal, exit 1, naming that commit. This is also what a tag left on
+# another commit produces, which is why "misplaced" is no longer a separate
+# case: a tag that does not point here is simply not a candidate.
+PREFLIGHT_UNRELEASED="$PLAY_PREFLIGHT_FIXTURE/repo-untagged"
+new_preflight_repo "$PREFLIGHT_UNRELEASED"
+err_preflight_notag="$(run_preflight "$PREFLIGHT_UNRELEASED" 2>&1 1>/dev/null)"
+status_preflight_notag=$?
+assert_eq "1" "$status_preflight_notag" \
+    "android-preflight.sh: a commit carrying no candidate tag is refused (AC 2)"
+case "$err_preflight_notag" in
+    *"$(git -C "$PREFLIGHT_UNRELEASED" rev-parse HEAD)"*) msg_preflight_notag_sha="yes" ;;
+    *) msg_preflight_notag_sha="no" ;;
 esac
-assert_eq "yes" "$msg_preflight_version" \
-    "android-preflight.sh: the refused version surfaces the frozen library's message VERBATIM (AC 5)"
+assert_eq "yes" "$msg_preflight_notag_sha" \
+    "android-preflight.sh: the no-candidate refusal names the commit being released (AC 2)"
+case "$err_preflight_notag" in
+    *"several release tags"*) msg_preflight_notag_multi="yes" ;;
+    *) msg_preflight_notag_multi="no" ;;
+esac
+assert_eq "no" "$msg_preflight_notag_multi" \
+    "android-preflight.sh: the no-candidate refusal never reads as the several-candidates one (AC 2)"
 
-new_preflight_repo "$PLAY_PREFLIGHT_FIXTURE/repo-zero-version" "0.0.0"
-err_preflight_zero="$(run_preflight "$PLAY_PREFLIGHT_FIXTURE/repo-zero-version" 2>&1 1>/dev/null)"
+# A tag left behind on an EARLIER commit is not a candidate at the commit
+# being released -- same refusal, and it names the later commit.
+git -C "$PREFLIGHT_UNRELEASED" tag v0.1.2
+git -C "$PREFLIGHT_UNRELEASED" commit -q --allow-empty -m "later commit"
+PREFLIGHT_TARGET="HEAD"
+err_preflight_tag_elsewhere="$(run_preflight "$PREFLIGHT_UNRELEASED" 2>&1 1>/dev/null)"
+PREFLIGHT_TARGET=""
+case "$err_preflight_tag_elsewhere" in
+    *"$(git -C "$PREFLIGHT_UNRELEASED" rev-parse HEAD)"*) msg_preflight_tag_elsewhere="yes" ;;
+    *) msg_preflight_tag_elsewhere="no" ;;
+esac
+assert_eq "yes" "$msg_preflight_tag_elsewhere" \
+    "android-preflight.sh: a tag pointing at another commit is not a candidate and the refusal names the released commit (AC 2)"
+
+# AC 3 -- several candidate tags: a DISTINCT refusal that LISTS every one.
+PREFLIGHT_TWO_TAGS="$PLAY_PREFLIGHT_FIXTURE/repo-two-tags"
+new_preflight_repo "$PREFLIGHT_TWO_TAGS"
+git -C "$PREFLIGHT_TWO_TAGS" tag v0.1.2
+git -C "$PREFLIGHT_TWO_TAGS" tag v0.1.3
+err_preflight_twotags="$(run_preflight "$PREFLIGHT_TWO_TAGS" 2>&1 1>/dev/null)"
+status_preflight_twotags=$?
+assert_eq "1" "$status_preflight_twotags" \
+    "android-preflight.sh: two candidate tags at the commit are refused (AC 3)"
+case "$err_preflight_twotags" in
+    *"v0.1.2"*"v0.1.3"*) msg_preflight_twotags_list="yes" ;;
+    *) msg_preflight_twotags_list="no" ;;
+esac
+assert_eq "yes" "$msg_preflight_twotags_list" \
+    "android-preflight.sh: the several-candidates refusal LISTS every candidate (AC 3)"
+case "$err_preflight_twotags" in
+    *"carries no release tag"*) msg_preflight_twotags_missing="yes" ;;
+    *) msg_preflight_twotags_missing="no" ;;
+esac
+assert_eq "no" "$msg_preflight_twotags_missing" \
+    "android-preflight.sh: the several-candidates refusal never reads as the no-candidate one (AC 3)"
+
+# AC 1 -- the candidate filter is LOOSE (^v[0-9]): a tag that does not start
+# with v<digit> is not a candidate, so it neither supplies a version nor
+# counts towards the exactly-one rule.
+PREFLIGHT_FILTERED="$PLAY_PREFLIGHT_FIXTURE/repo-filtered"
+new_preflight_repo "$PREFLIGHT_FILTERED"
+git -C "$PREFLIGHT_FILTERED" tag docs-release-2024
+git -C "$PREFLIGHT_FILTERED" tag v0.1.2
+out_preflight_filtered="$(CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" \
+    CURL_SHIM_TRACK_BODY="$TRACK_ONE_CODE" \
+    run_preflight "$PREFLIGHT_FILTERED" 2>/dev/null)"; status_preflight_filtered=$?
+assert_eq "0" "$status_preflight_filtered" \
+    "android-preflight.sh: a non-v tag at the commit does not count as a candidate (AC 1)"
+case "$out_preflight_filtered" in
+    *"0.1.2"*) msg_preflight_filtered="yes" ;;
+    *) msg_preflight_filtered="no" ;;
+esac
+assert_eq "yes" "$msg_preflight_filtered" \
+    "android-preflight.sh: the one vX.Y.Z tag among several refs is the version source (AC 1)"
+
+PREFLIGHT_NONNUMERIC="$PLAY_PREFLIGHT_FIXTURE/repo-vx"
+new_preflight_repo "$PREFLIGHT_NONNUMERIC"
+git -C "$PREFLIGHT_NONNUMERIC" tag vx.y.z
+err_preflight_vx="$(run_preflight "$PREFLIGHT_NONNUMERIC" 2>&1 1>/dev/null)"
+status_preflight_vx=$?
+assert_eq "1" "$status_preflight_vx" \
+    "android-preflight.sh: a 'vx.y.z' tag is not a candidate (AC 1)"
+case "$err_preflight_vx" in
+    *"carries no release tag"*) msg_preflight_vx="yes" ;;
+    *) msg_preflight_vx="no" ;;
+esac
+assert_eq "yes" "$msg_preflight_vx" \
+    "android-preflight.sh: the non-digit v-tag falls through to the no-candidate refusal (AC 1)"
+
+# AC 4 -- a malformed single candidate reaches the FROZEN function, whose
+# message surfaces VERBATIM and un-reformulated. The filter stays loose
+# precisely so this happens: a semantic pre-filter would refuse it here, in
+# its own words, and the frozen message would never be the one an operator
+# reads.
+PREFLIGHT_MALFORMED="$PLAY_PREFLIGHT_FIXTURE/repo-malformed"
+new_preflight_repo "$PREFLIGHT_MALFORMED"
+git -C "$PREFLIGHT_MALFORMED" tag v1.0.1000
+err_preflight_malformed="$(run_preflight "$PREFLIGHT_MALFORMED" 2>&1 1>/dev/null)"
+status_preflight_malformed=$?
+assert_eq "1" "$status_preflight_malformed" \
+    "android-preflight.sh: a single malformed candidate fails the run (AC 4)"
+case "$err_preflight_malformed" in
+    *"version_code_from_semver: '1.0.1000' is not a bare major.minor.patch, each component 0-999 (no v prefix, no -pre/+build suffix)"*) \
+        msg_preflight_malformed="yes" ;;
+    *) msg_preflight_malformed="no" ;;
+esac
+assert_eq "yes" "$msg_preflight_malformed" \
+    "android-preflight.sh: the malformed candidate surfaces the frozen library's message VERBATIM (AC 4)"
+
+# The pre-release suffix is the second malformed shape, and it too reaches
+# the frozen function rather than being filtered out here.
+PREFLIGHT_RC="$PLAY_PREFLIGHT_FIXTURE/repo-rc"
+new_preflight_repo "$PREFLIGHT_RC"
+git -C "$PREFLIGHT_RC" tag v0.0.3-rc1
+err_preflight_rc="$(run_preflight "$PREFLIGHT_RC" 2>&1 1>/dev/null)"
+case "$err_preflight_rc" in
+    *"version_code_from_semver: '0.0.3-rc1' is not a bare major.minor.patch, each component 0-999 (no v prefix, no -pre/+build suffix)"*) \
+        msg_preflight_rc="yes" ;;
+    *) msg_preflight_rc="no" ;;
+esac
+assert_eq "yes" "$msg_preflight_rc" \
+    "android-preflight.sh: a pre-release candidate reaches the frozen function, whose message surfaces verbatim (AC 4)"
+
+PREFLIGHT_ZERO="$PLAY_PREFLIGHT_FIXTURE/repo-zero"
+new_preflight_repo "$PREFLIGHT_ZERO"
+git -C "$PREFLIGHT_ZERO" tag v0.0.0
+err_preflight_zero="$(run_preflight "$PREFLIGHT_ZERO" 2>&1 1>/dev/null)"
 case "$err_preflight_zero" in
     *"version_code_from_semver: '0.0.0' yields versionCode 0"*) msg_preflight_zero="yes" ;;
     *) msg_preflight_zero="no" ;;
 esac
 assert_eq "yes" "$msg_preflight_zero" \
-    "android-preflight.sh: a version yielding versionCode 0 surfaces that refusal too (AC 5)"
+    "android-preflight.sh: a candidate yielding versionCode 0 surfaces that refusal too (AC 4)"
 
-# AC 6 -- missing vs misplaced are DISTINCT refusals, and the message says
-# which one happened (AC 14: no failure may be ambiguous).
-err_preflight_tag_missing="$(run_preflight "$PREFLIGHT_REPO" 2>&1 1>/dev/null)"
-status_preflight_tag_missing=$?
-assert_eq "1" "$status_preflight_tag_missing" \
-    "android-preflight.sh: a missing v<version> tag fails the run (AC 6)"
-case "$err_preflight_tag_missing" in
-    *"no tag 'v0.0.2'"*) msg_preflight_tag_missing="yes" ;;
-    *) msg_preflight_tag_missing="no" ;;
-esac
-assert_eq "yes" "$msg_preflight_tag_missing" \
-    "android-preflight.sh: the missing-tag refusal says the tag is MISSING (AC 6)"
-case "$err_preflight_tag_missing" in
-    *"points at"*) msg_preflight_tag_missing_misplaced="yes" ;;
-    *) msg_preflight_tag_missing_misplaced="no" ;;
-esac
-assert_eq "no" "$msg_preflight_tag_missing_misplaced" \
-    "android-preflight.sh: the missing-tag refusal never reads as the misplaced-tag one (AC 6)"
-
-git -C "$PREFLIGHT_REPO" tag v0.0.2
-git -C "$PREFLIGHT_REPO" commit -q --allow-empty -m "second commit"
-misplaced_target="$(git -C "$PREFLIGHT_REPO" rev-parse HEAD)"
-misplaced_tag_sha="$(git -C "$PREFLIGHT_REPO" rev-parse v0.0.2)"
-PREFLIGHT_TARGET="$misplaced_target"
-err_preflight_tag_misplaced="$(run_preflight "$PREFLIGHT_REPO" 2>&1 1>/dev/null)"
-status_preflight_tag_misplaced=$?
+# AC 10 -- the tag this repository ALREADY carries at 831d4a9 (v0.0.3)
+# derives 0.0.3 / versionCode 3, with no new tag and no Cargo.toml edit.
+PREFLIGHT_TARGET="831d4a9"
+out_preflight_real="$(CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" \
+    CURL_SHIM_TRACK_BODY="$TRACK_ONE_CODE" \
+    run_preflight "$ROOT" 2>/dev/null)"; status_preflight_real=$?
 PREFLIGHT_TARGET=""
-assert_eq "1" "$status_preflight_tag_misplaced" \
-    "android-preflight.sh: a tag pointing at another commit fails the run (AC 6)"
-case "$err_preflight_tag_misplaced" in
-    *"points at $misplaced_tag_sha"*"$misplaced_target"*) msg_preflight_tag_misplaced="yes" ;;
-    *) msg_preflight_tag_misplaced="no" ;;
+assert_eq "0" "$status_preflight_real" \
+    "android-preflight.sh: the repository's own v0.0.3 tag at 831d4a9 derives a version (AC 10)"
+case "$out_preflight_real" in
+    *"0.0.3"*"versionCode 3"*) msg_preflight_real="yes" ;;
+    *) msg_preflight_real="no" ;;
 esac
-assert_eq "yes" "$msg_preflight_tag_misplaced" \
-    "android-preflight.sh: the misplaced-tag refusal names BOTH the tag's commit and the commit being released (AC 6)"
+assert_eq "yes" "$msg_preflight_real" \
+    "android-preflight.sh: v0.0.3 at 831d4a9 derives 0.0.3 / versionCode 3 with no new tag and no Cargo.toml edit (AC 10)"
 
-# AC 7 -- the collision: the code is on the internal track, named in the
-# refusal; and the happy path where it is not.
-git -C "$PREFLIGHT_REPO" checkout -q v0.0.2
-PREFLIGHT_TARGET="v0.0.2"
+# AC 8 -- the collision: the code DERIVED FROM THE TAG is on the internal
+# track, and the refusal names it.
 err_preflight_collision="$(CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" \
-    CURL_SHIM_TRACK_BODY='{"track":"internal","releases":[{"versionCodes":["2"],"status":"completed"}]}' \
+    CURL_SHIM_TRACK_BODY='{"track":"internal","releases":[{"versionCodes":["1002"],"status":"completed"}]}' \
     run_preflight "$PREFLIGHT_REPO" 2>&1 1>/dev/null)"; status_preflight_collision=$?
 assert_eq "1" "$status_preflight_collision" \
-    "android-preflight.sh: a versionCode already on the internal track fails the run (AC 7)"
+    "android-preflight.sh: a tag-derived versionCode already on the internal track fails the run (AC 8)"
 case "$err_preflight_collision" in
-    *"2"*"internal"*) msg_preflight_collision="yes" ;;
+    *"1002"*"internal"*) msg_preflight_collision="yes" ;;
     *) msg_preflight_collision="no" ;;
 esac
 assert_eq "yes" "$msg_preflight_collision" \
-    "android-preflight.sh: the collision refusal names the colliding versionCode (AC 7)"
+    "android-preflight.sh: the collision refusal names the colliding versionCode (AC 8)"
 
 # A collision query that cannot RUN is a preflight failure (exit 2), the same
 # class the query script itself reports -- it is not "the release is in the
@@ -965,47 +1068,48 @@ esac
 assert_eq "yes" "$msg_preflight_notoken" \
     "android-preflight.sh: the unrunnable query says so instead of reporting a collision verdict"
 
+# AC 1/8 -- the happy path: a non-colliding tag-derived version, exactly one
+# line on stdout, exit 0.
 : > "$PLAY_PREFLIGHT_SUMMARY"
 : > "$PLAY_PREFLIGHT_OUTPUT"
 PREFLIGHT_SUMMARY_FILE="$PLAY_PREFLIGHT_SUMMARY"
 PREFLIGHT_OUTPUT_FILE="$PLAY_PREFLIGHT_OUTPUT"
 PREFLIGHT_FINGERPRINT="$FP_A"
 out_preflight_ok="$(CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" \
-    CURL_SHIM_TRACK_BODY='{"track":"internal","releases":[{"versionCodes":["1"],"status":"completed"}]}' \
+    CURL_SHIM_TRACK_BODY="$TRACK_ONE_CODE" \
     run_preflight "$PREFLIGHT_REPO" 2>/dev/null)"; status_preflight_ok=$?
-PREFLIGHT_TARGET=""
 PREFLIGHT_FINGERPRINT=""
 assert_eq "0" "$status_preflight_ok" \
-    "android-preflight.sh: a non-colliding version with a matching tag exits 0 (AC 7)"
+    "android-preflight.sh: a non-colliding tag-derived version exits 0 (AC 1)"
 preflight_ok_single_line="yes"
 case "$out_preflight_ok" in *$'\n'*) preflight_ok_single_line="no" ;; esac
 assert_eq "yes" "$preflight_ok_single_line" \
-    "android-preflight.sh: the success path prints exactly one line on stdout"
+    "android-preflight.sh: the success path prints exactly one line on stdout (AC 8)"
 case "$out_preflight_ok" in
-    *"0.0.2"*"v0.0.2"*) msg_preflight_ok_line="yes" ;;
+    *"0.1.2"*"versionCode 1002"*"v0.1.2"*) msg_preflight_ok_line="yes" ;;
     *) msg_preflight_ok_line="no" ;;
 esac
 assert_eq "yes" "$msg_preflight_ok_line" \
-    "android-preflight.sh: the stdout line states the version and the verified tag"
+    "android-preflight.sh: the stdout line states the tag-derived version, its versionCode and the tag (AC 1)"
 
-# AC 13 -- the run summary, and the machine-readable outputs the publish
-# step consumes.
+# AC 8 -- the run summary, and the machine-readable outputs the publish
+# step consumes, both unchanged in shape.
 preflight_summary_version="no"
-grep -q '0\.0\.2' "$PLAY_PREFLIGHT_SUMMARY" && preflight_summary_version="yes"
+grep -q '0\.1\.2' "$PLAY_PREFLIGHT_SUMMARY" && preflight_summary_version="yes"
 assert_eq "yes" "$preflight_summary_version" \
-    "android-preflight.sh: the run summary carries the version (AC 13)"
+    "android-preflight.sh: the run summary carries the version (AC 8)"
 preflight_summary_code="no"
-grep -q 'versionCode 2' "$PLAY_PREFLIGHT_SUMMARY" && preflight_summary_code="yes"
+grep -q 'versionCode 1002' "$PLAY_PREFLIGHT_SUMMARY" && preflight_summary_code="yes"
 assert_eq "yes" "$preflight_summary_code" \
-    "android-preflight.sh: the run summary carries the derived versionCode (AC 13)"
+    "android-preflight.sh: the run summary carries the derived versionCode (AC 8)"
 preflight_summary_tag="no"
-grep -q 'v0\.0\.2' "$PLAY_PREFLIGHT_SUMMARY" && preflight_summary_tag="yes"
+grep -q 'v0\.1\.2' "$PLAY_PREFLIGHT_SUMMARY" && preflight_summary_tag="yes"
 assert_eq "yes" "$preflight_summary_tag" \
-    "android-preflight.sh: the run summary carries the tag it verified (AC 13)"
+    "android-preflight.sh: the run summary carries the tag it derived the version from (AC 8)"
 preflight_summary_fp="no"
 grep -qF "$FP_A" "$PLAY_PREFLIGHT_SUMMARY" && preflight_summary_fp="yes"
 assert_eq "yes" "$preflight_summary_fp" \
-    "android-preflight.sh: the run summary carries the configured upload-key fingerprint (AC 13)"
+    "android-preflight.sh: the run summary carries the configured upload-key fingerprint (AC 8)"
 
 # A run with no configured fingerprint must SAY so: a blank field an operator
 # could read as "some fingerprint" is worse than an explicit "not configured".
@@ -1018,13 +1122,13 @@ assert_eq "yes" "$preflight_summary_fp_unset" \
     "android-preflight.sh: the summary declares a missing upload-key fingerprint instead of leaving it blank"
 
 preflight_output_version="no"
-grep -q '^version=0\.0\.2$' "$PLAY_PREFLIGHT_OUTPUT" && preflight_output_version="yes"
+grep -q '^version=0\.1\.2$' "$PLAY_PREFLIGHT_OUTPUT" && preflight_output_version="yes"
 assert_eq "yes" "$preflight_output_version" \
-    "android-preflight.sh: the version reaches \$GITHUB_OUTPUT for the later steps"
+    "android-preflight.sh: the tag-derived version reaches \$GITHUB_OUTPUT for the later steps (AC 8)"
 preflight_output_code="no"
-grep -q '^version_code=2$' "$PLAY_PREFLIGHT_OUTPUT" && preflight_output_code="yes"
+grep -q '^version_code=1002$' "$PLAY_PREFLIGHT_OUTPUT" && preflight_output_code="yes"
 assert_eq "yes" "$preflight_output_code" \
-    "android-preflight.sh: the derived versionCode reaches \$GITHUB_OUTPUT for the publish step"
+    "android-preflight.sh: the derived versionCode reaches \$GITHUB_OUTPUT for the publish step (AC 8)"
 
 # A local invocation carries no $GITHUB_STEP_SUMMARY and no $GITHUB_OUTPUT:
 # the summary channels are optional, and a missing one must not fail a dry
@@ -1039,24 +1143,6 @@ assert_eq "0" "$status_preflight_nosummary" \
     "android-preflight.sh: a local run with neither \$GITHUB_STEP_SUMMARY nor \$GITHUB_OUTPUT set still succeeds"
 assert_eq "$out_preflight_ok" "$out_preflight_nosummary" \
     "android-preflight.sh: the summary channels do not change what reaches stdout"
-
-# AC 14 -- a missing Cargo.toml surfaces the reader's own message verbatim,
-# rather than an unrelated failure further down.
-PREFLIGHT_NO_CARGO="$PLAY_PREFLIGHT_FIXTURE/no-cargo-toml"
-mkdir -p "$PREFLIGHT_NO_CARGO"
-git -C "$PREFLIGHT_NO_CARGO" init -q -b main
-git -C "$PREFLIGHT_NO_CARGO" config user.email "preflight@test.invalid"
-git -C "$PREFLIGHT_NO_CARGO" config user.name "preflight fixture"
-printf 'no Cargo.toml here\n' > "$PREFLIGHT_NO_CARGO/README.md"
-git -C "$PREFLIGHT_NO_CARGO" add -A
-git -C "$PREFLIGHT_NO_CARGO" commit -qm "fixture without a Cargo.toml"
-err_preflight_nocargo="$(run_preflight "$PREFLIGHT_NO_CARGO" 2>&1 1>/dev/null)"
-case "$err_preflight_nocargo" in
-    *"workspace_version: no Cargo.toml at"*) msg_preflight_nocargo="yes" ;;
-    *) msg_preflight_nocargo="no" ;;
-esac
-assert_eq "yes" "$msg_preflight_nocargo" \
-    "android-preflight.sh: a missing Cargo.toml surfaces the reader's message verbatim"
 
 rm -rf "$PREFLIGHT_SHIM_DIR"
 
