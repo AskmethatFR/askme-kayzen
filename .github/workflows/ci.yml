@@ -155,7 +155,7 @@ jobs:
   # what actually populates the cache PRs then restore from.
   #
   # No keystore ever reaches this job or any PR: it proves an unsigned,
-  # correctly-versioned, 16 KB-aligned AAB builds, nothing more.
+  # version-injected, 16 KB-aligned AAB builds, nothing more.
   android-aab:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -218,10 +218,16 @@ jobs:
           }
           echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
 
+      # This job is a build smoke test, not a release: nothing here is
+      # dispatched and there is no release tag to derive a version from, so it
+      # hands the bundle a fixed placeholder. The value is arbitrary -- the
+      # version only has to be valid for the injection and the read-back to be
+      # exercised -- and the release path (release.yml) never reaches this
+      # file, so Cargo.toml is not a version source anywhere either.
       - name: Build unsigned release AAB
         id: bundle
         run: |
-          aab_path="$(scripts/android-bundle.sh)"
+          aab_path="$(scripts/android-bundle.sh "0.0.2")"
           echo "aab_path=$aab_path" >> "$GITHUB_OUTPUT"
 
       - name: Upload unsigned AAB

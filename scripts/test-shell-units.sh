@@ -414,6 +414,14 @@ workflow_triggers="$(awk '
 assert_eq "workflow_dispatch" "$workflow_triggers" \
     "release.yml: workflow_dispatch stays the ONLY trigger -- a tag is a gate, never a trigger (AC 8)"
 
+# The bundle's version argument is mandatory, so EVERY call site must supply
+# one: a workflow that forgot it fails at the arity check instead of building,
+# and nothing else in the gate suite reads these files.
+unversioned_bundle_callers="$(grep -rnE '^[^#]*scripts/android-bundle\.sh' "$ROOT/.github/workflows/" \
+    | grep -vE 'scripts/android-bundle\.sh "')"
+assert_eq "" "$unversioned_bundle_callers" \
+    "every android-bundle.sh call site in .github/workflows/ passes a version (AC 7)"
+
 # --- patch_version_code (B1) ------------------------------------------------
 # The dx-generated fixture always carries the sentinel `versionCode = 1`.
 # At 0.0.1 the workspace's own version_code_from_semver output was ALSO 1 --
