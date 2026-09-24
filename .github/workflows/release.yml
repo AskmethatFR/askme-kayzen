@@ -45,8 +45,10 @@ jobs:
       attestations: write
     steps:
       # fetch-depth: 0 is load-bearing, not a habit: it is what brings the
-      # `v<version>` tags into the clone, and android-preflight.sh refuses
-      # the run when the tag is absent or points elsewhere (AC 6).
+      # release tags into the clone, and android-preflight.sh derives the
+      # version FROM the tag at the commit being released -- it refuses the
+      # run when that commit carries none, several, or one the frozen reader
+      # rejects (AC 1/2/3/4).
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
@@ -149,9 +151,9 @@ jobs:
           echo "::add-mask::$PLAY_ACCESS_TOKEN"
 
       # Everything refusal-shaped runs here, before the first build step:
-      # ref, version, tag, versionCode collision (ACs 2/5/6/7). Its stdout
-      # carries version and versionCode to the publish step; its work also
-      # lands in the run summary (AC 13).
+      # ref, the tag-derived version, versionCode collision (ACs 1/2/3/4/8).
+      # Its stdout carries version and versionCode to the publish step; its
+      # work also lands in the run summary (AC 8).
       - name: Preflight
         id: preflight
         env:
