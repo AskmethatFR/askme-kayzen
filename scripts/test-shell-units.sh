@@ -1035,13 +1035,13 @@ new_preflight_repo "$PREFLIGHT_REPO"
 git -C "$PREFLIGHT_REPO" tag v0.1.2
 PREFLIGHT_REF="refs/heads/main"
 
-# AC 6 -- a structural pin, not a behavioural one: preflight must never read
-# [workspace.package].version again. The tag is the only version source, and
-# a grep is the only thing that keeps the dependency from creeping back.
+# AC 6 -- a structural pin, not a behavioural one: preflight must never call
+# the Cargo.toml version reader again. A grep is what the AC asks for and all
+# it can prove -- that the dependency cannot creep back by its old route.
 preflight_reads_workspace_version="no"
 grep -q 'workspace_version' "$PLAY_PREFLIGHT" && preflight_reads_workspace_version="yes"
 assert_eq "no" "$preflight_reads_workspace_version" \
-    "android-preflight.sh: never reads [workspace.package].version -- the tag is the only version source (AC 6)"
+    "android-preflight.sh: never calls workspace_version -- the Cargo.toml version reader (AC 6)"
 
 # AC 2 -- the ref refusal, first in the order.
 PREFLIGHT_REF="refs/heads/feature/not-main"

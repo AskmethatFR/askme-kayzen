@@ -72,10 +72,10 @@ fail() {
 
 [ $# -eq 1 ] || fail "usage: scripts/android-bundle.sh <version> (the version scripts/android-preflight.sh derived from the release tag)"
 VERSION="$1"
-# @law: validate BEFORE the first file touch. Every byte this script writes
-# into Cargo.toml must have passed the frozen reader first, so a refusal
-# happens while the checkout is still pristine -- the injection below is the
-# only place an unvalidated version could otherwise reach a file.
+# @law: AC 7 -- no version may reach a file without having passed the frozen
+# reader first, so the refusal happens while the checkout is still pristine.
+# The ordering itself is pinned in scripts/test-shell-units.sh, not by this
+# comment.
 if ! VERSION_CODE="$(version_code_from_semver "$VERSION" 2>&1)"; then
     printf '%s\n' "$VERSION_CODE" >&2
     fail "refusing the version '$VERSION' -- see the frozen reader's message above"
