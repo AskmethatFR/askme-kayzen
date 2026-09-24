@@ -291,6 +291,18 @@ assert_refuses "set_workspace_version: an empty version" \
     -- set_workspace_version "$WSV_ROOT/write-refuse.toml" ""
 assert_refuses "set_workspace_version: nonexistent path" \
     -- set_workspace_version "$WSV_ROOT/does-not-exist.toml" "1.0.0"
+# A literal backslash is not a raw newline, but it is the byte that BECOMES
+# one: the value is handed to `awk -v`, which escape-processes it, so
+# `1.0.0\n` lands in the file as a real LF and breaks the quoted TOML string
+# while the writer exits 0. Control characters are the same escape route.
+assert_refuses "set_workspace_version: a literal backslash-n in the version" \
+    -- set_workspace_version "$WSV_ROOT/write-refuse.toml" '1.0.0\n'
+assert_refuses "set_workspace_version: a trailing backslash in the version" \
+    -- set_workspace_version "$WSV_ROOT/write-refuse.toml" '1.0.0\'
+assert_refuses "set_workspace_version: a control character in the version" \
+    -- set_workspace_version "$WSV_ROOT/write-refuse.toml" $'1.0.0\001'
+assert_eq "0.0.2" "$(workspace_version "$WSV_ROOT/write-refuse.toml")" \
+    "set_workspace_version: a refused version never lands -- the file still reads back its original version"
 assert_eq "$write_refuse_before" "$(cat "$WSV_ROOT/write-refuse.toml")" \
     "set_workspace_version: every refusal leaves Cargo.toml byte-identical (validate before write)"
 

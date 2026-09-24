@@ -15,11 +15,15 @@
 # set_workspace_version rewrites that same [workspace.package].version line
 # with the version the bundle was handed, through a mktemp+mv so a failed
 # write can never leave a half-written Cargo.toml behind. It refuses an empty
-# version and any version carrying a quote or a newline -- those are the only
-# bytes that could escape the quoted TOML string it writes into -- and it
-# refuses unless the section holds EXACTLY one version line, so an ambiguous
-# anchor is never guessed at. It validates nothing about the version's SHAPE:
-# that is version_code_from_semver's job, and its caller runs it first.
+# version and any version carrying a quote, a backslash or a control
+# character: a quote ends the TOML string early and a control character is
+# illegal inside one, while the backslash is the subtle one -- the value is
+# handed to `awk -v`, which escape-processes it, so a literal `\n` would
+# otherwise reach the file as a real newline with the writer still exiting 0.
+# It refuses unless the section holds EXACTLY one version line, so an
+# ambiguous anchor is never guessed at. It validates nothing about the
+# version's SHAPE: that is version_code_from_semver's job, and its caller
+# runs it first.
 #
 # version_code_from_semver refuses a "v" prefix and any -pre/+build suffix:
 # its input is always a bare major.minor.patch, with any tag prefix already
@@ -154,12 +158,13 @@ workspace_version() {
 
 set_workspace_version() {
     local cargo_toml="$1" version="$2"
-    case "$version" in
-        ''|*'"'*|*$'\n'*)
-            echo "set_workspace_version: version '$version' is empty or carries a quote or a newline -- refusing to write it into $cargo_toml" >&2
-            return 1
-            ;;
-    esac
+    if [ -z "$version" ] \
+        || [[ "$version" == *'"'* ]] \
+        || [[ "$version" == *'\'* ]] \
+        || [[ "$version" == *[[:cntrl:]]* ]]; then
+        echo "set_workspace_version: version $(printf '%q' "$version") is empty or carries a quote, a backslash or a control character -- refusing to write it into $cargo_toml" >&2
+        return 1
+    fi
     if [ ! -f "$cargo_toml" ]; then
         echo "set_workspace_version: no Cargo.toml at $cargo_toml" >&2
         return 1
