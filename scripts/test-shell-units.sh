@@ -375,7 +375,7 @@ assert_eq "yes" "$bundle_validate_first" \
 bundle_positional_arg="no"
 grep -qE '^VERSION="\$1"' "$PLAY_BUNDLE" && bundle_positional_arg="yes"
 assert_eq "yes" "$bundle_positional_arg" \
-    "android-bundle.sh: the version arrives as a mandatory positional argument, no parallel local path (AC 7)"
+    "android-bundle.sh: the version is taken from the positional argument (AC 7)"
 
 # The read-back pin greps the ASSIGNMENT shape, never the bare name: the
 # writer's own call is `set_workspace_version "$REPO_ROOT/Cargo.toml"`, which
