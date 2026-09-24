@@ -2,10 +2,10 @@
 id: "adr-0019-android-release-bundle-seam"
 type: "technical"
 owner: "architect"
-# MADR status: accepted. Recorded as `current` because that is this graph's
-# vocabulary (draft | current | superseded | deprecated) — see docs/INDEX.md.
-status: "current"
-updated: "2026-08-27"
+# MADR status: superseded by adr-0022. Recorded as `superseded` because that is
+# this graph's vocabulary (draft | current | superseded | deprecated) — see docs/INDEX.md.
+status: "superseded"
+updated: "2026-09-24"
 relations:
   related:
     - "adr-0009-quality-gates"

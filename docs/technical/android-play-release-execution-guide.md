@@ -3,13 +3,13 @@ id: "android-play-release-execution-guide"
 type: "technical"
 owner: "operator"
 status: "current"
-updated: "2026-09-16"
+updated: "2026-09-24"
 relations:
   supersedes: []
   extends:
     - "android-play-release-runbook"
   related:
-    - "adr-0019-android-release-bundle-seam"
+    - "adr-0022-tag-derived-release-version"
 answers:
   - "What exact commands do I run to build, sign, and upload the first bundle?"
   - "How do I verify the signature is by the correct alias?"
@@ -18,7 +18,7 @@ answers:
 
 # Execution guide — the first upload (steps 3-6)
 
-> **Prerequisites**: The runbook at [[android-play-release-runbook]] documents **why** the procedure is ordered this way and **what** each step protects. This guide documents **how** to execute steps 3-6 on the current machine, with the exact commands and expected outputs. Steps 1-2 are already done: the upload keystore exists at `~/.kayzen/upload.jks` and the workspace version is `0.0.2`.
+> **Prerequisites**: The runbook at [[android-play-release-runbook]] documents **why** the procedure is ordered this way and **what** each step protects. This guide documents **how** to execute steps 3-6 on the current machine, with the exact commands and expected outputs. Steps 1-2 are already done: the upload keystore exists at `~/.kayzen/upload.jks`, and the release version comes from the release tag ([[adr-0022-tag-derived-release-version]]) — never from the workspace.
 
 ## Before you start
 
@@ -38,7 +38,7 @@ echo "$NDK_HOME"
 ls "$NDK_HOME/toolchains/llvm/prebuilt/"*/bin/llvm-readelf
 ```
 
-If `NDK_HOME` is empty or the `llvm-readelf` path does not resolve, install the NDK (r25c per [[adr-0019-android-release-bundle-seam]]) and export `NDK_HOME` before proceeding.
+If `NDK_HOME` is empty or the `llvm-readelf` path does not resolve, install the NDK (r25c per [[adr-0022-tag-derived-release-version]], which carries adr-0019's toolchain-pin rule forward) and export `NDK_HOME` before proceeding.
 
 **Verify `jarsigner`, `keytool`, and `python3` are on PATH:**
 
@@ -54,10 +54,10 @@ All three must print `ok`. If any fails, install the JDK or fix the PATH before 
 
 ## Step 3 — Build the unsigned bundle, then sign it
 
-**Build the unsigned, aligned, versioned bundle:**
+**Build the unsigned, aligned, versioned bundle** — the script takes the version as a mandatory argument; pass the one the release tag names (`v<version>` at the commit being released). With no argument it refuses with a usage line ([[adr-0022-tag-derived-release-version]]):
 
 ```bash
-scripts/android-bundle.sh
+scripts/android-bundle.sh "<version>"
 ```
 
 Expected output (last two lines):
@@ -70,7 +70,7 @@ Expected output (last two lines):
 The script prints the unsigned AAB's path on stdout. Capture it:
 
 ```bash
-UNSIGNED_AAB="$(scripts/android-bundle.sh | tail -1)"
+UNSIGNED_AAB="$(scripts/android-bundle.sh "<version>" | tail -1)"
 echo "$UNSIGNED_AAB"
 ```
 
@@ -164,7 +164,7 @@ This attestation closes AC 12 and unblocks S4 (the automated publish workflow). 
 | Failure | Recovery |
 |---|---|
 | Keystore password unknown | Generate a new keystore (runbook step 1), update this guide |
-| `android-bundle.sh` fails | Read the script's error message; all failure modes are named. Fix the cause, re-run |
+| `android-bundle.sh` fails | Read the script's error message; all failure modes are named — a usage refusal means the version argument is missing (the version the release tag names). Fix the cause, re-run |
 | `android-sign.sh` fails | Read the script's error message; all failure modes are named. Fix the cause, re-run |
 | Signature fingerprint mismatch | Do not upload. Rebuild and re-sign, checking the alias name |
 | Play Console refuses the upload | Record the error message verbatim in the issue. Do not retry with a different bundle |

@@ -3,10 +3,10 @@ id: "android-play-release-runbook"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-09-17"
+updated: "2026-09-24"
 relations:
   related:
-    - "adr-0019-android-release-bundle-seam"
+    - "adr-0022-tag-derived-release-version"
     - "adr-0009-quality-gates"
 answers:
   - "Why must a human perform the first Play upload, and why can no workflow replace it?"
@@ -23,7 +23,7 @@ answers:
 # Runbook — the first Google Play upload, and the release path it unlocks
 
 > **One-liner**: The store's `versionCode` floor is set **permanently by the first upload a human performs**, and the Play API cannot create the first release of a new app. Everything below is therefore an **ordered human procedure**, not a workflow: its order is forced by irreversibility, not by preference, and two of its steps cannot be undone by anyone — including Google.
-> **Links**: [[adr-0019-android-release-bundle-seam]] (the frozen `versionCode` function, the two-pass build seam, and the *no secret in a pull-request job* boundary — applied here, not restated), [[adr-0009-quality-gates]] (the gate doctrine — *a gate that cannot run must read as red*; a human step that cannot be gated is held to the attestation rule below instead).
+> **Links**: [[adr-0022-tag-derived-release-version]] (the version is the release tag; adr-0019's frozen `versionCode` function, two-pass build seam and *no secret in a pull-request job* boundary survive there — applied here, not restated), [[adr-0009-quality-gates]] (the gate doctrine — *a gate that cannot run must read as red*; a human step that cannot be gated is held to the attestation rule below instead).
 
 ## Why this is a runbook and not a script
 
@@ -43,8 +43,9 @@ These hold for every release, not only the first. They are rulings already made 
 
 | Rule | Why |
 |---|---|
-| **The version floor is chosen before the first upload, never after** | `versionCode` is a frozen arithmetic function of the workspace version ([[adr-0019-android-release-bundle-seam]] — see it for the function and its rationale). Choosing the version *is* choosing the floor |
-| **No pull-request job ever receives a secret** | A credential reachable from a fork is a credential every contributor holds. The pull-request gate proves an unsigned bundle builds; that is all it needs to prove ([[adr-0019-android-release-bundle-seam]]) |
+| **The version floor is chosen before the first upload, never after** | `versionCode` is a frozen arithmetic function of the release version ([[adr-0022-tag-derived-release-version]] — see it for the function and its rationale). Tagging `vX.Y.Z` *is* choosing the floor |
+| **The version is the release tag: tag the commit, then dispatch** | Exactly one tag matching `^v[0-9]` must point at the dispatched commit ([[adr-0022-tag-derived-release-version]]). The committed `Cargo.toml` is release-irrelevant; the preflight refuses a commit carrying no such tag, and refuses one carrying several |
+| **No pull-request job ever receives a secret** | A credential reachable from a fork is a credential every contributor holds. The pull-request gate proves an unsigned bundle builds; that is all it needs to prove ([[adr-0022-tag-derived-release-version]]) |
 | **The keystore lives outside the repository**, under `$HOME`, and never enters it | `.gitignore` carries the keystore and secrets-file extensions as a **tripwire**, not as the defence. The defence is that the file was never inside the tree |
 | **A password reaches a signing tool by variable *name*, never by value** | A password on `argv` is readable in `/proc/*/cmdline` by any process on the machine, is echoed verbatim by `set -x`, and lands in a CI log in plain text. The signing script passes names; it never expands a password itself, anywhere |
 | **`jarsigner`, not `apksigner`** | An `.aab` is a JAR. `apksigner` implements the APK v2/v3 signing schemes and does not apply to a bundle |
@@ -74,19 +75,18 @@ mkdir -p ~/.kayzen && keytool -genkeypair -v \
 
 Record the alias and both passwords in a password manager at this moment. There is no way to recover them from the keystore, and the alias is what step 4's verification checks against.
 
-**2 — Fix the workspace version. ⚠ IRREVERSIBLE ONCE STEP 5 COMPLETES.** The version in `Cargo.toml` is what the frozen function turns into the `versionCode` the store will remember forever. It must be set **before** building the bundle that gets uploaded — a bundle built at the wrong version is not patchable, it is rebuilt.
+**2 — Choose the release version and tag the commit. ⚠ IRREVERSIBLE ONCE STEP 5 COMPLETES.** The version is the release tag: tag the commit you will release `vX.Y.Z` and push the tag — the tag's name, minus the leading `v`, is what the frozen function turns into the `versionCode` the store will remember forever ([[adr-0022-tag-derived-release-version]]). It must exist **before** the bundle that gets uploaded is built — a bundle built at the wrong version is not patchable, it is rebuilt. The committed `Cargo.toml` plays no part: since [[adr-0022-tag-derived-release-version]] the workspace file is release-irrelevant — the two-act *bump the file, then tag* ritual this document once prescribed is what failed the 2026-09-23 `0.0.3` attempt, and is why the tag became the source.
 
 The rail starts at **`0.0.1` → `versionCode 1`**, chosen deliberately as an error-shakedown rail: `0.0.2`, `0.0.3` and so on stay available for the round of releases whose purpose is to find out what breaks. `0.1.0` comes when the app is functional — a jump *upward* is always legal, only a decrease is refused.
-
-The workspace now sits at **`0.0.2` → `versionCode 2`**, the rung AC 21 of issue #28 reserves for the first *automated* publish. Two assertions in `scripts/test-shell-units.sh` pin that number against the real `Cargo.toml`, so a bump that forgets this document fails the gate rather than shipping a stale runbook.
 
 **What the alternative would have cost:** under the frozen function `0.1.0` yields `versionCode 1000`. Uploading it first would have set the floor at 1000 and made **every** `0.0.x` version permanently un-uploadable — the entire shakedown rail, gone before the first bug was found. This was caught by hand during the cycle that wrote this node, one step before the upload. It is the reason this document is a runbook and not a paragraph in a README.
 
 **3 — Build the unsigned bundle, then sign it.** Two invocations, in that order:
 
 ```bash
-# Build the unsigned, aligned, versioned AAB
-scripts/android-bundle.sh
+# Build the unsigned, aligned, versioned AAB — pass the version the release
+# tag names (the script refuses to run without it, since adr-0022)
+scripts/android-bundle.sh "<version>"
 # → prints: /path/to/kayzen-app/build/outputs/bundle/release/app-release.aab
 
 # Sign it (reads keystore + passwords from environment, NOT command line)
@@ -155,15 +155,15 @@ Four prerequisites, each independently checkable, all outside this repository:
 
 The publish path is one workflow, `.github/workflows/release.yml`, and three scripts that carry every decision the workflow must not make. It is **not** a replacement for the procedure above on a *new app*: the Play API cannot create an app's first release, so the first upload stays human (see the two-leg rule).
 
-**How it is started.** Manually, from the Actions tab: *Play release* → *Run workflow*, on `main`. Two gates stand in front of it, and neither is a formality:
+**How it is started.** The ritual is three human acts in order: **tag the commit `vX.Y.Z` → push the tag → dispatch** — manually, from the Actions tab: *Play release* → *Run workflow*, on `main`. Two gates stand in front of the dispatch, and neither is a formality:
 
-- **`workflow_dispatch` only, and only on `main`.** A tag push cannot start it; a tag is a ref a contributor can move, a dispatch is an explicit act on a named ref.
+- **`workflow_dispatch` only, and only on `main`.** A tag push cannot start it; the dispatch is an explicit act on a named ref — and that act is one of the bounds that keep the tag-derived version honest ([[adr-0022-tag-derived-release-version]] tables what still bounds a movable tag).
 - **The `play-release` Environment requires a reviewer's approval.** The signing key and the Play credential are reachable only from that job, and no job a pull request can trigger references it.
 
 **What the run does, in order** — everything refusal-shaped happens before the first build:
 
 ```
-preflight (ref → version → tag → versionCode collision)
+preflight (ref → release tag → version + versionCode → collision)
   → build the unsigned, 16 KB-aligned AAB
   → sign it with the upload key, and verify the keystore is the CONFIGURED one
   → attest the signed bundle (actions/attest-build-provenance)
@@ -172,21 +172,22 @@ preflight (ref → version → tag → versionCode collision)
 
 Nothing writes to the store before the commit at the end of that publish, and the release is left as a **draft**: a human starts the rollout in the Console. That is the only undo this pipeline has.
 
-**The tag is a consistency gate, not a trigger.** The run refuses unless a tag named exactly `v<version>` exists *and* points at the commit being released. The version itself comes from `Cargo.toml` through the frozen function ([[adr-0019-android-release-bundle-seam]]) — never from the tag.
+**The tag is the version's source, not a trigger.** The run derives the version from the commit being released: exactly one tag matching `^v[0-9]` must point at it — zero, and the run names the SHA and refuses; several, and it lists them and refuses; one, and its name minus the leading `v` goes to the frozen `version_code_from_semver`, whose refusal message surfaces verbatim ([[adr-0022-tag-derived-release-version]]). `workflow_dispatch` stays the only trigger, so a tag alone still starts nothing.
 
 | run fails at | human action | recovery |
 |---|---|---|
 | ref refusal (dispatch not on `main`) | dispatch from `main` | none needed |
-| refused version | fix `Cargo.toml` | new version + tag |
-| tag missing / misplaced | create or retag `v<version>` at the intended commit — **the version is not yet burned**, nothing was built | re-tag, or new version + tag |
-| `versionCode` collision | read the colliding code from the message; if the code is genuinely wanted, the version must increase | new version + tag |
+| no release tag at the commit (`carries no release tag vX.Y.Z`) | tag the dispatched commit `vX.Y.Z` and push the tag — **nothing was built, no version burned** | re-dispatch |
+| several release tags at the commit (the refusal lists them raw) | leave exactly one tag matching `^v[0-9]` pointing at the commit | re-dispatch |
+| the frozen reader refused the version (its message, verbatim and unprefixed) | the message names the defect — a bare `major.minor.patch` with each component 0-999 is required; tag a legal version at the commit | re-dispatch (nothing was built) |
+| `versionCode` collision | read the colliding code from the message; if the code is genuinely wanted, the version must increase | tag a higher version at the commit, re-dispatch |
 | signing failure | the message names the cause (wrong password / alias / keystore, or a keystore that is not the configured upload key) — Play was never reached | fix, re-dispatch the same version |
 | credential rejection | check the service-account **invitation** in the Play Console, not only the key | fix, re-dispatch the same version |
-| Play rejection (the store refused the bundle) | inspect the Console; the `versionCode` **may** now be burned even though the run failed | treat as half-failed: new version + tag, unless the Console confirms nothing arrived |
-| quota / transport failure after the upload started | inspect the Console for the `versionCode`; re-dispatch the same version **only** if the Console confirms nothing arrived | otherwise new version + tag |
+| Play rejection (the store refused the bundle) | inspect the Console; the `versionCode` **may** now be burned even though the run failed | treat as half-failed: a new tag naming a higher version, unless the Console confirms nothing arrived |
+| quota / transport failure after the upload started | inspect the Console for the `versionCode`; re-dispatch the same version **only** if the Console confirms nothing arrived | otherwise a new tag naming a higher version |
 | attestation missing but the upload green | provenance is recoverable by re-attesting locally; Play state is unaffected | re-run the attestation only, never the upload |
 
-**Recovery from a failed or partial publish is a new version and a new tag — never a re-dispatch on the same version**, with the sole exception of a case where the Console confirms nothing arrived. Play burns a `versionCode` permanently once it accepts it, and the run itself refuses a code the internal track already carries.
+**Recovery from a failed or partial publish is a new tag naming a higher version at the commit — never a re-dispatch of the same version**, with the sole exception of a case where the Console confirms nothing arrived. The version is the tag ([[adr-0022-tag-derived-release-version]]), so "a new version" means exactly "a new tag". Play burns a `versionCode` permanently once it accepts it, and the run itself refuses a code the internal track already carries.
 
 **If the run failed at or after signing**, the signed AAB and its attestation are published as a workflow artifact (`kayzen-signed-aab-<version>`), so "a bad bundle" can be told from "the transport died" without rebuilding something that must not be rebuilt.
 
@@ -212,6 +213,6 @@ Until that record exists, the slice that built this workflow is not DONE — the
 
 Stated plainly, so nothing here is mistaken for routine:
 
-- **Steps 1 and 2 have landed.** The upload keystore exists outside the repository, and the workspace version sits at `0.0.2` — ahead of the upload it exists to protect.
+- **Steps 1 and 2 have landed.** The upload keystore exists outside the repository. The committed `Cargo.toml` is release-irrelevant: the release version is the tag ([[adr-0022-tag-derived-release-version]]).
 - **The automated publish path now exists**: one workflow and three scripts, with every refusal above checked before the first build step and exercised by `scripts/test-shell-units.sh`. What no local test can reach — that a real dispatch actually publishes, that the Environment gate really stops a non-reviewer, that Play accepts the bundle — is runbook-attested on issue #28 rather than dressed up as covered.
 - **The `versionCode` floor and the Play App Signing custody arrangement come from the first upload Play accepts** (steps 5 and 6 of the procedure). The Console is the only place those facts are visible; this repository cannot read them, which is why the workflow refuses a code the internal track already carries instead of trusting a number written down here.
