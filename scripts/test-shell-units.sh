@@ -186,14 +186,10 @@ assert_refuses "version_code_from_semver: patch far beyond int64" \
     -- version_code_from_semver "0.0.9223372036854775808"
 
 # --- workspace_version ------------------------------------------------------
-# AC 8b: the real Cargo.toml -> versionCode binding must be provable by this
-# harness, which is exactly what extracting the reader out of
-# android-bundle.sh's inline awk (D-1) makes possible.
-assert_eq "0.0.2" "$(workspace_version "$ROOT/Cargo.toml")" \
-    "workspace_version: the real Cargo.toml -> 0.0.2"
-assert_eq "2" "$(version_code_from_semver "$(workspace_version "$ROOT/Cargo.toml")")" \
-    "workspace_version -> version_code_from_semver: the real Cargo.toml -> versionCode 2 (AC 8b)"
-
+# The reader survives as the bundle's READ-BACK oracle: the bundle writes the
+# injected version into Cargo.toml, then reads it back with this function to
+# prove the bytes on disk are the bytes it meant to write (AC 7). Preflight
+# no longer calls it -- the release version comes from the tag.
 write_cargo_toml_fixture() {
     printf '%s' "$2" > "$1"
 }
@@ -241,7 +237,190 @@ edition = "2024"
 assert_refuses "workspace_version: [workspace.package] present but no version key" \
     -- workspace_version "$WSV_ROOT/no-version-key.toml"
 
+# --- set_workspace_version (AC 7) -------------------------------------------
+# The bundle's writer, and the ONLY place an injected version reaches
+# Cargo.toml -- so its refusals are the whole injection surface. Nothing it
+# accepts can escape the quoted TOML string it writes into.
+write_cargo_toml_fixture "$WSV_ROOT/write-plain.toml" '[workspace]
+resolver = "3"
+members = ["core", "app"]
+
+[workspace.package]
+version = "0.0.2"
+edition = "2024"
+'
+set_workspace_version "$WSV_ROOT/write-plain.toml" "1.2.3"
+assert_eq "0" "$?" "set_workspace_version: a plain version writes and returns success"
+assert_eq "1.2.3" "$(workspace_version "$WSV_ROOT/write-plain.toml")" \
+    "set_workspace_version: the written version round-trips through workspace_version"
+assert_eq "1002003" "$(version_code_from_semver "$(workspace_version "$WSV_ROOT/write-plain.toml")")" \
+    "set_workspace_version -> version_code_from_semver: the written version derives its code (AC 7)"
+assert_eq "1" "$(grep -c 'edition = "2024"' "$WSV_ROOT/write-plain.toml" || true)" \
+    "set_workspace_version: only the version line is rewritten, the rest of the section survives"
+assert_eq "1" "$(grep -c 'members = \["core", "app"\]' "$WSV_ROOT/write-plain.toml" || true)" \
+    "set_workspace_version: the sections above [workspace.package] survive the rewrite"
+
+# The anchor is scoped to [workspace.package]: an earlier section's own
+# version line is neither the one rewritten nor a second candidate.
+write_cargo_toml_fixture "$WSV_ROOT/write-scoped.toml" '[package]
+version = "9.9.9"
+name = "not-the-workspace"
+
+[workspace.package]
+version = "0.0.2"
+edition = "2024"
+'
+set_workspace_version "$WSV_ROOT/write-scoped.toml" "2.0.0"
+assert_eq "2.0.0" "$(workspace_version "$WSV_ROOT/write-scoped.toml")" \
+    "set_workspace_version: rewrites [workspace.package].version, never an earlier [package] one"
+assert_eq "1" "$(grep -c 'version = "9.9.9"' "$WSV_ROOT/write-scoped.toml" || true)" \
+    "set_workspace_version: the earlier [package] version line is left untouched"
+
+# Refusals -- and every one of them must leave the file BYTE-IDENTICAL: a
+# writer that refused only after touching the file would already have broken
+# the checkout it runs in.
+write_cargo_toml_fixture "$WSV_ROOT/write-refuse.toml" '[workspace.package]
+version = "0.0.2"
+'
+write_refuse_before="$(cat "$WSV_ROOT/write-refuse.toml")"
+assert_refuses "set_workspace_version: a quote in the version" \
+    -- set_workspace_version "$WSV_ROOT/write-refuse.toml" '1.0.0"'
+assert_refuses "set_workspace_version: a newline in the version" \
+    -- set_workspace_version "$WSV_ROOT/write-refuse.toml" $'1.0.0\n2.0.0'
+assert_refuses "set_workspace_version: an empty version" \
+    -- set_workspace_version "$WSV_ROOT/write-refuse.toml" ""
+assert_refuses "set_workspace_version: nonexistent path" \
+    -- set_workspace_version "$WSV_ROOT/does-not-exist.toml" "1.0.0"
+# A literal backslash is not a raw newline, but it is the byte that BECOMES
+# one: the value is handed to `awk -v`, which escape-processes it, so
+# `1.0.0\n` lands in the file as a real LF and breaks the quoted TOML string
+# while the writer exits 0. Control characters are the same escape route.
+assert_refuses "set_workspace_version: a literal backslash-n in the version" \
+    -- set_workspace_version "$WSV_ROOT/write-refuse.toml" '1.0.0\n'
+assert_refuses "set_workspace_version: a trailing backslash in the version" \
+    -- set_workspace_version "$WSV_ROOT/write-refuse.toml" '1.0.0\'
+assert_refuses "set_workspace_version: a control character in the version" \
+    -- set_workspace_version "$WSV_ROOT/write-refuse.toml" $'1.0.0\001'
+assert_eq "0.0.2" "$(workspace_version "$WSV_ROOT/write-refuse.toml")" \
+    "set_workspace_version: a refused version never lands -- the file still reads back its original version"
+assert_eq "$write_refuse_before" "$(cat "$WSV_ROOT/write-refuse.toml")" \
+    "set_workspace_version: every refusal leaves Cargo.toml byte-identical (validate before write)"
+
+# The anchor must be EXACTLY one line: zero or several are both ambiguous,
+# and an ambiguous anchor refuses rather than guessing which line is meant.
+write_cargo_toml_fixture "$WSV_ROOT/write-no-section.toml" '[package]
+version = "1.0.0"
+name = "not-a-workspace"
+'
+assert_refuses "set_workspace_version: no [workspace.package] section" \
+    -- set_workspace_version "$WSV_ROOT/write-no-section.toml" "1.0.0"
+
+write_cargo_toml_fixture "$WSV_ROOT/write-no-key.toml" '[workspace.package]
+edition = "2024"
+'
+assert_refuses "set_workspace_version: [workspace.package] with no version key" \
+    -- set_workspace_version "$WSV_ROOT/write-no-key.toml" "1.0.0"
+
+write_cargo_toml_fixture "$WSV_ROOT/write-two-keys.toml" '[workspace.package]
+version = "0.0.2"
+version = "0.0.3"
+'
+assert_refuses "set_workspace_version: two version lines in [workspace.package]" \
+    -- set_workspace_version "$WSV_ROOT/write-two-keys.toml" "1.0.0"
+
 rm -rf "$WSV_ROOT"
+
+# --- android-bundle.sh: validate before write (AC 7) ------------------------
+# The bundle itself cannot run here -- it needs an Android SDK, an NDK and
+# `dx` -- so the ordering AC 7 turns on is pinned structurally: the frozen
+# validator must run before the writer, and a rearrangement that put the
+# write first reddens this.
+PLAY_BUNDLE="$ROOT/scripts/android-bundle.sh"
+
+# The version argument is mandatory, and both the missing and the surplus
+# case must refuse with the USAGE rather than fall through to something
+# further down: with no argument the next statement would read an unset $1
+# under `set -u`, and with a surplus one it would reach the SDK checks --
+# both exit non-zero, both for a reason that hides the real defect.
+err_bundle_noarg="$("$PLAY_BUNDLE" 2>&1 1>/dev/null)"; status_bundle_noarg=$?
+assert_eq "1" "$status_bundle_noarg" \
+    "android-bundle.sh: no version argument is refused (AC 7)"
+case "$err_bundle_noarg" in
+    *"usage: scripts/android-bundle.sh <version>"*) msg_bundle_noarg="yes" ;;
+    *) msg_bundle_noarg="no" ;;
+esac
+assert_eq "yes" "$msg_bundle_noarg" \
+    "android-bundle.sh: the no-argument refusal states the usage -- not an unset-variable crash (AC 7)"
+
+err_bundle_twoargs="$("$PLAY_BUNDLE" "1.0.0" "2.0.0" 2>&1 1>/dev/null)"; status_bundle_twoargs=$?
+assert_eq "1" "$status_bundle_twoargs" \
+    "android-bundle.sh: a surplus argument is refused (AC 7)"
+case "$err_bundle_twoargs" in
+    *"usage: scripts/android-bundle.sh <version>"*) msg_bundle_twoargs="yes" ;;
+    *) msg_bundle_twoargs="no" ;;
+esac
+assert_eq "yes" "$msg_bundle_twoargs" \
+    "android-bundle.sh: the surplus-argument refusal states the usage -- not an SDK-check failure (AC 7)"
+
+bundle_validation_line="$(grep -nE '^[^#]*version_code_from_semver' "$PLAY_BUNDLE" | head -1 | cut -d: -f1)"
+bundle_write_line="$(grep -nE '^[^#]*set_workspace_version' "$PLAY_BUNDLE" | head -1 | cut -d: -f1)"
+bundle_validate_first="no"
+if [ -n "$bundle_validation_line" ] && [ -n "$bundle_write_line" ] \
+    && [ "$bundle_validation_line" -lt "$bundle_write_line" ]; then
+    bundle_validate_first="yes"
+fi
+assert_eq "yes" "$bundle_validate_first" \
+    "android-bundle.sh: version_code_from_semver runs before set_workspace_version writes (AC 7)"
+
+bundle_positional_arg="no"
+grep -qE '^VERSION="\$1"' "$PLAY_BUNDLE" && bundle_positional_arg="yes"
+assert_eq "yes" "$bundle_positional_arg" \
+    "android-bundle.sh: the version is taken from the positional argument (AC 7)"
+
+# The read-back pin greps the ASSIGNMENT shape, never the bare name: the
+# writer's own call is `set_workspace_version "$REPO_ROOT/Cargo.toml"`, which
+# contains the substring `workspace_version "$REPO_ROOT/Cargo.toml"` -- a pin
+# on the bare name is satisfied by the writer alone and survived the
+# "delete the read-back" mutation when it was first written.
+bundle_readback="no"
+grep -qF '="$(workspace_version "$REPO_ROOT/Cargo.toml")"' "$PLAY_BUNDLE" && bundle_readback="yes"
+assert_eq "yes" "$bundle_readback" \
+    "android-bundle.sh: the injected version is read back from the written Cargo.toml (AC 7)"
+
+# And the read-back must be COMPARED, not merely read: a write that silently
+# did not land has to refuse the release rather than ship a stale version.
+bundle_readback_checked="no"
+grep -qF '[ "$read_back" = "$VERSION" ]' "$PLAY_BUNDLE" && bundle_readback_checked="yes"
+assert_eq "yes" "$bundle_readback_checked" \
+    "android-bundle.sh: the read-back is compared to the injected version, so a write that did not land refuses (AC 7)"
+
+# --- release.yml: the version reaches the bundle (AC 5/8) -------------------
+# The workflow is the only caller, and the bundle's positional argument is
+# mandatory: a step that forgot to pass it would refuse every release before
+# the build, so the wiring is pinned here rather than discovered in
+# production.
+RELEASE_WORKFLOW="$ROOT/.github/workflows/release.yml"
+workflow_passes_version="no"
+grep -qF 'scripts/android-bundle.sh "${{ steps.preflight.outputs.version }}"' "$RELEASE_WORKFLOW" \
+    && workflow_passes_version="yes"
+assert_eq "yes" "$workflow_passes_version" \
+    "release.yml: the bundle step passes the preflight-derived version (AC 5/8)"
+
+workflow_triggers="$(awk '
+    /^on:/ { in_on = 1; next }
+    /^[^[:space:]#]/ { in_on = 0 }
+    in_on && /^  [a-z_]+:/ { sub(/:.*/, ""); gsub(/ /, ""); print }
+' "$RELEASE_WORKFLOW")"
+assert_eq "workflow_dispatch" "$workflow_triggers" \
+    "release.yml: workflow_dispatch stays the ONLY trigger -- a tag is a gate, never a trigger (AC 8)"
+
+# The bundle's version argument is mandatory, so EVERY call site must supply
+# one: a workflow that forgot it fails at the arity check instead of building,
+# and nothing else in the gate suite reads these files.
+unversioned_bundle_callers="$(grep -rnE '^[^#]*scripts/android-bundle\.sh' "$ROOT/.github/workflows/" \
+    | grep -vE 'scripts/android-bundle\.sh "')"
+assert_eq "" "$unversioned_bundle_callers" \
+    "every android-bundle.sh call site in .github/workflows/ passes a version (AC 7)"
 
 # --- patch_version_code (B1) ------------------------------------------------
 # The dx-generated fixture always carries the sentinel `versionCode = 1`.
@@ -811,10 +990,12 @@ assert_eq "yes" "$msg_track_delfail" \
 
 rm -rf "$PLAY_SHIM_DIR"
 
-# --- android-preflight.sh (AC 2/5/6/7/13) ---------------------------------
-# The refusals are ordered (ref -> version -> tag -> collision) and the
-# ORDER is the design: a fixture that violates several at once is the only
-# thing that proves the first one still wins.
+# --- android-preflight.sh (AC 1/2/3/4/6/8/10) -------------------------------
+# The version is DERIVED FROM THE TAG at the commit being released, never
+# read out of Cargo.toml (issue #73). The refusals are ordered
+# (ref -> tag/version -> collision) and the ORDER is the design: a fixture
+# that violates several at once is the only thing that proves the first one
+# still wins.
 PLAY_PREFLIGHT="$ROOT/scripts/android-preflight.sh"
 PLAY_PREFLIGHT_FIXTURE="$(mktemp -d)"
 PLAY_PREFLIGHT_SUMMARY="$(mktemp)"
@@ -822,17 +1003,18 @@ PLAY_PREFLIGHT_OUTPUT="$(mktemp)"
 PREFLIGHT_SHIM_DIR="$(mktemp -d)"
 make_curl_shim "$PREFLIGHT_SHIM_DIR"
 
+# A preflight fixture is a git repository and NOTHING else: no Cargo.toml,
+# because the release path no longer reads one. The tags are what the tests
+# add on top.
 new_preflight_repo() {
-    local repo="$1" version="$2"
+    local repo="$1"
     mkdir -p "$repo"
     git -C "$repo" init -q -b main
     git -C "$repo" config user.email "preflight@test.invalid"
     git -C "$repo" config user.name "preflight fixture"
-    printf '[workspace]\nresolver = "3"\nmembers = ["core"]\n\n[workspace.package]\nversion = "%s"\nedition = "2024"\n' \
-        "$version" > "$repo/Cargo.toml"
     printf 'fixture\n' > "$repo/README.md"
     git -C "$repo" add -A
-    git -C "$repo" commit -qm "fixture at $version"
+    git -C "$repo" commit -qm "fixture commit"
 }
 
 run_preflight() {
@@ -847,9 +1029,19 @@ run_preflight() {
         "$PLAY_PREFLIGHT" "$repo"
 }
 
-PREFLIGHT_REPO="$PLAY_PREFLIGHT_FIXTURE/repo-0.0.2"
-new_preflight_repo "$PREFLIGHT_REPO" "0.0.2"
+# The happy-path fixture: one commit, tagged v0.1.2 (versionCode 1002).
+PREFLIGHT_REPO="$PLAY_PREFLIGHT_FIXTURE/repo-0.1.2"
+new_preflight_repo "$PREFLIGHT_REPO"
+git -C "$PREFLIGHT_REPO" tag v0.1.2
 PREFLIGHT_REF="refs/heads/main"
+
+# AC 6 -- a structural pin, not a behavioural one: preflight must never call
+# the Cargo.toml version reader again. A grep is what the AC asks for and all
+# it can prove -- that the dependency cannot creep back by its old route.
+preflight_reads_workspace_version="no"
+grep -q 'workspace_version' "$PLAY_PREFLIGHT" && preflight_reads_workspace_version="yes"
+assert_eq "no" "$preflight_reads_workspace_version" \
+    "android-preflight.sh: never calls workspace_version -- the Cargo.toml version reader (AC 6)"
 
 # AC 2 -- the ref refusal, first in the order.
 PREFLIGHT_REF="refs/heads/feature/not-main"
@@ -871,82 +1063,189 @@ err_preflight_noref="$(env -u GITHUB_REF \
 assert_eq "2" "$status_preflight_noref" \
     "android-preflight.sh: an unset GITHUB_REF exits 2 (preflight -- nothing to compare, not a ref that is wrong)"
 
-# AC 5 -- the frozen function's own message, verbatim, and BEFORE the tag
-# check: this fixture has no v-tag at all, so a wrong order would surface
-# the tag refusal instead.
-new_preflight_repo "$PLAY_PREFLIGHT_FIXTURE/repo-bad-version" "1.0.1000"
-err_preflight_version="$(run_preflight "$PLAY_PREFLIGHT_FIXTURE/repo-bad-version" 2>&1 1>/dev/null)"
-status_preflight_version=$?
-assert_eq "1" "$status_preflight_version" \
-    "android-preflight.sh: a version the frozen function refuses fails the run (AC 5)"
-case "$err_preflight_version" in
-    *"version_code_from_semver: '1.0.1000' is not a bare major.minor.patch, each component 0-999 (no v prefix, no -pre/+build suffix)"*) \
-        msg_preflight_version="yes" ;;
-    *) msg_preflight_version="no" ;;
+# AC 2 -- zero candidate tags at the commit being released: a distinct
+# refusal, exit 1, naming that commit. This is also what a tag left on
+# another commit produces, which is why "misplaced" is no longer a separate
+# case: a tag that does not point here is simply not a candidate.
+PREFLIGHT_UNRELEASED="$PLAY_PREFLIGHT_FIXTURE/repo-untagged"
+new_preflight_repo "$PREFLIGHT_UNRELEASED"
+err_preflight_notag="$(run_preflight "$PREFLIGHT_UNRELEASED" 2>&1 1>/dev/null)"
+status_preflight_notag=$?
+assert_eq "1" "$status_preflight_notag" \
+    "android-preflight.sh: a commit carrying no candidate tag is refused (AC 2)"
+case "$err_preflight_notag" in
+    *"$(git -C "$PREFLIGHT_UNRELEASED" rev-parse HEAD)"*) msg_preflight_notag_sha="yes" ;;
+    *) msg_preflight_notag_sha="no" ;;
 esac
-assert_eq "yes" "$msg_preflight_version" \
-    "android-preflight.sh: the refused version surfaces the frozen library's message VERBATIM (AC 5)"
+assert_eq "yes" "$msg_preflight_notag_sha" \
+    "android-preflight.sh: the no-candidate refusal names the commit being released (AC 2)"
+case "$err_preflight_notag" in
+    *"several release tags"*) msg_preflight_notag_multi="yes" ;;
+    *) msg_preflight_notag_multi="no" ;;
+esac
+assert_eq "no" "$msg_preflight_notag_multi" \
+    "android-preflight.sh: the no-candidate refusal never reads as the several-candidates one (AC 2)"
 
-new_preflight_repo "$PLAY_PREFLIGHT_FIXTURE/repo-zero-version" "0.0.0"
-err_preflight_zero="$(run_preflight "$PLAY_PREFLIGHT_FIXTURE/repo-zero-version" 2>&1 1>/dev/null)"
+# A tag left behind on an EARLIER commit is not a candidate at the commit
+# being released -- same refusal, and it names the later commit.
+git -C "$PREFLIGHT_UNRELEASED" tag v0.1.2
+git -C "$PREFLIGHT_UNRELEASED" commit -q --allow-empty -m "later commit"
+PREFLIGHT_TARGET="HEAD"
+err_preflight_tag_elsewhere="$(run_preflight "$PREFLIGHT_UNRELEASED" 2>&1 1>/dev/null)"
+PREFLIGHT_TARGET=""
+case "$err_preflight_tag_elsewhere" in
+    *"$(git -C "$PREFLIGHT_UNRELEASED" rev-parse HEAD)"*) msg_preflight_tag_elsewhere="yes" ;;
+    *) msg_preflight_tag_elsewhere="no" ;;
+esac
+assert_eq "yes" "$msg_preflight_tag_elsewhere" \
+    "android-preflight.sh: a tag pointing at another commit is not a candidate and the refusal names the released commit (AC 2)"
+
+# AC 3 -- several candidate tags: a DISTINCT refusal that LISTS every one.
+PREFLIGHT_TWO_TAGS="$PLAY_PREFLIGHT_FIXTURE/repo-two-tags"
+new_preflight_repo "$PREFLIGHT_TWO_TAGS"
+git -C "$PREFLIGHT_TWO_TAGS" tag v0.1.2
+git -C "$PREFLIGHT_TWO_TAGS" tag v0.1.3
+err_preflight_twotags="$(run_preflight "$PREFLIGHT_TWO_TAGS" 2>&1 1>/dev/null)"
+status_preflight_twotags=$?
+assert_eq "1" "$status_preflight_twotags" \
+    "android-preflight.sh: two candidate tags at the commit are refused (AC 3)"
+case "$err_preflight_twotags" in
+    *"v0.1.2"*"v0.1.3"*) msg_preflight_twotags_list="yes" ;;
+    *) msg_preflight_twotags_list="no" ;;
+esac
+assert_eq "yes" "$msg_preflight_twotags_list" \
+    "android-preflight.sh: the several-candidates refusal LISTS every candidate (AC 3)"
+case "$err_preflight_twotags" in
+    *"carries no release tag"*) msg_preflight_twotags_missing="yes" ;;
+    *) msg_preflight_twotags_missing="no" ;;
+esac
+assert_eq "no" "$msg_preflight_twotags_missing" \
+    "android-preflight.sh: the several-candidates refusal never reads as the no-candidate one (AC 3)"
+
+# AC 1 -- the candidate filter is LOOSE (^v[0-9]): a tag that does not start
+# with v<digit> is not a candidate, so it neither supplies a version nor
+# counts towards the exactly-one rule.
+PREFLIGHT_FILTERED="$PLAY_PREFLIGHT_FIXTURE/repo-filtered"
+new_preflight_repo "$PREFLIGHT_FILTERED"
+git -C "$PREFLIGHT_FILTERED" tag docs-release-2024
+git -C "$PREFLIGHT_FILTERED" tag v0.1.2
+out_preflight_filtered="$(CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" \
+    CURL_SHIM_TRACK_BODY="$TRACK_ONE_CODE" \
+    run_preflight "$PREFLIGHT_FILTERED" 2>/dev/null)"; status_preflight_filtered=$?
+assert_eq "0" "$status_preflight_filtered" \
+    "android-preflight.sh: a non-v tag at the commit does not count as a candidate (AC 1)"
+case "$out_preflight_filtered" in
+    *"0.1.2"*) msg_preflight_filtered="yes" ;;
+    *) msg_preflight_filtered="no" ;;
+esac
+assert_eq "yes" "$msg_preflight_filtered" \
+    "android-preflight.sh: the one vX.Y.Z tag among several refs is the version source (AC 1)"
+
+PREFLIGHT_NONNUMERIC="$PLAY_PREFLIGHT_FIXTURE/repo-vx"
+new_preflight_repo "$PREFLIGHT_NONNUMERIC"
+git -C "$PREFLIGHT_NONNUMERIC" tag vx.y.z
+err_preflight_vx="$(run_preflight "$PREFLIGHT_NONNUMERIC" 2>&1 1>/dev/null)"
+status_preflight_vx=$?
+assert_eq "1" "$status_preflight_vx" \
+    "android-preflight.sh: a 'vx.y.z' tag is not a candidate (AC 1)"
+case "$err_preflight_vx" in
+    *"carries no release tag"*) msg_preflight_vx="yes" ;;
+    *) msg_preflight_vx="no" ;;
+esac
+assert_eq "yes" "$msg_preflight_vx" \
+    "android-preflight.sh: the non-digit v-tag falls through to the no-candidate refusal (AC 1)"
+
+# The filter is ANCHORED: a tag that merely CONTAINS something version-looking
+# is not a release tag. Without the `^`, `release-v1.0.0` would be read as the
+# release version and its whole name handed to the frozen reader.
+PREFLIGHT_EMBEDDED="$PLAY_PREFLIGHT_FIXTURE/repo-embedded-v"
+new_preflight_repo "$PREFLIGHT_EMBEDDED"
+git -C "$PREFLIGHT_EMBEDDED" tag release-v1.0.0
+err_preflight_embedded="$(run_preflight "$PREFLIGHT_EMBEDDED" 2>&1 1>/dev/null)"
+status_preflight_embedded=$?
+assert_eq "1" "$status_preflight_embedded" \
+    "android-preflight.sh: a tag merely containing a version is refused (AC 1)"
+case "$err_preflight_embedded" in
+    *"carries no release tag"*) msg_preflight_embedded="yes" ;;
+    *) msg_preflight_embedded="no" ;;
+esac
+assert_eq "yes" "$msg_preflight_embedded" \
+    "android-preflight.sh: 'release-v1.0.0' falls through to the no-candidate refusal -- the ^ anchor holds (AC 1)"
+
+# AC 4 -- a malformed single candidate reaches the FROZEN function, whose
+# message surfaces VERBATIM and un-reformulated. The filter stays loose
+# precisely so this happens: a semantic pre-filter would refuse it here, in
+# its own words, and the frozen message would never be the one an operator
+# reads.
+PREFLIGHT_MALFORMED="$PLAY_PREFLIGHT_FIXTURE/repo-malformed"
+new_preflight_repo "$PREFLIGHT_MALFORMED"
+git -C "$PREFLIGHT_MALFORMED" tag v1.0.1000
+err_preflight_malformed="$(run_preflight "$PREFLIGHT_MALFORMED" 2>&1 1>/dev/null)"
+status_preflight_malformed=$?
+assert_eq "1" "$status_preflight_malformed" \
+    "android-preflight.sh: a single malformed candidate fails the run (AC 4)"
+case "$err_preflight_malformed" in
+    *"version_code_from_semver: '1.0.1000' is not a bare major.minor.patch, each component 0-999 (no v prefix, no -pre/+build suffix)"*) \
+        msg_preflight_malformed="yes" ;;
+    *) msg_preflight_malformed="no" ;;
+esac
+assert_eq "yes" "$msg_preflight_malformed" \
+    "android-preflight.sh: the malformed candidate surfaces the frozen library's message VERBATIM (AC 4)"
+
+# The pre-release suffix is the second malformed shape, and it too reaches
+# the frozen function rather than being filtered out here.
+PREFLIGHT_RC="$PLAY_PREFLIGHT_FIXTURE/repo-rc"
+new_preflight_repo "$PREFLIGHT_RC"
+git -C "$PREFLIGHT_RC" tag v0.0.3-rc1
+err_preflight_rc="$(run_preflight "$PREFLIGHT_RC" 2>&1 1>/dev/null)"
+case "$err_preflight_rc" in
+    *"version_code_from_semver: '0.0.3-rc1' is not a bare major.minor.patch, each component 0-999 (no v prefix, no -pre/+build suffix)"*) \
+        msg_preflight_rc="yes" ;;
+    *) msg_preflight_rc="no" ;;
+esac
+assert_eq "yes" "$msg_preflight_rc" \
+    "android-preflight.sh: a pre-release candidate reaches the frozen function, whose message surfaces verbatim (AC 4)"
+
+PREFLIGHT_ZERO="$PLAY_PREFLIGHT_FIXTURE/repo-zero"
+new_preflight_repo "$PREFLIGHT_ZERO"
+git -C "$PREFLIGHT_ZERO" tag v0.0.0
+err_preflight_zero="$(run_preflight "$PREFLIGHT_ZERO" 2>&1 1>/dev/null)"
 case "$err_preflight_zero" in
     *"version_code_from_semver: '0.0.0' yields versionCode 0"*) msg_preflight_zero="yes" ;;
     *) msg_preflight_zero="no" ;;
 esac
 assert_eq "yes" "$msg_preflight_zero" \
-    "android-preflight.sh: a version yielding versionCode 0 surfaces that refusal too (AC 5)"
+    "android-preflight.sh: a candidate yielding versionCode 0 surfaces that refusal too (AC 4)"
 
-# AC 6 -- missing vs misplaced are DISTINCT refusals, and the message says
-# which one happened (AC 14: no failure may be ambiguous).
-err_preflight_tag_missing="$(run_preflight "$PREFLIGHT_REPO" 2>&1 1>/dev/null)"
-status_preflight_tag_missing=$?
-assert_eq "1" "$status_preflight_tag_missing" \
-    "android-preflight.sh: a missing v<version> tag fails the run (AC 6)"
-case "$err_preflight_tag_missing" in
-    *"no tag 'v0.0.2'"*) msg_preflight_tag_missing="yes" ;;
-    *) msg_preflight_tag_missing="no" ;;
-esac
-assert_eq "yes" "$msg_preflight_tag_missing" \
-    "android-preflight.sh: the missing-tag refusal says the tag is MISSING (AC 6)"
-case "$err_preflight_tag_missing" in
-    *"points at"*) msg_preflight_tag_missing_misplaced="yes" ;;
-    *) msg_preflight_tag_missing_misplaced="no" ;;
-esac
-assert_eq "no" "$msg_preflight_tag_missing_misplaced" \
-    "android-preflight.sh: the missing-tag refusal never reads as the misplaced-tag one (AC 6)"
-
-git -C "$PREFLIGHT_REPO" tag v0.0.2
-git -C "$PREFLIGHT_REPO" commit -q --allow-empty -m "second commit"
-misplaced_target="$(git -C "$PREFLIGHT_REPO" rev-parse HEAD)"
-misplaced_tag_sha="$(git -C "$PREFLIGHT_REPO" rev-parse v0.0.2)"
-PREFLIGHT_TARGET="$misplaced_target"
-err_preflight_tag_misplaced="$(run_preflight "$PREFLIGHT_REPO" 2>&1 1>/dev/null)"
-status_preflight_tag_misplaced=$?
+# AC 10 -- the tag this repository ALREADY carries at 831d4a9 (v0.0.3)
+# derives 0.0.3 / versionCode 3, with no new tag and no Cargo.toml edit.
+PREFLIGHT_TARGET="831d4a9"
+out_preflight_real="$(CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" \
+    CURL_SHIM_TRACK_BODY="$TRACK_ONE_CODE" \
+    run_preflight "$ROOT" 2>/dev/null)"; status_preflight_real=$?
 PREFLIGHT_TARGET=""
-assert_eq "1" "$status_preflight_tag_misplaced" \
-    "android-preflight.sh: a tag pointing at another commit fails the run (AC 6)"
-case "$err_preflight_tag_misplaced" in
-    *"points at $misplaced_tag_sha"*"$misplaced_target"*) msg_preflight_tag_misplaced="yes" ;;
-    *) msg_preflight_tag_misplaced="no" ;;
+assert_eq "0" "$status_preflight_real" \
+    "android-preflight.sh: the repository's own v0.0.3 tag at 831d4a9 derives a version (AC 10)"
+case "$out_preflight_real" in
+    *"0.0.3"*"versionCode 3"*) msg_preflight_real="yes" ;;
+    *) msg_preflight_real="no" ;;
 esac
-assert_eq "yes" "$msg_preflight_tag_misplaced" \
-    "android-preflight.sh: the misplaced-tag refusal names BOTH the tag's commit and the commit being released (AC 6)"
+assert_eq "yes" "$msg_preflight_real" \
+    "android-preflight.sh: v0.0.3 at 831d4a9 derives 0.0.3 / versionCode 3 with no new tag and no Cargo.toml edit (AC 10)"
 
-# AC 7 -- the collision: the code is on the internal track, named in the
-# refusal; and the happy path where it is not.
-git -C "$PREFLIGHT_REPO" checkout -q v0.0.2
-PREFLIGHT_TARGET="v0.0.2"
+# AC 8 -- the collision: the code DERIVED FROM THE TAG is on the internal
+# track, and the refusal names it.
 err_preflight_collision="$(CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" \
-    CURL_SHIM_TRACK_BODY='{"track":"internal","releases":[{"versionCodes":["2"],"status":"completed"}]}' \
+    CURL_SHIM_TRACK_BODY='{"track":"internal","releases":[{"versionCodes":["1002"],"status":"completed"}]}' \
     run_preflight "$PREFLIGHT_REPO" 2>&1 1>/dev/null)"; status_preflight_collision=$?
 assert_eq "1" "$status_preflight_collision" \
-    "android-preflight.sh: a versionCode already on the internal track fails the run (AC 7)"
+    "android-preflight.sh: a tag-derived versionCode already on the internal track fails the run (AC 8)"
 case "$err_preflight_collision" in
-    *"2"*"internal"*) msg_preflight_collision="yes" ;;
+    *"1002"*"internal"*) msg_preflight_collision="yes" ;;
     *) msg_preflight_collision="no" ;;
 esac
 assert_eq "yes" "$msg_preflight_collision" \
-    "android-preflight.sh: the collision refusal names the colliding versionCode (AC 7)"
+    "android-preflight.sh: the collision refusal names the colliding versionCode (AC 8)"
 
 # A collision query that cannot RUN is a preflight failure (exit 2), the same
 # class the query script itself reports -- it is not "the release is in the
@@ -965,47 +1264,48 @@ esac
 assert_eq "yes" "$msg_preflight_notoken" \
     "android-preflight.sh: the unrunnable query says so instead of reporting a collision verdict"
 
+# AC 1/8 -- the happy path: a non-colliding tag-derived version, exactly one
+# line on stdout, exit 0.
 : > "$PLAY_PREFLIGHT_SUMMARY"
 : > "$PLAY_PREFLIGHT_OUTPUT"
 PREFLIGHT_SUMMARY_FILE="$PLAY_PREFLIGHT_SUMMARY"
 PREFLIGHT_OUTPUT_FILE="$PLAY_PREFLIGHT_OUTPUT"
 PREFLIGHT_FINGERPRINT="$FP_A"
 out_preflight_ok="$(CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" \
-    CURL_SHIM_TRACK_BODY='{"track":"internal","releases":[{"versionCodes":["1"],"status":"completed"}]}' \
+    CURL_SHIM_TRACK_BODY="$TRACK_ONE_CODE" \
     run_preflight "$PREFLIGHT_REPO" 2>/dev/null)"; status_preflight_ok=$?
-PREFLIGHT_TARGET=""
 PREFLIGHT_FINGERPRINT=""
 assert_eq "0" "$status_preflight_ok" \
-    "android-preflight.sh: a non-colliding version with a matching tag exits 0 (AC 7)"
+    "android-preflight.sh: a non-colliding tag-derived version exits 0 (AC 1)"
 preflight_ok_single_line="yes"
 case "$out_preflight_ok" in *$'\n'*) preflight_ok_single_line="no" ;; esac
 assert_eq "yes" "$preflight_ok_single_line" \
-    "android-preflight.sh: the success path prints exactly one line on stdout"
+    "android-preflight.sh: the success path prints exactly one line on stdout (AC 8)"
 case "$out_preflight_ok" in
-    *"0.0.2"*"v0.0.2"*) msg_preflight_ok_line="yes" ;;
+    *"0.1.2"*"versionCode 1002"*"v0.1.2"*) msg_preflight_ok_line="yes" ;;
     *) msg_preflight_ok_line="no" ;;
 esac
 assert_eq "yes" "$msg_preflight_ok_line" \
-    "android-preflight.sh: the stdout line states the version and the verified tag"
+    "android-preflight.sh: the stdout line states the tag-derived version, its versionCode and the tag (AC 1)"
 
-# AC 13 -- the run summary, and the machine-readable outputs the publish
-# step consumes.
+# AC 8 -- the run summary, and the machine-readable outputs the publish
+# step consumes, both unchanged in shape.
 preflight_summary_version="no"
-grep -q '0\.0\.2' "$PLAY_PREFLIGHT_SUMMARY" && preflight_summary_version="yes"
+grep -q '0\.1\.2' "$PLAY_PREFLIGHT_SUMMARY" && preflight_summary_version="yes"
 assert_eq "yes" "$preflight_summary_version" \
-    "android-preflight.sh: the run summary carries the version (AC 13)"
+    "android-preflight.sh: the run summary carries the version (AC 8)"
 preflight_summary_code="no"
-grep -q 'versionCode 2' "$PLAY_PREFLIGHT_SUMMARY" && preflight_summary_code="yes"
+grep -q 'versionCode 1002' "$PLAY_PREFLIGHT_SUMMARY" && preflight_summary_code="yes"
 assert_eq "yes" "$preflight_summary_code" \
-    "android-preflight.sh: the run summary carries the derived versionCode (AC 13)"
+    "android-preflight.sh: the run summary carries the derived versionCode (AC 8)"
 preflight_summary_tag="no"
-grep -q 'v0\.0\.2' "$PLAY_PREFLIGHT_SUMMARY" && preflight_summary_tag="yes"
+grep -q 'v0\.1\.2' "$PLAY_PREFLIGHT_SUMMARY" && preflight_summary_tag="yes"
 assert_eq "yes" "$preflight_summary_tag" \
-    "android-preflight.sh: the run summary carries the tag it verified (AC 13)"
+    "android-preflight.sh: the run summary carries the tag it derived the version from (AC 8)"
 preflight_summary_fp="no"
 grep -qF "$FP_A" "$PLAY_PREFLIGHT_SUMMARY" && preflight_summary_fp="yes"
 assert_eq "yes" "$preflight_summary_fp" \
-    "android-preflight.sh: the run summary carries the configured upload-key fingerprint (AC 13)"
+    "android-preflight.sh: the run summary carries the configured upload-key fingerprint (AC 8)"
 
 # A run with no configured fingerprint must SAY so: a blank field an operator
 # could read as "some fingerprint" is worse than an explicit "not configured".
@@ -1018,13 +1318,13 @@ assert_eq "yes" "$preflight_summary_fp_unset" \
     "android-preflight.sh: the summary declares a missing upload-key fingerprint instead of leaving it blank"
 
 preflight_output_version="no"
-grep -q '^version=0\.0\.2$' "$PLAY_PREFLIGHT_OUTPUT" && preflight_output_version="yes"
+grep -q '^version=0\.1\.2$' "$PLAY_PREFLIGHT_OUTPUT" && preflight_output_version="yes"
 assert_eq "yes" "$preflight_output_version" \
-    "android-preflight.sh: the version reaches \$GITHUB_OUTPUT for the later steps"
+    "android-preflight.sh: the tag-derived version reaches \$GITHUB_OUTPUT for the later steps (AC 8)"
 preflight_output_code="no"
-grep -q '^version_code=2$' "$PLAY_PREFLIGHT_OUTPUT" && preflight_output_code="yes"
+grep -q '^version_code=1002$' "$PLAY_PREFLIGHT_OUTPUT" && preflight_output_code="yes"
 assert_eq "yes" "$preflight_output_code" \
-    "android-preflight.sh: the derived versionCode reaches \$GITHUB_OUTPUT for the publish step"
+    "android-preflight.sh: the derived versionCode reaches \$GITHUB_OUTPUT for the publish step (AC 8)"
 
 # A local invocation carries no $GITHUB_STEP_SUMMARY and no $GITHUB_OUTPUT:
 # the summary channels are optional, and a missing one must not fail a dry
@@ -1039,24 +1339,6 @@ assert_eq "0" "$status_preflight_nosummary" \
     "android-preflight.sh: a local run with neither \$GITHUB_STEP_SUMMARY nor \$GITHUB_OUTPUT set still succeeds"
 assert_eq "$out_preflight_ok" "$out_preflight_nosummary" \
     "android-preflight.sh: the summary channels do not change what reaches stdout"
-
-# AC 14 -- a missing Cargo.toml surfaces the reader's own message verbatim,
-# rather than an unrelated failure further down.
-PREFLIGHT_NO_CARGO="$PLAY_PREFLIGHT_FIXTURE/no-cargo-toml"
-mkdir -p "$PREFLIGHT_NO_CARGO"
-git -C "$PREFLIGHT_NO_CARGO" init -q -b main
-git -C "$PREFLIGHT_NO_CARGO" config user.email "preflight@test.invalid"
-git -C "$PREFLIGHT_NO_CARGO" config user.name "preflight fixture"
-printf 'no Cargo.toml here\n' > "$PREFLIGHT_NO_CARGO/README.md"
-git -C "$PREFLIGHT_NO_CARGO" add -A
-git -C "$PREFLIGHT_NO_CARGO" commit -qm "fixture without a Cargo.toml"
-err_preflight_nocargo="$(run_preflight "$PREFLIGHT_NO_CARGO" 2>&1 1>/dev/null)"
-case "$err_preflight_nocargo" in
-    *"workspace_version: no Cargo.toml at"*) msg_preflight_nocargo="yes" ;;
-    *) msg_preflight_nocargo="no" ;;
-esac
-assert_eq "yes" "$msg_preflight_nocargo" \
-    "android-preflight.sh: a missing Cargo.toml surfaces the reader's message verbatim"
 
 rm -rf "$PREFLIGHT_SHIM_DIR"
 

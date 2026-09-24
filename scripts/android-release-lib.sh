@@ -6,14 +6,29 @@
 # called, matching scripts/verify-instrument.sh's own shape.
 #
 # workspace_version reads [workspace.package].version out of a Cargo.toml
-# path given as its one argument. Its result feeds version_code_from_semver
-# below, which is what makes the Cargo.toml -> versionCode binding provable
-# by this file's own test harness instead of living in untestable inline awk.
+# path given as its one argument. It is the bundle's READ-BACK oracle: the
+# release version no longer comes from Cargo.toml (it is derived from the tag
+# at the commit being released, in scripts/android-preflight.sh), so this
+# reader exists to prove the bytes the bundle wrote are the bytes it meant to
+# write.
+#
+# set_workspace_version rewrites that same [workspace.package].version line
+# with the version the bundle was handed, through a mktemp+mv so a failed
+# write can never leave a half-written Cargo.toml behind. It refuses an empty
+# version and any version carrying a quote, a backslash or a control
+# character: a quote ends the TOML string early and a control character is
+# illegal inside one, while the backslash is the subtle one -- the value is
+# handed to `awk -v`, which escape-processes it, so a literal `\n` would
+# otherwise reach the file as a real newline with the writer still exiting 0.
+# It refuses unless the section holds EXACTLY one version line, so an
+# ambiguous anchor is never guessed at. It validates nothing about the
+# version's SHAPE: that is version_code_from_semver's job, and its caller
+# runs it first.
 #
 # version_code_from_semver refuses a "v" prefix and any -pre/+build suffix:
-# its input is always Cargo.toml's bare version string, never a git tag --
-# tag<->version alignment is a separate decision, out of this file's scope.
-# It also refuses any component over 999 and a result of 0. The Play Store
+# its input is always a bare major.minor.patch, with any tag prefix already
+# stripped by the caller. It also refuses any component over 999 and a result
+# of 0. The Play Store
 # ceiling (2100000000) is never checked here: major/minor/patch each capped
 # at 999 puts the largest possible versionCode at 999999999, so the ceiling
 # is structurally unreachable and a second guard for it would be a dead
@@ -139,6 +154,44 @@ workspace_version() {
     fi
 
     printf '%s\n' "$version"
+}
+
+set_workspace_version() {
+    local cargo_toml="$1" version="$2"
+    if [ -z "$version" ] \
+        || [[ "$version" == *'"'* ]] \
+        || [[ "$version" == *'\'* ]] \
+        || [[ "$version" == *[[:cntrl:]]* ]]; then
+        echo "set_workspace_version: version $(printf '%q' "$version") is empty or carries a quote, a backslash or a control character -- refusing to write it into $cargo_toml" >&2
+        return 1
+    fi
+    if [ ! -f "$cargo_toml" ]; then
+        echo "set_workspace_version: no Cargo.toml at $cargo_toml" >&2
+        return 1
+    fi
+
+    local occurrences
+    occurrences="$(awk '
+        /^\[workspace\.package\]/ { in_section = 1; next }
+        /^\[/ { in_section = 0 }
+        in_section && /^version[[:space:]]*=/ { count++ }
+        END { print count + 0 }
+    ' "$cargo_toml")"
+    if [ "$occurrences" -ne 1 ]; then
+        echo "set_workspace_version: $cargo_toml has $occurrences '[workspace.package].version' line(s), expected exactly 1" >&2
+        return 1
+    fi
+
+    local tmp
+    tmp="$(mktemp)"
+    awk -v version="$version" '
+        /^\[workspace\.package\]/ { in_section = 1; print; next }
+        /^\[/ { in_section = 0 }
+        in_section && /^version[[:space:]]*=/ { print "version = \"" version "\""; next }
+        { print }
+    ' "$cargo_toml" > "$tmp"
+
+    mv "$tmp" "$cargo_toml"
 }
 
 version_code_from_semver() {

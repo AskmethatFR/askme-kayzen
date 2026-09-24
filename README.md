@@ -107,7 +107,9 @@ the script is the fix.
 ### Android (release bundle)
 
 ```bash
-scripts/android-bundle.sh   # build an unsigned, 16 KB-aligned, correctly-versioned .aab
+# <version> = the one the release tag names (v<version> at the commit being
+# released) — the script refuses to run without it; Cargo.toml is not a source
+scripts/android-bundle.sh "<version>"   # build an unsigned, 16 KB-aligned, versioned .aab
 scripts/android-sign.sh <aab>   # sign it locally with the upload key, re-verify signature + alignment
 ```
 
