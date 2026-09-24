@@ -336,6 +336,32 @@ rm -rf "$WSV_ROOT"
 # validator must run before the writer, and a rearrangement that put the
 # write first reddens this.
 PLAY_BUNDLE="$ROOT/scripts/android-bundle.sh"
+
+# The version argument is mandatory, and both the missing and the surplus
+# case must refuse with the USAGE rather than fall through to something
+# further down: with no argument the next statement would read an unset $1
+# under `set -u`, and with a surplus one it would reach the SDK checks --
+# both exit non-zero, both for a reason that hides the real defect.
+err_bundle_noarg="$("$PLAY_BUNDLE" 2>&1 1>/dev/null)"; status_bundle_noarg=$?
+assert_eq "1" "$status_bundle_noarg" \
+    "android-bundle.sh: no version argument is refused (AC 7)"
+case "$err_bundle_noarg" in
+    *"usage: scripts/android-bundle.sh <version>"*) msg_bundle_noarg="yes" ;;
+    *) msg_bundle_noarg="no" ;;
+esac
+assert_eq "yes" "$msg_bundle_noarg" \
+    "android-bundle.sh: the no-argument refusal states the usage -- not an unset-variable crash (AC 7)"
+
+err_bundle_twoargs="$("$PLAY_BUNDLE" "1.0.0" "2.0.0" 2>&1 1>/dev/null)"; status_bundle_twoargs=$?
+assert_eq "1" "$status_bundle_twoargs" \
+    "android-bundle.sh: a surplus argument is refused (AC 7)"
+case "$err_bundle_twoargs" in
+    *"usage: scripts/android-bundle.sh <version>"*) msg_bundle_twoargs="yes" ;;
+    *) msg_bundle_twoargs="no" ;;
+esac
+assert_eq "yes" "$msg_bundle_twoargs" \
+    "android-bundle.sh: the surplus-argument refusal states the usage -- not an SDK-check failure (AC 7)"
+
 bundle_validation_line="$(grep -nE '^[^#]*version_code_from_semver' "$PLAY_BUNDLE" | head -1 | cut -d: -f1)"
 bundle_write_line="$(grep -nE '^[^#]*set_workspace_version' "$PLAY_BUNDLE" | head -1 | cut -d: -f1)"
 bundle_validate_first="no"
