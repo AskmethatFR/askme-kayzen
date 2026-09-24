@@ -1121,6 +1121,23 @@ esac
 assert_eq "yes" "$msg_preflight_vx" \
     "android-preflight.sh: the non-digit v-tag falls through to the no-candidate refusal (AC 1)"
 
+# The filter is ANCHORED: a tag that merely CONTAINS something version-looking
+# is not a release tag. Without the `^`, `release-v1.0.0` would be read as the
+# release version and its whole name handed to the frozen reader.
+PREFLIGHT_EMBEDDED="$PLAY_PREFLIGHT_FIXTURE/repo-embedded-v"
+new_preflight_repo "$PREFLIGHT_EMBEDDED"
+git -C "$PREFLIGHT_EMBEDDED" tag release-v1.0.0
+err_preflight_embedded="$(run_preflight "$PREFLIGHT_EMBEDDED" 2>&1 1>/dev/null)"
+status_preflight_embedded=$?
+assert_eq "1" "$status_preflight_embedded" \
+    "android-preflight.sh: a tag merely containing a version is refused (AC 1)"
+case "$err_preflight_embedded" in
+    *"carries no release tag"*) msg_preflight_embedded="yes" ;;
+    *) msg_preflight_embedded="no" ;;
+esac
+assert_eq "yes" "$msg_preflight_embedded" \
+    "android-preflight.sh: 'release-v1.0.0' falls through to the no-candidate refusal -- the ^ anchor holds (AC 1)"
+
 # AC 4 -- a malformed single candidate reaches the FROZEN function, whose
 # message surfaces VERBATIM and un-reformulated. The filter stays loose
 # precisely so this happens: a semantic pre-filter would refuse it here, in
