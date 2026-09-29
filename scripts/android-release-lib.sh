@@ -287,6 +287,254 @@ patch_version_code() {
     mv "$tmp_final" "$build_gradle"
 }
 
+_patch_gradle_once() {
+    local who="$1" target="$2" start_ere="$3" end_ere="$4" replacement="$5"
+    local marker="__ANDROID_GRADLE_PATCH_MARKER__"
+    local one="no"
+    [ "$start_ere" = "$end_ere" ] && one="yes"
+
+    # @law: `grep -c` exits 1, not 0, on zero matches -- `|| true` keeps the
+    # explicit occurrences check below the sole arbiter of pass/fail.
+    # @law: the anchor EREs travel through ENVIRON, never `awk -v`: a -v
+    # assignment runs its value through the interpreter's escape conversion,
+    # which eats the backslashes that make `\(`/`\.` literal -- the anchor
+    # then silently matches nothing (verified: -v received
+    # `classpath("com.android.tools.build:gradle:8.7.0")`, unescaped).
+    local ranges
+    ranges="$(ONE="$one" ANCHOR_START="$start_ere" ANCHOR_END="$end_ere" awk '
+        BEGIN { done = 0 }
+        ENVIRON["ONE"] == "yes" && $0 ~ ("^[[:space:]]*" ENVIRON["ANCHOR_START"] "$") { done++; next }
+        ENVIRON["ONE"] == "no" && !opened && $0 ~ ("^[[:space:]]*" ENVIRON["ANCHOR_START"] "$") { opened = 1; next }
+        ENVIRON["ONE"] == "no" && opened && $0 ~ ("^[[:space:]]*" ENVIRON["ANCHOR_END"] "$") { done++; opened = 0; next }
+        ENVIRON["ONE"] == "no" && opened { next }
+        { print > "/dev/null" }
+        END { print done + 0 }
+    ' "$target" 2>/dev/null || true)"
+    if [ -z "$ranges" ]; then
+        echo "$who: could not read $target" >&2
+        return 1
+    fi
+    if [ "$ranges" -ne 1 ]; then
+        echo "$who: $target has $ranges occurrence(s) of the anchor, expected exactly 1" >&2
+        return 1
+    fi
+
+    local tmp_marked
+    tmp_marked="$(mktemp)"
+    ONE="$one" ANCHOR_START="$start_ere" ANCHOR_END="$end_ere" MARKER="$marker" awk '
+        BEGIN { opened = 0; done = 0 }
+        {
+            match($0, /^[[:space:]]*/)
+            indent = substr($0, RSTART, RLENGTH)
+        }
+        ENVIRON["ONE"] == "yes" && !done && $0 ~ ("^[[:space:]]*" ENVIRON["ANCHOR_START"] "$") {
+            print indent ENVIRON["MARKER"]; done = 1; next
+        }
+        ENVIRON["ONE"] == "no" && !opened && $0 ~ ("^[[:space:]]*" ENVIRON["ANCHOR_START"] "$") { opened = 1; next }
+        ENVIRON["ONE"] == "no" && opened && $0 ~ ("^[[:space:]]*" ENVIRON["ANCHOR_END"] "$") {
+            print indent ENVIRON["MARKER"]; done = 1; opened = 0; next
+        }
+        ENVIRON["ONE"] == "no" && opened { next }
+        { print }
+    ' "$target" > "$tmp_marked"
+
+    local marked
+    marked="$(grep -cF "$marker" "$tmp_marked" || true)"
+    if [ "$marked" -ne 1 ]; then
+        rm -f "$tmp_marked"
+        echo "$who: the anchor did not turn into the internal patch marker ($marked line(s) marked) -- the substitution did not run" >&2
+        return 1
+    fi
+    if grep -qE "^[[:space:]]*$start_ere\$" "$tmp_marked"; then
+        rm -f "$tmp_marked"
+        echo "$who: the anchor line survived the first substitution in $target" >&2
+        return 1
+    fi
+
+    local tmp_final
+    tmp_final="$(mktemp)"
+    if [ -n "$replacement" ]; then
+        sed -E "s|^([[:space:]]*)$marker\$|\1$replacement|" "$tmp_marked" > "$tmp_final"
+        rm -f "$tmp_marked"
+        if grep -qF "$marker" "$tmp_final"; then
+            rm -f "$tmp_final"
+            echo "$who: the internal patch marker survived the second substitution in $target" >&2
+            return 1
+        fi
+        local read_back
+        read_back="$(awk -v want="$replacement" '
+            {
+                line = $0
+                sub(/^[[:space:]]+/, "", line)
+                if (line == want) { count++ }
+            }
+            END { print count + 0 }
+        ' "$tmp_final")"
+        if [ "$read_back" -ne 1 ]; then
+            rm -f "$tmp_final"
+            echo "$who: $replacement not found in $target after patching" >&2
+            return 1
+        fi
+    else
+        sed -E "/^[[:space:]]*$marker\$/d" "$tmp_marked" > "$tmp_final"
+        rm -f "$tmp_marked"
+        if grep -qF "$marker" "$tmp_final"; then
+            rm -f "$tmp_final"
+            echo "$who: the internal patch marker survived the deletion in $target" >&2
+            return 1
+        fi
+        local leftovers
+        leftovers="$(grep -cE "^[[:space:]]*$start_ere\$" "$tmp_final" || true)"
+        if [ "$leftovers" -ne 0 ]; then
+            rm -f "$tmp_final"
+            echo "$who: the anchor line survived the deletion in $target" >&2
+            return 1
+        fi
+    fi
+
+    mv "$tmp_final" "$target"
+}
+
+patch_agp_classpath() {
+    local build_gradle="$1" agp_version="$2"
+    if [[ ! "$agp_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "patch_agp_classpath: AGP version '$agp_version' is not an exact major.minor.patch (floating or partial ranges make the release build non-reproducible)" >&2
+        return 1
+    fi
+    local anchor='classpath\("com\.android\.tools\.build:gradle:8\.7\.0"\)'
+    local replacement="classpath(\"com.android.tools.build:gradle:$agp_version\")"
+    _patch_gradle_once "patch_agp_classpath" "$build_gradle" "$anchor" "$anchor" "$replacement"
+}
+
+patch_material_dependency() {
+    local build_gradle="$1" material_version="$2"
+    if [[ ! "$material_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "patch_material_dependency: Material version '$material_version' is not an exact major.minor.patch (floating or partial ranges make the release build non-reproducible)" >&2
+        return 1
+    fi
+    local anchor='implementation\("com\.google\.android\.material:material:1\.13\.0"\)'
+    local replacement="implementation(\"com.google.android.material:material:$material_version\")"
+    _patch_gradle_once "patch_material_dependency" "$build_gradle" "$anchor" "$anchor" "$replacement"
+}
+
+patch_built_in_kotlin() {
+    local build_gradle="$1"
+    local plugin_anchor='id\("org\.jetbrains\.kotlin\.android"\)'
+    _patch_gradle_once "patch_built_in_kotlin" "$build_gradle" \
+        "$plugin_anchor" "$plugin_anchor" "" || return 1
+    local block_start='kotlinOptions \{'
+    local block_end='\}'
+    _patch_gradle_once "patch_built_in_kotlin" "$build_gradle" \
+        "$block_start" "$block_end" ""
+}
+
+patch_dead_buildconfig_default() {
+    local gradle_properties="$1"
+    local anchor='android\.defaults\.buildfeatures\.buildconfig=true'
+    _patch_gradle_once "patch_dead_buildconfig_default" "$gradle_properties" \
+        "$anchor" "$anchor" ""
+}
+
+deprecated_bar_api_refs() {
+    # Reads one dex file on stdin. Prints one `Landroid/view/Window;-><name>`
+    # line per method_id whose class is android.view.Window AND whose name is
+    # one of the two deprecated setters; exits 0 = none found, 1 = at least
+    # one found, 2 = the input is not a dex file (cannot verify).
+    #
+    # @law: the check is on the method_id TABLE's (class, name) pair, never
+    # on a substring of the bytes: a dex string pool stores the class
+    # descriptor and the method name as SEPARATE entries, so the
+    # concatenated `Landroid/view/Window;->setStatusBarColor` form a byte
+    # scan would look for does not occur in any real dex -- verified against
+    # this repo's own AAB, which carries both method_ids while the
+    # concatenated needle is absent (a substring scan is a silent false
+    # green here). The clean test fixture deliberately carries the bare
+    # strings too, so only a pair scan passes it.
+    python3 -c '
+import struct
+import sys
+
+
+def refuse(message):
+    sys.stderr.write("deprecated_bar_api_refs: " + message + "\n")
+    sys.exit(2)
+
+
+data = sys.stdin.buffer.read()
+if len(data) < 0x70 or data[:4] != b"dex\n":
+    refuse("input is not a dex file (bad magic)")
+
+
+def u4(offset):
+    if offset + 4 > len(data):
+        refuse("input is truncated (header out of bounds)")
+    return struct.unpack_from("<I", data, offset)[0]
+
+
+string_ids_size = u4(56)
+string_ids_off = u4(60)
+type_ids_size = u4(64)
+type_ids_off = u4(68)
+method_ids_size = u4(88)
+method_ids_off = u4(92)
+if (
+    string_ids_off + 4 * string_ids_size > len(data)
+    or type_ids_off + 4 * type_ids_size > len(data)
+    or method_ids_off + 8 * method_ids_size > len(data)
+):
+    refuse("input is truncated (table out of bounds)")
+
+
+def uleb(offset):
+    result = 0
+    shift = 0
+    while True:
+        if offset >= len(data):
+            refuse("input is truncated (string data out of bounds)")
+        byte = data[offset]
+        offset += 1
+        result |= (byte & 0x7F) << shift
+        if not byte & 0x80:
+            return result, offset
+        shift += 7
+
+
+def string_at(index):
+    if index >= string_ids_size:
+        refuse("string index out of bounds")
+    offset = u4(string_ids_off + 4 * index)
+    length, start = uleb(offset)
+    if start + length > len(data):
+        refuse("string data out of bounds")
+    return data[start:start + length]
+
+
+window_types = set()
+for type_index in range(type_ids_size):
+    if string_at(u4(type_ids_off + 4 * type_index)) == b"Landroid/view/Window;":
+        window_types.add(type_index)
+
+target_names = set()
+for index in range(string_ids_size):
+    value = string_at(index)
+    if value in (b"setStatusBarColor", b"setNavigationBarColor"):
+        target_names.add(index)
+
+found = set()
+for method_index in range(method_ids_size):
+    base = method_ids_off + 8 * method_index
+    class_index = struct.unpack_from("<H", data, base)[0]
+    name_index = struct.unpack_from("<I", data, base + 4)[0]
+    if class_index in window_types and name_index in target_names:
+        found.add(string_at(name_index))
+
+for name in (b"setStatusBarColor", b"setNavigationBarColor"):
+    if name in found:
+        print("Landroid/view/Window;->" + name.decode("ascii"))
+sys.exit(1 if found else 0)
+'
+}
+
 _looks_like_sha256_fingerprint() {
     [[ "$1" =~ ^([0-9A-F]{2}:){31}[0-9A-F]{2}$ ]]
 }

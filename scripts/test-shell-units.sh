@@ -1217,21 +1217,28 @@ esac
 assert_eq "yes" "$msg_preflight_zero" \
     "android-preflight.sh: a candidate yielding versionCode 0 surfaces that refusal too (AC 4)"
 
-# AC 10 -- the tag this repository ALREADY carries at 831d4a9 (v0.0.3)
-# derives 0.0.3 / versionCode 3, with no new tag and no Cargo.toml edit.
-PREFLIGHT_TARGET="831d4a9"
+# AC 10 -- the repository's own v0.0.3 tag derives 0.0.3 / versionCode 3,
+# with no new tag and no Cargo.toml edit. The tagged commit is read from git
+# instead of pinned: a hard-coded sha rots the moment a release tag is
+# re-cut, which is exactly what happened (v0.0.3 sits on the 0.0.3 merge
+# commit, not on the sha this assertion originally named).
+PREFLIGHT_TARGET="$(git -C "$ROOT" rev-list -n1 v0.0.3)"
+tag_target_present="no"
+[ -n "$PREFLIGHT_TARGET" ] && tag_target_present="yes"
+assert_eq "yes" "$tag_target_present" \
+    "android-preflight.sh: the repository carries a v0.0.3 tag (AC 10 prerequisite)"
 out_preflight_real="$(CURL_SHIM_INSERT_BODY="$TRACK_EDIT_BODY" \
     CURL_SHIM_TRACK_BODY="$TRACK_ONE_CODE" \
     run_preflight "$ROOT" 2>/dev/null)"; status_preflight_real=$?
 PREFLIGHT_TARGET=""
 assert_eq "0" "$status_preflight_real" \
-    "android-preflight.sh: the repository's own v0.0.3 tag at 831d4a9 derives a version (AC 10)"
+    "android-preflight.sh: the repository's own v0.0.3 tag derives a version (AC 10)"
 case "$out_preflight_real" in
     *"0.0.3"*"versionCode 3"*) msg_preflight_real="yes" ;;
     *) msg_preflight_real="no" ;;
 esac
 assert_eq "yes" "$msg_preflight_real" \
-    "android-preflight.sh: v0.0.3 at 831d4a9 derives 0.0.3 / versionCode 3 with no new tag and no Cargo.toml edit (AC 10)"
+    "android-preflight.sh: v0.0.3 at its tagged commit derives 0.0.3 / versionCode 3 with no new tag and no Cargo.toml edit (AC 10)"
 
 # AC 8 -- the collision: the code DERIVED FROM THE TAG is on the internal
 # track, and the refusal names it.
@@ -3378,6 +3385,607 @@ EOF
 
     rm -rf "$SYNTH_ROOT"
 fi
+
+# --- patch_agp_classpath / patch_material_dependency (T1, AC1) --------------
+# The dx-generated root build.gradle.kts carries ONE AGP classpath line and
+# the module build.gradle.kts ONE material dependency line, each at its
+# template literal. Both patchers clone patch_version_code's exactly-once +
+# marker + read-back discipline, so every happy path must land AND every
+# missing/duplicated anchor or skipped substitution must refuse with a
+# message -- a silent no-op here ships an unpatched Gradle project.
+PATCH_ROOT="$(mktemp -d)"
+
+ROOT_GRADLE_TEMPLATE='buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle:8.7.0")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.20")
+    }
+}
+'
+
+printf '%s' "$ROOT_GRADLE_TEMPLATE" > "$PATCH_ROOT/agp.kts"
+patch_agp_classpath "$PATCH_ROOT/agp.kts" "9.0.0"
+assert_eq "0" "$?" "patch_agp_classpath: template 8.7.0 -> 9.0.0 returns success"
+agp_landed="no"
+grep -qF 'classpath("com.android.tools.build:gradle:9.0.0")' "$PATCH_ROOT/agp.kts" && agp_landed="yes"
+assert_eq "yes" "$agp_landed" "patch_agp_classpath: 9.0.0 lands in the root build file"
+agp_old_gone="yes"
+grep -qF 'gradle:8.7.0' "$PATCH_ROOT/agp.kts" && agp_old_gone="no"
+assert_eq "yes" "$agp_old_gone" "patch_agp_classpath: 8.7.0 leaves no trace"
+kotlin_cp_intact="no"
+grep -qF 'classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.20")' "$PATCH_ROOT/agp.kts" && kotlin_cp_intact="yes"
+assert_eq "yes" "$kotlin_cp_intact" \
+    "patch_agp_classpath: the Kotlin classpath line beside the anchor is untouched"
+
+printf '%s' 'dependencies {
+}
+' > "$PATCH_ROOT/agp-missing.kts"
+assert_refuses "patch_agp_classpath: zero occurrences of the anchor refuses" \
+    -- patch_agp_classpath "$PATCH_ROOT/agp-missing.kts" "9.0.0"
+
+printf '%s' '        classpath("com.android.tools.build:gradle:8.7.0")
+        classpath("com.android.tools.build:gradle:8.7.0")
+' > "$PATCH_ROOT/agp-double.kts"
+assert_refuses "patch_agp_classpath: two occurrences of the anchor refuses" \
+    -- patch_agp_classpath "$PATCH_ROOT/agp-double.kts" "9.0.0"
+
+# A floating range (ID1's rejected alternative) must never reach the file:
+# the build would resolve whatever google() happens to serve that day.
+agp_shape_case=0
+for bad_agp in "9.0" "9" "9.+" "latest" "9.0.0-beta1" ""; do
+    agp_shape_case=$((agp_shape_case + 1))
+    agp_shape_fixture="$PATCH_ROOT/agp-shape-$agp_shape_case.kts"
+    printf '%s' "$ROOT_GRADLE_TEMPLATE" > "$agp_shape_fixture"
+    assert_refuses "patch_agp_classpath: version '$bad_agp' is refused (exact x.y.z only)" \
+        -- patch_agp_classpath "$agp_shape_fixture" "$bad_agp"
+    agp_shape_untouched="no"
+    grep -qF 'gradle:8.7.0' "$agp_shape_fixture" && agp_shape_untouched="yes"
+    assert_eq "yes" "$agp_shape_untouched" \
+        "patch_agp_classpath: version '$bad_agp' leaves the file untouched"
+done
+
+# The two-phase marker is the whole proof the substitution RAN (the
+# patch_version_code R2 lesson). Phase 1 runs in awk, phase 2 in sed, so each
+# phase gets its own silent-no-op shim: whichever pass stops doing its job,
+# the OTHER pass's preconditions still hold (grep never enters the picture),
+# and only the marker guard can refuse it.
+NOPATCH_AWK_DIR="$(mktemp -d)"
+cat > "$NOPATCH_AWK_DIR/awk" <<'EOF'
+#!/usr/bin/env bash
+last="${@: -1}"
+cat "$last"
+EOF
+chmod +x "$NOPATCH_AWK_DIR/awk"
+NOPATCH_SED_DIR="$(mktemp -d)"
+cat > "$NOPATCH_SED_DIR/sed" <<'EOF'
+#!/usr/bin/env bash
+shift 2
+cat "$@"
+EOF
+chmod +x "$NOPATCH_SED_DIR/sed"
+
+printf '%s' "$ROOT_GRADLE_TEMPLATE" > "$PATCH_ROOT/agp-noawk.kts"
+err_agp_noawk="$(PATH="$NOPATCH_AWK_DIR:$PATH" patch_agp_classpath "$PATCH_ROOT/agp-noawk.kts" "9.0.0" 2>&1 1>/dev/null)"
+status_agp_noawk=$?
+assert_eq "1" "$status_agp_noawk" "patch_agp_classpath: a no-op marker substitution is refused"
+case "$err_agp_noawk" in
+    *"the substitution did not run"*) msg_agp_noawk="yes" ;;
+    *) msg_agp_noawk="no" ;;
+esac
+assert_eq "yes" "$msg_agp_noawk" \
+    "patch_agp_classpath: the phase-1 no-op refusal names the cause (kills the marked-guard mutant)"
+
+printf '%s' "$ROOT_GRADLE_TEMPLATE" > "$PATCH_ROOT/agp-nopsed.kts"
+err_agp_nopsed="$(PATH="$NOPATCH_SED_DIR:$PATH" patch_agp_classpath "$PATCH_ROOT/agp-nopsed.kts" "9.0.0" 2>&1 1>/dev/null)"
+status_agp_nopsed=$?
+assert_eq "1" "$status_agp_nopsed" "patch_agp_classpath: a no-op final substitution is refused"
+case "$err_agp_nopsed" in
+    *"survived the second substitution"*) msg_agp_nopsed="yes" ;;
+    *) msg_agp_nopsed="no" ;;
+esac
+assert_eq "yes" "$msg_agp_nopsed" \
+    "patch_agp_classpath: the phase-2 no-op refusal names the cause (kills the marker-survival mutant)"
+
+rm -rf "$NOPATCH_AWK_DIR" "$NOPATCH_SED_DIR"
+
+APP_GRADLE_TEMPLATE='plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
+android {
+    defaultConfig {
+        versionCode = 1
+        versionName = "0.0.1"
+    }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+dependencies {
+    implementation("androidx.webkit:webkit:1.13.0")
+    implementation("com.google.android.material:material:1.13.0")
+}
+'
+
+printf '%s' "$APP_GRADLE_TEMPLATE" > "$PATCH_ROOT/app-material.kts"
+patch_material_dependency "$PATCH_ROOT/app-material.kts" "1.14.0"
+assert_eq "0" "$?" "patch_material_dependency: 1.13.0 -> 1.14.0 returns success"
+mat_landed="no"
+grep -qF 'implementation("com.google.android.material:material:1.14.0")' "$PATCH_ROOT/app-material.kts" && mat_landed="yes"
+assert_eq "yes" "$mat_landed" "patch_material_dependency: 1.14.0 lands in the module build file"
+mat_old_gone="yes"
+grep -qF 'com.google.android.material:material:1.13.0' "$PATCH_ROOT/app-material.kts" && mat_old_gone="no"
+assert_eq "yes" "$mat_old_gone" "patch_material_dependency: 1.13.0 leaves no trace"
+webkit_intact="no"
+grep -qF 'implementation("androidx.webkit:webkit:1.13.0")' "$PATCH_ROOT/app-material.kts" && webkit_intact="yes"
+assert_eq "yes" "$webkit_intact" \
+    "patch_material_dependency: the neighbouring webkit dependency (same 1.13.0 suffix) is untouched"
+# AC4 regression: patch_version_code anchors on the versionCode = 1
+# sentinel living in this very file -- every patch here must leave it.
+pvc_sentinel_intact="no"
+grep -qE '^[[:space:]]*versionCode = 1$' "$PATCH_ROOT/app-material.kts" && pvc_sentinel_intact="yes"
+assert_eq "yes" "$pvc_sentinel_intact" \
+    "patch_material_dependency: the versionCode = 1 sentinel patch_version_code anchors on survives"
+
+printf '%s' 'dependencies {
+    implementation("androidx.appcompat:appcompat:1.7.1")
+}
+' > "$PATCH_ROOT/mat-missing.kts"
+assert_refuses "patch_material_dependency: zero occurrences of the anchor refuses" \
+    -- patch_material_dependency "$PATCH_ROOT/mat-missing.kts" "1.14.0"
+
+printf '%s' '    implementation("com.google.android.material:material:1.13.0")
+    implementation("com.google.android.material:material:1.13.0")
+' > "$PATCH_ROOT/mat-double.kts"
+assert_refuses "patch_material_dependency: two occurrences of the anchor refuses" \
+    -- patch_material_dependency "$PATCH_ROOT/mat-double.kts" "1.14.0"
+
+mat_shape_case=0
+for bad_mat in "1.14" "1.14.0-beta01" "latest" ""; do
+    mat_shape_case=$((mat_shape_case + 1))
+    mat_shape_fixture="$PATCH_ROOT/mat-shape-$mat_shape_case.kts"
+    printf '%s' "$APP_GRADLE_TEMPLATE" > "$mat_shape_fixture"
+    assert_refuses "patch_material_dependency: version '$bad_mat' is refused (exact x.y.z only)" \
+        -- patch_material_dependency "$mat_shape_fixture" "$bad_mat"
+    mat_shape_untouched="no"
+    grep -qF 'material:1.13.0' "$mat_shape_fixture" && mat_shape_untouched="yes"
+    assert_eq "yes" "$mat_shape_untouched" \
+        "patch_material_dependency: version '$bad_mat' leaves the file untouched"
+done
+
+# --- patch_built_in_kotlin / patch_dead_buildconfig_default (T1, AC1) -------
+# AGP 9.0 adjudicated these two removals itself during the spike: the
+# kotlin-android plugin application is refused outright ("no longer required
+# since AGP 9.0 -- remove it"), its kotlinOptions DSL no longer resolves, and
+# android.defaults.buildfeatures.buildconfig was removed in 9.0 (the build
+# fails naming it). Both patchers must remove their anchor and NOTHING else.
+printf '%s' "$APP_GRADLE_TEMPLATE" > "$PATCH_ROOT/app-kotlin.kts"
+patch_built_in_kotlin "$PATCH_ROOT/app-kotlin.kts"
+assert_eq "0" "$?" "patch_built_in_kotlin: the template module file migrates with success"
+kotlin_plugin_gone="yes"
+grep -qF 'id("org.jetbrains.kotlin.android")' "$PATCH_ROOT/app-kotlin.kts" && kotlin_plugin_gone="no"
+assert_eq "yes" "$kotlin_plugin_gone" "patch_built_in_kotlin: the kotlin-android plugin line is removed"
+kotlin_options_gone="yes"
+grep -qF 'kotlinOptions {' "$PATCH_ROOT/app-kotlin.kts" && kotlin_options_gone="no"
+assert_eq "yes" "$kotlin_options_gone" "patch_built_in_kotlin: the kotlinOptions block is removed"
+jvm_target_gone="yes"
+grep -qF 'jvmTarget = "17"' "$PATCH_ROOT/app-kotlin.kts" && jvm_target_gone="no"
+assert_eq "yes" "$jvm_target_gone" "patch_built_in_kotlin: the jvmTarget line inside the block is removed"
+app_plugin_intact="no"
+grep -qF 'id("com.android.application")' "$PATCH_ROOT/app-kotlin.kts" && app_plugin_intact="yes"
+assert_eq "yes" "$app_plugin_intact" "patch_built_in_kotlin: the application plugin line beside the anchor is untouched"
+pvc_sentinel_intact="no"
+grep -qE '^[[:space:]]*versionCode = 1$' "$PATCH_ROOT/app-kotlin.kts" && pvc_sentinel_intact="yes"
+assert_eq "yes" "$pvc_sentinel_intact" \
+    "patch_built_in_kotlin: the versionCode = 1 sentinel patch_version_code anchors on survives"
+
+printf '%s' 'plugins {
+    id("com.android.application")
+}
+android {
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+' > "$PATCH_ROOT/kotlin-no-plugin.kts"
+assert_refuses "patch_built_in_kotlin: a missing plugin line refuses" \
+    -- patch_built_in_kotlin "$PATCH_ROOT/kotlin-no-plugin.kts"
+kotlin_options_untouched="no"
+grep -qF 'kotlinOptions {' "$PATCH_ROOT/kotlin-no-plugin.kts" && kotlin_options_untouched="yes"
+assert_eq "yes" "$kotlin_options_untouched" \
+    "patch_built_in_kotlin: the first-anchor refusal leaves the second anchor untouched"
+
+printf '%s' 'plugins {
+    id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.android")
+}
+' > "$PATCH_ROOT/kotlin-double-plugin.kts"
+assert_refuses "patch_built_in_kotlin: a duplicated plugin line refuses" \
+    -- patch_built_in_kotlin "$PATCH_ROOT/kotlin-double-plugin.kts"
+
+printf '%s' 'plugins {
+    id("org.jetbrains.kotlin.android")
+}
+' > "$PATCH_ROOT/kotlin-no-block.kts"
+assert_refuses "patch_built_in_kotlin: a missing kotlinOptions block refuses" \
+    -- patch_built_in_kotlin "$PATCH_ROOT/kotlin-no-block.kts"
+
+printf '%s' 'android {
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+' > "$PATCH_ROOT/kotlin-double-block.kts"
+assert_refuses "patch_built_in_kotlin: a duplicated kotlinOptions block refuses" \
+    -- patch_built_in_kotlin "$PATCH_ROOT/kotlin-double-block.kts"
+
+GRADLE_PROPERTIES_TEMPLATE='org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+android.useAndroidX=true
+android.defaults.buildfeatures.buildconfig=true
+android.nonTransitiveRClass=true
+'
+printf '%s' "$GRADLE_PROPERTIES_TEMPLATE" > "$PATCH_ROOT/gradle.properties"
+patch_dead_buildconfig_default "$PATCH_ROOT/gradle.properties"
+assert_eq "0" "$?" "patch_dead_buildconfig_default: the removed default is dropped with success"
+bc_gone="yes"
+grep -qF 'android.defaults.buildfeatures.buildconfig' "$PATCH_ROOT/gradle.properties" && bc_gone="no"
+assert_eq "yes" "$bc_gone" "patch_dead_buildconfig_default: the dead default line is removed"
+useandroidx_intact="no"
+grep -qF 'android.useAndroidX=true' "$PATCH_ROOT/gradle.properties" && useandroidx_intact="yes"
+assert_eq "yes" "$useandroidx_intact" "patch_dead_buildconfig_default: the neighbouring useAndroidX line is untouched"
+
+printf '%s' 'android.useAndroidX=true
+' > "$PATCH_ROOT/props-missing.kts"
+assert_refuses "patch_dead_buildconfig_default: a missing property line refuses" \
+    -- patch_dead_buildconfig_default "$PATCH_ROOT/props-missing.kts"
+
+printf '%s' 'android.defaults.buildfeatures.buildconfig=true
+android.defaults.buildfeatures.buildconfig=true
+' > "$PATCH_ROOT/props-double.kts"
+assert_refuses "patch_dead_buildconfig_default: a duplicated property line refuses" \
+    -- patch_dead_buildconfig_default "$PATCH_ROOT/props-double.kts"
+
+rm -rf "$PATCH_ROOT"
+
+# --- deprecated_bar_api_refs (T1, AC2) --------------------------------------
+# The pure dex scan, fed synthetic dex fixtures byte-for-byte. Every fixture
+# carries the bare strings setStatusBarColor/setNavigationBarColor AND the
+# Window descriptor, so a substring scan would flag ALL of them: only a scan
+# of the method_id table's (class, name) PAIR passes the clean one. That
+# pairing is what the real artifact demands -- dex stores the class
+# descriptor and the method name as SEPARATE string-pool entries, never as
+# the concatenated "Landroid/view/Window;->setStatusBarColor" form a byte
+# substring would look for (observed on this repo's own AAB).
+DEX_FIX_DIR="$(mktemp -d)"
+
+build_dex_fixture() {
+    python3 - "$1" "$2" <<'PY'
+import struct
+import sys
+
+path, mode = sys.argv[1], sys.argv[2]
+strings = [
+    b"Landroid/view/Window;",
+    b"setStatusBarColor",
+    b"setNavigationBarColor",
+    b"setFlags",
+    b"Lcom/example/Clean;",
+    b"cleanMethod",
+]
+header_size = 0x70
+string_ids_off = header_size
+type_ids = [0, 4]
+type_ids_off = string_ids_off + 4 * len(strings)
+method_ids_off = type_ids_off + 4 * len(type_ids)
+if mode == "dirty":
+    method_ids = [(0, 0, 1), (0, 0, 2)]
+elif mode == "clean":
+    method_ids = [(1, 0, 5)]
+elif mode == "mispaired":
+    method_ids = [(1, 0, 1), (0, 0, 4)]
+else:
+    raise SystemExit("unknown dex fixture mode: " + mode)
+
+
+def uleb(n):
+    out = bytearray()
+    while True:
+        b = n & 0x7F
+        n >>= 7
+        if n:
+            out.append(b | 0x80)
+        else:
+            out.append(b)
+            break
+    return bytes(out)
+
+
+blob = b""
+string_offsets = []
+cursor = method_ids_off + 8 * len(method_ids)
+for s in strings:
+    encoded = uleb(len(s)) + s + b"\x00"
+    string_offsets.append(cursor)
+    blob += encoded
+    cursor += len(encoded)
+string_table = b"".join(struct.pack("<I", o) for o in string_offsets)
+type_table = b"".join(struct.pack("<I", d) for d in type_ids)
+method_table = b"".join(struct.pack("<HHI", c, p, n) for c, p, n in method_ids)
+data_off = method_ids_off + len(method_table)
+file_size = data_off + len(blob)
+hdr = bytearray(header_size)
+hdr[0:8] = b"dex\n035\x00"
+for offset, value in (
+    (32, file_size),
+    (36, header_size),
+    (40, 0x12345678),
+    (56, len(strings)),
+    (60, string_ids_off),
+    (64, len(type_ids)),
+    (68, type_ids_off),
+    (88, len(method_ids)),
+    (92, method_ids_off),
+    (104, len(blob)),
+    (108, data_off),
+):
+    struct.pack_into("<I", hdr, offset, value)
+with open(path, "wb") as handle:
+    handle.write(bytes(hdr) + string_table + type_table + method_table + blob)
+PY
+}
+
+build_dex_fixture "$DEX_FIX_DIR/clean.dex" "clean"
+build_dex_fixture "$DEX_FIX_DIR/dirty.dex" "dirty"
+build_dex_fixture "$DEX_FIX_DIR/mispaired.dex" "mispaired"
+
+clean_carries_name="no"
+grep -qaF 'setStatusBarColor' "$DEX_FIX_DIR/clean.dex" && clean_carries_name="yes"
+assert_eq "yes" "$clean_carries_name" \
+    "dex fixture: the clean dex carries the bare setter name (so only a PAIR scan passes it)"
+
+clean_refs="$(deprecated_bar_api_refs < "$DEX_FIX_DIR/clean.dex" 2>&1)"; status_clean=$?
+assert_eq "0" "$status_clean" "deprecated_bar_api_refs: a clean dex exits 0"
+assert_eq "" "$clean_refs" "deprecated_bar_api_refs: a clean dex prints nothing"
+
+dirty_refs="$(deprecated_bar_api_refs < "$DEX_FIX_DIR/dirty.dex" 2>&1)"; status_dirty=$?
+assert_eq "1" "$status_dirty" "deprecated_bar_api_refs: a dex referencing both setters exits 1"
+case "$dirty_refs" in
+    *"Landroid/view/Window;->setStatusBarColor"*"Landroid/view/Window;->setNavigationBarColor"*) msg_dirty="yes" ;;
+    *) msg_dirty="no" ;;
+esac
+assert_eq "yes" "$msg_dirty" \
+    "deprecated_bar_api_refs: the refusal names both (class, name) pairs"
+
+mispaired_refs="$(deprecated_bar_api_refs < "$DEX_FIX_DIR/mispaired.dex" 2>&1)"; status_mispaired=$?
+assert_eq "0" "$status_mispaired" \
+    "deprecated_bar_api_refs: the name on another class, and Window with another method, never trip (PAIR precision)"
+
+nondex_out="$(printf 'this is not a dex file at all' | deprecated_bar_api_refs 2>&1)"; status_nondex=$?
+assert_eq "2" "$status_nondex" "deprecated_bar_api_refs: non-dex input exits 2 (cannot verify)"
+case "$nondex_out" in
+    *"not a dex"*) msg_nondex="yes" ;;
+    *) msg_nondex="no" ;;
+esac
+assert_eq "yes" "$msg_nondex" "deprecated_bar_api_refs: non-dex input names the cause"
+
+empty_out="$(printf '' | deprecated_bar_api_refs 2>&1)"; status_empty=$?
+assert_eq "2" "$status_empty" "deprecated_bar_api_refs: empty input exits 2, never a vacuous 0"
+
+# --- android-verify-no-deprecated-bar-apis.sh (synthetic-AAB integration) ----
+# The CLI contract AC2 is written against: exit 1 = defect, exit 2 = missing
+# prerequisite, one verdict line on stdout for a pass. Entries are addressed
+# by ordinal (the @law in the script's own header), which the duplicate-name
+# fixture is the only thing that discriminates: a name-keyed reader resolves
+# both entries to the LAST (clean) one and reports a false pass.
+VERIFY_NODBAR="$ROOT/scripts/android-verify-no-deprecated-bar-apis.sh"
+NODBAR_ROOT="$(mktemp -d)"
+
+build_nodbar_aab() {
+    python3 - "$@" <<'PY'
+import sys
+import zipfile
+
+entries = sys.argv[1:]
+with zipfile.ZipFile(entries[0], "w", compression=zipfile.ZIP_DEFLATED) as zf:
+    for i in range(1, len(entries), 2):
+        zf.write(entries[i + 1], entries[i])
+PY
+}
+
+build_nodbar_dup_aab() {
+    python3 - "$1" "$2" "$3" <<'PY'
+import sys
+import warnings
+import zipfile
+
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    with zipfile.ZipFile(sys.argv[1], "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.write(sys.argv[2], "base/dex/classes.dex")
+        zf.write(sys.argv[3], "base/dex/classes.dex")
+PY
+}
+
+AAB_NODBAR_CLEAN="$NODBAR_ROOT/clean.aab"
+build_nodbar_aab "$AAB_NODBAR_CLEAN" "base/dex/classes.dex" "$DEX_FIX_DIR/clean.dex"
+out_nodbar_clean="$("$VERIFY_NODBAR" "$AAB_NODBAR_CLEAN" 2>&1)"; status_nodbar_clean=$?
+assert_eq "0" "$status_nodbar_clean" "android-verify-no-deprecated-bar-apis.sh: clean AAB exits 0"
+assert_eq "android-verify-no-deprecated-bar-apis: verified 1 dex entries carry no Window.setStatusBarColor/setNavigationBarColor reference" \
+    "$out_nodbar_clean" \
+    "android-verify-no-deprecated-bar-apis.sh: a pass prints exactly one verdict line naming the property"
+
+AAB_NODBAR_DIRTY="$NODBAR_ROOT/dirty.aab"
+build_nodbar_aab "$AAB_NODBAR_DIRTY" "base/dex/classes.dex" "$DEX_FIX_DIR/dirty.dex"
+err_nodbar_dirty="$("$VERIFY_NODBAR" "$AAB_NODBAR_DIRTY" 2>&1 1>/dev/null)"; status_nodbar_dirty=$?
+assert_eq "1" "$status_nodbar_dirty" "android-verify-no-deprecated-bar-apis.sh: an AAB referencing both setters exits 1"
+case "$err_nodbar_dirty" in
+    *"base/dex/classes.dex"*"->setStatusBarColor"*"->setNavigationBarColor"*) msg_nodbar_dirty="yes" ;;
+    *) msg_nodbar_dirty="no" ;;
+esac
+assert_eq "yes" "$msg_nodbar_dirty" \
+    "android-verify-no-deprecated-bar-apis.sh: the defect names the entry AND both references"
+
+AAB_NODBAR_MISPAIRED="$NODBAR_ROOT/mispaired.aab"
+build_nodbar_aab "$AAB_NODBAR_MISPAIRED" "base/dex/classes.dex" "$DEX_FIX_DIR/mispaired.dex"
+err_nodbar_mispaired="$("$VERIFY_NODBAR" "$AAB_NODBAR_MISPAIRED" 2>&1 1>/dev/null)"; status_nodbar_mispaired=$?
+assert_eq "0" "$status_nodbar_mispaired" \
+    "android-verify-no-deprecated-bar-apis.sh: the same names on other classes exit 0 (PAIR precision end to end)"
+
+AAB_NODBAR_DUP="$NODBAR_ROOT/dup.aab"
+build_nodbar_dup_aab "$AAB_NODBAR_DUP" "$DEX_FIX_DIR/dirty.dex" "$DEX_FIX_DIR/clean.dex"
+err_nodbar_dup="$("$VERIFY_NODBAR" "$AAB_NODBAR_DUP" 2>&1 1>/dev/null)"; status_nodbar_dup=$?
+assert_eq "1" "$status_nodbar_dup" \
+    "android-verify-no-deprecated-bar-apis.sh: duplicate entry names, dirty FIRST, exit 1 (ordinal addressing)"
+case "$err_nodbar_dup" in
+    *"->setStatusBarColor"*) msg_nodbar_dup="yes" ;;
+    *) msg_nodbar_dup="no" ;;
+esac
+assert_eq "yes" "$msg_nodbar_dup" \
+    "android-verify-no-deprecated-bar-apis.sh: the FIRST duplicate is the one inspected, not the last"
+
+AAB_NODBAR_NODEX="$NODBAR_ROOT/nodex.aab"
+printf 'not a dex' > "$NODBAR_ROOT/junk.bin"
+build_nodbar_aab "$AAB_NODBAR_NODEX" "base/dex/.keep" "$NODBAR_ROOT/junk.bin"
+err_nodbar_nodex="$("$VERIFY_NODBAR" "$AAB_NODBAR_NODEX" 2>&1 1>/dev/null)"; status_nodbar_nodex=$?
+assert_eq "1" "$status_nodbar_nodex" "android-verify-no-deprecated-bar-apis.sh: an AAB with no dex entries exits 1"
+case "$err_nodbar_nodex" in
+    *"no base/dex/classes"*.dex*" entries in"*) msg_nodbar_nodex="yes" ;;
+    *) msg_nodbar_nodex="no" ;;
+esac
+assert_eq "yes" "$msg_nodbar_nodex" \
+    "android-verify-no-deprecated-bar-apis.sh: the missing-dex defect names the cause"
+
+AAB_NODBAR_BADDEX="$NODBAR_ROOT/baddex.aab"
+build_nodbar_aab "$AAB_NODBAR_BADDEX" "base/dex/classes.dex" "$NODBAR_ROOT/junk.bin"
+err_nodbar_baddex="$("$VERIFY_NODBAR" "$AAB_NODBAR_BADDEX" 2>&1 1>/dev/null)"; status_nodbar_baddex=$?
+assert_eq "1" "$status_nodbar_baddex" \
+    "android-verify-no-deprecated-bar-apis.sh: a dex-named entry that is not dex exits 1 (the artifact itself is defective)"
+case "$err_nodbar_baddex" in
+    *"could not be read as a dex file"*) msg_nodbar_baddex="yes" ;;
+    *) msg_nodbar_baddex="no" ;;
+esac
+assert_eq "yes" "$msg_nodbar_baddex" \
+    "android-verify-no-deprecated-bar-apis.sh: the unreadable-dex refusal names the cause"
+
+AAB_NODBAR_NOTZIP="$NODBAR_ROOT/notzip.aab"
+printf 'this is not a zip file, just garbage bytes\n' > "$AAB_NODBAR_NOTZIP"
+err_nodbar_notzip="$("$VERIFY_NODBAR" "$AAB_NODBAR_NOTZIP" 2>&1 1>/dev/null)"; status_nodbar_notzip=$?
+assert_eq "2" "$status_nodbar_notzip" "android-verify-no-deprecated-bar-apis.sh: a non-zip input exits 2"
+case "$err_nodbar_notzip" in
+    *"is not a valid zip archive"*) msg_nodbar_notzip="yes" ;;
+    *) msg_nodbar_notzip="no" ;;
+esac
+assert_eq "yes" "$msg_nodbar_notzip" \
+    "android-verify-no-deprecated-bar-apis.sh: the non-zip refusal names the exact cause"
+
+err_nodbar_missing="$("$VERIFY_NODBAR" "$NODBAR_ROOT/does-not-exist.aab" 2>&1 1>/dev/null)"; status_nodbar_missing=$?
+assert_eq "2" "$status_nodbar_missing" "android-verify-no-deprecated-bar-apis.sh: a missing AAB exits 2"
+case "$err_nodbar_missing" in
+    *"no AAB at"*) msg_nodbar_missing="yes" ;;
+    *) msg_nodbar_missing="no" ;;
+esac
+assert_eq "yes" "$msg_nodbar_missing" "android-verify-no-deprecated-bar-apis.sh: the missing-AAB refusal names the cause"
+
+err_nodbar_usage="$("$VERIFY_NODBAR" 2>&1 1>/dev/null)"; status_nodbar_usage=$?
+assert_eq "2" "$status_nodbar_usage" "android-verify-no-deprecated-bar-apis.sh: no args exits 2"
+case "$err_nodbar_usage" in
+    *"usage: scripts/android-verify-no-deprecated-bar-apis.sh <aab-path>"*) msg_nodbar_usage="yes" ;;
+    *) msg_nodbar_usage="no" ;;
+esac
+assert_eq "yes" "$msg_nodbar_usage" "android-verify-no-deprecated-bar-apis.sh: the usage refusal states the usage"
+
+rm -rf "$NODBAR_ROOT"
+
+# --- android-bundle.sh: the AGP 9 seam wiring (T1, AC1 + AC2) ----------------
+# The bundle itself needs the full Android toolchain and minutes of build, so
+# -- same discipline as android-bundle.sh's own validate-before-write pins at
+# the AC 7 section -- what is pinned here is structure: every seam step
+# present, its constants the exact build-proven literals, and each step
+# inside the pass-1/pass-2 window `dx` leaves us. The bundle runs for real
+# at delivery time; these pins are what fails first if a later edit moves a
+# step out of the window.
+BUNDLE_SCRIPT="$ROOT/scripts/android-bundle.sh"
+
+bundle_pin() {
+    local needle="$1" label="$2"
+    local found="no"
+    grep -qF -- "$needle" "$BUNDLE_SCRIPT" && found="yes"
+    assert_eq "yes" "$found" "$label"
+}
+
+bundle_line_of() {
+    grep -nF -- "$1" "$BUNDLE_SCRIPT" | head -1 | cut -d: -f1
+}
+
+bundle_before() {
+    local earlier="$1" later="$2" label="$3"
+    local a b order="no"
+    a="$(bundle_line_of "$earlier")"
+    b="$(bundle_line_of "$later")"
+    if [ -n "$a" ] && [ -n "$b" ] && [ "$a" -lt "$b" ]; then
+        order="yes"
+    fi
+    assert_eq "yes" "$order" "$label"
+}
+
+bundle_pin 'readonly AGP_CLASSPATH_VERSION="9.0.0"' \
+    "android-bundle.sh: AGP pinned to the exact 9.0.0 literal (ID1: no floating range)"
+bundle_pin 'readonly MATERIAL_VERSION="1.14.0"' \
+    "android-bundle.sh: Material pinned to the exact 1.14.0 literal"
+bundle_pin 'ROOT_BUILD_GRADLE="$GRADLE_PROJECT/build.gradle.kts"' \
+    "android-bundle.sh: the generated ROOT build file is a declared patch target"
+bundle_pin 'GRADLE_PROPERTIES="$GRADLE_PROJECT/gradle.properties"' \
+    "android-bundle.sh: the generated gradle.properties is a declared patch target"
+bundle_pin 'PRO_RULES="$MODULE/no-deprecated-bar-apis.pro"' \
+    "android-bundle.sh: the R8 rules file lands in the module directory the template's fileTree collects"
+bundle_pin 'patch_agp_classpath "$ROOT_BUILD_GRADLE" "$AGP_CLASSPATH_VERSION"' \
+    "android-bundle.sh: patch_agp_classpath is invoked at the seam"
+bundle_pin 'patch_built_in_kotlin "$BUILD_GRADLE"' \
+    "android-bundle.sh: patch_built_in_kotlin is invoked at the seam"
+bundle_pin 'patch_dead_buildconfig_default "$GRADLE_PROPERTIES"' \
+    "android-bundle.sh: patch_dead_buildconfig_default is invoked at the seam"
+bundle_pin 'patch_material_dependency "$BUILD_GRADLE" "$MATERIAL_VERSION"' \
+    "android-bundle.sh: patch_material_dependency is invoked at the seam"
+bundle_pin 'cat > "$PRO_RULES"' \
+    "android-bundle.sh: the R8 rules file is written at the seam"
+bundle_pin 'grep -qF "We recommend using a newer Android Gradle plugin to use compileSdk = 36"' \
+    "android-bundle.sh: the compileSdk = 36 warning absence is asserted on captured Gradle output (AC1)"
+bundle_pin 'fail "the compileSdk = 36 AGP warning is present' \
+    "android-bundle.sh: the warning presence has its own fail branch, never a silent pass (AC1)"
+bundle_pin 'tee "$GRADLE_LOG"' \
+    "android-bundle.sh: the Gradle output is captured, not just streamed (AC1)"
+bundle_pin 'fail "gradlew bundleRelease failed"' \
+    "android-bundle.sh: a failing bundleRelease is caught through the capture pipe, never swallowed"
+bundle_pin '"$REPO_ROOT/scripts/android-verify-no-deprecated-bar-apis.sh" "$AAB"' \
+    "android-bundle.sh: the dex verifier runs on the produced AAB (AC2)"
+bundle_pin 'patch_version_code "$BUILD_GRADLE" "$VERSION_CODE"' \
+    "android-bundle.sh: the versionCode patch is still wired (AC4 regression)"
+bundle_pin 'storePassword|keyPassword|keyAlias|storeFile|signingConfig' \
+    "android-bundle.sh: the cleartext-signing refusal is still wired (AC4 regression)"
+bundle_pin '"$REPO_ROOT/scripts/android-verify-alignment.sh" "$AAB"' \
+    "android-bundle.sh: the 16 KB alignment verifier is still wired (AC4 regression)"
+
+DX_PASS1='dx bundle --platform android --release --package-types aab'
+GRADLE_PASS2='./gradlew --quiet bundleRelease'
+bundle_before "$DX_PASS1" 'patch_agp_classpath "$ROOT_BUILD_GRADLE"' \
+    "android-bundle.sh: the AGP patch runs after pass 1, inside the seam window"
+bundle_before 'patch_agp_classpath "$ROOT_BUILD_GRADLE"' "$GRADLE_PASS2" \
+    "android-bundle.sh: the AGP patch runs before pass 2"
+bundle_before 'cat > "$PRO_RULES"' "$GRADLE_PASS2" \
+    "android-bundle.sh: the R8 rules file exists before pass 2 collects it"
+bundle_before 'patch_material_dependency "$BUILD_GRADLE"' "$GRADLE_PASS2" \
+    "android-bundle.sh: the Material patch runs before pass 2"
+bundle_before "$GRADLE_PASS2" 'grep -qF "We recommend using a newer Android Gradle plugin' \
+    "android-bundle.sh: the warning assertion reads the captured output of THIS run"
+bundle_before "$GRADLE_PASS2" 'scripts/android-verify-no-deprecated-bar-apis.sh" "$AAB"' \
+    "android-bundle.sh: the dex verifier runs after the AAB exists (AC2)"
 
 # --- .gitignore tripwire (AC 6) --------------------------------------------
 # A real keystore lives at $HOME/.kayzen/, never in the repo; *.jks,
