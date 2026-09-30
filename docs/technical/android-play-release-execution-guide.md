@@ -3,7 +3,7 @@ id: "android-play-release-execution-guide"
 type: "technical"
 owner: "operator"
 status: "current"
-updated: "2026-09-24"
+updated: "2026-09-30"
 relations:
   supersedes: []
   extends:
@@ -45,12 +45,22 @@ If `NDK_HOME` is empty or the `llvm-readelf` path does not resolve, install the 
 ```bash
 jarsigner -help >/dev/null && echo "jarsigner ok"
 keytool -help >/dev/null && echo "keytool ok"
-python3 -c 'import zlib, zipfile, io; buf = io.BytesIO(); \
+python3 -c 'import tomllib, zlib, zipfile, io; buf = io.BytesIO(); \
   __import__("zipfile").ZipFile(buf, "w", __import__("zipfile").ZIP_DEFLATED).writestr("p", b"p"); \
   buf.seek(0); __import__("zipfile").ZipFile(buf).read("p")' && echo "python3 ok"
 ```
 
-All three must print `ok`. If any fails, install the JDK or fix the PATH before proceeding.
+All three must print `ok`. Two stories behind those words, both adjudicated on this
+machine (2026-09-30):
+
+- **JDK**: `JAVA_HOME` stays on **corretto-17** — AGP `9.0.0` (the seam's pin) runs
+  `bundleRelease` green on JDK 17, so the JDK floor question never fired and nothing
+  above 17 is required. If any fails, install the JDK or fix the PATH before proceeding.
+- **python3 ≥ 3.11**: the probe imports `tomllib` because `android-bundle.sh`'s
+  `Dioxus.toml` preflight does — and that preflight reports a missing `tomllib` as
+  *"app/Dioxus.toml is malformed TOML"*, which points at the wrong file. macOS
+  `/usr/bin/python3` is 3.9; `/opt/homebrew/bin/python3` (3.14 here) has it. Run the
+  bundle with `PATH="/opt/homebrew/bin:$PATH"` if the probe fails.
 
 ## Step 3 — Build the unsigned bundle, then sign it
 
@@ -158,6 +168,24 @@ Paste the following into a comment on issue #28, in plain text:
 ```
 
 This attestation closes AC 12 and unblocks S4 (the automated publish workflow). Until this comment exists, S4 is not started — the two-leg rule (runbook standing rule) requires both machine-provable behaviour and a human-executed step.
+
+## Device attestation — edge-to-edge and system bars (the AC3 human leg)
+
+No runner in this repo can see a screen, so this checklist is the proof for AC3. Run it
+on **one Android 14 device and one Android 15/16 device**, both after
+`scripts/android-deploy.sh` (debug) and after installing a signed release build:
+
+1. **Cold launch** → the first paint sits **below** the status bar and **above** the
+   gesture bar on every screen: Today, Semaine, Ancrées, detail, rituel, ajouter.
+2. **Rotate** to landscape and back → still clear of both bars; nothing clipped.
+3. **On-screen keyboard** on the add-habit field → the field stays visible. Record what
+   actually happens — this is the known-open item (`docs/functional/navigation.md:55`).
+4. **Gesture navigation *and* 3-button navigation** → both modes clear.
+5. **Play Console → Quality → Pre-launch report** on the uploaded bundle → the
+   `Window.setStatusBarColor`/`setNavigationBarColor` deprecated-API warning is gone,
+   and the edge-to-edge warning is gone.
+6. **Record in the runbook**: `dx --version`, the AGP version in the patched root
+   `build.gradle.kts`, and the Material version in the patched `app/build.gradle.kts`.
 
 ## If anything fails
 

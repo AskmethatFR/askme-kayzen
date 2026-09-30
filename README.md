@@ -61,8 +61,11 @@ The one-time setup it expects, and why each version is pinned where it is:
 | SDK platform | `platforms;android-36` | `compile_sdk`/`target_sdk` in `app/Dioxus.toml`, aimed straight at 36 per the compileSdk-ladder decision |
 | NDK | `25.2.9519653` (r25c) | the version Dioxus 0.7 documents, and the one Rust targets for `aarch64-linux-android` |
 | CMake | `3.22.1` | installed alongside the NDK, from the SDK |
-| JDK | 17 | the Android Gradle Plugin runs on 17; a newer JDK on `PATH` is not a substitute |
+| JDK | 17 | the Android Gradle Plugin runs on 17; a newer JDK on `PATH` is not a substitute — AGP 9.0.0 itself was adjudicated on this pin (`bundleRelease` green, 2026-09-30) |
 | Rust target | `aarch64-linux-android` | every current device; add the other three for emulators |
+| dx | `0.7.9` | generates the Gradle project fresh on every build; no `dx` release ships AGP 9, so the bump is carried by the seam |
+| Android Gradle Plugin | `9.0.0` | patched into the generated root `build.gradle.kts` by `scripts/android-bundle.sh` between its two passes — exact literal, never a floating range (the template ships 8.7.0, which warns on `compileSdk = 36`) |
+| Material Components | `1.14.0` | same seam patch, module `build.gradle.kts`; belt only — the gate on the deprecated system-bar setters is the dex scan on the produced AAB |
 
 ```bash
 brew install --cask android-commandlinetools
@@ -93,11 +96,15 @@ upgraded — the config isn't forked (nothing to fork yet: no `<base-config>`, c
 stays denied except to `127.0.0.1` for hot-reload), but a future `dx` changing that
 default would ship silently otherwise.
 
-The build prints `WARNING: We recommend using a newer Android Gradle plugin to use
-compileSdk = 36` (AGP 8.7.0 was tested up to 35) and still succeeds — expected until
-the Gradle project's pinned AGP moves. `dx` exposes no gradle-args passthrough to add
-`android.suppressUnsupportedCompileSdk=36` from outside the generated project, so this
-is silenced only by an AGP bump, tracked separately from this repo's `compileSdk`.
+The build once printed `WARNING: We recommend using a newer Android Gradle plugin to
+use compileSdk = 36` (AGP 8.7.0 was tested up to 35) and succeeded anyway. Since the
+seam carries AGP `9.0.0` the warning is gone, and the release refuses to build if it
+comes back: `scripts/android-bundle.sh` captures the Gradle output of its own run and
+fails when the warning is present, rather than letting a scroll-by decide the toolchain
+level. The same build proves, on the produced AAB's own dex bytes, that no
+`Window.setStatusBarColor`/`setNavigationBarColor` reference survives (the R8 rule file
+`no-deprecated-bar-apis.pro` is dropped at the seam), and `scripts/android-sign.sh`
+repeats that scan on the signed bytes before the artifact is published.
 
 The device needs USB debugging on, and *Install via USB* on Xiaomi/HyperOS. Even then
 the phone asks to confirm the first install of each build: `adb` reports
