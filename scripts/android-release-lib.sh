@@ -435,6 +435,111 @@ patch_dead_buildconfig_default() {
         "$anchor" "$anchor" ""
 }
 
+patch_main_activity_edge_to_edge() {
+    local main_activity="$1"
+    if [ ! -f "$main_activity" ]; then
+        echo "patch_main_activity_edge_to_edge: no MainActivity.kt at $main_activity" >&2
+        return 1
+    fi
+    local anchor_re='class MainActivity : WryActivity\(\)'
+    local marker="__ANDROID_MAIN_ACTIVITY_EDGE_TO_EDGE_MARKER__"
+    local block
+    block="$(cat <<'KOTLIN'
+class MainActivity : WryActivity() {
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState)
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { view, insets ->
+            val bars = insets.getInsets(
+                androidx.core.view.WindowInsetsCompat.Type.systemBars() or
+                    androidx.core.view.WindowInsetsCompat.Type.displayCutout()
+            )
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            insets
+        }
+    }
+}
+KOTLIN
+)"
+
+    # @law: `grep -c` exits 1, not 0, on zero matches -- `|| true` keeps the
+    # explicit occurrences check below the sole arbiter of pass/fail.
+    local occurrences
+    occurrences="$(grep -cE "^[[:space:]]*$anchor_re\$" "$main_activity" || true)"
+    if [ "$occurrences" -ne 1 ]; then
+        echo "patch_main_activity_edge_to_edge: $main_activity has $occurrences occurrence(s) of the MainActivity anchor, expected exactly 1" >&2
+        return 1
+    fi
+
+    local tmp_marked
+    tmp_marked="$(mktemp)"
+    ANCHOR="$anchor_re" MARKER="$marker" awk '
+        {
+            match($0, /^[[:space:]]*/)
+            indent = substr($0, RSTART, RLENGTH)
+        }
+        $0 ~ ("^[[:space:]]*" ENVIRON["ANCHOR"] "$") {
+            print indent ENVIRON["MARKER"]
+            next
+        }
+        { print }
+    ' "$main_activity" > "$tmp_marked"
+
+    local marked
+    marked="$(grep -cF "$marker" "$tmp_marked" || true)"
+    if [ "$marked" -ne 1 ]; then
+        rm -f "$tmp_marked"
+        echo "patch_main_activity_edge_to_edge: the anchor did not turn into the internal patch marker ($marked line(s) marked) -- the substitution did not run" >&2
+        return 1
+    fi
+    if grep -qE "^[[:space:]]*$anchor_re\$" "$tmp_marked"; then
+        rm -f "$tmp_marked"
+        echo "patch_main_activity_edge_to_edge: the anchor line survived the first substitution in $main_activity" >&2
+        return 1
+    fi
+
+    # @law: the replacement is a whole Kotlin class BODY, so the marker swap
+    # runs in awk over ENVIRON (a multi-line value survives intact); sed's s
+    # command cannot carry embedded newlines into its replacement text.
+    local tmp_final swap_status=0
+    tmp_final="$(mktemp)"
+    MARKER="$marker" BLOCK="$block" awk '
+        $0 ~ ENVIRON["MARKER"] {
+            printf "%s\n", ENVIRON["BLOCK"]
+            replaced++
+            next
+        }
+        { print }
+        END { if (replaced != 1) exit 1 }
+    ' "$tmp_marked" > "$tmp_final" || swap_status=$?
+    rm -f "$tmp_marked"
+    if [ "$swap_status" -ne 0 ]; then
+        rm -f "$tmp_final"
+        echo "patch_main_activity_edge_to_edge: the marker swap failed in $main_activity (awk exited $swap_status)" >&2
+        return 1
+    fi
+    if grep -qF "$marker" "$tmp_final"; then
+        rm -f "$tmp_final"
+        echo "patch_main_activity_edge_to_edge: the internal patch marker survived the swap in $main_activity" >&2
+        return 1
+    fi
+
+    local read_back
+    read_back="$(grep -cF 'WindowCompat.setDecorFitsSystemWindows(window, false)' "$tmp_final" || true)"
+    if [ "$read_back" -ne 1 ]; then
+        rm -f "$tmp_final"
+        echo "patch_main_activity_edge_to_edge: the edge-to-edge call was not read back exactly once in $main_activity" >&2
+        return 1
+    fi
+    if grep -qE '^[[:space:]]*class MainActivity : WryActivity\(\)$' "$tmp_final"; then
+        rm -f "$tmp_final"
+        echo "patch_main_activity_edge_to_edge: the bare anchor line is still present in $main_activity after patching" >&2
+        return 1
+    fi
+
+    mv "$tmp_final" "$main_activity"
+}
+
 deprecated_bar_api_refs() {
     # Reads one dex file on stdin. Prints one `Landroid/view/Window;-><name>`
     # line per method_id whose class is android.view.Window AND whose name is

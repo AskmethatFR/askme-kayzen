@@ -1765,6 +1765,87 @@ with zipfile.ZipFile(aab, "w") as zf:
 ' "$aab" "$@" 2>/dev/null
     }
 
+    # Builds a synthetic dex fixture at $1 in mode $2 (clean | dirty |
+    # mispaired) for the deprecated_bar_api_refs scan. Defined here, next to
+    # the other archive builders, because the android-sign.sh fixtures below
+    # already need a clean dex (the signed-bytes re-verify runs on them)
+    # long before the T1 section that asserts on the three modes.
+    build_dex_fixture() {
+        python3 - "$1" "$2" <<'PY'
+import struct
+import sys
+
+path, mode = sys.argv[1], sys.argv[2]
+strings = [
+    b"Landroid/view/Window;",
+    b"setStatusBarColor",
+    b"setNavigationBarColor",
+    b"setFlags",
+    b"Lcom/example/Clean;",
+    b"cleanMethod",
+]
+header_size = 0x70
+string_ids_off = header_size
+type_ids = [0, 4]
+type_ids_off = string_ids_off + 4 * len(strings)
+method_ids_off = type_ids_off + 4 * len(type_ids)
+if mode == "dirty":
+    method_ids = [(0, 0, 1), (0, 0, 2)]
+elif mode == "clean":
+    method_ids = [(1, 0, 5)]
+elif mode == "mispaired":
+    method_ids = [(1, 0, 1), (0, 0, 4)]
+else:
+    raise SystemExit("unknown dex fixture mode: " + mode)
+
+
+def uleb(n):
+    out = bytearray()
+    while True:
+        b = n & 0x7F
+        n >>= 7
+        if n:
+            out.append(b | 0x80)
+        else:
+            out.append(b)
+            break
+    return bytes(out)
+
+
+blob = b""
+string_offsets = []
+cursor = method_ids_off + 8 * len(method_ids)
+for s in strings:
+    encoded = uleb(len(s)) + s + b"\x00"
+    string_offsets.append(cursor)
+    blob += encoded
+    cursor += len(encoded)
+string_table = b"".join(struct.pack("<I", o) for o in string_offsets)
+type_table = b"".join(struct.pack("<I", d) for d in type_ids)
+method_table = b"".join(struct.pack("<HHI", c, p, n) for c, p, n in method_ids)
+data_off = method_ids_off + len(method_table)
+file_size = data_off + len(blob)
+hdr = bytearray(header_size)
+hdr[0:8] = b"dex\n035\x00"
+for offset, value in (
+    (32, file_size),
+    (36, header_size),
+    (40, 0x12345678),
+    (56, len(strings)),
+    (60, string_ids_off),
+    (64, len(type_ids)),
+    (68, type_ids_off),
+    (88, len(method_ids)),
+    (92, method_ids_off),
+    (104, len(blob)),
+    (108, data_off),
+):
+    struct.pack_into("<I", hdr, offset, value)
+with open(path, "wb") as handle:
+    handle.write(bytes(hdr) + string_table + type_table + method_table + blob)
+PY
+    }
+
     va() { env NDK_HOME="$SYNTH_NDK_HOME" "$VERIFY_ALIGNMENT" "$@"; }
 
     # A real 16 KB-aligned .so, compiled fresh with the exact link flags
@@ -2340,9 +2421,13 @@ SHIM
     # (for the alignment-regression case) -- both signed with the SAME
     # correct keystore, so only the alignment differs between them.
     UNSIGNED_AAB_16K="$SIGN_ROOT/unsigned-16k.aab"
-    build_aab "$UNSIGNED_AAB_16K" "base/lib/arm64-v8a/lib16k.so" "$SYNTH_ROOT/lib16k.so"
+    SIGN_CLEAN_DEX="$SIGN_ROOT/classes.dex"
+    build_dex_fixture "$SIGN_CLEAN_DEX" "clean"
+    build_aab "$UNSIGNED_AAB_16K" "base/lib/arm64-v8a/lib16k.so" "$SYNTH_ROOT/lib16k.so" \
+        "base/dex/classes.dex" "$SIGN_CLEAN_DEX"
     UNSIGNED_AAB_4K="$SIGN_ROOT/unsigned-4k.aab"
-    build_aab "$UNSIGNED_AAB_4K" "base/lib/arm64-v8a/libstock.so" "$SYNTH_STOCK_SO"
+    build_aab "$UNSIGNED_AAB_4K" "base/lib/arm64-v8a/libstock.so" "$SYNTH_STOCK_SO" \
+        "base/dex/classes.dex" "$SIGN_CLEAN_DEX"
 
     sign_ok() {
         env NDK_HOME="$SYNTH_NDK_HOME" \
@@ -3381,6 +3466,52 @@ EOF
     assert_eq "no" "$gate_empty_signed" \
         "android-sign.sh: an empty expected fingerprint leaves no signed bundle behind"
 
+    # --- android-sign.sh re-verifies the deprecated-bar absence (T3) ------
+    # Same law as the bundle-side wire: the property is read on the SIGNED
+    # bytes (the artifact that actually ships), and the alignment re-verify
+    # keeps running first so an alignment regression is still named as one.
+    SIGN_SCRIPT="$ROOT/scripts/android-sign.sh"
+    sign_line_of() {
+        grep -nF -- "$1" "$SIGN_SCRIPT" | head -1 | cut -d: -f1
+    }
+
+    sign_verifier_line="$(sign_line_of '"$ROOT/scripts/android-verify-no-deprecated-bar-apis.sh" "$tmp_signed"')"
+    sign_verifier_present="no"
+    [ -n "$sign_verifier_line" ] && sign_verifier_present="yes"
+    assert_eq "yes" "$sign_verifier_present" \
+        "android-sign.sh: the deprecated-bar verifier runs on the SIGNED bytes (T3)"
+
+    sign_align_line="$(sign_line_of '"$ROOT/scripts/android-verify-alignment.sh" "$tmp_signed"')"
+    sign_mv_line="$(sign_line_of 'mv "$tmp_signed" "$SIGNED_AAB"')"
+    sign_order="no"
+    if [ -n "$sign_align_line" ] && [ -n "$sign_verifier_line" ] && [ -n "$sign_mv_line" ] \
+        && [ "$sign_align_line" -lt "$sign_verifier_line" ] \
+        && [ "$sign_verifier_line" -lt "$sign_mv_line" ]; then
+        sign_order="yes"
+    fi
+    assert_eq "yes" "$sign_order" \
+        "android-sign.sh: the dex re-verify runs after the alignment re-verify and before the artifact is published (T3)"
+
+    SIGN_DIRTY_DEX="$SIGN_ROOT/dirty.dex"
+    build_dex_fixture "$SIGN_DIRTY_DEX" "dirty"
+    UNSIGNED_AAB_DIRTY_DEX="$SIGN_ROOT/unsigned-dirty-dex.aab"
+    build_aab "$UNSIGNED_AAB_DIRTY_DEX" "base/lib/arm64-v8a/lib16k.so" "$SYNTH_ROOT/lib16k.so" \
+        "base/dex/classes.dex" "$SIGN_DIRTY_DEX"
+    err_sign_dirty_dex="$(sign_ok "$UNSIGNED_AAB_DIRTY_DEX" 2>&1 1>/dev/null)"
+    status_sign_dirty_dex=$?
+    assert_eq "1" "$status_sign_dirty_dex" \
+        "android-sign.sh: a bundle whose signed dex still references the deprecated setters is refused (T3)"
+    case "$err_sign_dirty_dex" in
+        *"->setStatusBarColor"*) msg_sign_dirty_dex="yes" ;;
+        *) msg_sign_dirty_dex="no" ;;
+    esac
+    assert_eq "yes" "$msg_sign_dirty_dex" \
+        "android-sign.sh: the signed-bytes refusal names the exact method reference (T3)"
+    dirty_dex_signed="no"
+    [ -f "$SIGN_ROOT/unsigned-dirty-dex-signed.aab" ] && dirty_dex_signed="yes"
+    assert_eq "no" "$dirty_dex_signed" \
+        "android-sign.sh: no signed artifact is left behind after the dex re-verify refuses (T3)"
+
     rm -rf "$SIGN_ROOT"
 
     rm -rf "$SYNTH_ROOT"
@@ -3665,82 +3796,6 @@ rm -rf "$PATCH_ROOT"
 # substring would look for (observed on this repo's own AAB).
 DEX_FIX_DIR="$(mktemp -d)"
 
-build_dex_fixture() {
-    python3 - "$1" "$2" <<'PY'
-import struct
-import sys
-
-path, mode = sys.argv[1], sys.argv[2]
-strings = [
-    b"Landroid/view/Window;",
-    b"setStatusBarColor",
-    b"setNavigationBarColor",
-    b"setFlags",
-    b"Lcom/example/Clean;",
-    b"cleanMethod",
-]
-header_size = 0x70
-string_ids_off = header_size
-type_ids = [0, 4]
-type_ids_off = string_ids_off + 4 * len(strings)
-method_ids_off = type_ids_off + 4 * len(type_ids)
-if mode == "dirty":
-    method_ids = [(0, 0, 1), (0, 0, 2)]
-elif mode == "clean":
-    method_ids = [(1, 0, 5)]
-elif mode == "mispaired":
-    method_ids = [(1, 0, 1), (0, 0, 4)]
-else:
-    raise SystemExit("unknown dex fixture mode: " + mode)
-
-
-def uleb(n):
-    out = bytearray()
-    while True:
-        b = n & 0x7F
-        n >>= 7
-        if n:
-            out.append(b | 0x80)
-        else:
-            out.append(b)
-            break
-    return bytes(out)
-
-
-blob = b""
-string_offsets = []
-cursor = method_ids_off + 8 * len(method_ids)
-for s in strings:
-    encoded = uleb(len(s)) + s + b"\x00"
-    string_offsets.append(cursor)
-    blob += encoded
-    cursor += len(encoded)
-string_table = b"".join(struct.pack("<I", o) for o in string_offsets)
-type_table = b"".join(struct.pack("<I", d) for d in type_ids)
-method_table = b"".join(struct.pack("<HHI", c, p, n) for c, p, n in method_ids)
-data_off = method_ids_off + len(method_table)
-file_size = data_off + len(blob)
-hdr = bytearray(header_size)
-hdr[0:8] = b"dex\n035\x00"
-for offset, value in (
-    (32, file_size),
-    (36, header_size),
-    (40, 0x12345678),
-    (56, len(strings)),
-    (60, string_ids_off),
-    (64, len(type_ids)),
-    (68, type_ids_off),
-    (88, len(method_ids)),
-    (92, method_ids_off),
-    (104, len(blob)),
-    (108, data_off),
-):
-    struct.pack_into("<I", hdr, offset, value)
-with open(path, "wb") as handle:
-    handle.write(bytes(hdr) + string_table + type_table + method_table + blob)
-PY
-}
-
 build_dex_fixture "$DEX_FIX_DIR/clean.dex" "clean"
 build_dex_fixture "$DEX_FIX_DIR/dirty.dex" "dirty"
 build_dex_fixture "$DEX_FIX_DIR/mispaired.dex" "mispaired"
@@ -3973,7 +4028,7 @@ bundle_pin '"$REPO_ROOT/scripts/android-verify-alignment.sh" "$AAB"' \
     "android-bundle.sh: the 16 KB alignment verifier is still wired (AC4 regression)"
 
 DX_PASS1='dx bundle --platform android --release --package-types aab'
-GRADLE_PASS2='./gradlew --quiet bundleRelease'
+GRADLE_PASS2='./gradlew --console=plain bundleRelease'
 bundle_before "$DX_PASS1" 'patch_agp_classpath "$ROOT_BUILD_GRADLE"' \
     "android-bundle.sh: the AGP patch runs after pass 1, inside the seam window"
 bundle_before 'patch_agp_classpath "$ROOT_BUILD_GRADLE"' "$GRADLE_PASS2" \
@@ -3986,6 +4041,95 @@ bundle_before "$GRADLE_PASS2" 'grep -qF "We recommend using a newer Android Grad
     "android-bundle.sh: the warning assertion reads the captured output of THIS run"
 bundle_before "$GRADLE_PASS2" 'scripts/android-verify-no-deprecated-bar-apis.sh" "$AAB"' \
     "android-bundle.sh: the dex verifier runs after the AAB exists (AC2)"
+
+# --- patch_main_activity_edge_to_edge (T2, AC3) ----------------------------
+# Fixture mirrors the dx v0.7.9 MainActivity.kt output byte-for-byte (the
+# three-line shape the generated file actually carries), so the anchor
+# refusal cases below measure the real template, not an approximation.
+MA_FIXTURE_ROOT="$(mktemp -d)"
+MA_FIXTURE="$MA_FIXTURE_ROOT/MainActivity.kt"
+cat > "$MA_FIXTURE" <<'KT'
+package dev.dioxus.main
+
+typealias BuildConfig = com.askmethat.kayzen.BuildConfig
+
+class MainActivity : WryActivity()
+KT
+
+patch_main_activity_edge_to_edge "$MA_FIXTURE"
+assert_eq "0" "$?" \
+    "patch_main_activity_edge_to_edge: the generated MainActivity template migrates with success"
+
+ma_package_kept="no"
+grep -qF 'package dev.dioxus.main' "$MA_FIXTURE" && ma_package_kept="yes"
+assert_eq "yes" "$ma_package_kept" \
+    "patch_main_activity_edge_to_edge: the package declaration above the anchor is untouched"
+
+ma_typealias_kept="no"
+grep -qF 'typealias BuildConfig = com.askmethat.kayzen.BuildConfig' "$MA_FIXTURE" && ma_typealias_kept="yes"
+assert_eq "yes" "$ma_typealias_kept" \
+    "patch_main_activity_edge_to_edge: the BuildConfig typealias above the anchor is untouched"
+
+ma_bare_anchor="$(grep -cE '^class MainActivity : WryActivity\(\)$' "$MA_FIXTURE" || true)"
+assert_eq "0" "$ma_bare_anchor" \
+    "patch_main_activity_edge_to_edge: the bare anchor line is replaced whole, never left in place"
+
+for ma_needle in \
+    'class MainActivity : WryActivity() {' \
+    'super.onCreate(savedInstanceState)' \
+    'WindowCompat.setDecorFitsSystemWindows(window, false)' \
+    'ViewCompat.setOnApplyWindowInsetsListener(window.decorView)' \
+    'WindowInsetsCompat.Type.systemBars()' \
+    'WindowInsetsCompat.Type.displayCutout()' \
+    'view.setPadding(bars.left, bars.top, bars.right, bars.bottom)'; do
+    ma_hits="$(grep -cF "$ma_needle" "$MA_FIXTURE" || true)"
+    assert_eq "1" "$ma_hits" \
+        "patch_main_activity_edge_to_edge: exactly one occurrence of $ma_needle"
+done
+
+ma_e2e_line="$(grep -nF 'WindowCompat.setDecorFitsSystemWindows(window, false)' "$MA_FIXTURE" | head -1 | cut -d: -f1)"
+ma_listener_line="$(grep -nF 'ViewCompat.setOnApplyWindowInsetsListener(window.decorView)' "$MA_FIXTURE" | head -1 | cut -d: -f1)"
+ma_e2e_before_listener="no"
+if [ -n "$ma_e2e_line" ] && [ -n "$ma_listener_line" ] && [ "$ma_e2e_line" -lt "$ma_listener_line" ]; then
+    ma_e2e_before_listener="yes"
+fi
+assert_eq "yes" "$ma_e2e_before_listener" \
+    "patch_main_activity_edge_to_edge: edge-to-edge is enabled BEFORE the insets listener compensates for it"
+
+assert_refuses "patch_main_activity_edge_to_edge: a missing file refuses" \
+    -- patch_main_activity_edge_to_edge "$MA_FIXTURE_ROOT/does-not-exist.kt"
+
+assert_refuses "patch_main_activity_edge_to_edge: a double patch refuses (the anchor is gone after the first)" \
+    -- patch_main_activity_edge_to_edge "$MA_FIXTURE"
+
+MA_DOUBLE_FIXTURE="$MA_FIXTURE_ROOT/MainActivity-double.kt"
+cat > "$MA_DOUBLE_FIXTURE" <<'KT'
+package dev.dioxus.main
+
+class MainActivity : WryActivity()
+class MainActivity : WryActivity()
+KT
+assert_refuses "patch_main_activity_edge_to_edge: two occurrences of the anchor refuse" \
+    -- patch_main_activity_edge_to_edge "$MA_DOUBLE_FIXTURE"
+
+MA_NO_ANCHOR_FIXTURE="$MA_FIXTURE_ROOT/MainActivity-no-anchor.kt"
+cat > "$MA_NO_ANCHOR_FIXTURE" <<'KT'
+package dev.dioxus.main
+
+class SomethingElse : AppCompatActivity()
+KT
+assert_refuses "patch_main_activity_edge_to_edge: a file without the anchor refuses, never patches blind" \
+    -- patch_main_activity_edge_to_edge "$MA_NO_ANCHOR_FIXTURE"
+rm -rf "$MA_FIXTURE_ROOT"
+
+bundle_pin 'MAIN_ACTIVITY="$GRADLE_PROJECT/app/src/main/kotlin/dev/dioxus/main/MainActivity.kt"' \
+    "android-bundle.sh: the generated MainActivity is a declared patch target"
+bundle_pin 'patch_main_activity_edge_to_edge "$MAIN_ACTIVITY"' \
+    "android-bundle.sh: patch_main_activity_edge_to_edge is invoked at the seam"
+bundle_before "$DX_PASS1" 'patch_main_activity_edge_to_edge "$MAIN_ACTIVITY"' \
+    "android-bundle.sh: the MainActivity patch runs after pass 1, inside the seam window"
+bundle_before 'patch_main_activity_edge_to_edge "$MAIN_ACTIVITY"' "$GRADLE_PASS2" \
+    "android-bundle.sh: the MainActivity patch runs before pass 2 compiles it"
 
 # --- .gitignore tripwire (AC 6) --------------------------------------------
 # A real keystore lives at $HOME/.kayzen/, never in the repo; *.jks,
