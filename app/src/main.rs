@@ -348,4 +348,29 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn main_css_keeps_every_safe_area_inset_site_on_the_env_fallback_form() {
+        let mut rest = MAIN_CSS_SOURCE;
+        let mut sites = 0usize;
+        while let Some(start) = rest.find("env(safe-area-inset-") {
+            let tail = &rest[start..];
+            let end = tail
+                .find(')')
+                .expect("a safe-area env() call always closes on the same line");
+            let call = &tail[..=end];
+            assert!(
+                call.ends_with(", 0px)"),
+                "safe-area site without the 0px fallback form: {call}"
+            );
+            sites += 1;
+            rest = &tail[end + 1..];
+        }
+        assert_eq!(
+            sites, 15,
+            "main.css must keep its 15 env(safe-area-inset-*, 0px) sites: they are \
+             the web/iOS safe-area layer, while the Android arm compensates system \
+             bars natively at the seam (env() measures 0 there, adr-0021)"
+        );
+    }
 }
