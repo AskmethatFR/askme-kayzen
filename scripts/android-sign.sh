@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Signs the unsigned release AAB scripts/android-bundle.sh produces with the
-# real upload key, then re-verifies both the signature and the 16 KB
-# page-size alignment on the SIGNED bytes.
+# real upload key, then re-verifies the signature, the 16 KB page-size
+# alignment AND the absence of Window.setStatusBarColor/setNavigationBarColor
+# references on the SIGNED bytes.
 #
 # Usage: scripts/android-sign.sh <aab-path>
 # Progress goes to stderr; the ONLY line on stdout is the signed AAB's
@@ -35,7 +36,7 @@
 # variable is unset from this script's own environment: every descendant
 # process spawned after that point (the jarsigner -verify call, the
 # signed jar's OWN fingerprint read inside verify_jar_signature, and the
-# alignment re-check below) never sees them -- argv is not the only
+# alignment and dex re-checks below) never sees them -- argv is not the only
 # channel a password leaks through, and `environ` outlives the argv of the
 # command that set it. Verifying a signature needs no store password at
 # all -- jarsigner -verify and `keytool -printcert -jarfile` only read
@@ -189,9 +190,9 @@ expected_fingerprint="$(keystore_alias_fingerprint "$ANDROID_SIGN_KEYSTORE" "$AN
 # @law: signing and the fingerprint read above are the only steps that
 # need the two passwords -- every process spawned after this point
 # (jarsigner -verify next, the signed jar's OWN fingerprint read inside
-# verify_jar_signature, and the alignment re-check further down) must
-# never see them: argv is not the only channel a password leaks through,
-# and `environ` outlives the argv of the command that set it.
+# verify_jar_signature, and the alignment and dex re-checks further down)
+# must never see them: argv is not the only channel a password leaks
+# through, and `environ` outlives the argv of the command that set it.
 unset ANDROID_SIGN_STORE_PASSWORD ANDROID_SIGN_KEY_PASSWORD
 
 echo "==> verifying the signature by alias '$ANDROID_SIGN_KEY_ALIAS'" >&2
@@ -208,6 +209,9 @@ esac
 
 echo "==> re-verifying 16 KB page-size alignment on the signed bundle" >&2
 "$ROOT/scripts/android-verify-alignment.sh" "$tmp_signed" >&2
+
+echo "==> re-verifying the signed bundle's dex carries no deprecated system-bar API reference" >&2
+"$ROOT/scripts/android-verify-no-deprecated-bar-apis.sh" "$tmp_signed" >&2
 
 mv "$tmp_signed" "$SIGNED_AAB"
 

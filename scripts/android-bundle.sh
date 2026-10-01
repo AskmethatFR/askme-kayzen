@@ -19,12 +19,17 @@
 #   1. `dx bundle` with --rustc-args carrying the 16 KB alignment flags
 #      (see the comment on ALIGN_RUSTC_ARGS below), producing the Gradle
 #      project AND compiling libmain.so.
-#   2. the launcher icon is applied, the generated build.gradle.kts is
-#      patched with the real versionCode, and Gradle alone re-packages the
-#      bundle around the SAME .so `dx` already linked. It does not recompile
-#      Rust: Gradle just re-zips what pass 1 deposited into jniLibs, so pass
-#      2 is what actually produces the .aab and the icon and version patch
-#      survive into it.
+#   2. the launcher icon is applied, the generated project is patched at the
+#      seam (real versionCode, AGP >= 9.0 classpath, built-in-Kotlin
+#      migration, dead gradle.properties default, Material bump, edge-to-edge
+#      MainActivity with system-bar insets padding, the R8 rule file that
+#      strips the deprecated system-bar setter calls), and Gradle alone
+#      re-packages the bundle around the SAME .so `dx` already linked. It
+#      does not recompile Rust: Gradle just re-zips what pass 1 deposited
+#      into jniLibs, so pass 2 is what actually produces the .aab and every
+#      patch above survives into it. Afterwards the artifact's own bytes are
+#      verified: 16 KB alignment, then no Window.setStatusBarColor/
+#      setNavigationBarColor reference in any packaged dex.
 # A single `dx bundle` cannot do both: `dx` owns the whole generated Gradle
 # project and rewrites it on every run, so anything hand-patched into it
 # before a `dx bundle` call is gone by the time that call finishes.
@@ -43,7 +48,16 @@ GRADLE_PROJECT="$REPO_ROOT/target/dx/kayzen-app/release/android/app"
 MODULE="$GRADLE_PROJECT/app"
 GENERATED_RES="$MODULE/src/main/res"
 BUILD_GRADLE="$MODULE/build.gradle.kts"
+ROOT_BUILD_GRADLE="$GRADLE_PROJECT/build.gradle.kts"
+GRADLE_PROPERTIES="$GRADLE_PROJECT/gradle.properties"
+PRO_RULES="$MODULE/no-deprecated-bar-apis.pro"
+MAIN_ACTIVITY="$GRADLE_PROJECT/app/src/main/kotlin/dev/dioxus/main/MainActivity.kt"
 AAB="$MODULE/build/outputs/bundle/release/app-release.aab"
+# Exact literals, never a floating range: the release build must resolve the
+# same AGP/Material every time (the build itself adjudicated both -- 9.0.0 is
+# the lowest 9.x.y google() serves and bundleRelease accepts).
+readonly AGP_CLASSPATH_VERSION="9.0.0"
+readonly MATERIAL_VERSION="1.14.0"
 # NOT outputs/bundle/release/output-metadata.json: AGP only writes a
 # versionCode/versionName-carrying output-metadata.json for an APK variant
 # (artifactType "APK"). The bundle task's own IDE listing file
@@ -153,17 +167,67 @@ patch_version_code "$BUILD_GRADLE" "$VERSION_CODE" \
 grep -qE "^[[:space:]]*versionName = \"$VERSION\"\$" "$BUILD_GRADLE" \
     || fail "versionName \"$VERSION\" not found in $BUILD_GRADLE"
 
+echo "==> patching the AGP classpath to $AGP_CLASSPATH_VERSION" >&2
+patch_agp_classpath "$ROOT_BUILD_GRADLE" "$AGP_CLASSPATH_VERSION" \
+    || fail "failed to patch the AGP classpath in $ROOT_BUILD_GRADLE (see the patch diagnostic above)"
+
+echo "==> migrating the module build file to AGP 9 built-in Kotlin" >&2
+patch_built_in_kotlin "$BUILD_GRADLE" \
+    || fail "failed to migrate $BUILD_GRADLE to built-in Kotlin (see the patch diagnostic above)"
+
+echo "==> dropping the buildconfig default AGP 9 removed" >&2
+patch_dead_buildconfig_default "$GRADLE_PROPERTIES" \
+    || fail "failed to drop the dead buildconfig default from $GRADLE_PROPERTIES (see the patch diagnostic above)"
+
+echo "==> patching the Material dependency to $MATERIAL_VERSION" >&2
+patch_material_dependency "$BUILD_GRADLE" "$MATERIAL_VERSION" \
+    || fail "failed to patch the Material dependency in $BUILD_GRADLE (see the patch diagnostic above)"
+
+echo "==> enabling edge-to-edge with system-bar insets padding on $MAIN_ACTIVITY" >&2
+patch_main_activity_edge_to_edge "$MAIN_ACTIVITY" \
+    || fail "failed to patch $MAIN_ACTIVITY for edge-to-edge (see the patch diagnostic above)"
+
+echo "==> dropping the R8 rules that strip the deprecated system-bar setter calls" >&2
+cat > "$PRO_RULES" <<'PRO'
+-assumenosideeffects class android.view.Window {
+    public void setStatusBarColor(int);
+    public void setNavigationBarColor(int);
+}
+PRO
+
 echo "==> clearing any stale bundle output" >&2
 rm -f "$AAB" "$META"
 
 echo "==> pass 2: gradlew bundleRelease" >&2
-(cd "$GRADLE_PROJECT" && ./gradlew --quiet bundleRelease) >&2
+# --console=plain, never --quiet: --quiet swallows the compileSdk = 36
+# warning the assertion below exists to catch (observed on this repo:
+# --quiet -> 0 matches, --console=plain -> 1 match on the same pristine
+# AGP 8.7.0 output), which would turn the check into a permanent false
+# green.
+GRADLE_LOG="$(mktemp)"
+(cd "$GRADLE_PROJECT" && ./gradlew --console=plain bundleRelease) 2>&1 | tee "$GRADLE_LOG" >&2 || {
+    rm -f "$GRADLE_LOG"
+    fail "gradlew bundleRelease failed"
+}
+# @law: AC 1 -- the compileSdk = 36 warning's ABSENCE is a property of the
+# artifact's build log, so it is asserted on the captured output of THIS
+# run, never inferred from a version number: an AGP that silently stopped
+# warning while staying below the tested level must refuse the release, not
+# pass it.
+if grep -qF "We recommend using a newer Android Gradle plugin to use compileSdk = 36" "$GRADLE_LOG"; then
+    rm -f "$GRADLE_LOG"
+    fail "the compileSdk = 36 AGP warning is present in the Gradle output -- the generated project is not on AGP >= 9.0"
+fi
+rm -f "$GRADLE_LOG"
 
 [ -f "$AAB" ] || fail "gradlew bundleRelease produced no AAB at $AAB"
 [ -f "$META" ] || fail "gradlew bundleRelease produced no bundle manifest at $META"
 
 echo "==> verifying page-size alignment" >&2
 "$REPO_ROOT/scripts/android-verify-alignment.sh" "$AAB" >&2
+
+echo "==> verifying the bundle's dex carries no deprecated system-bar API reference" >&2
+"$REPO_ROOT/scripts/android-verify-no-deprecated-bar-apis.sh" "$AAB" >&2
 
 echo "==> reading back the manifest AGP folded into the bundle" >&2
 produced_version_code="$(grep -oE 'android:versionCode="[0-9]+"' "$META" | head -1 | grep -oE '[0-9]+' || true)"

@@ -3,7 +3,7 @@ id: "android-play-release-runbook"
 type: "technical"
 owner: "architect"
 status: "current"
-updated: "2026-09-24"
+updated: "2026-09-30"
 relations:
   related:
     - "adr-0022-tag-derived-release-version"
@@ -53,6 +53,23 @@ These hold for every release, not only the first. They are rulings already made 
 | **A store-dependent slice is DONE only on two legs** | (a) machine-provable behaviour green, **and** (b) a runbook step actually executed and its outcome attested in plain text on the issue. Never on "the YAML looks right" — [[adr-0009-quality-gates]] applied to a step no gate can reach |
 | **The publish step is not idempotent and is never re-run on the same tag** | Play burns a `versionCode` permanently once it accepts it. Recovery from a half-failed publish is a **new tag**. There is no automated rollback, and none is wanted |
 
+## Toolchain pins (what the seam carries)
+
+`dx` rewrites the whole generated Gradle project on every build, so every value below
+is re-applied **between the bundle script's two passes** — nothing is hand-edited into
+`target/`, and every pin is an exact literal, never a floating range:
+
+| Piece | Pinned value | Where it is enforced |
+|---|---|---|
+| dx | `0.7.9` | generates the project; no release ships AGP 9, which is why the bump lives at the seam |
+| Android Gradle Plugin | `9.0.0` | `scripts/android-bundle.sh` patches the generated root `build.gradle.kts`; the build **fails** if the `compileSdk = 36` warning is present in its own captured Gradle output |
+| Material Components | `1.14.0` | same seam, module `build.gradle.kts` — belt only; the gate is the dex scan |
+| R8 rule `no-deprecated-bar-apis.pro` | dropped at the seam | strips the `Window.setStatusBarColor`/`setNavigationBarColor` calls; `scripts/android-verify-no-deprecated-bar-apis.sh` proves it on the AAB's **own dex bytes** (entries addressed by ordinal), and `scripts/android-sign.sh` repeats the scan on the **signed** bytes before publishing |
+| Edge-to-edge `MainActivity` | `WindowCompat.setDecorFitsSystemWindows` + decor-view insets padding | `patch_main_activity_edge_to_edge` replaces the generated class under one exactly-once anchor; `env(safe-area-inset-*)` is never trusted on Android (it measures `0` in Chromium — adr-0021) |
+| JDK | 17 (corretto-17) | AGP 9.0.0 adjudicated on this pin — `bundleRelease` green, 2026-09-30; no JDK bump fired |
+| python3 | ≥ 3.11 (`tomllib`) | the `Dioxus.toml` preflight inside `android-bundle.sh`; macOS `/usr/bin/python3` (3.9) fails it |
+| NDK | `25.2.9519653` (r25c) | unchanged ([[adr-0022-tag-derived-release-version]] carries adr-0019's pin rule forward) |
+
 ## Key custody, and what a lost key costs
 
 With Play App Signing enabled, **Google holds the app signing key** — the one every installed device validates against. This repository's owner holds only the **upload key**, whose sole power is to prove to Play that an upload came from us.
@@ -97,7 +114,7 @@ export ANDROID_SIGN_KEY_PASSWORD="<key-password>"
 export NDK_HOME="$HOME/Library/Android/sdk/ndk/25.2.9519653"  # macOS; adjust per OS
 scripts/android-sign.sh app-release.aab
 # → prints: app-release-signed.aab
-# → re-verifies signature + 16 KB alignment on signed bytes
+# → re-verifies signature + 16 KB alignment + no deprecated bar APIs on signed bytes
 unset ANDROID_SIGN_STORE_PASSWORD ANDROID_SIGN_KEY_PASSWORD
 ```
 
