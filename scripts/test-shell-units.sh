@@ -4097,7 +4097,8 @@ for ma_needle in \
     'ViewCompat.setOnApplyWindowInsetsListener(window.decorView)' \
     'WindowInsetsCompat.Type.systemBars()' \
     'WindowInsetsCompat.Type.displayCutout()' \
-    'view.setPadding(bars.left, bars.top, bars.right, bars.bottom)'; do
+    'view.setPadding(bars.left, bars.top, bars.right, bars.bottom)' \
+    'window.decorView.setBackgroundColor(android.graphics.Color.parseColor("#F4F1EA"))'; do
     ma_hits="$(grep -cF "$ma_needle" "$MA_FIXTURE" || true)"
     assert_eq "1" "$ma_hits" \
         "patch_main_activity_edge_to_edge: exactly one occurrence of $ma_needle"
