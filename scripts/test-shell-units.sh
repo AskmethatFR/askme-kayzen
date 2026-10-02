@@ -4042,6 +4042,22 @@ bundle_before "$GRADLE_PASS2" 'grep -qF "We recommend using a newer Android Grad
 bundle_before "$GRADLE_PASS2" 'scripts/android-verify-no-deprecated-bar-apis.sh" "$AAB"' \
     "android-bundle.sh: the dex verifier runs after the AAB exists (AC2)"
 
+# --- android-bundle.sh: the ABI pin (host-trap regression) ------------------
+# dx infers the Android triple from the HOST arch, so an x86_64 runner once
+# shipped an x86_64-only bundle that Play rejected on every real phone
+# ("Doesn't support required ABI: x86_64", release run 36543784319). What is
+# pinned: the triple literal, dx being handed it explicitly, and the
+# artifact-level read-back with its own fail branch -- so the assertion can
+# neither go missing nor pass silently on an empty/foreign ABI set.
+bundle_pin 'readonly ANDROID_RUST_TARGET="aarch64-linux-android"' \
+    "android-bundle.sh: the Android Rust triple is pinned to the exact literal (no floating/host-derived value)"
+bundle_pin '--target "$ANDROID_RUST_TARGET"' \
+    "android-bundle.sh: dx is handed the triple explicitly (never host-arch inference)"
+bundle_pin 'fail "the bundle ships ABIs' \
+    "android-bundle.sh: the ABI read-back failure has its own fail branch, never a silent pass"
+bundle_before "$GRADLE_PASS2" 'shipped_abis="$(python3 -c' \
+    "android-bundle.sh: the ABI read-back runs after pass 2, on the produced AAB"
+
 # --- patch_main_activity_edge_to_edge (T2, AC3) ----------------------------
 # Fixture mirrors the dx v0.7.9 MainActivity.kt output byte-for-byte (the
 # three-line shape the generated file actually carries), so the anchor
