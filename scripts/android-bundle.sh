@@ -58,6 +58,16 @@ AAB="$MODULE/build/outputs/bundle/release/app-release.aab"
 # the lowest 9.x.y google() serves and bundleRelease accepts).
 readonly AGP_CLASSPATH_VERSION="9.0.0"
 readonly MATERIAL_VERSION="1.14.0"
+# The one Rust triple the bundle may ship, pinned as a literal on the `dx
+# bundle` line below. dx otherwise picks the Android triple FROM THE HOST
+# ARCH: on an arm64 Mac it builds aarch64-v8a, on the x86_64 CI runner it
+# logged "android platform requires x86_64-linux-android to be installed"
+# and shipped an x86_64-ONLY bundle -- which Play then reported as
+# "Doesn't support required ABI: x86_64" against every real phone (release
+# run 36543784319). The rustup target preflight below and the CI workflows'
+# `targets:` both already name this triple; this constant makes `dx` agree
+# with them instead of with the runner it happens to run on.
+readonly ANDROID_RUST_TARGET="aarch64-linux-android"
 # NOT outputs/bundle/release/output-metadata.json: AGP only writes a
 # versionCode/versionName-carrying output-metadata.json for an APK variant
 # (artifactType "APK"). The bundle task's own IDE listing file
@@ -99,8 +109,8 @@ fi
 [ -d "$NDK_HOME" ] || fail "no NDK at $NDK_HOME (set NDK_HOME)"
 [ -x "$JAVA_HOME/bin/java" ] || fail "no JDK 17 at $JAVA_HOME (set JAVA_HOME)"
 
-rustup target list --installed | grep -qx aarch64-linux-android \
-    || fail "missing Rust target (rustup target add aarch64-linux-android)"
+rustup target list --installed | grep -qx "$ANDROID_RUST_TARGET" \
+    || fail "missing Rust target (rustup target add $ANDROID_RUST_TARGET)"
 
 command -v dx >/dev/null || fail "dx not found (cargo install dioxus-cli)"
 
@@ -144,10 +154,14 @@ echo "==> cleaning generated resources" >&2
 
 echo "==> pass 1: dx bundle (release, aab, 16 KB page-size aligned)" >&2
 # --rustc-args="..." (the = form), never a space before the value: clap
-# reads a space-separated value starting with "-C" as a new flag of `dx
-# bundle` itself ("unexpected argument '-C' found"), not as this flag's
+# reads a space-separated value starting with "-C" as a new flag of
+# `dx bundle` itself ("unexpected argument '-C' found"), not as this flag's
 # value.
-(cd "$REPO_ROOT/app" && dx bundle --platform android --release --package-types aab --rustc-args="$ALIGN_RUSTC_ARGS") >&2
+#
+# --target is explicit and never left to dx's inference: dx derives the
+# Android triple from the HOST arch, so without it an x86_64 runner
+# produces an x86_64-only bundle (see ANDROID_RUST_TARGET above).
+(cd "$REPO_ROOT/app" && dx bundle --platform android --release --package-types aab --target "$ANDROID_RUST_TARGET" --rustc-args="$ALIGN_RUSTC_ARGS") >&2
 
 echo "==> applying the launcher icon" >&2
 "$REPO_ROOT/scripts/android-icon.sh" apply "$GENERATED_RES" >&2
@@ -239,6 +253,30 @@ produced_version_name="$(grep -oE 'android:versionName="[^"]*"' "$META" | head -
 [ -n "$produced_version_name" ] || fail "no android:versionName found in $META"
 [ "$produced_version_name" = "$VERSION" ] \
     || fail "$META versionName is '$produced_version_name', expected '$VERSION'"
+
+echo "==> verifying the bundle ships only the $ANDROID_RUST_TARGET ABI" >&2
+# The ABI read-back, same doctrine as the versionCode read-back above: the
+# artifact's own zip decides, never the build's intention. Directory names
+# are the ABI contract AGP packages under (base/lib/<abi>/libmain.so), so a
+# dx run that silently picked the host triple fails HERE, before sign and
+# before Play can report it as "Doesn't support required ABI" on a phone.
+# No lib at all (empty set) fails the same comparison.
+shipped_abis="$(python3 -c '
+import sys, zipfile
+try:
+    zf = zipfile.ZipFile(sys.argv[1])
+except zipfile.BadZipFile as e:
+    print(str(e), file=sys.stderr)
+    sys.exit(2)
+abis = sorted({
+    parts[2]
+    for name in zf.namelist()
+    if (parts := name.split("/"))[:2] == ["base", "lib"] and len(parts) > 3
+})
+print(" ".join(abis))
+' "$AAB")" || fail "could not read $AAB to verify its ABIs"
+[ "$shipped_abis" = "arm64-v8a" ] \
+    || fail "the bundle ships ABIs '$shipped_abis' -- expected 'arm64-v8a' only (dx picked the wrong Rust target?)"
 
 echo "==> $AAB" >&2
 printf '%s\n' "$AAB"
