@@ -193,6 +193,32 @@ mod tests {
             "the pull and the writer call must sit inside the absent-bridge guard: vars stay \
              unset when AskmeSafeArea is missing, so the env() arm keeps deciding"
         );
+
+        let seam = seam_block();
+        let seam_wire_format = seam.contains("\"%.2f %.2f %.2f %.2f\"");
+        let seam_push_conversion = seam.contains("cached.replace(' ', ',')");
+        let pull_space_split = BOOTSTRAP_JS.contains(".split(\" \")");
+        let pull_float_parses = BOOTSTRAP_JS.matches("parseFloat(").count();
+        let pull_args = BOOTSTRAP_JS.matches("parseFloat(insets[").count();
+        assert_eq!(
+            seam_wire_format, pull_space_split,
+            "the seam's %.2f space wire format and the pull's space split must move together"
+        );
+        assert_eq!(
+            seam_wire_format, seam_push_conversion,
+            "the seam's %.2f space wire format and its push's space-to-comma conversion must \
+             move together"
+        );
+        assert_eq!(
+            seam_wire_format,
+            pull_float_parses == 4,
+            "the seam's %.2f wire format and the pull's four parseFloat reads must move together"
+        );
+        assert_eq!(
+            seam_wire_format,
+            pull_args == 4,
+            "the seam's %.2f wire format and the writer call's four arguments must move together"
+        );
     }
 
     // @scenario: safe-area-bleed/S1
