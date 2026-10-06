@@ -2,8 +2,17 @@
 id: "adr-0023-platform-behaviour-seam-patched-kotlin"
 type: "technical"
 owner: "architect"
+# FACET SUPERSESSION 2026-10-06 — [[adr-0024-safe-area-css-bridge]] retires exactly
+# ONE facet of this node: « How the content learns the safe areas » = decor-view
+# padding (and this title's « the safe areas reach the content as decor-view padding »
+# clause with it). This node stays `current` — its seam placement, patch house shape
+# and artifact-is-oracle rulings are untouched and re-anchored in adr-0024's
+# consequences. The escape clause that fires is this node's own: « MUST NOT freeze
+# the insets application form; safe-area-css-bridge may replace the padding ».
+# Scope also recorded in this node's docs/INDEX.md row (0019 frontmatter-comment
+# precedent; body untouched, no `## Amendment`).
 status: "current"
-updated: "2026-10-01"
+updated: "2026-10-06"
 relations:
   related:
     - "adr-0019-android-release-bundle-seam"
