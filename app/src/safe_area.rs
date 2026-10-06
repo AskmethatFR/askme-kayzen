@@ -219,6 +219,44 @@ mod tests {
             pull_args == 4,
             "the seam's %.2f wire format and the writer call's four arguments must move together"
         );
+
+        assert!(
+            BOOTSTRAP_JS
+                .contains("window.__kzApplySafeAreaInsets = function (top, right, bottom, left)"),
+            "the writer's four parameters bind in wire order top, right, bottom, left"
+        );
+        assert!(
+            BOOTSTRAP_JS.contains(
+                "parseFloat(insets[0]),
+    parseFloat(insets[1]),
+    parseFloat(insets[2]),
+    parseFloat(insets[3])"
+            ),
+            "the writer call passes the pulled slots 0-3 in wire order top, right, bottom, left"
+        );
+        for side in ["top", "right", "bottom", "left"] {
+            assert!(
+                BOOTSTRAP_JS.contains(&format!(
+                    "setProperty(\"--safe-area-inset-{side}\", {side} + \"px\")"
+                )),
+                "the writer pairs --safe-area-inset-{side} with its own {side} slot in CSS px"
+            );
+        }
+        assert!(
+            seam.contains(
+                "safeArea.update(view.resources.displayMetrics.density, bars.top, bars.right, bars.bottom, bars.left)"
+            ),
+            "the seam feeds update() density then bars in wire order top, right, bottom, left"
+        );
+        assert!(
+            seam.contains(
+                "top / density,
+            right / density,
+            bottom / density,
+            left / density"
+            ),
+            "the seam formats the wire in slot order top, right, bottom, left"
+        );
     }
 
     // @scenario: safe-area-bleed/S1
