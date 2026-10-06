@@ -3,7 +3,7 @@ id: "navigation"
 type: "functional"
 owner: "pm"
 status: "current"
-updated: "2026-09-19"
+updated: "2026-10-06"
 relations:
   related:
     - "design-ecrans"
@@ -52,4 +52,4 @@ The five scenarios live in `docs/functional/features/navigation/bottom-nav.featu
 
 - [ ] Whether the in-page links retire once the bar has proven itself (a later slice, with the rest of Galets).
 - [ ] Hover and motion styling of the bar.
-- [ ] Notched-device safe-area behaviour and the on-screen keyboard — unverifiable in the suite, unverified on device.
+- [x] Notched-device safe-area behaviour and the on-screen keyboard — **verified on device and in the suite (issue #79)**: on a Redmi with a 120px cutout and a 142px nav bar the content sits clear below the cutout and above the nav pill, the keyboard's primary control sits above the IME, and rotating the device refreshes the inset values in both orientations. Residual (honest): the `env()` web/iOS fallback arm is still unverified on iOS hardware.

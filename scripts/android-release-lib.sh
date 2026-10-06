@@ -446,6 +446,9 @@ patch_main_activity_edge_to_edge() {
     local block
     block="$(cat <<'KOTLIN'
 class MainActivity : WryActivity() {
+    private val safeArea = AskmeSafeArea()
+    private var safeAreaWebView: android.webkit.WebView? = null
+
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -455,12 +458,44 @@ class MainActivity : WryActivity() {
         androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { view, insets ->
             val bars = insets.getInsets(
                 androidx.core.view.WindowInsetsCompat.Type.systemBars() or
-                    androidx.core.view.WindowInsetsCompat.Type.displayCutout()
+                    androidx.core.view.WindowInsetsCompat.Type.displayCutout() or
+                    androidx.core.view.WindowInsetsCompat.Type.ime()
             )
-            view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            safeArea.update(view.resources.displayMetrics.density, bars.top, bars.right, bars.bottom, bars.left)
+            safeAreaWebView?.let { webView ->
+                webView.post { webView.evaluateJavascript(safeArea.applyScript(), null) }
+            }
             insets
         }
     }
+
+    override fun onWebViewCreate(webView: android.webkit.WebView) {
+        safeAreaWebView = webView
+        webView.addJavascriptInterface(safeArea, "AskmeSafeArea")
+        window.decorView.requestApplyInsets()
+    }
+}
+
+class AskmeSafeArea {
+    @Volatile
+    private var cached = "0.00 0.00 0.00 0.00"
+
+    @android.webkit.JavascriptInterface
+    fun insets(): String = cached
+
+    fun update(density: Float, top: Int, right: Int, bottom: Int, left: Int) {
+        cached = String.format(
+            java.util.Locale.US,
+            "%.2f %.2f %.2f %.2f",
+            top / density,
+            right / density,
+            bottom / density,
+            left / density
+        )
+    }
+
+    fun applyScript(): String =
+        "window.__kzApplySafeAreaInsets(" + cached.replace(' ', ',') + ")"
 }
 KOTLIN
 )"

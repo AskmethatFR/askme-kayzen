@@ -4010,6 +4010,8 @@ bundle_pin 'patch_material_dependency "$BUILD_GRADLE" "$MATERIAL_VERSION"' \
     "android-bundle.sh: patch_material_dependency is invoked at the seam"
 bundle_pin 'cat > "$PRO_RULES"' \
     "android-bundle.sh: the R8 rules file is written at the seam"
+bundle_pin '-keepclassmembers class * { @android.webkit.JavascriptInterface <methods>; }' \
+    "android-bundle.sh: R8 must keep @JavascriptInterface members or insets() vanishes under the JS bridge at runtime"
 bundle_pin 'grep -qF "We recommend using a newer Android Gradle plugin to use compileSdk = 36"' \
     "android-bundle.sh: the compileSdk = 36 warning absence is asserted on captured Gradle output (AC1)"
 bundle_pin 'fail "the compileSdk = 36 AGP warning is present' \
@@ -4097,14 +4099,24 @@ for ma_needle in \
     'ViewCompat.setOnApplyWindowInsetsListener(window.decorView)' \
     'WindowInsetsCompat.Type.systemBars()' \
     'WindowInsetsCompat.Type.displayCutout()' \
-    'view.setPadding(bars.left, bars.top, bars.right, bars.bottom)' \
+    'WindowInsetsCompat.Type.ime()' \
     'window.decorView.setBackgroundColor(android.graphics.Color.parseColor("#F4F1EA"))' \
     'WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = true' \
-    'WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightNavigationBars = true'; do
+    'WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightNavigationBars = true' \
+    'override fun onWebViewCreate(webView: android.webkit.WebView)' \
+    'webView.addJavascriptInterface(safeArea, "AskmeSafeArea")' \
+    '@android.webkit.JavascriptInterface' \
+    'java.util.Locale.US' \
+    'window.__kzApplySafeAreaInsets(' \
+    'webView.post { webView.evaluateJavascript('; do
     ma_hits="$(grep -cF "$ma_needle" "$MA_FIXTURE" || true)"
     assert_eq "1" "$ma_hits" \
         "patch_main_activity_edge_to_edge: exactly one occurrence of $ma_needle"
 done
+
+ma_padding_hits="$(grep -cF 'view.setPadding(' "$MA_FIXTURE" || true)"
+assert_eq "0" "$ma_padding_hits" \
+    "patch_main_activity_edge_to_edge: decor-view inset padding is absent, the page paints into the bands"
 
 ma_e2e_line="$(grep -nF 'WindowCompat.setDecorFitsSystemWindows(window, false)' "$MA_FIXTURE" | head -1 | cut -d: -f1)"
 ma_listener_line="$(grep -nF 'ViewCompat.setOnApplyWindowInsetsListener(window.decorView)' "$MA_FIXTURE" | head -1 | cut -d: -f1)"

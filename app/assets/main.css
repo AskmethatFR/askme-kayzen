@@ -99,7 +99,7 @@ body {
     max-width: var(--screen-max-width);
     margin: 0px auto;
     overflow: hidden;
-    padding: calc(var(--space-7) + env(safe-area-inset-top, 0px)) calc(var(--space-5) + env(safe-area-inset-right, 0px)) calc(var(--space-7) + env(safe-area-inset-bottom, 0px)) calc(var(--space-5) + env(safe-area-inset-left, 0px));
+    padding: calc(var(--space-7) + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) calc(var(--space-5) + var(--safe-area-inset-right, env(safe-area-inset-right, 0px))) calc(var(--space-7) + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))) calc(var(--space-5) + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
     animation: kzUp .3s ease both;
 }
 
@@ -120,14 +120,14 @@ body {
 /* ---- Bottom nav ---- */
 .main-screen-frame > .screen {
     /* content clears the bar: nav height + its bottom offset + the screen's own bottom breathing room */
-    padding-bottom: calc(var(--bottom-nav-height) + var(--bottom-nav-offset) + var(--space-7) + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(var(--bottom-nav-height) + var(--bottom-nav-offset) + var(--space-7) + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
 }
 
 .bottom-nav {
     position: fixed;
-    bottom: calc(var(--bottom-nav-offset) + env(safe-area-inset-bottom, 0px));
-    left: calc(var(--space-4) + env(safe-area-inset-left, 0px));
-    right: calc(var(--space-4) + env(safe-area-inset-right, 0px));
+    bottom: calc(var(--bottom-nav-offset) + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+    left: calc(var(--space-4) + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
+    right: calc(var(--space-4) + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
     max-width: calc(var(--screen-max-width) - 2 * var(--space-4));
     margin-inline: auto;
     height: var(--bottom-nav-height);
@@ -749,7 +749,7 @@ body {
         + 2 * var(--lifecycle-gesture-height)
         + var(--space-1)
         + var(--space-5)
-        + env(safe-area-inset-bottom, 0px)
+        + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))
     );
 }
 
@@ -758,9 +758,9 @@ body {
    (adr-0021), so the dock scopes itself here rather than in the layout. */
 .action-dock {
     position: fixed;
-    bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
-    left: calc(var(--space-5) + env(safe-area-inset-left, 0px));
-    right: calc(var(--space-5) + env(safe-area-inset-right, 0px));
+    bottom: calc(var(--space-5) + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+    left: calc(var(--space-5) + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
+    right: calc(var(--space-5) + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
     max-width: calc(var(--screen-max-width) - 2 * var(--space-5));
     margin-inline: auto;
     display: flex;
@@ -969,9 +969,9 @@ body {
 .lifecycle {
     position: fixed;
     /* clears the dock: its bottom offset, its height, then a breath */
-    bottom: calc(var(--space-5) + var(--action-dock-height) + var(--space-3) + env(safe-area-inset-bottom, 0px));
-    left: calc(var(--space-5) + env(safe-area-inset-left, 0px));
-    right: calc(var(--space-5) + env(safe-area-inset-right, 0px));
+    bottom: calc(var(--space-5) + var(--action-dock-height) + var(--space-3) + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+    left: calc(var(--space-5) + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
+    right: calc(var(--space-5) + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
     max-width: calc(var(--screen-max-width) - 2 * var(--space-5));
     margin-inline: auto;
     border-top: 1.5px solid var(--color-rule);

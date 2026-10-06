@@ -2869,6 +2869,7 @@ dependencies = [
  "dioxus-ssr",
  "dirs",
  "fluent-syntax",
+ "generational-box",
  "getrandom 0.2.17",
  "jni 0.21.1",
  "kayzen-core",
