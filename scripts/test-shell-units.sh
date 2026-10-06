@@ -4097,7 +4097,10 @@ for ma_needle in \
     'ViewCompat.setOnApplyWindowInsetsListener(window.decorView)' \
     'WindowInsetsCompat.Type.systemBars()' \
     'WindowInsetsCompat.Type.displayCutout()' \
-    'view.setPadding(bars.left, bars.top, bars.right, bars.bottom)'; do
+    'view.setPadding(bars.left, bars.top, bars.right, bars.bottom)' \
+    'window.decorView.setBackgroundColor(android.graphics.Color.parseColor("#F4F1EA"))' \
+    'WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = true' \
+    'WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightNavigationBars = true'; do
     ma_hits="$(grep -cF "$ma_needle" "$MA_FIXTURE" || true)"
     assert_eq "1" "$ma_hits" \
         "patch_main_activity_edge_to_edge: exactly one occurrence of $ma_needle"
@@ -4146,6 +4149,17 @@ bundle_before "$DX_PASS1" 'patch_main_activity_edge_to_edge "$MAIN_ACTIVITY"' \
     "android-bundle.sh: the MainActivity patch runs after pass 1, inside the seam window"
 bundle_before 'patch_main_activity_edge_to_edge "$MAIN_ACTIVITY"' "$GRADLE_PASS2" \
     "android-bundle.sh: the MainActivity patch runs before pass 2 compiles it"
+
+paper_decl="$(grep -cE -- '--color-paper:[[:space:]]*#[0-9A-Fa-f]{6}' "$ROOT/app/assets/main.css" || true)"
+assert_eq "1" "$paper_decl" \
+    "the --color-paper declaration carries a hex value exactly once"
+paper_value="$(grep -m1 -oE -- '--color-paper:[[:space:]]*#[0-9A-Fa-f]{6}' "$ROOT/app/assets/main.css" | grep -oE '#[0-9A-Fa-f]{6}')"
+patcher_decl="$(grep -cF 'parseColor("#' "$ROOT/scripts/android-release-lib.sh" || true)"
+assert_eq "1" "$patcher_decl" \
+    "the patcher's parseColor hex literal appears exactly once"
+patcher_value="$(grep -m1 -oE 'parseColor\("#[0-9A-Fa-f]{6}"\)' "$ROOT/scripts/android-release-lib.sh" | grep -oE '#[0-9A-Fa-f]{6}')"
+assert_eq "$paper_value" "$patcher_value" \
+    "the patcher's literal is byte-identical to --color-paper's value"
 
 # --- .gitignore tripwire (AC 6) --------------------------------------------
 # A real keystore lives at $HOME/.kayzen/, never in the repo; *.jks,
