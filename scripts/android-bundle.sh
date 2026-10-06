@@ -201,12 +201,13 @@ echo "==> enabling edge-to-edge with system-bar insets padding on $MAIN_ACTIVITY
 patch_main_activity_edge_to_edge "$MAIN_ACTIVITY" \
     || fail "failed to patch $MAIN_ACTIVITY for edge-to-edge (see the patch diagnostic above)"
 
-echo "==> dropping the R8 rules that strip the deprecated system-bar setter calls" >&2
+echo "==> writing the R8 rules: strip the deprecated setters, keep the JS bridge members" >&2
 cat > "$PRO_RULES" <<'PRO'
 -assumenosideeffects class android.view.Window {
     public void setStatusBarColor(int);
     public void setNavigationBarColor(int);
 }
+-keepclassmembers class * { @android.webkit.JavascriptInterface <methods>; }
 PRO
 
 echo "==> clearing any stale bundle output" >&2

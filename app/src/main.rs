@@ -4,6 +4,7 @@ mod composition;
 mod i18n;
 mod infrastructure;
 mod route;
+mod safe_area;
 mod views;
 
 use composition::Services;
@@ -50,6 +51,9 @@ fn app_root(services_fn: impl FnOnce() -> Option<Services> + 'static) -> Element
 // component -- a future edit that lets the branch vary across renders of the
 // same instance would break hook ordering and panic in release builds.
 fn app_shell(services: Option<Services>) -> Element {
+    use_effect(|| {
+        document::eval(safe_area::BOOTSTRAP_JS);
+    });
     let content = match services {
         Some(services) => {
             use_context_provider(move || services.clone());
@@ -83,7 +87,7 @@ mod tests {
     use std::cell::RefCell;
     use std::rc::Rc;
 
-    use dioxus::document::{Document, Eval};
+    use dioxus::document::{Document, Eval, Evaluator};
     use kayzen_core::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
 
     use super::*;
@@ -102,11 +106,36 @@ mod tests {
     #[derive(Default)]
     struct HeadElementSpy {
         head_elements: RefCell<Vec<RecordedHeadElement>>,
+        evals: RefCell<Vec<String>>,
+    }
+
+    struct NoOpEvaluator;
+
+    impl Evaluator for NoOpEvaluator {
+        fn poll_join(
+            &mut self,
+            _: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Result<serde_json::Value, dioxus::document::EvalError>> {
+            std::task::Poll::Ready(Err(dioxus::document::EvalError::Unsupported))
+        }
+
+        fn poll_recv(
+            &mut self,
+            _: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Result<serde_json::Value, dioxus::document::EvalError>> {
+            std::task::Poll::Ready(Err(dioxus::document::EvalError::Unsupported))
+        }
+
+        fn send(&self, _data: serde_json::Value) -> Result<(), dioxus::document::EvalError> {
+            Err(dioxus::document::EvalError::Unsupported)
+        }
     }
 
     impl Document for HeadElementSpy {
-        fn eval(&self, _js: String) -> Eval {
-            unimplemented!("this spy overrides create_head_element, so eval is never reached")
+        fn eval(&self, js: String) -> Eval {
+            self.evals.borrow_mut().push(js);
+            let owner = generational_box::Owner::default();
+            Eval::new(owner.insert(Box::new(NoOpEvaluator)))
         }
 
         fn create_head_element(
@@ -226,6 +255,29 @@ mod tests {
         let mut vdom = VirtualDom::new(AppShellWithHeadSpy);
         vdom.rebuild_in_place();
         spy.head_elements.take()
+    }
+
+    // @scenario: safe-area-bleed/S2
+    #[test]
+    fn app_shell_installs_the_safe_area_bootstrap_script_exactly_once() {
+        let spy = Rc::new(HeadElementSpy::default());
+        SHARED_HEAD_SPY.with(|cell| *cell.borrow_mut() = Some(spy.clone() as Rc<dyn Document>));
+        let _guard = SharedHeadSpyGuard;
+        let mut vdom = VirtualDom::new(AppShellWithHeadSpy);
+        vdom.rebuild_in_place();
+        vdom.process_events();
+
+        let evals = spy.evals.take();
+        assert_eq!(
+            evals.len(),
+            1,
+            "app_shell must eval the safe-area bootstrap exactly once per mount, got: {evals:?}"
+        );
+        assert_eq!(
+            evals[0],
+            safe_area::BOOTSTRAP_JS,
+            "the installed script must be the BOOTSTRAP_JS contract itself"
+        );
     }
 
     fn attribute<'a>(element: &'a RecordedHeadElement, key: &str) -> Option<&'a str> {
@@ -349,11 +401,14 @@ mod tests {
         }
     }
 
+    // @scenario: safe-area-bleed/S3
     #[test]
-    fn main_css_keeps_every_safe_area_inset_site_on_the_env_fallback_form() {
+    fn main_css_keeps_every_safe_area_site_on_the_var_env_chain_form() {
+        let env_opener = "env(safe-area-inset-";
+        let chain_opener = "var(--safe-area-inset-";
         let mut rest = MAIN_CSS_SOURCE;
         let mut sites = 0usize;
-        while let Some(start) = rest.find("env(safe-area-inset-") {
+        while let Some(start) = rest.find(env_opener) {
             let tail = &rest[start..];
             let end = tail
                 .find(')')
@@ -363,14 +418,31 @@ mod tests {
                 call.ends_with(", 0px)"),
                 "safe-area site without the 0px fallback form: {call}"
             );
+            let side_start = env_opener.len();
+            let side_end = tail[side_start..]
+                .find(',')
+                .expect("a safe-area env() call names its side before the fallback")
+                + side_start;
+            let side = &tail[side_start..side_end];
+            let chain_prefix = format!("{chain_opener}{side}, ");
+            assert!(
+                rest[..start].ends_with(&chain_prefix),
+                "safe-area env() outside the {chain_prefix}var() chain: {call}"
+            );
             sites += 1;
             rest = &tail[end + 1..];
         }
         assert_eq!(
             sites, 15,
-            "main.css must keep its 15 env(safe-area-inset-*, 0px) sites: they are \
-             the web/iOS safe-area layer, while the Android arm compensates system \
-             bars natively at the seam (env() measures 0 there, adr-0021)"
+            "main.css must keep its 15 chain sites: var(--safe-area-inset-*, \
+             env(safe-area-inset-*, 0px)) carries the Android arm (native bridge) \
+             and the web/iOS arm (env(), which measures 0 on Android, adr-0021)"
+        );
+        assert_eq!(
+            MAIN_CSS_SOURCE.matches(chain_opener).count(),
+            15,
+            "every var(--safe-area-inset-*) chain must carry its env() arm — \
+             a chain without one would leave web/iOS on the Android value only"
         );
     }
 }
