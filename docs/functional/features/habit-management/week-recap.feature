@@ -81,3 +81,10 @@ Feature: Read the week's practice as accumulated minutes and rhythm
     Then the tinted card's staircase steps up once per day practised and holds flat on a day of rest
     And the staircase stays out of the accessibility tree, the rhythm row already saying it in dots
     And the trace ends on the last summit it reached
+
+  @scenario:S11
+  Scenario: A week without practice draws no staircase
+    Given the last seven days, with no practice on any of them
+    When the user opens the week screen
+    Then the tinted card shows its zero figure and draws no staircase, neither trace nor pebble
+    And the rhythm row still shows its seven faint dots

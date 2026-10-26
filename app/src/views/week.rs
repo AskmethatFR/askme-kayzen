@@ -35,17 +35,19 @@ pub fn Week() -> Element {
                     span { class: "week-figure", "{recap.minutes_practised}" }
                     span { class: "week-figure-label", "{legend}" }
                 }
-                svg {
-                    class: "week-staircase",
-                    view_box: "0 0 {STAIRCASE_WIDTH} {STAIRCASE_HEIGHT}",
-                    "aria-hidden": "true",
-                    "focusable": "false",
-                    polyline { points: "{staircase_trace}" }
-                    if let Some((end_x, end_y)) = staircase_end {
-                        circle {
-                            cx: "{end_x:.2}",
-                            cy: "{end_y:.2}",
-                            r: "{STAIRCASE_DOT_RADIUS}",
+                if recap.rhythm.iter().any(|practised| *practised) {
+                    svg {
+                        class: "week-staircase",
+                        view_box: "0 0 {STAIRCASE_WIDTH} {STAIRCASE_HEIGHT}",
+                        "aria-hidden": "true",
+                        "focusable": "false",
+                        polyline { points: "{staircase_trace}" }
+                        if let Some((end_x, end_y)) = staircase_end {
+                            circle {
+                                cx: "{end_x:.2}",
+                                cy: "{end_y:.2}",
+                                r: "{STAIRCASE_DOT_RADIUS}",
+                            }
                         }
                     }
                 }
@@ -1212,29 +1214,29 @@ mod tests {
             .expect("the attribute parses as f64")
     }
 
-    // @scenario: week-recap/S10
+    // @scenario: week-recap/S11
     #[test]
-    fn the_staircase_holds_flat_when_the_week_holds_no_practice() {
-        let html = render(RootAtRestingWeekScreen);
-        let points = the_staircase_points(&html);
+    fn the_week_card_draws_no_staircase_when_the_week_holds_no_practice() {
+        let html = render(RootAtFreshWeekScreen);
 
-        let (rises, flats) = staircase_segments(&points);
-        assert_eq!(
-            (rises, flats),
-            (0, 7),
-            "seven days without practice draw seven flat runs and no step, \
-             got: {html}"
-        );
         assert!(
-            points.windows(2).all(|pair| pair[0].1 == pair[1].1),
-            "the whole trace stays at one level, got: {html}"
+            html.contains(r#"<span class="week-figure">0</span>"#),
+            "the tinted card still shows its zero figure, got: {html}"
+        );
+        let tinted_card = html
+            .split(r#"<p class="week-word""#)
+            .next()
+            .expect("the card precedes the word");
+        assert!(
+            !tinted_card.contains("<svg")
+                && !tinted_card.contains("<polyline")
+                && !tinted_card.contains("<circle"),
+            "a week without practice draws neither trace nor pebble, got: {html}"
         );
         assert_eq!(
-            points[0],
-            (5.0, 51.0),
-            "a week without practice rests on the bottom of the box, inset by \
-             the end pebble's radius so neither the trace nor the pebble is \
-             clipped, got: {html}"
+            html.matches(r#"class="rhythm-dot""#).count(),
+            7,
+            "the rhythm row still shows its seven faint dots, got: {html}"
         );
     }
 
