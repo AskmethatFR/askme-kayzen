@@ -74,7 +74,7 @@ pub fn Today() -> Element {
                                     }
                                     div {
                                         class: "habit-meta",
-                                        {tr!("today-habit-meta", minutes: habit.minutes as i64)}
+                                        {tr!("today-habit-meta", goal: habit.goal as i64)}
                                     }
                                 }
                                 button {
@@ -205,13 +205,27 @@ mod tests {
         Services::with_repository_and_clock(repository, clock)
     }
 
-    fn services_with_one_habit_done_today() -> Services {
+    fn services_with_attempts_on_the_goal_four_habit(attempts: u32) -> Services {
         let clock: Rc<dyn Clock> = Rc::new(FixedClock(LocalDate::from_epoch_day(20_005)));
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
         let mut habit = a_habit();
-        habit.record_attempt(clock.today());
+        for _ in 0..attempts {
+            habit.record_attempt(clock.today());
+        }
         repository.save(&habit);
         Services::with_repository_and_clock(repository, clock)
+    }
+
+    fn services_with_one_habit_done_today() -> Services {
+        services_with_attempts_on_the_goal_four_habit(4)
+    }
+
+    fn services_with_one_habit_part_way_to_its_goal() -> Services {
+        services_with_attempts_on_the_goal_four_habit(3)
+    }
+
+    fn services_with_one_habit_past_its_goal() -> Services {
+        services_with_attempts_on_the_goal_four_habit(6)
     }
 
     fn services_with_one_anchored_habit() -> Services {
@@ -226,7 +240,9 @@ mod tests {
         let clock: Rc<dyn Clock> = Rc::new(FixedClock(LocalDate::from_epoch_day(20_005)));
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
         let mut first_done = a_habit();
-        first_done.record_attempt(clock.today());
+        for _ in 0..4 {
+            first_done.record_attempt(clock.today());
+        }
         repository.save(&first_done);
         repository.save(&a_second_habit());
         let mut last_done = Habit::new(
@@ -235,7 +251,9 @@ mod tests {
             Goal::new(3).unwrap(),
             LocalDate::from_epoch_day(20_000),
         );
-        last_done.record_attempt(clock.today());
+        for _ in 0..3 {
+            last_done.record_attempt(clock.today());
+        }
         repository.save(&last_done);
         repository.save(&a_paused_habit());
         Services::with_repository_and_clock(repository, clock)
@@ -269,6 +287,24 @@ mod tests {
     fn RootWithHabitDoneToday() -> Element {
         use_locale_for_tests();
         use_context_provider(services_with_one_habit_done_today);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootWithHabitPartWayToItsGoal() -> Element {
+        use_locale_for_tests();
+        use_context_provider(services_with_one_habit_part_way_to_its_goal);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootWithHabitPastItsGoal() -> Element {
+        use_locale_for_tests();
+        use_context_provider(services_with_one_habit_past_its_goal);
         rsx! {
             Router::<Route> {}
         }
@@ -395,7 +431,7 @@ mod tests {
             "expected the active-habits eyebrow in English, got: {html}"
         );
         assert!(
-            html.contains("every day") && html.contains("4 min"),
+            html.contains("4 times a day") && !html.contains("min"),
             "expected the habit meta line in English, got: {html}"
         );
         assert!(
@@ -513,7 +549,7 @@ mod tests {
 
     #[test]
     fn clicking_mark_done_stamps_the_habit_and_grows_the_done_tally() {
-        let mut screen = Screen::open(RootWithUndoneHabit);
+        let mut screen = Screen::open(RootWithHabitPartWayToItsGoal);
 
         screen.click("Marquer comme fait · Read one page");
 
@@ -544,7 +580,52 @@ mod tests {
             html.contains("Read one page"),
             "expected the seeded habit title, got: {html}"
         );
-        assert!(html.contains("4 min"), "expected the dose, got: {html}");
+        assert!(
+            html.contains("4 fois par jour") && !html.contains("min"),
+            "expected the goal as times a day, not minutes, got: {html}"
+        );
+    }
+
+    // @scenario: today-habit-list/S9
+    #[test]
+    fn a_habit_part_way_to_its_goal_shows_no_progress_and_no_alarm() {
+        let html = render(RootWithHabitPartWayToItsGoal);
+
+        assert!(
+            !html.contains("target is-done") && !html.contains("pebble is-done"),
+            "expected a habit short of its goal to read as not done, got: {html}"
+        );
+        assert!(
+            html.contains("4 fois par jour") && !html.contains("3 sur 4"),
+            "expected the goal without any count of attempts, got: {html}"
+        );
+        assert!(
+            !html.contains("alarm") && !html.contains("warn") && !html.contains("danger"),
+            "expected no alarm style on a habit short of its goal, got: {html}"
+        );
+        assert!(
+            html.contains("0 sur 1 ·"),
+            "expected the tally to count habits that reached their goal only, got: {html}"
+        );
+    }
+
+    // @scenario: today-habit-list/S9
+    #[test]
+    fn a_habit_past_its_goal_reads_as_done_with_no_warning_style() {
+        let html = render(RootWithHabitPastItsGoal);
+
+        assert!(
+            html.contains("target is-done") && html.contains(r#"class="target-check""#),
+            "expected a count above the goal to read as done, got: {html}"
+        );
+        assert!(
+            html.contains("4 fois par jour")
+                && !html.contains("6 sur 4")
+                && !html.contains("alarm")
+                && !html.contains("warn")
+                && !html.contains("danger"),
+            "expected no count and no warning style above the goal, got: {html}"
+        );
     }
 
     #[test]
@@ -590,6 +671,7 @@ mod tests {
     }
 
     // @scenario: today-habit-list/S5
+    // @scenario: today-habit-list/S10
     #[test]
     fn a_paused_habit_leaves_today_for_its_own_screen_behind_a_link_naming_the_count() {
         let html = render(RootWithThreeActiveAndOnePausedHabit);
@@ -808,7 +890,14 @@ mod tests {
     fn mark_done_and_relist_marks_the_habit_done_and_returns_the_refreshed_board() {
         let services = services_with_one_undone_habit();
 
-        let board = super::mark_done_and_relist(&services, "test-1");
+        let mut board = super::mark_done_and_relist(&services, "test-1");
+        assert!(
+            !board.active[0].done_today,
+            "expected one tap on a goal of four to leave the habit not done, got: {board:?}"
+        );
+        for _ in 0..3 {
+            board = super::mark_done_and_relist(&services, "test-1");
+        }
 
         assert!(
             board

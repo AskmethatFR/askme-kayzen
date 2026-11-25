@@ -166,6 +166,10 @@ impl Habit {
         self.completion_history.attempts_on(day)
     }
 
+    pub fn reached_goal_on(&self, day: LocalDate) -> bool {
+        self.attempts_on(day) >= self.current_goal()
+    }
+
     /// Minutes practised from creation through `today`, each completed day
     /// weighed by the goal that was in force on it (never today's goal).
     /// Walks the recorded completions, not the calendar, so the cost is

@@ -317,6 +317,20 @@ mod tests {
     }
 
     #[component]
+    fn RootAtActiveHabitGoalOne() -> Element {
+        use_locale_for_tests();
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path(
+                "/habit/h-1/ritual",
+            )));
+        });
+        use_context_provider(|| services_with_an_active_habit(1));
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
     fn RootAtActiveHabitGoalFiveAndEnglishLocale() -> Element {
         use_locale_for_tests_as(langid!("en"));
         use_hook(|| {
@@ -534,7 +548,7 @@ mod tests {
     // @scenario: ritual/S2
     #[test]
     fn completing_the_practice_from_the_ritual_records_the_day_and_returns_to_aujourdhui() {
-        let mut screen = Screen::open(RootAtActiveHabitGoalFive);
+        let mut screen = Screen::open(RootAtActiveHabitGoalOne);
 
         screen.click("J'ai terminé · Lire une page");
 
