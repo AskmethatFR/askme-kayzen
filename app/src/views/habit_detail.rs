@@ -389,8 +389,12 @@ mod tests {
         let html = render(RootAtKnownHabitAndEnglishLocale);
 
         assert!(
-            html.contains(r#"class="dose">every day · 5 min<"#),
+            html.contains(r#"class="dose">5 times a day<"#),
             "expected the active-dose line in English, got: {html}"
+        );
+        assert!(
+            !html.contains(" min") && !html.contains("minute"),
+            "expected the goal in times, never minutes, got: {html}"
         );
         assert!(
             html.contains(r#"class="pace-heading">Adjust, at your own pace<"#),
@@ -409,6 +413,40 @@ mod tests {
             html.contains(r#"aria-label="It&#39;s done · Lire une page""#)
                 && html.contains(">It&#39;s done<"),
             "expected the day-is-done gesture in English, got: {html}"
+        );
+    }
+
+    #[component]
+    fn RootAtFloorHabitDoneTodayAndEnglishLocale() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_a_floor_habit_done_today);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[test]
+    fn an_english_floor_habit_reads_its_singular_time_on_both_lines() {
+        let html = render(RootAtFloorHabitDoneTodayAndEnglishLocale);
+
+        assert!(
+            html.contains(r#"class="dose">1 time a day<"#),
+            "expected the singular dose line in English, got: {html}"
+        );
+        assert!(
+            html.contains(r#"aria-label="Your last seven days, current goal 1 time a day""#),
+            "expected the singular staircase label in English, got: {html}"
+        );
+        assert!(
+            html.contains(">Lighten to 1 time<"),
+            "expected the floor to read 'Lighten to 1 time', got: {html}"
+        );
+        assert!(
+            !html.contains(" min") && !html.contains("minute"),
+            "expected the goal in times, never minutes, got: {html}"
         );
     }
 
@@ -502,11 +540,11 @@ mod tests {
     fn clicking_grow_raises_the_goal_and_re_renders_the_dose() {
         let mut screen = Screen::open(RootAtKnownHabit);
 
-        screen.click("Passer à 6 min · Lire une page");
+        screen.click("Passer à 6 fois · Lire une page");
 
         let html = screen.html();
         assert!(
-            html.contains("chaque jour · 6 min"),
+            html.contains(r#"class="dose">6 fois par jour<"#),
             "expected the raised goal to appear after the click, got: {html}"
         );
     }
@@ -515,11 +553,11 @@ mod tests {
     fn clicking_lighten_lowers_the_goal_and_re_renders_the_dose() {
         let mut screen = Screen::open(RootAtKnownHabit);
 
-        screen.click("Alléger à 4 min · Lire une page");
+        screen.click("Alléger à 4 fois · Lire une page");
 
         let html = screen.html();
         assert!(
-            html.contains("chaque jour · 4 min"),
+            html.contains(r#"class="dose">4 fois par jour<"#),
             "expected the lowered goal to appear after the click, got: {html}"
         );
     }
@@ -532,7 +570,7 @@ mod tests {
 
         let html = screen.html();
         assert!(
-            html.contains("en pause · 5 min"),
+            html.contains(r#"class="dose">en pause · 5 fois par jour<"#),
             "expected the paused banner after the click, got: {html}"
         );
     }
@@ -545,7 +583,7 @@ mod tests {
 
         let html = screen.html();
         assert!(
-            html.contains("ancrée · 5 min"),
+            html.contains(r#"class="dose">ancrée · 5 fois par jour<"#),
             "expected the anchored banner after the click, got: {html}"
         );
     }
@@ -558,8 +596,12 @@ mod tests {
 
         let html = screen.html();
         assert!(
-            html.contains("chaque jour · 5 min"),
+            html.contains(r#"class="dose">5 fois par jour<"#),
             "expected the active dose to re-render after the click, got: {html}"
+        );
+        assert!(
+            !html.contains(r#"class="dose">en pause"#),
+            "expected the paused dose to be gone after resuming, got: {html}"
         );
     }
 
@@ -675,11 +717,15 @@ mod tests {
             "expected the habit title, got: {html}"
         );
         assert!(
-            html.contains("chaque jour · 5 min"),
+            html.contains(r#"class="dose">5 fois par jour<"#),
             "expected the dose, got: {html}"
         );
         assert!(
-            html.contains("Passer à 6 min"),
+            !html.contains(" min") && !html.contains("minute"),
+            "expected the goal in times, never minutes, got: {html}"
+        );
+        assert!(
+            html.contains("Passer à 6 fois"),
             "expected the grow-goal button offering the next step up, got: {html}"
         );
         assert!(
@@ -712,11 +758,11 @@ mod tests {
         let html = render(RootAtFloorHabitDoneToday);
 
         assert!(
-            html.contains("Passer à 2 min"),
+            html.contains("Passer à 2 fois"),
             "expected the grow-goal button even at the floor, got: {html}"
         );
         assert!(
-            html.contains("Alléger à 1 min"),
+            html.contains("Alléger à 1 fois"),
             "expected the lighten-goal button even at the floor, got: {html}"
         );
         assert!(
@@ -734,7 +780,7 @@ mod tests {
             "expected the seven days to live in a card, got: {html}"
         );
         assert!(
-            html.contains(r#"aria-label="Vos sept derniers jours, objectif actuel 5 minutes""#),
+            html.contains(r#"aria-label="Vos sept derniers jours, objectif actuel 5 fois par jour""#),
             "expected the band to keep its own accessible name, got: {html}"
         );
         assert_eq!(
@@ -968,7 +1014,7 @@ mod tests {
             "expected each tile to carry its decorative glyph, got: {html}"
         );
         assert!(
-            html.contains(">Passer à 6 min<") && html.contains(">Alléger à 4 min<"),
+            html.contains(">Passer à 6 fois<") && html.contains(">Alléger à 4 fois<"),
             "expected the tile labels unchanged, got: {html}"
         );
     }
@@ -1048,7 +1094,7 @@ mod tests {
         let html = render(RootAtAnchoredHabit);
 
         assert!(
-            html.contains("ancrée · 5 min"),
+            html.contains(r#"class="dose">ancrée · 5 fois par jour<"#),
             "expected the anchored banner naming the dose, got: {html}"
         );
         assert_eq!(

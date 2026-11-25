@@ -35,17 +35,35 @@ paused-heading = Paused
 paused-empty-note = Nothing here. Everything is back in your daily life.
 not-found-title = This page doesn't exist.
 not-found-today-link = Today
-staircase-aria = Your last seven days, current goal { $goal } minutes
+staircase-aria = { $goal ->
+    [one] Your last seven days, current goal { $goal } time a day
+   *[other] Your last seven days, current goal { $goal } times a day
+}
 masthead-back-to-today = ← Today
 detail-back-to-today = Back to today
-habit-detail-active-dose = every day · { $goal } min
-habit-detail-paused-dose = paused · { $goal } min
-habit-detail-anchored-dose = anchored · { $goal } min
+habit-detail-active-dose = { $goal ->
+    [one] { $goal } time a day
+   *[other] { $goal } times a day
+}
+habit-detail-paused-dose = { $goal ->
+    [one] paused · { $goal } time a day
+   *[other] paused · { $goal } times a day
+}
+habit-detail-anchored-dose = { $goal ->
+    [one] anchored · { $goal } time a day
+   *[other] anchored · { $goal } times a day
+}
 adjust-goal-eyebrow = Adjust, at your own pace
-grow-goal-label = Move to { $goal } min
-grow-goal-aria = Move to { $goal } min · { $title }
-lighten-goal-label = Lighten to { $goal } min
-lighten-goal-aria = Lighten to { $goal } min · { $title }
+grow-goal-label = Move to { $goal } times
+grow-goal-aria = Move to { $goal } times · { $title }
+lighten-goal-label = { $goal ->
+    [one] Lighten to { $goal } time
+   *[other] Lighten to { $goal } times
+}
+lighten-goal-aria = { $goal ->
+    [one] Lighten to { $goal } time · { $title }
+   *[other] Lighten to { $goal } times · { $title }
+}
 start-ritual-label = Start
 habit-detail-mark-done-label = It's done
 habit-detail-mark-done-aria = It's done · { $title }

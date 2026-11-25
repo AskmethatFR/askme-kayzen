@@ -8,24 +8,24 @@ Feature: Adjust a habit's goal at the user's own pace
   # stability and never suggests a change (adr-0008-goal-based-dose-user-paced-progression).
 
   @scenario:S1
-  Scenario: Growing a habit raises its goal by one minute
-    Given a habit with a goal of 5 minutes
+  Scenario: Growing a habit raises its goal by one time
+    Given a habit with a goal of 5 times a day
     When the user chooses "grandir"
-    Then the goal becomes 6 minutes
+    Then the goal becomes 6 times a day
     And the change is added to the habit's record with today's date
 
   @scenario:S2
-  Scenario: Lightening a habit lowers its goal by one minute
-    Given a habit with a goal of 5 minutes
+  Scenario: Lightening a habit lowers its goal by one time
+    Given a habit with a goal of 5 times a day
     When the user chooses "alléger"
-    Then the goal becomes 4 minutes
+    Then the goal becomes 4 times a day
     And the change is added to the habit's record with today's date
 
   @scenario:S3
-  Scenario: Lightening a habit already at one minute changes nothing
-    Given a habit with a goal of 1 minute
+  Scenario: Lightening a habit already at one time changes nothing
+    Given a habit with a goal of 1 time a day
     When the user chooses "alléger"
-    Then the goal stays at 1 minute, because one minute is the floor
+    Then the goal stays at 1 time a day, because one time is the floor
 
   @scenario:S4
   Scenario: Both gestures stay available whatever the habit's history
@@ -41,13 +41,13 @@ Feature: Adjust a habit's goal at the user's own pace
 
   @scenario:S6
   Scenario: Button labels show the reachable next goal at a normal effort level
-    Given a habit with a goal of 5 minutes
+    Given a habit with a goal of 5 times a day
     When the user opens its detail
-    Then the "Grandir" button shows "Passer à 6 min"
-    And the "Alléger" button shows "Alléger à 4 min"
+    Then the "Grandir" button shows "Passer à 6 fois"
+    And the "Alléger" button shows "Alléger à 4 fois"
 
   @scenario:S7
   Scenario: At the floor, the "Alléger" button shows the floor itself, not an error
-    Given a habit with a goal of 1 minute
+    Given a habit with a goal of 1 time a day
     When the user opens its detail
-    Then the "Alléger" button shows "Alléger à 1 min"
+    Then the "Alléger" button shows "Alléger à 1 fois"
