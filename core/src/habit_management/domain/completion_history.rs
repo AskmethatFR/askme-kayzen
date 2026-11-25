@@ -1,48 +1,37 @@
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 
 use crate::shared::local_date::LocalDate;
 
-/// The days a habit was marked done, kept forever. One-completion-per-day is
-/// structural (a set cannot hold a duplicate date), never a runtime guard.
-/// Ordered so the calendar dots read chronologically.
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct CompletionHistory(BTreeSet<LocalDate>);
+pub struct CompletionHistory(BTreeMap<LocalDate, u32>);
 
 impl CompletionHistory {
     pub fn new() -> CompletionHistory {
         CompletionHistory::default()
     }
 
-    /// Marks `day` done if it is not, clears it if it already is.
-    pub fn toggle(&mut self, day: LocalDate) {
-        if !self.0.remove(&day) {
-            self.0.insert(day);
-        }
+    pub fn record(&mut self, day: LocalDate) {
+        let attempts = self.0.entry(day).or_insert(0);
+        *attempts = attempts.saturating_add(1);
     }
 
     pub fn contains(&self, day: LocalDate) -> bool {
-        self.0.contains(&day)
+        self.0.contains_key(&day)
     }
 
-    /// Every completed day, for the persistence codec's serialized form only.
-    /// `pub(crate)`: `kayzen-app` reaches completion state through
-    /// `is_done_on`, never by enumerating the set directly.
+    pub fn attempts_on(&self, day: LocalDate) -> u32 {
+        self.0.get(&day).copied().unwrap_or(0)
+    }
+
     pub(crate) fn dates(&self) -> impl Iterator<Item = LocalDate> + '_ {
-        self.0.iter().copied()
+        self.0.keys().copied()
     }
 
-    /// Rebuilds a completion set from already-parsed dates, deduplicating
-    /// through the set itself rather than `toggle`'s flip semantics — a
-    /// stored payload with a duplicate date must not cancel it out.
     pub(crate) fn rehydrate(dates: impl IntoIterator<Item = LocalDate>) -> CompletionHistory {
-        CompletionHistory(dates.into_iter().collect())
+        CompletionHistory(dates.into_iter().map(|day| (day, 1)).collect())
     }
 
-    /// The completed days within `from..=to`, inclusive on both ends. Walks
-    /// the recorded completions rather than the calendar, so the cost is
-    /// bounded by how much was actually practised, never by the span between
-    /// the two dates.
     pub fn between(&self, from: LocalDate, to: LocalDate) -> impl Iterator<Item = LocalDate> + '_ {
-        self.0.range(from..=to).copied()
+        self.0.range(from..=to).map(|(day, _)| *day)
     }
 }

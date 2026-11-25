@@ -148,7 +148,7 @@ mod tests {
     fn a_habit_done_today_is_reported_done() {
         let repository = Rc::new(InMemoryHabitRepository::new());
         let mut habit = a_habit();
-        habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+        habit.record_attempt(LocalDate::from_epoch_day(TODAY));
         repository.save(&habit);
         let query = list_over(Rc::clone(&repository));
 
@@ -165,7 +165,7 @@ mod tests {
     fn a_habit_done_on_another_day_is_not_reported_done_today() {
         let repository = Rc::new(InMemoryHabitRepository::new());
         let mut habit = a_habit();
-        habit.toggle_done(LocalDate::from_epoch_day(TODAY - 1));
+        habit.record_attempt(LocalDate::from_epoch_day(TODAY - 1));
         repository.save(&habit);
         let query = list_over(Rc::clone(&repository));
 

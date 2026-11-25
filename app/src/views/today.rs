@@ -209,7 +209,7 @@ mod tests {
         let clock: Rc<dyn Clock> = Rc::new(FixedClock(LocalDate::from_epoch_day(20_005)));
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
         let mut habit = a_habit();
-        habit.toggle_done(clock.today());
+        habit.record_attempt(clock.today());
         repository.save(&habit);
         Services::with_repository_and_clock(repository, clock)
     }
@@ -226,7 +226,7 @@ mod tests {
         let clock: Rc<dyn Clock> = Rc::new(FixedClock(LocalDate::from_epoch_day(20_005)));
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
         let mut first_done = a_habit();
-        first_done.toggle_done(clock.today());
+        first_done.record_attempt(clock.today());
         repository.save(&first_done);
         repository.save(&a_second_habit());
         let mut last_done = Habit::new(
@@ -235,7 +235,7 @@ mod tests {
             Goal::new(3).unwrap(),
             LocalDate::from_epoch_day(20_000),
         );
-        last_done.toggle_done(clock.today());
+        last_done.record_attempt(clock.today());
         repository.save(&last_done);
         repository.save(&a_paused_habit());
         Services::with_repository_and_clock(repository, clock)

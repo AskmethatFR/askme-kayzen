@@ -330,7 +330,7 @@ mod tests {
             Goal::new(1).unwrap(),
             LocalDate::from_epoch_day(20_000),
         );
-        habit.toggle_done(clock.today());
+        habit.record_attempt(clock.today());
         repository.save(&habit);
         Services::with_repository_and_clock(repository, clock)
     }
@@ -349,7 +349,7 @@ mod tests {
             LocalDate::from_epoch_day(20_000),
         );
         for days_back in 0..10 {
-            habit.toggle_done(today.minus_days(days_back));
+            habit.record_attempt(today.minus_days(days_back));
         }
         repository.save(&habit);
         Services::with_repository_and_clock(repository, clock)
@@ -629,19 +629,16 @@ mod tests {
     }
 
     #[test]
-    fn a_second_tap_through_the_detail_gesture_un_records_today() {
+    fn a_second_tap_through_the_detail_gesture_keeps_today_done() {
         let services = services_with_one_habit();
 
-        let recorded = mark_done_and_reload(&services, "h-1");
-        let un_recorded = mark_done_and_reload(&services, "h-1");
+        let first = mark_done_and_reload(&services, "h-1");
+        let second = mark_done_and_reload(&services, "h-1");
 
         assert_eq!(
-            (
-                recorded.map(|d| d.done_today),
-                un_recorded.map(|d| d.done_today)
-            ),
-            (Some(true), Some(false)),
-            "expected the same-day toggle to hold from the detail screen too"
+            (first.map(|d| d.done_today), second.map(|d| d.done_today)),
+            (Some(true), Some(true)),
+            "expected a second tap to add an attempt, never to clear the day"
         );
     }
 

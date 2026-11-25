@@ -105,7 +105,7 @@ mod tests {
     fn a_completion_survives_a_restart_at_the_exact_date() {
         let store: Rc<dyn SnapshotStore> = Rc::new(InMemorySnapshotStore::empty());
         let mut habit = a_habit("h-1");
-        habit.toggle_done(LocalDate::from_epoch_day(20_003));
+        habit.record_attempt(LocalDate::from_epoch_day(20_003));
         repository_over(Rc::clone(&store)).save(&habit);
 
         let reopened = repository_over(Rc::clone(&store));
@@ -140,8 +140,8 @@ mod tests {
             let mut habit = a_habit("h-1");
             habit.grow(LocalDate::from_epoch_day(20_003));
             habit.lighten(LocalDate::from_epoch_day(20_010));
-            habit.toggle_done(LocalDate::from_epoch_day(20_000));
-            habit.toggle_done(LocalDate::from_epoch_day(20_011));
+            habit.record_attempt(LocalDate::from_epoch_day(20_000));
+            habit.record_attempt(LocalDate::from_epoch_day(20_011));
             transition(&mut habit);
             repository_over(Rc::clone(&store)).save(&habit);
 
@@ -203,7 +203,7 @@ mod tests {
         let mut habit = a_habit("h-1");
         repository_over(Rc::clone(&store)).save(&habit);
 
-        habit.toggle_done(LocalDate::from_epoch_day(20_000));
+        habit.record_attempt(LocalDate::from_epoch_day(20_000));
         repository_over(Rc::clone(&store)).save(&habit);
 
         let reopened = repository_over(Rc::clone(&store));

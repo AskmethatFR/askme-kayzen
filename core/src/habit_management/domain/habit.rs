@@ -114,8 +114,8 @@ impl Habit {
         self.steps.started_on()
     }
 
-    pub fn toggle_done(&mut self, today: LocalDate) {
-        self.completion_history.toggle(today);
+    pub fn record_attempt(&mut self, today: LocalDate) {
+        self.completion_history.record(today);
     }
 
     pub fn pause(&mut self) -> Result<(), TransitionError> {
@@ -160,6 +160,10 @@ impl Habit {
 
     pub fn is_done_on(&self, day: LocalDate) -> bool {
         self.completion_history.contains(day)
+    }
+
+    pub fn attempts_on(&self, day: LocalDate) -> u32 {
+        self.completion_history.attempts_on(day)
     }
 
     /// Minutes practised from creation through `today`, each completed day

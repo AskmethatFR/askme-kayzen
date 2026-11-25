@@ -562,7 +562,7 @@ mod tests {
         // the click — a mount-time snapshot cannot see this, only a click-time
         // read can.
         let mut habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
-        habit.toggle_done(LocalDate::from_epoch_day(20_005));
+        habit.record_attempt(LocalDate::from_epoch_day(20_005));
         repository.save(&habit);
         screen.click("J'ai terminé · Lire une page");
 

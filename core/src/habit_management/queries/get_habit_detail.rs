@@ -209,7 +209,7 @@ mod tests {
         let repository = Rc::new(InMemoryHabitRepository::new());
         let clock: Rc<dyn Clock> = Rc::new(FixedClock::new(LocalDate::from_epoch_day(TODAY)));
         let mut habit = a_habit();
-        habit.toggle_done(clock.today());
+        habit.record_attempt(clock.today());
         repository.save(&habit);
         let query = GetHabitDetail::new(Rc::clone(&repository) as Rc<dyn HabitRepository>, clock);
 
@@ -242,7 +242,7 @@ mod tests {
     fn a_day_that_was_done_draws_a_full_bar_at_that_days_goal() {
         let repository = Rc::new(InMemoryHabitRepository::new());
         let mut habit = a_habit();
-        habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+        habit.record_attempt(LocalDate::from_epoch_day(TODAY));
         repository.save(&habit);
         let query = get_habit_detail_over(Rc::clone(&repository));
 
@@ -262,9 +262,9 @@ mod tests {
     fn each_bar_stands_at_the_goal_that_was_active_that_day() {
         let repository = Rc::new(InMemoryHabitRepository::new());
         let mut habit = a_habit();
-        habit.toggle_done(LocalDate::from_epoch_day(TODAY - 1));
+        habit.record_attempt(LocalDate::from_epoch_day(TODAY - 1));
         habit.grow(LocalDate::from_epoch_day(TODAY));
-        habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+        habit.record_attempt(LocalDate::from_epoch_day(TODAY));
         repository.save(&habit);
         let query = get_habit_detail_over(Rc::clone(&repository));
 
@@ -306,7 +306,7 @@ mod tests {
     fn adjusting_the_goal_draws_no_new_bar_and_relives_no_day() {
         let repository = Rc::new(InMemoryHabitRepository::new());
         let mut habit = a_habit();
-        habit.toggle_done(LocalDate::from_epoch_day(TODAY - 2));
+        habit.record_attempt(LocalDate::from_epoch_day(TODAY - 2));
         repository.save(&habit);
         let query = get_habit_detail_over(Rc::clone(&repository));
         let before = query.handle("h-1").unwrap().days;
@@ -341,7 +341,7 @@ mod tests {
     fn a_day_without_practice_still_draws_its_bar() {
         let repository = Rc::new(InMemoryHabitRepository::new());
         let mut habit = a_habit();
-        habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+        habit.record_attempt(LocalDate::from_epoch_day(TODAY));
         repository.save(&habit);
         let query = get_habit_detail_over(Rc::clone(&repository));
 

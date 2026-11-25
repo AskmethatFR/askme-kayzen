@@ -66,7 +66,7 @@ mod tests {
         let mut habit = a_habit("h-1");
         repository.save(&habit);
 
-        habit.toggle_done(LocalDate::from_epoch_day(20_000));
+        habit.record_attempt(LocalDate::from_epoch_day(20_000));
         repository.save(&habit);
 
         assert_eq!(repository.all().len(), 1);
