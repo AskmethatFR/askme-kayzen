@@ -3,6 +3,7 @@ use std::rc::Rc;
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::{Path, PathBuf};
 
+use kayzen_core::habit_management::domain::goal::Goal;
 use kayzen_core::habit_management::domain::habit_repository::HabitRepository;
 use kayzen_core::habit_management::infrastructure::persistent_habit_repository::PersistentHabitRepository;
 use kayzen_core::habit_management::queries::get_habit_detail::GetHabitDetail;
@@ -23,7 +24,7 @@ use kayzen_core::shared::guid_generator::UuidGenerator;
 
 /// The default daily goal offered to every new habit — a flexible target, not
 /// a ceiling. Kaizen begins gently, not necessarily tiny.
-pub(crate) const STARTING_GOAL: u32 = 5;
+pub(crate) const STARTING_GOAL: u32 = Goal::DEFAULT;
 
 /// Composition root: a pure DI registry. It builds and holds each action service
 /// over a single shared set of stores, then is provided once at the app root via

@@ -7,13 +7,13 @@ Feature: Add a habit to my daily life
   @scenario:S1
   Scenario: A valid habit is added to the daily life
     Given a daily life holding fewer than 5 habits
-    When a habit is added with a valid title and a goal of at least 1 minute
+    When a habit is added with a valid title and a goal of at least 1 time
     Then the habit exists, carrying the generated id, the title and the goal
 
   @scenario:S2
-  Scenario: A goal above 5 minutes is accepted
+  Scenario: A goal above 5 times is accepted
     Given a daily life holding fewer than 5 habits
-    When a habit is added with a goal of 12 minutes
+    When a habit is added with a goal of 12 times
     Then the habit is added, because the goal is a soft target with no upper ceiling
 
   @scenario:S3
@@ -42,3 +42,9 @@ Feature: Add a habit to my daily life
     Given a daily life holding 5 habits, one of them titled "Lire une page"
     When a habit is added with the title "Lire une page"
     Then it is rejected as a duplicate rather than as daily-life-full
+
+  @scenario:S7
+  Scenario: A new habit starts at 3 times a day
+    Given a daily life holding fewer than 5 habits
+    When a habit is added through the add flow with no goal chosen
+    Then the habit is stored with a goal of 3 times a day

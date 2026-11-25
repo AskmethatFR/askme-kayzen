@@ -29,7 +29,7 @@ impl fmt::Display for HabitError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             HabitError::GoalTooSmall { min } => {
-                write!(f, "a goal must be at least {min} minute(s) per day")
+                write!(f, "a goal must be at least {min} time(s) per day")
             }
             HabitError::TitleLength { min, max } => {
                 write!(f, "a title size must be between {min} and {max} characters")
