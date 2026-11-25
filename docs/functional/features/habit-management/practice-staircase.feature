@@ -14,9 +14,9 @@ Feature: Read a habit's recent practice as a staircase
 
   @scenario:S1
   Scenario: A day that was done draws a filled pebble
-    Given a habit whose goal is 5 minutes
+    Given a habit whose goal is 5 times a day
     When the user marks it done today
-    Then today's pebble is filled, standing at 5 minutes
+    Then today's pebble is filled, standing for the day's count
 
   @scenario:S2
   Scenario: A day that was not done draws the same pebble, in outline
@@ -32,10 +32,10 @@ Feature: Read a habit's recent practice as a staircase
     Then no pebble changes, because the week draws practice and not intent
 
   @scenario:S4
-  Scenario: Each pebble is sized to the goal that was active that day
-    Given a habit done at 5 minutes one day, grown to 6 minutes, then done again the next day
+  Scenario: A practised pebble is sized by its attempts against that day's goal
+    Given a habit with a goal of 5 times a day, practised 2 times one day and 7 times the next
     When the user opens its detail
-    Then the earlier pebble is sized for 5 minutes and the later one for 6 minutes
+    Then the first pebble stands at two fifths of full height and the second at full height, because a count above the goal stands at full height
 
   @scenario:S5
   Scenario: The week covers the last seven days

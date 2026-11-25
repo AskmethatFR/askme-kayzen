@@ -258,19 +258,11 @@ fn day_pebble_class(done: bool, is_today: bool) -> &'static str {
     }
 }
 
-/// Each day's pebble size relative to its own window's tallest goal
-/// (adr-0010: core returns numbers, the view decides how to draw them) —
-/// never an absolute minute value. Same normalization as the one the Week
-/// screen uses (owner ruling, 2026-08-21): the week draws one habit's
-/// own trajectory, so there is no cross-habit comparison to lose.
-/// `unwrap_or(1)` only guards an
-/// empty slice; `days` always holds `WINDOW_DAYS` entries in practice, so it
-/// never actually influences a returned ratio.
+// @algo: a day's attempts against its own goal, capped at 1.0 (CSS has no clamp); no attempt is 0.0, the floor.
 #[must_use]
 fn day_ratios(days: &[PracticeDay]) -> Vec<f64> {
-    let window_max = days.iter().map(|day| day.goal).max().unwrap_or(1) as f64;
     days.iter()
-        .map(|day| day.goal as f64 / window_max)
+        .map(|day| (day.attempts as f64 / day.goal as f64).min(1.0))
         .collect()
 }
 
@@ -490,11 +482,6 @@ mod tests {
         dioxus_ssr::render(&vdom)
     }
 
-    /// Ordered list of every `--day-ratio: N` value found in the rendered
-    /// HTML, parsed as `f64`, in document order — lets a test pin the
-    /// week's normalized pebble sizes and their order, not just the pebble
-    /// count (same normalization the Week screen uses, owner ruling,
-    /// 2026-08-21).
     fn day_pebble_ratios(html: &str) -> Vec<f64> {
         const NEEDLE: &str = "--day-ratio: ";
         html.match_indices(NEEDLE)
@@ -1125,39 +1112,16 @@ mod tests {
         );
     }
 
-    // Test List — week pebble-size normalization (fix/practice-staircase-
-    // overflow, owner ruling 2026-08-21). Each pebble's size is relative to
-    // its own window's tallest goal, never an absolute minute value (the
-    // same normalization the Week screen uses — owner ruling, 2026-08-21).
-    // No scenario in practice-staircase.feature names normalization
-    // directly — it is a rendering concern the feature's Given/When/Then
-    // are silent on — so
-    // these tests are left unanchored, each with a comment stating why.
-    // - a flat window (goal never changed) normalizes every pebble to 1.0.
-    // - a window whose goal grew mid-way normalizes on the window's own
-    //   maximum, ascending ratios, last pebble at 1.0.
-    // - a window whose maximum sits mid-history (grown then lightened, not
-    //   the last day) still normalizes on that maximum, never on the current
-    //   goal — no pebble may exceed the tallest one.
-    // - a purely descending window (lightened once, maximum on the first
-    //   day only) still normalizes on that first-day maximum.
-    // - a window whose maximum sits on the last day only (grown today, the
-    //   single most common gesture right before opening the detail)
-    //   still normalizes on that last-day maximum.
-
-    // Unanchored: no scenario names normalization; S5 (window is seven days)
-    // is already pinned by the day-pebble count tests above. RootAtKnownHabit's
-    // habit never grows, so every one of its seven days shares the same goal
-    // (5) — the window's maximum equals every day's goal.
+    // @scenario: practice-staircase/S2
     #[test]
-    fn a_flat_window_normalizes_every_pebble_to_full_size() {
+    fn every_undone_pebble_stays_at_floor_size() {
         let html = render(RootAtKnownHabit);
 
         assert_eq!(
             day_pebble_ratios(&html),
-            vec![1.0; 7],
-            "expected every pebble to reach full size when the goal never \
-             changed across the window, got: {html}"
+            vec![0.0; 7],
+            "expected every pebble to stay at the floor when no day was \
+             practised, got: {html}"
         );
     }
 
@@ -1172,6 +1136,12 @@ mod tests {
             LocalDate::from_epoch_day(20_000),
         );
         habit.grow(LocalDate::from_epoch_day(20_018));
+        for _ in 0..2 {
+            habit.record_attempt(LocalDate::from_epoch_day(20_015));
+        }
+        for _ in 0..3 {
+            habit.record_attempt(LocalDate::from_epoch_day(20_019));
+        }
         repository.save(&habit);
         Services::with_repository_and_clock(repository, clock)
     }
@@ -1188,19 +1158,15 @@ mod tests {
         }
     }
 
-    // Unanchored: see the Test List comment above. Window is 20_014..=20_020;
-    // grow(20_018) raises the goal from the 20_018 onward, so the earlier
-    // four days keep the starting goal (5) and the later three reach the new
-    // one (6) — the window's own maximum.
     #[test]
-    fn a_window_grown_mid_way_normalizes_ascending_to_its_own_maximum() {
+    fn a_window_grown_mid_way_sizes_each_practised_day_against_its_own_goal() {
         let html = render(RootAtHabitGrownMidWindow);
 
         assert_eq!(
             day_pebble_ratios(&html),
-            vec![5.0 / 6.0, 5.0 / 6.0, 5.0 / 6.0, 5.0 / 6.0, 1.0, 1.0, 1.0],
-            "expected the days before the growth to sit below full size and \
-             the days at or after it to reach it, got: {html}"
+            vec![0.0, 2.0 / 5.0, 0.0, 0.0, 0.0, 3.0 / 6.0, 0.0],
+            "expected 2 attempts on goal 5 and 3 attempts on the grown goal 6, \
+             the other days at the floor, got: {html}"
         );
     }
 
@@ -1216,6 +1182,10 @@ mod tests {
         );
         habit.grow(LocalDate::from_epoch_day(20_016));
         habit.lighten(LocalDate::from_epoch_day(20_018));
+        for _ in 0..3 {
+            habit.record_attempt(LocalDate::from_epoch_day(20_017));
+            habit.record_attempt(LocalDate::from_epoch_day(20_019));
+        }
         repository.save(&habit);
         Services::with_repository_and_clock(repository, clock)
     }
@@ -1232,39 +1202,15 @@ mod tests {
         }
     }
 
-    // Unanchored: see the Test List comment above. `LightenGoal` is a
-    // delivered, wired use case (issue #13), so a window whose maximum sits
-    // mid-history — grown then lightened back down, not the current goal —
-    // is reachable today. Window is 20_014..=20_020; grow(20_016) raises the
-    // goal to 6 from 20_016, lighten(20_018) lowers it back to 5 from
-    // 20_018, so the window's own maximum (6) is reached only on 20_016 and
-    // 20_017, neither the first nor the last day. Pins both the
-    // anti-overflow invariant and the exact normalization target — the
-    // invariant is what a `.max()` -> `.last()` mutant breaks (see
-    // mutation-report).
     #[test]
-    fn a_window_grown_then_lightened_still_normalizes_on_its_own_maximum() {
+    fn a_window_grown_then_lightened_sizes_each_practised_day_against_its_own_goal() {
         let html = render(RootAtHabitGrownThenLightenedMidWindow);
 
-        let ratios = day_pebble_ratios(&html);
-        assert!(
-            ratios.iter().all(|&ratio| ratio <= 1.0),
-            "no pebble may exceed the tallest one: {ratios:?}"
-        );
         assert_eq!(
-            ratios,
-            vec![
-                5.0 / 6.0,
-                5.0 / 6.0,
-                1.0,
-                1.0,
-                5.0 / 6.0,
-                5.0 / 6.0,
-                5.0 / 6.0
-            ],
-            "expected the window's own maximum (6, reached on days 3-4) to \
-             normalize every pebble, not the current goal (5, which the window \
-             lightened back down to), got: {html}"
+            day_pebble_ratios(&html),
+            vec![0.0, 0.0, 0.0, 3.0 / 6.0, 0.0, 3.0 / 5.0, 0.0],
+            "expected 3 attempts on the goal 6 of the grown days and 3 \
+             attempts on the lightened goal 5, got: {html}"
         );
     }
 
@@ -1279,6 +1225,12 @@ mod tests {
             LocalDate::from_epoch_day(20_000),
         );
         habit.lighten(LocalDate::from_epoch_day(20_015));
+        for _ in 0..3 {
+            habit.record_attempt(LocalDate::from_epoch_day(20_014));
+        }
+        for _ in 0..4 {
+            habit.record_attempt(LocalDate::from_epoch_day(20_016));
+        }
         repository.save(&habit);
         Services::with_repository_and_clock(repository, clock)
     }
@@ -1295,34 +1247,60 @@ mod tests {
         }
     }
 
-    // Unanchored: see the Test List comment above. Window is 20_014..=20_020;
-    // the habit starts at goal 6 and lighten(20_015) lowers it to 5 from
-    // that day onward, so only the first day (20_014) keeps the starting
-    // goal — the window's own maximum sits on the first day alone, a
-    // purely descending profile. A `.max()` taken over
-    // `days.iter().skip(1)` would miss it entirely and overflow the first
-    // pebble's size.
     #[test]
-    fn a_window_only_lightened_normalizes_on_its_first_day() {
+    fn a_window_only_lightened_sizes_each_practised_day_against_its_own_goal() {
         let html = render(RootAtHabitLightenedEarlyInWindow);
 
-        let ratios = day_pebble_ratios(&html);
-        assert!(
-            ratios.iter().all(|&ratio| ratio <= 1.0),
-            "no pebble may exceed the tallest one: {ratios:?}"
-        );
         assert_eq!(
-            ratios,
-            vec![
-                1.0,
-                5.0 / 6.0,
-                5.0 / 6.0,
-                5.0 / 6.0,
-                5.0 / 6.0,
-                5.0 / 6.0,
-                5.0 / 6.0
-            ],
-            "expected the first day's goal (6) to normalize every pebble, got: {html}"
+            day_pebble_ratios(&html),
+            vec![3.0 / 6.0, 0.0, 4.0 / 5.0, 0.0, 0.0, 0.0, 0.0],
+            "expected 3 attempts on the first day's goal 6 and 4 attempts on \
+             the lightened goal 5, got: {html}"
+        );
+    }
+
+    fn services_with_attempts_on_three_days() -> Services {
+        let today = LocalDate::from_epoch_day(20_020);
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock(today));
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Lire une page".to_string()).unwrap(),
+            Goal::new(5).unwrap(),
+            LocalDate::from_epoch_day(20_000),
+        );
+        for (days_back, attempts) in [(0, 2), (1, 7), (2, 5)] {
+            for _ in 0..attempts {
+                habit.record_attempt(today.minus_days(days_back));
+            }
+        }
+        repository.save(&habit);
+        Services::with_repository_and_clock(repository, clock)
+    }
+
+    #[component]
+    fn RootAtAttemptsOnThreeDays() -> Element {
+        crate::i18n::use_locale_for_tests();
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_attempts_on_three_days);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: practice-staircase/S4
+    #[test]
+    fn a_practised_day_is_sized_by_its_attempts_against_its_goal_and_capped_at_full() {
+        let html = render(RootAtAttemptsOnThreeDays);
+
+        assert_eq!(
+            day_pebble_ratios(&html),
+            vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.4],
+            "goal 5: 5 attempts reach full size, 7 attempts stay at full \
+             size, 2 attempts stand at two fifths, and undone days stay at \
+             the floor, got: {html}"
         );
     }
 
@@ -1353,29 +1331,16 @@ mod tests {
         }
     }
 
-    // Unanchored: see the Test List comment above. Window is 20_014..=20_020;
-    // the habit starts at goal 5 and grow(20_020) raises it to 6 only from
-    // today — the window's own maximum sits on the last day alone, the most
-    // common gesture right before opening the detail.
-    // `a_window_grown_mid_way_normalizes_ascending_to_its_own_maximum`
-    // places the maximum on the last THREE days and does not discriminate
-    // this narrower case.
+    // @scenario: practice-staircase/S3
     #[test]
-    fn a_window_grown_on_its_last_day_normalizes_on_that_last_day() {
+    fn a_goal_grown_on_an_undone_last_day_leaves_that_day_at_the_floor() {
         let html = render(RootAtHabitGrownOnTheLastDay);
 
         assert_eq!(
             day_pebble_ratios(&html),
-            vec![
-                5.0 / 6.0,
-                5.0 / 6.0,
-                5.0 / 6.0,
-                5.0 / 6.0,
-                5.0 / 6.0,
-                5.0 / 6.0,
-                1.0
-            ],
-            "expected the last day's raised goal (6) to normalize every pebble, got: {html}"
+            vec![0.0; 7],
+            "expected growing the goal to draw nothing until the day is \
+             practised, got: {html}"
         );
     }
 }

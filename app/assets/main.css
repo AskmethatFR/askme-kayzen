@@ -853,10 +853,9 @@ body {
    practice keeps its pebble in plain outline — presence or absence of a fill,
    never two nuances of one shape (06-style-galets rule #32). Today — the last
    of the seven — is told apart by its dashed outline until it is practised.
-   Size is normalized to the window's own maximum goal (--day-ratio, 0..1),
-   never an absolute minute value: the tallest pebble fills the track and no
-   pebble can overflow by construction. The size scale (.6 + .4 x ratio) keeps
-   even the smallest day visible. */
+   Size follows the day's attempts against that day's own goal (--day-ratio,
+   0..1, capped in the view): a day without practice has ratio 0 and stands at
+   the floor. The size scale (.6 + .4 x ratio) keeps even that floor visible. */
 .week-card {
     background: var(--color-card);
     border-radius: var(--radius-habit);

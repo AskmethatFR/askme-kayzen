@@ -46,6 +46,7 @@ const WINDOW_DAYS: i64 = 7;
 #[derive(Debug, Clone, PartialEq)]
 pub struct PracticeDay {
     pub done: bool,
+    pub attempts: u32,
     pub goal: u32,
 }
 
@@ -70,6 +71,7 @@ impl GetHabitDetail {
                 .map(|days_back| today.minus_days(days_back))
                 .map(|day| PracticeDay {
                     done: habit.is_done_on(day),
+                    attempts: habit.attempts_on(day),
                     goal: habit.step_history().goal_on(day).value(),
                 })
                 .collect(),
@@ -108,8 +110,15 @@ mod tests {
         )
     }
 
-    fn seven_days(done: bool, goal: u32) -> Vec<PracticeDay> {
-        vec![PracticeDay { done, goal }; 7]
+    fn seven_unpractised_days(goal: u32) -> Vec<PracticeDay> {
+        vec![
+            PracticeDay {
+                done: false,
+                attempts: 0,
+                goal
+            };
+            7
+        ]
     }
 
     fn get_habit_detail_over(repository: Rc<InMemoryHabitRepository>) -> GetHabitDetail {
@@ -140,7 +149,7 @@ mod tests {
                 current_goal: 5,
                 next_goal_up: 6,
                 next_goal_down: 4,
-                days: seven_days(false, 5),
+                days: seven_unpractised_days(5),
                 state: HabitState::Active,
                 done_today: false,
             })
@@ -259,6 +268,7 @@ mod tests {
             days[6],
             PracticeDay {
                 done: true,
+                attempts: 1,
                 goal: 5
             }
         );
@@ -266,22 +276,50 @@ mod tests {
 
     // @scenario: practice-staircase/S4
     #[test]
-    fn each_bar_stands_at_the_goal_that_was_active_that_day() {
+    fn each_bar_carries_that_days_attempts_and_the_goal_active_that_day() {
         let repository = Rc::new(InMemoryHabitRepository::new());
         let mut habit = a_habit();
         habit.record_attempt(LocalDate::from_epoch_day(TODAY - 1));
+        habit.record_attempt(LocalDate::from_epoch_day(TODAY - 1));
         habit.grow(LocalDate::from_epoch_day(TODAY));
-        habit.record_attempt(LocalDate::from_epoch_day(TODAY));
+        for _ in 0..7 {
+            habit.record_attempt(LocalDate::from_epoch_day(TODAY));
+        }
         repository.save(&habit);
         let query = get_habit_detail_over(Rc::clone(&repository));
 
         let days = query.handle("h-1").unwrap().days;
 
         assert_eq!(
-            (days[5].goal, days[6].goal),
-            (5, 6),
-            "the earlier day keeps the goal it was practised at; growing \
-             afterwards raises only the days that follow"
+            (
+                (days[4].attempts, days[4].goal),
+                (days[5].attempts, days[5].goal),
+                (days[6].attempts, days[6].goal)
+            ),
+            ((0, 5), (2, 5), (7, 6)),
+            "each day carries its own count, a count above the goal is kept \
+             as is, and growing afterwards raises only the days that follow"
+        );
+    }
+
+    // @scenario: practice-staircase/S3
+    #[test]
+    fn a_day_without_practice_carries_no_attempt_whatever_the_goal() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit();
+        habit.grow(LocalDate::from_epoch_day(TODAY));
+        repository.save(&habit);
+        let query = get_habit_detail_over(Rc::clone(&repository));
+
+        let days = query.handle("h-1").unwrap().days;
+
+        assert_eq!(
+            days[6],
+            PracticeDay {
+                done: false,
+                attempts: 0,
+                goal: 6
+            }
         );
     }
 
@@ -301,7 +339,7 @@ mod tests {
 
         assert_eq!(
             days,
-            seven_days(false, 5),
+            seven_unpractised_days(5),
             "the days older than the habit stand at the goal it started on — \
              an empty start is still a start, and a zero-height bar would be \
              the hole the faint bar exists to avoid"
