@@ -20,7 +20,7 @@ Feature: Mark a habit done today
   Scenario: Saying a habit is done from its own screen
     Given an active habit with no completion for today
     When the user says it is done from the habit's own screen
-    Then today's local date is recorded, without entering the ritual
+    Then today's local date is recorded and one attempt is added, without entering the ritual
 
   @scenario:S5
   Scenario: Marking a habit again adds one more attempt, never clears the day

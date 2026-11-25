@@ -255,10 +255,12 @@ mod tests {
             .execute("Bouger un peu".to_string(), STARTING_GOAL)
             .expect("a fresh directory has room for one habit");
         let habit_id = first_launch.list_board_habits.handle().active[0].id.clone();
-        first_launch
-            .mark_done
-            .execute(&habit_id)
-            .expect("the habit was just added");
+        for _ in 0..STARTING_GOAL {
+            first_launch
+                .mark_done
+                .execute(&habit_id)
+                .expect("the habit was just added");
+        }
 
         let relaunch = Services::with_repository_and_clock(
             Rc::new(persistent_habit_repository_at(&dir)),

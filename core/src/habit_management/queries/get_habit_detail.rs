@@ -20,9 +20,6 @@ pub struct HabitDetail {
     pub next_goal_down: u32,
     pub days: Vec<PracticeDay>,
     pub state: HabitState,
-    /// Whether today's practice is already recorded — named explicitly so the
-    /// ritual's completion gesture reads it directly, instead of any caller
-    /// having to infer it from `days`' trailing entry or its ordering.
     pub done_today: bool,
 }
 
@@ -81,7 +78,7 @@ impl GetHabitDetail {
                 LifecycleState::Paused => HabitState::Paused,
                 LifecycleState::Anchored => HabitState::Anchored,
             },
-            done_today: habit.is_done_on(today),
+            done_today: habit.reached_goal_on(today),
         })
     }
 }
@@ -205,17 +202,27 @@ mod tests {
     }
 
     #[test]
-    fn the_detail_reports_the_habit_as_done_when_today_is_recorded() {
-        let repository = Rc::new(InMemoryHabitRepository::new());
+    fn the_detail_reports_the_habit_as_done_only_when_attempts_reach_the_goal() {
         let clock: Rc<dyn Clock> = Rc::new(FixedClock::new(LocalDate::from_epoch_day(TODAY)));
-        let mut habit = a_habit();
-        habit.record_attempt(clock.today());
-        repository.save(&habit);
-        let query = GetHabitDetail::new(Rc::clone(&repository) as Rc<dyn HabitRepository>, clock);
+        let done_after = |attempts: u32| {
+            let repository = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = a_habit();
+            for _ in 0..attempts {
+                habit.record_attempt(clock.today());
+            }
+            repository.save(&habit);
+            let query = GetHabitDetail::new(
+                Rc::clone(&repository) as Rc<dyn HabitRepository>,
+                Rc::clone(&clock),
+            );
+            query.handle("h-1").map(|detail| detail.done_today)
+        };
 
-        let result = query.handle("h-1");
-
-        assert_eq!(result.map(|detail| detail.done_today), Some(true));
+        assert_eq!(
+            (done_after(1), done_after(4), done_after(5), done_after(6)),
+            (Some(false), Some(false), Some(true), Some(true)),
+            "goal 5: one and four attempts are not done; the goal and past it are"
+        );
     }
 
     // Test List — the practice staircase (@feature:practice-staircase). One bar

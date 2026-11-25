@@ -164,13 +164,7 @@ fn complete_and_go_home(services: &Services, navigator: Navigator, id: &str) {
 }
 
 fn record_todays_practice(services: &Services, id: &str) {
-    let not_yet_done = services
-        .get_habit_detail
-        .handle(id)
-        .is_some_and(|habit| !habit.done_today);
-    if not_yet_done {
-        services.mark_done.execute(id).ok();
-    }
+    services.mark_done.execute(id).ok();
 }
 
 #[must_use]
@@ -565,7 +559,7 @@ mod tests {
 
     // @scenario: ritual/S7
     #[test]
-    fn the_completion_gesture_reads_the_day_at_click_time_not_at_mount() {
+    fn the_completion_gesture_adds_one_attempt_on_top_of_a_day_that_already_reached_the_goal() {
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
         repository.save(&a_habit_with_goal(5));
         SHARED_REPOSITORY.with(|cell| *cell.borrow_mut() = Some(Rc::clone(&repository)));
@@ -576,14 +570,17 @@ mod tests {
         // the click — a mount-time snapshot cannot see this, only a click-time
         // read can.
         let mut habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
-        habit.record_attempt(LocalDate::from_epoch_day(20_005));
+        for _ in 0..5 {
+            habit.record_attempt(LocalDate::from_epoch_day(20_005));
+        }
         repository.save(&habit);
         screen.click("J'ai terminé · Lire une page");
 
         let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
-        assert!(
-            habit.is_done_on(LocalDate::from_epoch_day(20_005)),
-            "expected the gesture to see the day already recorded and leave it alone"
+        assert_eq!(
+            habit.attempts_on(LocalDate::from_epoch_day(20_005)),
+            6,
+            "expected the completion to count one more attempt, past the goal of five"
         );
     }
 
@@ -607,6 +604,11 @@ mod tests {
         assert!(
             habit.is_done_on(LocalDate::from_epoch_day(20_005)),
             "expected the day to stay recorded after the gesture ran twice"
+        );
+        assert_eq!(
+            habit.attempts_on(LocalDate::from_epoch_day(20_005)),
+            2,
+            "expected each completion to count its own attempt"
         );
     }
 

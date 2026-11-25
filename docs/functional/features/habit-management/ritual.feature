@@ -14,7 +14,7 @@ Feature: Practise a habit for its own dose
   Scenario: Completing the practice from the ritual
     Given a ritual in progress for an active habit
     When the user taps the completion gesture
-    Then the habit is recorded done for today and the screen returns to Aujourd'hui
+    Then one attempt is recorded for today and the screen returns to Aujourd'hui
 
   @scenario:S3
   Scenario: Stopping early costs nothing
@@ -41,10 +41,10 @@ Feature: Practise a habit for its own dose
     Then the countdown reflects the time that really elapsed, neither frozen nor drifted
 
   @scenario:S7
-  Scenario: The completion gesture states a fact, it never un-marks
-    Given a habit already recorded done for today
+  Scenario: The completion gesture adds an attempt, it never un-marks
+    Given a habit that already has attempts today, even up to its goal
     When the ritual's completion gesture runs again
-    Then the day stays recorded, because completing asserts a practice, it does not toggle one
+    Then one more attempt is recorded, because completing counts a practice, it does not toggle one
 
   @scenario:S8
   Scenario: At zero the screen says a gentle word, not a verdict

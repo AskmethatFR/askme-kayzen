@@ -616,29 +616,40 @@ mod tests {
     }
 
     #[test]
-    fn mark_done_and_reload_records_today_and_returns_the_refreshed_detail() {
-        let services = services_with_one_habit();
+    fn mark_done_and_reload_adds_one_attempt_and_returns_the_refreshed_detail() {
+        let today = LocalDate::from_epoch_day(20_005);
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit());
+        let services = Services::with_repository_and_clock(
+            Rc::clone(&repository),
+            Rc::new(FixedClock(today)),
+        );
 
         let detail = mark_done_and_reload(&services, "h-1");
 
+        let attempts = repository
+            .get(&HabitId::new("h-1").unwrap())
+            .unwrap()
+            .attempts_on(today);
         assert_eq!(
-            detail.map(|d| d.done_today),
-            Some(true),
-            "expected the gesture to have run before the screen re-reads the habit"
+            (attempts, detail.map(|d| d.done_today)),
+            (1, Some(false)),
+            "expected one attempt recorded, not yet the goal of five, before the screen re-reads"
         );
     }
 
     #[test]
-    fn a_second_tap_through_the_detail_gesture_keeps_today_done() {
+    fn taps_through_the_detail_gesture_count_each_time_and_the_day_is_done_at_the_goal() {
         let services = services_with_one_habit();
 
-        let first = mark_done_and_reload(&services, "h-1");
-        let second = mark_done_and_reload(&services, "h-1");
+        let after_each_tap: Vec<_> = (0..6)
+            .map(|_| mark_done_and_reload(&services, "h-1").map(|d| d.done_today))
+            .collect();
 
         assert_eq!(
-            (first.map(|d| d.done_today), second.map(|d| d.done_today)),
-            (Some(true), Some(true)),
-            "expected a second tap to add an attempt, never to clear the day"
+            after_each_tap,
+            [false, false, false, false, true, true].map(Some),
+            "expected every tap to add an attempt, done from the fifth, never cleared"
         );
     }
 
@@ -900,15 +911,15 @@ mod tests {
 
     // @scenario: mark-done/S4
     #[test]
-    fn saying_its_done_from_the_habit_s_own_screen_records_today_without_the_ritual() {
+    fn saying_its_done_from_the_habit_s_own_screen_adds_an_attempt_without_the_ritual() {
         let mut screen = Screen::open(RootAtKnownHabit);
 
         screen.click("C'est fait · Lire une page");
 
         let html = screen.html();
         assert!(
-            html.contains("aria-label=\"Fait aujourd&#39;hui · Lire une page\""),
-            "expected the day to read as recorded from the habit's own screen, got: {html}"
+            !html.contains("Fait aujourd"),
+            "expected one attempt of five not to read as done, got: {html}"
         );
         assert!(
             html.contains(r#"class="screen detail""#) && !html.contains(r#"class="screen ritual""#),
