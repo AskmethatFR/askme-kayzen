@@ -59,22 +59,20 @@ resume-habit-aria = La reprendre · { $title }
 habit-not-found-message = Cette habitude n'est plus sur votre liste.
 habit-not-found-back-link = Retour à Aujourd'hui
 week-heading = Cette semaine
-week-minutes-practised = { $count ->
-    [0] minutes de pratique accumulées
-    [one] minute de pratique accumulée
-   *[other] minutes de pratique accumulées
+week-times-practised = { $count ->
+   *[other] fois pratiquées
 }
 week-message-fresh-start = Un début parfait. Tout est encore devant.
 week-message-resting = Cette semaine se repose. Elle vous attend, sans presser.
 week-message-growing = Vous avancez, à votre rythme.
 week-rhythm-aria = Votre rythme sur les sept derniers jours
-week-curve-aria = Trajectoire de { $title }, de { $starting_goal } à { $current_goal } minutes, { $practised_days ->
+week-curve-aria = Trajectoire de { $title }, de { $starting_goal } à { $current_goal } fois par jour, { $practised_days ->
     [one] { $practised_days } jour pratiqué
    *[other] { $practised_days } jours pratiqués
 }
 week-habit-goal = { $changed ->
-    [yes] { $starting_goal } → { $current_goal } min
-   *[no] { $goal } min
+    [yes] { $starting_goal } → { $current_goal } fois par jour
+   *[no] { $goal } fois par jour
 }
 ritual-not-found-message = Cette habitude n'est plus sur votre liste.
 ritual-not-found-back-link = Retour à Aujourd'hui

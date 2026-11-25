@@ -20,7 +20,7 @@ pub struct GetWeekRecap {
 /// read from every habit's histories, whatever its lifecycle state (AD-3).
 #[derive(Debug, Clone, PartialEq)]
 pub struct WeekRecap {
-    pub minutes_practised: u32,
+    pub times_practised: u32,
     pub habits: Vec<HabitProgress>,
     pub rhythm: Vec<bool>,
     pub message: WeekMessage,
@@ -78,22 +78,22 @@ impl GetWeekRecap {
         let today = self.clock.today();
         let habits = self.repository.all();
 
-        let mut minutes_practised = 0u32;
+        let mut times_practised = 0u32;
         for habit in &habits {
-            minutes_practised = minutes_practised.saturating_add(habit.minutes_practised(today));
+            times_practised = times_practised.saturating_add(habit.times_practised(today));
         }
 
         let rhythm = rhythm_for(&habits, today);
         let recently = rhythm.iter().any(|&practised| practised);
 
         WeekRecap {
-            minutes_practised,
+            times_practised,
             habits: habits
                 .iter()
                 .map(|habit| HabitProgress::for_habit(habit, today))
                 .collect(),
             rhythm,
-            message: message_for(minutes_practised, recently),
+            message: message_for(times_practised, recently),
         }
     }
 }
@@ -129,8 +129,8 @@ fn practised_day_goals_for(habit: &Habit, today: LocalDate) -> Vec<u32> {
         .collect()
 }
 
-fn message_for(minutes_practised: u32, practised_recently: bool) -> WeekMessage {
-    if minutes_practised == 0 {
+fn message_for(times_practised: u32, practised_recently: bool) -> WeekMessage {
+    if times_practised == 0 {
         return WeekMessage::FreshStart;
     }
     if practised_recently {
@@ -142,11 +142,14 @@ fn message_for(minutes_practised: u32, practised_recently: bool) -> WeekMessage 
 #[cfg(test)]
 mod tests {
     use super::{GetWeekRecap, HabitProgress, WeekMessage};
+    use crate::habit_management::domain::completion_history::CompletionHistory;
     use crate::habit_management::domain::goal::Goal;
     use crate::habit_management::domain::habit::Habit;
     use crate::habit_management::domain::habit_id::HabitId;
     use crate::habit_management::domain::habit_repository::HabitRepository;
     use crate::habit_management::domain::habit_title::HabitTitle;
+    use crate::habit_management::domain::lifecycle_state::LifecycleState;
+    use crate::habit_management::domain::step_history::StepHistory;
     use crate::habit_management::infrastructure::in_memory_habit_repository::InMemoryHabitRepository;
     use crate::shared::clock::{Clock, FixedClock};
     use crate::shared::local_date::LocalDate;
@@ -218,8 +221,28 @@ mod tests {
         let recap = query.handle();
 
         assert_eq!(
-            recap.minutes_practised, 30,
-            "3 + 2 + 1 completed days at 5 minutes each sum to 30"
+            recap.times_practised, 6,
+            "3 + 2 + 1 completed days at one attempt each sum to 6 times"
+        );
+    }
+
+    // @scenario: week-recap/S1
+    #[test]
+    fn every_attempt_of_a_day_counts_in_the_times_practised() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit("h-1", 5, TODAY - 6);
+        for _ in 0..3 {
+            habit.record_attempt(LocalDate::from_epoch_day(TODAY));
+        }
+        repository.save(&habit);
+        let query = get_week_recap_over(repository);
+
+        let recap = query.handle();
+
+        assert_eq!(
+            recap.times_practised, 3,
+            "three attempts on one day are three times practised, never the \
+             day's goal (5) and never one day"
         );
     }
 
@@ -246,9 +269,9 @@ mod tests {
         let recap = query.handle();
 
         assert_eq!(
-            recap.minutes_practised, 35,
-            "4 days at 5 min from the paused habit plus 3 from the anchored \
-             one — pausing or anchoring never takes lived minutes back"
+            recap.times_practised, 7,
+            "4 attempts from the paused habit plus 3 from the anchored \
+             one — pausing or anchoring never takes lived times back"
         );
         assert_eq!(
             recap.habits.len(),
@@ -291,7 +314,7 @@ mod tests {
 
         let recap = query.handle();
 
-        assert_eq!(recap.minutes_practised, 0);
+        assert_eq!(recap.times_practised, 0);
         assert_eq!(recap.message, WeekMessage::FreshStart);
     }
 
@@ -307,8 +330,8 @@ mod tests {
         let recap = query.handle();
 
         assert_eq!(
-            recap.minutes_practised, 5,
-            "the lived minutes are never erased by rest"
+            recap.times_practised, 1,
+            "the lived times are never erased by rest"
         );
         assert_eq!(recap.message, WeekMessage::Resting);
     }
@@ -363,7 +386,7 @@ mod tests {
         let recap = query.handle();
 
         assert_eq!(
-            recap.minutes_practised, 5,
+            recap.times_practised, 1,
             "the creation day's practice must be counted even when the \
              clock's today lags behind created_on, never read as zero"
         );
@@ -373,15 +396,20 @@ mod tests {
     fn the_running_sum_saturates_instead_of_overflowing_across_habits() {
         let repository = Rc::new(InMemoryHabitRepository::new());
         for id in ["h-1", "h-2"] {
-            let mut habit = a_habit(id, u32::MAX, TODAY);
-            habit.record_attempt(LocalDate::from_epoch_day(TODAY));
+            let habit = Habit::rehydrate(
+                HabitId::new(id).unwrap(),
+                HabitTitle::new("Lire une page".to_string()).unwrap(),
+                StepHistory::seeded(LocalDate::from_epoch_day(TODAY), Goal::new(5).unwrap()),
+                CompletionHistory::with_attempts(LocalDate::from_epoch_day(TODAY), u32::MAX),
+                LifecycleState::Active,
+            );
             repository.save(&habit);
         }
         let query = get_week_recap_over(repository);
 
         let recap = query.handle();
 
-        assert_eq!(recap.minutes_practised, u32::MAX);
+        assert_eq!(recap.times_practised, u32::MAX);
     }
 
     // @scenario: week-recap/S5
@@ -548,7 +576,7 @@ mod tests {
 
         let recap = query.handle();
 
-        assert_eq!(recap.minutes_practised, 0);
+        assert_eq!(recap.times_practised, 0);
         assert!(recap.habits.is_empty(), "got {:?}", recap.habits);
         assert_eq!(recap.rhythm, vec![false; 7]);
         assert_eq!(recap.message, WeekMessage::FreshStart);

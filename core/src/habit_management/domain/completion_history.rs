@@ -15,6 +15,11 @@ impl CompletionHistory {
         *attempts = attempts.saturating_add(1);
     }
 
+    #[cfg(test)]
+    pub(crate) fn with_attempts(day: LocalDate, attempts: u32) -> CompletionHistory {
+        CompletionHistory(BTreeMap::from([(day, attempts)]))
+    }
+
     pub fn contains(&self, day: LocalDate) -> bool {
         self.0.contains_key(&day)
     }
@@ -38,7 +43,9 @@ impl CompletionHistory {
         history
     }
 
-    pub fn between(&self, from: LocalDate, to: LocalDate) -> impl Iterator<Item = LocalDate> + '_ {
-        self.0.range(from..=to).map(|(day, _)| *day)
+    pub fn attempts_between(&self, from: LocalDate, to: LocalDate) -> u32 {
+        self.0
+            .range(from..=to)
+            .fold(0u32, |total, (_, attempts)| total.saturating_add(*attempts))
     }
 }

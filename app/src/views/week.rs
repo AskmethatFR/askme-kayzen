@@ -15,8 +15,8 @@ pub fn Week() -> Element {
     let recap = use_signal(move || services.get_week_recap.handle());
     let recap = recap();
     let legend = tr!(
-        "week-minutes-practised",
-        count: recap.minutes_practised as i64
+        "week-times-practised",
+        count: recap.times_practised as i64
     );
     let staircase = staircase_points(&recap.rhythm);
     let staircase_trace = staircase
@@ -32,7 +32,7 @@ pub fn Week() -> Element {
 
             div { class: "week-tint-card",
                 div { class: "week-tint-figure",
-                    span { class: "week-figure", "{recap.minutes_practised}" }
+                    span { class: "week-figure", "{recap.times_practised}" }
                     span { class: "week-figure-label", "{legend}" }
                 }
                 if recap.rhythm.iter().any(|practised| *practised) {
@@ -334,11 +334,14 @@ mod tests {
         );
         assert!(
             html.contains(
-                r#"<span class="week-figure">30</span><span class="week-figure-label">minutes de pratique accumulées</span>"#
+                r#"<span class="week-figure">6</span><span class="week-figure-label">fois pratiquées</span>"#
             ),
             "expected the figure and its legend apart — the figure prints the \
-             sum, the legend names accumulated practice and never gain over \
-             the starting goal, got: {html}"
+             sum of attempts, the legend names the times practised, got: {html}"
+        );
+        assert!(
+            !html.contains("minute") && !html.contains(" min<"),
+            "the Week screen reads in times, never in minutes, got: {html}"
         );
         assert!(
             html.contains("Vous avancez"),
@@ -381,9 +384,9 @@ mod tests {
 
         assert!(
             html.contains(
-                r#"<span class="week-figure">35</span><span class="week-figure-label">minutes de pratique accumulées</span>"#
+                r#"<span class="week-figure">7</span><span class="week-figure-label">fois pratiquées</span>"#
             ),
-            "pausing or anchoring must never take lived minutes back, got: {html}"
+            "pausing or anchoring must never take lived times back, got: {html}"
         );
     }
 
@@ -414,7 +417,7 @@ mod tests {
         );
         assert!(
             html.contains(
-                r#"<span class="week-figure">0</span><span class="week-figure-label">minutes de pratique accumulées</span>"#
+                r#"<span class="week-figure">0</span><span class="week-figure-label">fois pratiquées</span>"#
             ),
             "a fresh week's figure is never a bare zero — it always carries \
              its label, got: {html}"
@@ -475,9 +478,9 @@ mod tests {
 
         assert!(
             html.contains(
-                r#"<span class="week-figure">1</span><span class="week-figure-label">minute de pratique accumulée</span>"#
+                r#"<span class="week-figure">1</span><span class="week-figure-label">fois pratiquées</span>"#
             ),
-            "one minute must read the singular form, never the plural, got: {html}"
+            "one time reads \"fois pratiquées\" — French has no singular here, got: {html}"
         );
     }
 
@@ -615,7 +618,7 @@ mod tests {
         let html = render(RootAtWeekScreenWithAGrowingHabit);
 
         assert!(
-            html.contains(r#"class="week-habit-goal">3 → 5 min<"#),
+            html.contains(r#"class="week-habit-goal">3 → 5 fois par jour<"#),
             "expected the row to read the starting and current goal, got: {html}"
         );
         assert_eq!(
@@ -660,7 +663,7 @@ mod tests {
         let html = render(RootAtWeekScreenWithAGrowingHabitInEnglish);
 
         assert!(
-            html.contains(r#"class="week-habit-goal">3 to 5 min<"#),
+            html.contains(r#"class="week-habit-goal">3 to 5 times a day<"#),
             "expected the week-habit-goal line to read the starting/current \
              goal through the i18n layer under English, not a language-neutral \
              literal, got: {html}"
@@ -689,7 +692,7 @@ mod tests {
         let html = render(RootAtWeekScreenWithAFreshHabit);
 
         assert!(
-            html.contains(r#"class="week-habit-goal">5 min<"#),
+            html.contains(r#"class="week-habit-goal">5 fois par jour<"#),
             "expected a goal that has not moved to read without an arrow, got: {html}"
         );
         assert!(
@@ -726,9 +729,9 @@ mod tests {
         );
         assert!(
             html.contains(
-                r#"<span class="week-figure">0</span><span class="week-figure-label">minutes practised</span>"#
+                r#"<span class="week-figure">0</span><span class="week-figure-label">times practised</span>"#
             ),
-            "expected the accumulated-minutes figure and its legend in English, got: {html}"
+            "expected the times-practised figure and its legend in English, got: {html}"
         );
         assert!(
             html.contains(r#"class="week-word">A perfect start. Everything is still ahead.<"#),
@@ -870,7 +873,7 @@ mod tests {
         );
         assert_eq!(
             the_week_curve_html(&html),
-            r#"<div class="week-curve" aria-label="Trajectoire de Lire une page, de 5 à 5 minutes, 1 jour pratiqué"><span class="week-pebble" style="--practice-ratio: 1"></span></div>"#,
+            r#"<div class="week-curve" aria-label="Trajectoire de Lire une page, de 5 à 5 fois par jour, 1 jour pratiqué"><span class="week-pebble" style="--practice-ratio: 1"></span></div>"#,
             "the practised row must gain nothing beyond its pebbles and its \
              enriched aria-label; the unpractised row must draw no band at \
              all — no counter, no mark of absence"
@@ -927,15 +930,15 @@ mod tests {
         rsx! {
             p {
                 span { class: "week-figure", "0" }
-                span { class: "week-figure-label", {tr!("week-minutes-practised", count: 0i64)} }
+                span { class: "week-figure-label", {tr!("week-times-practised", count: 0i64)} }
             }
             p {
                 span { class: "week-figure", "1" }
-                span { class: "week-figure-label", {tr!("week-minutes-practised", count: 1i64)} }
+                span { class: "week-figure-label", {tr!("week-times-practised", count: 1i64)} }
             }
             p {
                 span { class: "week-figure", "2" }
-                span { class: "week-figure-label", {tr!("week-minutes-practised", count: 2i64)} }
+                span { class: "week-figure-label", {tr!("week-times-practised", count: 2i64)} }
             }
         }
     }
@@ -946,15 +949,15 @@ mod tests {
         rsx! {
             p {
                 span { class: "week-figure", "0" }
-                span { class: "week-figure-label", {tr!("week-minutes-practised", count: 0i64)} }
+                span { class: "week-figure-label", {tr!("week-times-practised", count: 0i64)} }
             }
             p {
                 span { class: "week-figure", "1" }
-                span { class: "week-figure-label", {tr!("week-minutes-practised", count: 1i64)} }
+                span { class: "week-figure-label", {tr!("week-times-practised", count: 1i64)} }
             }
             p {
                 span { class: "week-figure", "2" }
-                span { class: "week-figure-label", {tr!("week-minutes-practised", count: 2i64)} }
+                span { class: "week-figure-label", {tr!("week-times-practised", count: 2i64)} }
             }
         }
     }
@@ -965,22 +968,21 @@ mod tests {
 
         assert!(
             html.contains(
-                r#"<p><span class="week-figure">0</span><span class="week-figure-label">minutes de pratique accumulées</span></p>"#
+                r#"<p><span class="week-figure">0</span><span class="week-figure-label">fois pratiquées</span></p>"#
             ),
-            "expected n=0 to keep the figure and read the plural — the D1 \
-             divergence from recap-minutes-label, got: {html}"
+            "expected n=0 to keep the figure and read \"fois pratiquées\", got: {html}"
         );
         assert!(
             html.contains(
-                r#"<p><span class="week-figure">1</span><span class="week-figure-label">minute de pratique accumulée</span></p>"#
+                r#"<p><span class="week-figure">1</span><span class="week-figure-label">fois pratiquées</span></p>"#
             ),
-            "expected n=1 to read the singular, got: {html}"
+            "expected n=1 to read \"fois pratiquées\" too — French has no singular here, got: {html}"
         );
         assert!(
             html.contains(
-                r#"<p><span class="week-figure">2</span><span class="week-figure-label">minutes de pratique accumulées</span></p>"#
+                r#"<p><span class="week-figure">2</span><span class="week-figure-label">fois pratiquées</span></p>"#
             ),
-            "expected n=2 to read the plural, got: {html}"
+            "expected n=2 to read \"fois pratiquées\", got: {html}"
         );
     }
 
@@ -990,19 +992,19 @@ mod tests {
 
         assert!(
             html.contains(
-                r#"<p><span class="week-figure">0</span><span class="week-figure-label">minutes practised</span></p>"#
+                r#"<p><span class="week-figure">0</span><span class="week-figure-label">times practised</span></p>"#
             ),
             "expected n=0 to read the plural (English `other` covers 0), got: {html}"
         );
         assert!(
             html.contains(
-                r#"<p><span class="week-figure">1</span><span class="week-figure-label">minute practised</span></p>"#
+                r#"<p><span class="week-figure">1</span><span class="week-figure-label">time practised</span></p>"#
             ),
             "expected n=1 to read the singular, got: {html}"
         );
         assert!(
             html.contains(
-                r#"<p><span class="week-figure">2</span><span class="week-figure-label">minutes practised</span></p>"#
+                r#"<p><span class="week-figure">2</span><span class="week-figure-label">times practised</span></p>"#
             ),
             "expected n=2 to read the plural, got: {html}"
         );
