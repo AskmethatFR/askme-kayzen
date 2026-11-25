@@ -116,6 +116,23 @@ mod tests {
     }
 
     #[test]
+    fn a_day_with_two_attempts_still_counts_two_after_a_restart() {
+        let store: Rc<dyn SnapshotStore> = Rc::new(InMemorySnapshotStore::empty());
+        let mut habit = a_habit("h-1");
+        habit.record_attempt(LocalDate::from_epoch_day(20_003));
+        habit.record_attempt(LocalDate::from_epoch_day(20_003));
+        habit.record_attempt(LocalDate::from_epoch_day(20_005));
+        repository_over(Rc::clone(&store)).save(&habit);
+
+        let reopened = repository_over(Rc::clone(&store));
+
+        let rehydrated = reopened.get(&HabitId::new("h-1").unwrap()).unwrap();
+        assert_eq!(rehydrated.attempts_on(LocalDate::from_epoch_day(20_003)), 2);
+        assert_eq!(rehydrated.attempts_on(LocalDate::from_epoch_day(20_005)), 1);
+        assert_eq!(rehydrated.attempts_on(LocalDate::from_epoch_day(20_004)), 0);
+    }
+
+    #[test]
     fn the_aggregate_round_trips_completely_for_every_lifecycle_state() {
         // Same behaviour (a full round trip), divergent data (the state the
         // habit is in when saved) — one parameterized cycle rather than

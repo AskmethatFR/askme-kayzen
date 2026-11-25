@@ -24,11 +24,18 @@ impl CompletionHistory {
     }
 
     pub(crate) fn dates(&self) -> impl Iterator<Item = LocalDate> + '_ {
-        self.0.keys().copied()
+        self.0
+            .iter()
+            .flat_map(|(day, attempts)| std::iter::repeat_n(*day, *attempts as usize))
     }
 
+    // @law: snapshot v1 stores a day once per attempt; a payload written before counts holds unique days, one attempt each.
     pub(crate) fn rehydrate(dates: impl IntoIterator<Item = LocalDate>) -> CompletionHistory {
-        CompletionHistory(dates.into_iter().map(|day| (day, 1)).collect())
+        let mut history = CompletionHistory::new();
+        for day in dates {
+            history.record(day);
+        }
+        history
     }
 
     pub fn between(&self, from: LocalDate, to: LocalDate) -> impl Iterator<Item = LocalDate> + '_ {
