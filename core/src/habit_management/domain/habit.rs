@@ -118,6 +118,10 @@ impl Habit {
         self.completion_history.record(today);
     }
 
+    pub fn undo_attempt(&mut self, today: LocalDate) {
+        self.completion_history.withdraw(today);
+    }
+
     pub fn pause(&mut self) -> Result<(), TransitionError> {
         if self.state != LifecycleState::Active {
             return Err(TransitionError::NotActive);
@@ -175,5 +179,27 @@ impl Habit {
         let created_on = self.created_on();
         self.completion_history
             .attempts_between(created_on, today.max(created_on))
+    }
+}
+
+#[cfg(test)]
+mod undo_attempt_tests {
+    use super::*;
+
+    #[test]
+    fn undoing_an_attempt_lowers_that_days_count_by_one() {
+        let day = LocalDate::from_epoch_day(20_000);
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Read one page".to_string()).unwrap(),
+            Goal::new(2).unwrap(),
+            day,
+        );
+        habit.record_attempt(day);
+        habit.record_attempt(day);
+
+        habit.undo_attempt(day);
+
+        assert_eq!(habit.attempts_on(day), 1);
     }
 }

@@ -783,7 +783,8 @@ body {
 /* The gesture that says the day is done takes only the room its own copy
    needs, so the practice gesture keeps the width it had when the dock carried
    one control. */
-.action-dock .action-done {
+.action-dock .action-done,
+.action-dock .action-undo {
     flex: 0 1 auto;
     gap: 8px;
 }

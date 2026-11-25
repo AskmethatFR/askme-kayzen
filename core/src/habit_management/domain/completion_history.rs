@@ -15,6 +15,16 @@ impl CompletionHistory {
         *attempts = attempts.saturating_add(1);
     }
 
+    pub fn withdraw(&mut self, day: LocalDate) {
+        match self.0.get_mut(&day) {
+            Some(attempts) if *attempts > 1 => *attempts -= 1,
+            Some(_) => {
+                self.0.remove(&day);
+            }
+            None => {}
+        }
+    }
+
     #[cfg(test)]
     pub(crate) fn with_attempts(day: LocalDate, attempts: u32) -> CompletionHistory {
         CompletionHistory(BTreeMap::from([(day, attempts)]))
@@ -47,5 +57,45 @@ impl CompletionHistory {
         self.0
             .range(from..=to)
             .fold(0u32, |total, (_, attempts)| total.saturating_add(*attempts))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const DAY: i64 = 20_000;
+
+    #[test]
+    fn withdrawing_from_two_attempts_leaves_one_and_the_day_present() {
+        let day = LocalDate::from_epoch_day(DAY);
+        let mut history = CompletionHistory::with_attempts(day, 2);
+
+        history.withdraw(day);
+
+        assert_eq!(history.attempts_on(day), 1);
+        assert!(history.contains(day));
+    }
+
+    #[test]
+    fn withdrawing_the_only_attempt_removes_the_day_entry() {
+        let day = LocalDate::from_epoch_day(DAY);
+        let mut history = CompletionHistory::with_attempts(day, 1);
+
+        history.withdraw(day);
+
+        assert!(!history.contains(day));
+        assert_eq!(history, CompletionHistory::new());
+    }
+
+    #[test]
+    fn withdrawing_from_a_day_without_attempts_changes_nothing() {
+        let day = LocalDate::from_epoch_day(DAY);
+        let other = LocalDate::from_epoch_day(DAY - 1);
+        let mut history = CompletionHistory::with_attempts(other, 3);
+
+        history.withdraw(day);
+
+        assert_eq!(history, CompletionHistory::with_attempts(other, 3));
     }
 }

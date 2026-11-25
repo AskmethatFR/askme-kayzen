@@ -19,6 +19,7 @@ use kayzen_core::habit_management::use_cases::mark_done::MarkDone;
 use kayzen_core::habit_management::use_cases::pause_habit::PauseHabit;
 use kayzen_core::habit_management::use_cases::readmit_habit::ReadmitHabit;
 use kayzen_core::habit_management::use_cases::resume_habit::ResumeHabit;
+use kayzen_core::habit_management::use_cases::undo_attempt::UndoAttempt;
 use kayzen_core::shared::clock::{CalendarParts, Clock, SystemClock, calendar_parts};
 use kayzen_core::shared::guid_generator::UuidGenerator;
 
@@ -35,6 +36,7 @@ pub(crate) const STARTING_GOAL: u32 = Goal::DEFAULT;
 pub struct Services {
     pub list_board_habits: ListBoardHabits,
     pub mark_done: MarkDone,
+    pub undo_attempt: UndoAttempt,
     pub add_habit: AddHabit,
     pub get_habit_detail: GetHabitDetail,
     pub get_week_recap: GetWeekRecap,
@@ -87,6 +89,7 @@ impl Services {
                 Rc::clone(&clock),
             ),
             mark_done: MarkDone::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
+            undo_attempt: UndoAttempt::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
             get_habit_detail: GetHabitDetail::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
             get_week_recap: GetWeekRecap::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
             grow_goal: GrowGoal::new(Rc::clone(&habit_repository), Rc::clone(&clock)),

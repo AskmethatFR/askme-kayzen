@@ -93,6 +93,18 @@ pub fn HabitDetail(id: String) -> Element {
                                 }
                                 {tr!("habit-detail-mark-done-label")}
                             }
+                            if habit.days.last().is_some_and(|today| today.attempts >= 1) {
+                                button {
+                                    class: "btn btn-secondary action-undo",
+                                    aria_label: tr!("habit-detail-undo-aria", title: habit.title.clone()),
+                                    onclick: {
+                                        let services = services.clone();
+                                        let id = id.clone();
+                                        move |_| detail.set(undo_attempt_and_reload(&services, &id))
+                                    },
+                                    {tr!("habit-detail-undo-label")}
+                                }
+                            }
                         }
 
                         div { class: "pace",
@@ -229,6 +241,12 @@ fn pause_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
 #[must_use]
 fn mark_done_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
     services.mark_done.execute(id).ok();
+    services.get_habit_detail.handle(id)
+}
+
+#[must_use]
+fn undo_attempt_and_reload(services: &Services, id: &str) -> Option<HabitDetailData> {
+    services.undo_attempt.execute(id).ok();
     services.get_habit_detail.handle(id)
 }
 
@@ -1347,6 +1365,85 @@ mod tests {
             "goal 5: 5 attempts reach full size, 7 attempts stay at full \
              size, 2 attempts stand at two fifths, and undone days stay at \
              the floor, got: {html}"
+        );
+    }
+
+    fn services_with_one_attempt_today() -> Services {
+        let today = LocalDate::from_epoch_day(20_020);
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock(today));
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Lire une page".to_string()).unwrap(),
+            Goal::new(5).unwrap(),
+            LocalDate::from_epoch_day(20_000),
+        );
+        habit.record_attempt(today);
+        repository.save(&habit);
+        Services::with_repository_and_clock(repository, clock)
+    }
+
+    #[component]
+    fn RootAtOneAttemptToday() -> Element {
+        crate::i18n::use_locale_for_tests();
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_one_attempt_today);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: undo-attempt/S4
+    #[test]
+    fn the_undo_control_is_shown_only_when_today_has_an_attempt() {
+        let none = render(RootAtKnownHabit);
+        let one = render(RootAtOneAttemptToday);
+
+        assert!(
+            !none.contains("Retirer une fois"),
+            "expected no undo control at 0 attempts today, got: {none}"
+        );
+        assert!(
+            one.contains("Retirer une fois"),
+            "expected the undo control at 1 attempt today, got: {one}"
+        );
+        assert!(
+            !one.contains("quiet-link"),
+            "expected the undo control not to be a quiet-link, got: {one}"
+        );
+    }
+
+    #[test]
+    fn undoing_from_the_habit_s_own_screen_lowers_today_s_count_by_one() {
+        let mut screen = Screen::open(RootAtAttemptsOnThreeDays);
+
+        screen.click("Retirer une fois · Lire une page");
+
+        let html = screen.html();
+        assert_eq!(
+            day_pebble_ratios(&html),
+            vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.2],
+            "expected today's 2 attempts of goal 5 to read as 1 and the other \
+             days to stay as they were, got: {html}"
+        );
+        assert!(
+            html.contains("Retirer une fois"),
+            "expected the control to stay while an attempt remains, got: {html}"
+        );
+    }
+
+    #[test]
+    fn undoing_the_only_attempt_hides_the_control_again() {
+        let mut screen = Screen::open(RootAtOneAttemptToday);
+
+        screen.click("Retirer une fois · Lire une page");
+
+        let html = screen.html();
+        assert!(
+            !html.contains("Retirer une fois"),
+            "expected the control to leave once today has no attempt, got: {html}"
         );
     }
 

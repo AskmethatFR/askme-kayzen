@@ -25,6 +25,7 @@ pub mod use_cases {
     pub mod pause_habit;
     pub mod readmit_habit;
     pub mod resume_habit;
+    pub mod undo_attempt;
 }
 
 pub mod queries {
