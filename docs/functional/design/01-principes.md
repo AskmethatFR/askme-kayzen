@@ -3,11 +3,11 @@
 Ces règles priment sur toute fonctionnalité. En cas de doute, on choisit toujours
 l'option la plus douce.
 
-- **On vise un objectif doux** — toute nouvelle habitude démarre sur un objectif de **5 minutes
+- **On vise un objectif doux** — toute nouvelle habitude démarre sur un objectif de **3 fois
   par jour**. C'est un *but souple* : faire moins, c'est déjà quelque chose ; faire plus, tant
   mieux. *(Amende « on démarre à 1-2 min, jamais plus » — décision owner, voir
   `[[adr-0008-goal-based-dose-user-paced-progression]]`.)*
-- **On grandit à son rythme** — l'utilisateur ajuste son objectif de **±1 min quand lui le
+- **On grandit à son rythme** — l'utilisateur ajuste son objectif de **±1 fois par jour quand lui le
   décide** (grandir / alléger), toujours disponible. **Aucune suggestion du système, aucune
   détection de stabilité.** *(Amende « proposé jamais imposé » : c'est désormais 100 % piloté
   par l'utilisateur.)*

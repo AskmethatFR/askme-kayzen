@@ -88,7 +88,7 @@ d'accessibilité dédiée.
 ## Composants Broadsheet utilisés
 
 - `.btn` / `.btn-primary` / `.btn-secondary` / `.btn-block` — actions.
-- `.tag` / `.tag-accent` — petites étiquettes (ex. « +2 min », « ancrée »).
+- `.tag` / `.tag-accent` — petites étiquettes (ex. « +1 fois », « ancrée »).
 - `.field` + `.input` — champs de saisie (nom d'habitude, déclencheur, réflexion).
 - Rampes `--color-*`, ombres `--shadow-sm/md/lg`.
 

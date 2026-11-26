@@ -58,7 +58,7 @@ mod tests {
             "expected the title in English, got: {html}"
         );
         assert!(
-            html.contains(">Back to Today<"),
+            html.contains(">Back to today<"),
             "expected the back-to-today link in English, got: {html}"
         );
     }

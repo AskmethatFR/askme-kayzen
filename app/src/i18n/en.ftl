@@ -79,7 +79,7 @@ anchor-habit-aria = Anchor it · it's become natural · { $title }
 resume-habit-label = Resume it
 resume-habit-aria = Resume it · { $title }
 habit-not-found-message = This habit is no longer on your list.
-habit-not-found-back-link = Back to Today
+habit-not-found-back-link = Back to today
 week-heading = This week
 week-times-practised = { $count ->
     [one] time practised
@@ -98,7 +98,7 @@ week-habit-goal = { $changed ->
    *[no] { $goal } times a day
 }
 ritual-not-found-message = This habit is no longer on your list.
-ritual-not-found-back-link = Back to Today
+ritual-not-found-back-link = Back to today
 ritual-paused-message = This habit is resting right now. It's here whenever you're ready, no rush.
 ritual-anchored-message = This habit has become natural. It has left your daily life.
 ritual-complete-aria = Done · { $title }
