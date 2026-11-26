@@ -27,6 +27,7 @@
     --color-ink-mid: #4A443E;
     --color-on-ink-soft: #B9B1A5;
     --color-rule: #DCD5C8;
+    --color-outline: #8A8177;
     --color-accent: #0088b0;
     --color-accent-text: #00708F;
     --color-accent-hover: #005A73;
@@ -415,7 +416,7 @@ body {
     width: 52px;
     height: 52px;
     border-radius: var(--radius-pebble);
-    border: 2px dashed var(--color-rule);
+    border: 2px dashed var(--color-outline);
     background: var(--color-paper);
     cursor: pointer;
     display: grid;
@@ -595,10 +596,9 @@ body {
 /* ---- Rhythm row (Week screen) ----
    One dot per day over the rolling seven-day window, oldest first. Presence,
    never density: a day without practice keeps its dot faint — present,
-   never a gap, never a warning. The
-   opacity is load-bearing: at full strength the unlit rule falls to 2.80:1
-   against the accent, under the 3:1 SC 1.4.11 floor an all-chroma signal
-   needs — composited faint it holds 3.31:1. */
+   never a gap, never a warning. Lit is a filled accent dot, unlit a hollow
+   ring in --color-outline at full opacity (3.39:1 on paper, SC 1.4.11): the
+   difference is the fill, not a shade (#32). */
 .rhythm {
     display: flex;
     gap: var(--space-2);
@@ -609,13 +609,13 @@ body {
     width: 12px;
     height: 12px;
     border-radius: var(--radius-pebble);
-    background: var(--color-rule);
-    opacity: 0.35;
+    background: transparent;
+    border: 2px solid var(--color-outline);
 }
 
 .rhythm-dot.is-practised {
     background: var(--color-accent);
-    opacity: 1;
+    border-color: var(--color-accent);
 }
 
 /* ---- Habit cards (Week screen) ----
@@ -709,7 +709,7 @@ body {
 }
 
 .btn-secondary {
-    border-color: var(--color-rule);
+    border-color: var(--color-outline);
 }
 
 .btn-block {
@@ -906,7 +906,7 @@ body {
     height: calc(20px * var(--pebble-scale));
     border-radius: 50%;
     background: transparent;
-    border: 2px solid var(--color-rule);
+    border: 2px solid var(--color-outline);
 }
 
 .day-pebble.is-done {
@@ -916,7 +916,7 @@ body {
 
 .day-pebble.is-today {
     border-style: dashed;
-    border-color: var(--color-on-ink-soft);
+    border-color: var(--color-outline);
 }
 
 /* The practice action: the dock's pill, with its decorative triangle held off
@@ -1068,9 +1068,14 @@ body {
     font-family: var(--font-body);
     font-size: 18px;
     padding: var(--space-3);
-    border: 1px solid var(--color-rule);
+    border: 1px solid var(--color-outline);
     border-radius: var(--radius-field);
     background: var(--color-card);
+}
+
+.input::placeholder {
+    color: var(--color-ink-soft);
+    opacity: 1;
 }
 
 .input:focus-visible {

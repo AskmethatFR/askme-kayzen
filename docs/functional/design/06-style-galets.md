@@ -27,6 +27,7 @@ Toutes les couleurs sont des variables `var(--color-*)` dans `:root`.
 | Encre moyenne | `--color-ink-mid` | `#4A443E` | texte de lecture entre l'encre et l'encre douce (mot de la semaine) |
 | Encre douce sur encre | `--color-on-ink-soft` | `#B9B1A5` | texte et éléments **sur fond encre** : onglets inactifs de la barre du bas |
 | Filet | `--color-rule` | `#DCD5C8` | séparateurs décoratifs uniquement (jamais le seul indice d'un contrôle) |
+| Contour | `--color-outline` | `#8A8177` | contours de contrôle (`.target`, `.input`, `.btn-secondary`) et états éteints (`.rhythm-dot`, `.day-pebble`) |
 | Tuile neutre | `--color-tile-neutral` | `#ECE7DE` | tuile « alléger » : le geste doux, ni pratique ni accent |
 | Accent | `--color-accent` | `#0088b0` | aplats : l'interactif, le fait d'avoir pratiqué |
 | Accent texte | `--color-accent-text` | `#00708F` | texte en accent, boutons qui portent du texte |
@@ -67,7 +68,8 @@ son tampon (coche, `::before`/`::after`) en plus de sa couleur.
 | Texte rituel / fond rituel | 12,3:1 (doux : 9,1:1) |
 | Anneau de focus (accent) / papier · encre · rituel | 3,62 · 3,68 · 3,41:1 |
 | Contour de contrôle `#8A8177` / papier · carte · teinte | 3,39 · 3,64 · 3,21:1 |
-| Filet `#DCD5C8` / papier | 1,39:1 — décoratif, jamais un contour de contrôle |
+| Filet `#DCD5C8` / papier · carte | 1,29 · 1,39:1 — décoratif, jamais un contour de contrôle |
+| Placeholder (encre douce `#6B645C`) / carte (`.input`) | 5,54:1 |
 
 ## Typographie
 
@@ -212,11 +214,6 @@ sur ces points ; ce sont des faits, pas des choix de design.
 
 | Sujet | Fait |
 | --- | --- |
-| Bordure `.target` | pointillée en `--color-rule` : **1,39:1** |
-| Points de rythme éteints (semaine) | **1,09 à 1,39:1** contre leur fond |
-| Contour du galet-jour (`.day-pebble`) | **1,39:1** |
-| Placeholder des champs | **4,38:1** (sous 4,5:1) |
-| `--color-outline` | n'existe pas dans `:root` ; les contours de contrôle utilisent `--color-rule` ou `--color-ink-soft` |
 | Retour | trois traitements : pastille ronde à chevron (Détail, Ajout), lien texte « ← Aujourd'hui » (En pause, repli du Rituel), rien sur les onglets |
 | Lien de retour rond | balisage copié dans `habit_detail.rs` et `add_habit.rs`, aucun composant |
 | Titres | les eyebrows sont des `<p>` ; le Rituel met un `h3` après le `h1` ; le titre de la semaine est un `h1.week-heading`, pas `.greeting` |
