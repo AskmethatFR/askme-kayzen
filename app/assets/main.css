@@ -78,10 +78,16 @@
 }
 
 /* The one keyboard focus ring: every control inherits it, no component
-   redefines or removes it. `.input` keeps its accent border on top of it. */
+   redefines or removes it. `.input` keeps its accent border on top of it.
+   Sole exception: on the ritual ground (`.screen.ritual`) the accent ring
+   reads 3.41:1, so the ring takes --color-ritual-ink-soft (9.09:1). */
 :focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 3px;
+}
+
+.screen.ritual :focus-visible {
+    outline-color: var(--color-ritual-ink-soft);
 }
 
 html, body {
@@ -797,7 +803,8 @@ body {
    the dock's height — whether or not a gesture carries a glyph to its left.
    A pill never shrinks below its own label (`flex-basis: auto` plus `nowrap`):
    a squeezed primary collapsed into an oval at 407dp. The inline padding is
-   `--space-4` so both labels fit a 312px dock at the 1.3x font. */
+   `--space-4` (`--space-3` at 380-391px, see below) so both labels fit a 312px
+   dock at the 1.3x font. */
 .action-dock .btn {
     flex: 1 0 auto;
     width: auto;

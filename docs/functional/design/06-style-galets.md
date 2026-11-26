@@ -66,8 +66,9 @@ son tampon (coche, `::before`/`::after`) en plus de sa couleur.
 | Texte sur teinte | 7,5:1 |
 | Ocre sur teinte ocre | 4,8:1 |
 | Texte rituel / fond rituel | 12,3:1 (doux : 9,1:1) |
-| Anneau de focus (accent) / papier · encre · rituel | 3,62 · 3,68 · 3,41:1 |
+| Anneau de focus (accent) / papier · encre · rituel | 3,62 · 3,68 · 3,41:1 ; sous `.screen.ritual`, anneau `--color-ritual-ink-soft` : **9,09:1** (exception, voir Accessibilité) |
 | Contour de contrôle `#8A8177` / papier · carte · teinte | 3,39 · 3,64 · 3,21:1 |
+| Tuile neutre `#ECE7DE` / contour `#8A8177` | 3,11:1 — aucun contour n'y est tracé |
 | Filet `#DCD5C8` / papier · carte | 1,29 · 1,39:1 — décoratif, jamais un contour de contrôle |
 | Placeholder (encre douce `#6B645C`) / carte (`.input`) | 5,54:1 |
 
@@ -164,7 +165,7 @@ l'identique dans le Détail et l'Ajout — est le cas actuel : il devient le com
 | Texte (corps, notes, placeholders, étiquettes) | contraste ≥ **4,5:1** sur son fond |
 | Élément d'interface : contour de contrôle, état éteint, icône porteuse de sens, anneau de focus | contraste ≥ **3:1** sur son fond |
 | Cible tactile | ≥ **44 × 44px** (zone cliquable, pas seulement le glyphe) |
-| Focus clavier | un seul anneau **global** `:focus-visible` : accent, `2px`, `outline-offset: 3px`, ≥ 3:1 sur papier, encre et fond du rituel ; aucun composant ne le redéfinit ni ne le supprime |
+| Focus clavier | un seul anneau **global** `:focus-visible` : accent, `2px`, `outline-offset: 3px`, ≥ 3:1 sur papier, encre et fond du rituel ; aucun composant ne le redéfinit ni ne le supprime. **Exception unique :** sous `.screen.ritual`, l'anneau prend `--color-ritual-ink-soft` (9,09:1 sur `--color-ritual-ground`), l'accent n'y atteignant que 3,41:1 |
 | Couleur | jamais seule : toujours doublée d'une forme (règle #32) |
 | Titres | **un seul `h1` par écran**, puis des `h2` pour les sections, `h3` seulement sous un `h2` ; jamais de saut de niveau |
 | Nom accessible | `aria-label` seulement sur un contrôle (bouton, lien), un `role="img"` ou un landmark `nav` ; jamais sur un `div`/`p`/`span` nus |
