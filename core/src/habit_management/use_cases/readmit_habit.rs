@@ -220,7 +220,7 @@ mod tests {
         let mut habit = a_habit("h-1", "Read one page");
         let grown_on = LocalDate::from_epoch_day(CREATED_ON + 1);
         habit.grow(grown_on);
-        habit.toggle_done(grown_on);
+        habit.record_attempt(grown_on);
         habit.anchor().expect("a fresh habit is active");
         let step_count = habit.step_history().changes().len();
         inner.save(&habit);

@@ -14,8 +14,9 @@ pub struct ListBoardHabits {
 pub struct HabitSummary {
     pub id: String,
     pub title: String,
-    pub minutes: u32,
+    pub goal: u32,
     pub done_today: bool,
+    pub attempts_today: u32,
 }
 
 /// A paused habit's presence in the Today screen's paused zone — just enough
@@ -60,8 +61,9 @@ impl ListBoardHabits {
                 LifecycleState::Active => active.push(HabitSummary {
                     id: habit.id().value().to_string(),
                     title: habit.title().value().to_string(),
-                    minutes: habit.current_goal(),
-                    done_today: habit.is_done_on(today),
+                    goal: habit.current_goal(),
+                    done_today: habit.reached_goal_on(today),
+                    attempts_today: habit.attempts_on(today),
                 }),
                 LifecycleState::Paused => paused.push(PausedHabit {
                     id: habit.id().value().to_string(),
@@ -137,24 +139,58 @@ mod tests {
             vec![HabitSummary {
                 id: "h-1".to_string(),
                 title: "Read one page".to_string(),
-                minutes: 3,
+                goal: 3,
                 done_today: false,
+                attempts_today: 0,
             }]
         );
     }
 
-    // @scenario: today-habit-list/S3
     #[test]
-    fn a_habit_done_today_is_reported_done() {
-        let repository = Rc::new(InMemoryHabitRepository::new());
-        let mut habit = a_habit();
-        habit.toggle_done(LocalDate::from_epoch_day(TODAY));
-        repository.save(&habit);
-        let query = list_over(Rc::clone(&repository));
+    fn a_habit_reports_how_many_attempts_it_has_today() {
+        let cases = [0, 1, 2, 5];
 
-        let result = query.handle();
+        for attempts in cases {
+            let repository = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = a_habit();
+            for _ in 0..attempts {
+                habit.record_attempt(LocalDate::from_epoch_day(TODAY));
+            }
+            habit.record_attempt(LocalDate::from_epoch_day(TODAY - 1));
+            repository.save(&habit);
+            let query = list_over(Rc::clone(&repository));
 
-        assert!(result.active[0].done_today);
+            let result = query.handle();
+
+            assert_eq!(
+                result.active[0].attempts_today, attempts,
+                "attempts today, plus one yesterday that must not count"
+            );
+        }
+    }
+
+    // @scenario: today-habit-list/S3
+    // @scenario: today-habit-list/S9
+    #[test]
+    fn a_habit_is_done_today_only_once_its_attempts_reach_its_goal() {
+        let cases = [(0, false), (1, false), (2, false), (3, true), (5, true)];
+
+        for (attempts, expected) in cases {
+            let repository = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = a_habit();
+            for _ in 0..attempts {
+                habit.record_attempt(LocalDate::from_epoch_day(TODAY));
+            }
+            repository.save(&habit);
+            let query = list_over(Rc::clone(&repository));
+
+            let result = query.handle();
+
+            assert_eq!(
+                result.active[0].done_today, expected,
+                "goal 3, attempts today: {attempts}"
+            );
+        }
     }
 
     // No Gherkin scenario names this path yet (a completion belongs to its own
@@ -165,7 +201,7 @@ mod tests {
     fn a_habit_done_on_another_day_is_not_reported_done_today() {
         let repository = Rc::new(InMemoryHabitRepository::new());
         let mut habit = a_habit();
-        habit.toggle_done(LocalDate::from_epoch_day(TODAY - 1));
+        habit.record_attempt(LocalDate::from_epoch_day(TODAY - 1));
         repository.save(&habit);
         let query = list_over(Rc::clone(&repository));
 
@@ -197,8 +233,9 @@ mod tests {
             vec![HabitSummary {
                 id: "h-2".to_string(),
                 title: "Move a little".to_string(),
-                minutes: 4,
+                goal: 4,
                 done_today: false,
+                attempts_today: 0,
             }]
         );
         assert_eq!(
@@ -233,8 +270,9 @@ mod tests {
             vec![HabitSummary {
                 id: "h-2".to_string(),
                 title: "Move a little".to_string(),
-                minutes: 4,
+                goal: 4,
                 done_today: false,
+                attempts_today: 0,
             }]
         );
         assert_eq!(result.paused, Vec::new());
@@ -281,8 +319,9 @@ mod tests {
             vec![HabitSummary {
                 id: "h-1".to_string(),
                 title: "Read one page".to_string(),
-                minutes: 3,
+                goal: 3,
                 done_today: false,
+                attempts_today: 0,
             }]
         );
         assert_eq!(result.paused, Vec::new());

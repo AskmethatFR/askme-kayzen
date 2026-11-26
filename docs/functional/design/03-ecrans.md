@@ -84,27 +84,21 @@ déplacée ailleurs. Le récap informe, il ne recueille rien.
   durée : la dose vient de l'objectif de l'habitude, pas du bouton, et le rituel n'a
   jamais été 1 min pour toutes. *(Corrigé 2026-08-19 — issue #12. Ce que le rituel
   chronomètre reste ouvert, voir issue #13.)*
-- Zone **« Ajuster, à votre rythme »** : « Passer à N+1 min » (grandir) et « Alléger à N−1 min ».
+- Zone **« Ajuster, à votre rythme »** : « Passer à N+1 fois » (grandir) et « Alléger à N−1 fois ».
 - **Ancrer** — à l'initiative de l'utilisateur, quand il la sent acquise (aucune détection de stabilité, aucune suggestion) → la marque acquise, libère une place.
 - **« Mettre en pause, sans culpabilité »**.
 
-## Rituel — la pratique (Timer)
+## Rituel — la pratique (Compteur)
 
-Minuteur doux : un disque sombre cerclé d'un anneau, dont l'arc de temps restant rétrécit —
-sa tête, un point clair, recule vers midi —, et le décompte `m:ss` au centre. Au-dessus du
-cadran, une ligne discrète porte le nom de l'habitude et sa dose (« S'étirer · 5 min »), là
-où les autres écrans portent un grand titre. **Il chronomètre l'objectif de l'habitude**,
-pas une durée fixe — une habitude à 5 min ouvre un rituel de 5 min. *(Tranché 2026-08-20 par
-l'owner — issue #13, question laissée ouverte par #12. Remplace « minuteur doux de 60 s » :
-le rituel n'a jamais été une minute pour toutes, et le libellé du bouton ayant cessé
-d'annoncer une durée, la dose ne pouvait venir que de l'habitude.)*
-- « J'ai terminé » → valide l'habitude et revient à l'accueil.
+Compteur doux : le nom de l'habitude en grand titre, une phrase douce (« Vous avez pris ce
+moment pour vous. C'est déjà beaucoup. »), puis le bouton « J'ai terminé ». Aucune durée,
+aucun cadran, aucun minuteur : l'écran compte l'objectif de l'habitude en fois par jour
+(une habitude à 5 fois par jour ouvre un rituel qui se valide par tentatives).
+- « J'ai terminé » → ajoute une tentative à la journée et revient à l'accueil.
 - « Arrêter, ce n'est pas grave » / « Fermer » → revient au détail, sans validation.
-- **À zéro le minuteur s'arrête et attend.** Rien ne se valide tout seul : la validation
-  est un geste, jamais une échéance. *(Tranché 2026-08-20 — issue #13.)*
+- **Rien ne s'arrête ni n'expire.** Chaque tentative est un geste, jamais une échéance.
 
-*Ton :* le décompte se lit à l'écoulé, pas au tic-tac — un écran masqué qui revient
-affiche le temps réellement passé, jamais un compteur figé.
+*Ton :* aucun décompte ni tic-tac ; un écran masqué qui revient ne garde aucun temps écoulé.
 
 ## Ajouter — une nouvelle petite habitude
 
@@ -134,7 +128,7 @@ pause(id)       → habit.paused = true ;  screen = Détail (AMENDÉ — voir ci
 resume(id)      → habit.paused = false
 add(name, icon) → habits.push(Habit { steps: vec![1], .. }) ; screen = Today
 week()          → screen = Week   // tout le récap est calculé, jamais stocké
-ritual(id)      → screen = Timer ; minuteur = objectif de l'habitude (AMENDÉ — voir ci-dessous)
+ritual(id)      → screen = Counter ; compteur = objectif de l'habitude (AMENDÉ — voir ci-dessous)
 anchor(id)      → habit.anchored = true  ; screen = Détail (AMENDÉ — voir ci-dessous)  // libère le siège ET le titre, par suppression de l'entrée
 unanchor(id)    → habit.anchored = false           // la remettre dans le quotidien
 set_trigger(id, texte) → habit.trigger = Some(texte)
@@ -170,14 +164,14 @@ de dessiner et éloignerait l'utilisateur de son geste d'annulation. L'écran se
 donc sur place. Épinglé par `[[pause-resume]]` S4.
 
 **Ce que le détail d'une habitude en pause n'offre plus.** Ni « Commencer », ni
-« Passer à N+1 min », ni « Alléger à N−1 min ». Une pause est un vrai repos : rien à
+« Passer à N+1 fois », ni « Alléger à N−1 fois ». Une pause est un vrai repos : rien à
 pratiquer, rien à ajuster. Le domaine, lui, n'interdit rien — c'est l'écran qui cesse
 de proposer, jamais la règle qui se met à refuser (même logique que Q3 pour *marquer
 comme fait*).
 
 **L'icône `ph-pause`** (`[[design-style-graphique]]`) n'est pas honorée : l'application
 n'embarque aucune police d'icônes, et en câbler une pour un seul bouton serait une
-dépendance hors sujet. Le bouton porte son texte, comme « Passer à N min ».
+dépendance hors sujet. Le bouton porte son texte, comme « Passer à N+1 fois ».
 
 ## Amendements — ancrage, livré en slice 6 (2026-08-11)
 
@@ -193,10 +187,11 @@ l'entrée, pas en la filtrant à la lecture.
 
 **Le rituel ne valide plus à l'échéance.** Le dessin d'origine disait
 `ritual(id) → minuteur 60 s ; à la fin → done_today = true`. Les deux moitiés sont
-tombées le 2026-08-20 (issue #13) : le minuteur porte l'objectif de l'habitude, et
-atteindre zéro ne valide rien — il s'arrête et attend « J'ai terminé ». Valider à
-l'échéance ferait de la pratique une épreuve à réussir, quand le geste #1 dit
-« anti-échec par design » : on ne peut pas rater un rituel qu'on a choisi d'arrêter.
+tombées : le rituel n'a plus de minuteur (S10, 2026-11-25) — c'est un simple compteur,
+sans durée ni échéance, et chaque « J'ai terminé » ajoute une tentative pour
+aujourd'hui. Valider à l'échéance ferait de la pratique une épreuve à réussir, quand le
+geste #1 dit « anti-échec par design » : on ne peut pas rater un rituel qu'on a choisi
+d'arrêter.
 
 **Ancrer ne renvoie pas à Aujourd'hui non plus.** Même décision et même raison
 que pour la mise en pause en slice 5 : le dessin d'origine disait

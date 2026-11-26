@@ -2,25 +2,25 @@
 # context: HabitManagement
 # origin: issue-22
 @feature:week-recap
-Feature: Read the week's practice as accumulated minutes and rhythm
+Feature: Read the week's practice as times practised and rhythm
 
   # Everything below is derived from the completion and step histories on read —
   # nothing is stored (adr-0006-cqrs-light).
 
   @scenario:S1
-  Scenario: The large figure sums minutes practised across every habit
-    Given three habits active this week, completed on 3, 2, and 1 days at 5 minutes each
+  Scenario: The large figure sums the times practised across every habit
+    Given three habits active this week, completed on 3, 2, and 1 days with one attempt each day
     When the user opens the week screen
-    Then the large figure reads "30 minutes de pratique accumulées"
-    And the label names accumulated practice, never gain over the starting goal
+    Then the large figure reads "6 fois pratiquées"
+    And the label names the times practised, never minutes, never gain over the starting goal
 
   @scenario:S2
   Scenario: Paused and anchored habits still count in the sum
     Given a habit paused on day 3 after 4 completed days, and an anchored habit with 3 completed days
     When the user opens the week screen
-    Then their lived minutes still count in the large figure
+    Then their lived times still count in the large figure
     And each still reads its own journey as a row
-    And pausing or anchoring never takes lived minutes back
+    And pausing or anchoring never takes lived times back
 
   @scenario:S3
   Scenario: A week with no practice reads gently
@@ -38,9 +38,9 @@ Feature: Read the week's practice as accumulated minutes and rhythm
 
   @scenario:S5
   Scenario: Each habit's pebble band draws one pebble per day practised
-    Given a habit grown from 3 to 5 minutes mid-week and practised on four of the last seven days
+    Given a habit whose goal was 3 times a day when the week opened, grown to 5 mid-week, and practised on four of the last seven days
     When the user opens the week screen
-    Then that habit's row reads "3 → 5 min"
+    Then that habit's row reads "3 → 5 fois par jour", because its goal changed during this week
     And its pebble band draws four pebbles, one per day practised, never one per goal step
     And each pebble stands, in its size, at the goal that was in force on the day it draws
 
@@ -53,9 +53,9 @@ Feature: Read the week's practice as accumulated minutes and rhythm
 
   @scenario:S7
   Scenario: A brand-new habit already shows its journey
-    Given a habit created today at 5 minutes and not yet practised
+    Given a habit created today at 5 times a day and not yet practised
     When the user opens the week screen
-    Then that habit's row reads "5 min", because a goal that has not moved needs no arrow
+    Then that habit's row reads "5 fois par jour", because a goal that has not moved needs no arrow
     And its pebble band draws nothing, because no day has been practised yet
     And nothing is added to mark the absence
 
@@ -88,3 +88,10 @@ Feature: Read the week's practice as accumulated minutes and rhythm
     When the user opens the week screen
     Then the tinted card shows its zero figure and draws no staircase, neither trace nor pebble
     And the rhythm row still shows its seven faint dots
+
+  @scenario:S12
+  Scenario: A goal raised long ago shows its current goal, with no arrow
+    Given a habit whose goal was raised from 3 to 5 times a day two months ago, with no change since
+    When the user opens the week screen
+    Then that habit's row reads "5 fois par jour", because its goal did not change during this week
+    And the row shows no arrow

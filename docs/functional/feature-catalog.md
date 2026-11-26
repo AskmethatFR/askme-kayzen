@@ -43,14 +43,16 @@ The Today screen lists the active habits in the daily life, each with its title,
 
 ## F-4 — Mark a habit done today
 
-Tapping a habit's target records today as done; tapping it again clears it. One completion per local date, no timestamp, kept forever — the same-day gesture is a toggle, so a mistake costs nothing.
+Tapping a habit's target records one attempt today; tapping it again adds one more attempt, never clears the day. Each habit keeps one count per local date, no timestamp, kept forever. Going past the goal is a bonus: counted, never refused (see [[adr-0025-goal-times-per-day-daily-attempt-count]]).
 
 **Acceptance (pinned by tests in `core/src/habit_management/use_cases/mark_done.rs`, mirrored as [[mark-done]]):**
 
 | Given | When | Then |
 |---|---|---|
-| A habit not done today | Marking it done | Today's local date is recorded in its completion history |
-| A habit already done today | Marking it done again | Today's completion is removed |
+| A habit with no attempt today | Marking it done | Today's count is 1; the habit is done today |
+| A habit with N-1 attempts today | Marking it done again | Today's count is N; the day stays done |
+| A habit already at or past its goal today | Marking it done | Accepted; the count goes one past it |
+| Two habits, one practised yesterday | Marking the first done today | Its today and yesterday counts are 1 each; the second's today count is 0 |
 | An id matching no habit | Marking it done | Rejected; nothing is recorded |
 
 ## F-5 — Read a habit's recent practice as a staircase

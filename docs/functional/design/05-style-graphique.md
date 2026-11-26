@@ -64,9 +64,9 @@ d'accessibilité dédiée.
 | Lire | `ph-book-open` |
 | Bouger un peu | `ph-person-simple-walk` |
 | Respirer | `ph-wind` |
-| Rituel de la minute | `ph-timer` |
-| Grandir (+1 min) | `ph-plant` |
-| Alléger (−1 min) | `ph-feather` |
+| Rituel de la minute (compteur) | `ph-hand-tap` (remplace `ph-timer` ; le rituel n'a pas d'icône dans le code, à valider) |
+| Grandir (+1 fois) | `ph-plant` |
+| Alléger (−1 fois) | `ph-feather` |
 | Ancrer / acquises | `ph-seal-check`, `ph-anchor-simple` |
 | Récap semaine | `ph-chart-line-up` |
 | Ajouter | `ph-plus-circle` |

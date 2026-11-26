@@ -63,7 +63,7 @@ pub fn AddHabit() -> Element {
                 {back_link}
             }
             h1 { class: "greeting", {tr!("add-habit-heading")} }
-            p { class: "lede", {tr!("add-habit-lede")} }
+            p { class: "lede", {tr!("add-habit-lede", goal: STARTING_GOAL as i64)} }
 
             p { class: "eyebrow", {tr!("add-habit-ideas-eyebrow")} }
             ul { class: "habit-list",
@@ -74,7 +74,7 @@ pub fn AddHabit() -> Element {
                             li { key: "{key}", class: "habit-row",
                                 div { class: "habit-body",
                                     div { class: "idea-name", "{label}" }
-                                    div { class: "habit-meta", {tr!("add-habit-idea-meta", minutes: STARTING_GOAL as i64)} }
+                                    div { class: "habit-meta", {tr!("add-habit-idea-meta", goal: STARTING_GOAL as i64)} }
                                 }
                                 button {
                                     class: "add-target",
@@ -120,7 +120,7 @@ pub fn AddHabit() -> Element {
                         }
                     }
                 },
-                {tr!("add-habit-submit", minutes: STARTING_GOAL as i64)}
+                {tr!("add-habit-submit", goal: STARTING_GOAL as i64)}
             }
         }
     }
@@ -219,8 +219,40 @@ mod tests {
             "expected the freeform way to add your own, got: {html}"
         );
         assert!(
-            html.contains("Ajouter, à 5 min par jour"),
+            html.contains("Ajouter, à 3 fois par jour"),
             "expected the submit gesture named with its own gentle goal, got: {html}"
+        );
+    }
+
+    fn services_with_habit_added_through_the_add_flow() -> Services {
+        let services = Services::with_repository(Rc::new(InMemoryHabitRepository::new()));
+        services
+            .add_habit
+            .execute("Lire une page".to_string(), STARTING_GOAL)
+            .unwrap();
+        services
+    }
+
+    #[component]
+    fn RootAtTodayAfterAddingAHabit() -> Element {
+        use_locale_for_tests();
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/")));
+        });
+        use_context_provider(services_with_habit_added_through_the_add_flow);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: add-habit/S7
+    #[test]
+    fn a_habit_added_at_the_default_goal_shows_three_times_a_day_on_today() {
+        let html = render(RootAtTodayAfterAddingAHabit);
+
+        assert!(
+            html.contains("3 fois par jour") && !html.contains("min"),
+            "expected the default goal of a new habit as times a day, not minutes, got: {html}"
         );
     }
 
@@ -281,7 +313,7 @@ mod tests {
             "expected the name-input aria-label in English, got: {html}"
         );
         assert!(
-            html.contains(">Add, at 5 min a day<"),
+            html.contains(">Add, at 3 times a day<"),
             "expected the submit gesture in English, got: {html}"
         );
     }

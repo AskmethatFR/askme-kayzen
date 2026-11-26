@@ -5,16 +5,16 @@
 Feature: Practise a habit for its own dose
 
   @scenario:S1
-  Scenario: Opening the ritual counts down the habit's own goal
-    Given an active habit whose goal is 5 minutes
+  Scenario: Opening the ritual shows the habit as a counter with no duration
+    Given an active habit whose goal is 5 times a day
     When the user opens its ritual
-    Then the countdown starts at its goal, not at a fixed minute
+    Then the ritual shows the habit's title and the completion gesture, with no countdown and no minutes
 
   @scenario:S2
   Scenario: Completing the practice from the ritual
     Given a ritual in progress for an active habit
     When the user taps the completion gesture
-    Then the habit is recorded done for today and the screen returns to Aujourd'hui
+    Then one attempt is recorded for today and the screen returns to Aujourd'hui
 
   @scenario:S3
   Scenario: Stopping early costs nothing
@@ -34,20 +34,8 @@ Feature: Practise a habit for its own dose
     When the ritual is opened
     Then the screen says the habit is no longer on the list and offers the way back
 
-  @scenario:S6
-  Scenario: Time away is time spent
-    Given a ritual in progress
-    When the screen is hidden and comes back later
-    Then the countdown reflects the time that really elapsed, neither frozen nor drifted
-
   @scenario:S7
-  Scenario: The completion gesture states a fact, it never un-marks
-    Given a habit already recorded done for today
+  Scenario: The completion gesture adds an attempt, it never un-marks
+    Given a habit that already has attempts today, even up to its goal
     When the ritual's completion gesture runs again
-    Then the day stays recorded, because completing asserts a practice, it does not toggle one
-
-  @scenario:S8
-  Scenario: At zero the screen says a gentle word, not a verdict
-    Given a ritual whose countdown has reached zero
-    When the screen is read
-    Then it speaks a gentle word for the time given and still waits for the gesture, validating nothing on its own
+    Then one more attempt is recorded, because completing counts a practice, it does not toggle one

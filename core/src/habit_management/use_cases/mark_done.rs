@@ -21,9 +21,6 @@ impl fmt::Display for MarkDoneError {
 
 impl Error for MarkDoneError {}
 
-/// Command use case: toggles today's completion for one habit. Loads the right
-/// habit, applies the domain method with the clock's "today", saves the mutated
-/// aggregate (upsert). Lifecycle change stays internal — nothing is published.
 #[derive(Clone)]
 pub struct MarkDone {
     repository: Rc<dyn HabitRepository>,
@@ -42,7 +39,7 @@ impl MarkDone {
             .get(&id)
             .ok_or(MarkDoneError::HabitNotFound)?;
 
-        habit.toggle_done(self.clock.today());
+        habit.record_attempt(self.clock.today());
         self.repository.save(&habit);
 
         Ok(())
@@ -97,11 +94,12 @@ mod tests {
         assert_eq!(result, Ok(()));
         let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
         assert!(habit.is_done_on(LocalDate::from_epoch_day(TODAY)));
+        assert_eq!(habit.attempts_on(LocalDate::from_epoch_day(TODAY)), 1);
     }
 
-    // @scenario: mark-done/S2
+    // @scenario: mark-done/S5
     #[test]
-    fn marking_the_same_habit_twice_clears_todays_completion() {
+    fn marking_the_same_habit_twice_counts_two_attempts_today() {
         let repository = Rc::new(InMemoryHabitRepository::new());
         repository.save(&a_habit("h-1"));
         let mark_done = mark_done_over(Rc::clone(&repository));
@@ -110,7 +108,61 @@ mod tests {
         mark_done.execute("h-1").unwrap();
 
         let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
-        assert!(!habit.is_done_on(LocalDate::from_epoch_day(TODAY)));
+        assert!(habit.is_done_on(LocalDate::from_epoch_day(TODAY)));
+        assert_eq!(habit.attempts_on(LocalDate::from_epoch_day(TODAY)), 2);
+    }
+
+    // @scenario: mark-done/S6
+    #[test]
+    fn attempts_past_the_goal_are_counted_never_refused() {
+        for (before, after) in [(2, 3), (4, 5)] {
+            let repository = Rc::new(InMemoryHabitRepository::new());
+            repository.save(&a_habit("h-1"));
+            let mark_done = mark_done_over(Rc::clone(&repository));
+            for _ in 0..before {
+                mark_done.execute("h-1").unwrap();
+            }
+
+            let result = mark_done.execute("h-1");
+
+            assert_eq!(result, Ok(()), "row {before} -> {after}");
+            let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+            assert_eq!(
+                habit.attempts_on(LocalDate::from_epoch_day(TODAY)),
+                after,
+                "row {before} -> {after}"
+            );
+        }
+    }
+
+    // @scenario: mark-done/S7
+    #[test]
+    fn a_days_count_belongs_to_one_habit_and_one_local_date() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit("h-1"));
+        repository.save(&a_habit("h-2"));
+        let yesterday = LocalDate::from_epoch_day(TODAY - 1);
+        MarkDone::new(
+            Rc::clone(&repository) as Rc<dyn HabitRepository>,
+            Rc::new(FixedClock::new(yesterday)) as Rc<dyn Clock>,
+        )
+        .execute("h-1")
+        .unwrap();
+
+        mark_done_over(Rc::clone(&repository))
+            .execute("h-1")
+            .unwrap();
+
+        let first = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+        let second = repository.get(&HabitId::new("h-2").unwrap()).unwrap();
+        assert_eq!(
+            (
+                first.attempts_on(LocalDate::from_epoch_day(TODAY)),
+                first.attempts_on(yesterday),
+                second.attempts_on(LocalDate::from_epoch_day(TODAY)),
+            ),
+            (1, 1, 0)
+        );
     }
 
     // @scenario: anchor-habit/S3
@@ -136,11 +188,13 @@ mod tests {
     #[test]
     fn marking_an_unknown_habit_is_rejected() {
         let repository = Rc::new(InMemoryHabitRepository::new());
-        let mark_done = mark_done_over(repository);
+        repository.save(&a_habit("h-1"));
+        let mark_done = mark_done_over(Rc::clone(&repository));
 
         let result = mark_done.execute("missing");
 
         assert_eq!(result, Err(MarkDoneError::HabitNotFound));
+        assert_eq!(repository.all(), vec![a_habit("h-1")]);
     }
 
     // No Gherkin scenario names this path yet either (invalid-id refusal,

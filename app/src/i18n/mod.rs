@@ -167,35 +167,113 @@ mod tests {
     }
 
     #[test]
-    fn every_aria_reads_its_label_followed_by_the_title_placeholder() {
+    fn no_catalogue_message_speaks_of_minutes_as_a_goal() {
+        const HABIT_TITLES_NAMING_A_MINUTE: [&str; 4] = [
+            "idea-walk-a-minute",
+            "idea-close-your-eyes-a-minute",
+            "idea-stand-tall-a-minute",
+            "idea-meditate-a-minute",
+        ];
+
         for (file_name, text) in [("fr.ftl", FR), ("en.ftl", EN)] {
+            let hits: Vec<String> = message_texts(text, file_name)
+                .into_iter()
+                .filter(|(id, _)| !HABIT_TITLES_NAMING_A_MINUTE.contains(&id.as_str()))
+                .filter(|(id, serialized)| {
+                    let value = serialized.strip_prefix(id.as_str()).unwrap_or(serialized);
+                    names_minutes(value)
+                })
+                .map(|(id, _)| id)
+                .collect();
+
+            assert!(
+                hits.is_empty(),
+                "expected no goal in minutes in {file_name} (goals read as times: \
+                 fois / times a day), found: {hits:?}"
+            );
+        }
+    }
+
+    fn names_minutes(value: &str) -> bool {
+        value
+            .split(|c: char| !c.is_alphabetic())
+            .map(str::to_lowercase)
+            .any(|word| word == "min" || word == "mins" || word.starts_with("minute"))
+    }
+
+    #[test]
+    fn every_aria_reads_its_label_followed_by_the_title_placeholder() {
+        const TITLE: &str = "Lire une page";
+
+        for (file_name, text, locale) in
+            [("fr.ftl", FR, langid!("fr")), ("en.ftl", EN, langid!("en"))]
+        {
             let messages = message_texts(text, file_name);
+            let bundle = resolving_bundle(text, file_name, locale);
 
             for label_id in messages.keys().filter(|id| id.ends_with("-label")) {
                 let aria_id = format!("{}-aria", label_id.strip_suffix("-label").unwrap());
-                let Some(aria_serialized) = messages.get(&aria_id) else {
+                if !messages.contains_key(&aria_id) {
                     continue;
-                };
+                }
 
-                let label_value = message_value(label_id, &messages[label_id]);
-                let aria_value = message_value(&aria_id, aria_serialized);
-                let expected = format!("{label_value} · {{ $title }}");
+                for goal in [1, 5] {
+                    let label = resolve(&bundle, label_id, goal, None);
+                    let aria = resolve(&bundle, &aria_id, goal, Some(TITLE));
+                    let expected = format!("{label} · {TITLE}");
 
-                assert_eq!(
-                    aria_value, expected,
-                    "expected {aria_id} to read as {label_id} followed by ' · {{ $title }}' \
-                     in {file_name}, got: {aria_value:?}"
-                );
+                    assert_eq!(
+                        aria, expected,
+                        "expected {aria_id} to read as {label_id} followed by the title \
+                         at goal {goal} in {file_name}, got: {aria:?}"
+                    );
+                }
             }
         }
     }
 
-    fn message_value(id: &str, serialized: &str) -> String {
-        serialized
-            .strip_prefix(&format!("{id} = "))
-            .unwrap_or(serialized)
-            .trim_end_matches('\n')
-            .to_string()
+    fn resolving_bundle(
+        text: &'static str,
+        file_name: &str,
+        locale: dioxus_i18n::unic_langid::LanguageIdentifier,
+    ) -> dioxus_i18n::fluent::FluentBundle<dioxus_i18n::fluent::FluentResource> {
+        use dioxus_i18n::fluent::{FluentBundle, FluentResource};
+
+        let resource = FluentResource::try_new(text.to_string())
+            .unwrap_or_else(|(_, errors)| panic!("{file_name} failed to parse: {errors:?}"));
+        let mut bundle = FluentBundle::new(vec![locale]);
+        bundle
+            .add_resource(resource)
+            .unwrap_or_else(|errors| panic!("{file_name} failed to bind: {errors:?}"));
+        bundle
+    }
+
+    fn resolve(
+        bundle: &dioxus_i18n::fluent::FluentBundle<dioxus_i18n::fluent::FluentResource>,
+        id: &str,
+        goal: i64,
+        title: Option<&str>,
+    ) -> String {
+        use dioxus_i18n::fluent::FluentArgs;
+
+        let mut args = FluentArgs::new();
+        args.set("goal", goal);
+        if let Some(title) = title {
+            args.set("title", title);
+        }
+        let message = bundle
+            .get_message(id)
+            .unwrap_or_else(|| panic!("expected message {id} in the catalogue"));
+        let pattern = message
+            .value()
+            .unwrap_or_else(|| panic!("expected message {id} to have a value"));
+        let mut errors = Vec::new();
+        let resolved = bundle.format_pattern(pattern, Some(&args), &mut errors);
+        assert!(
+            errors.is_empty(),
+            "expected {id} to resolve at goal {goal} without errors, got: {errors:?}"
+        );
+        strip_isolates(resolved.into_owned())
     }
 
     fn message_texts(text: &'static str, file_name: &str) -> BTreeMap<String, String> {

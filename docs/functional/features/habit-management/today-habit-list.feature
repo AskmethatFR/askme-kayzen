@@ -14,14 +14,14 @@ Feature: List the board habits for today
   Scenario: A habit is summarised with its title and goal
     Given a board holding one habit
     When the Today screen asks for its habits
-    Then the summary carries the habit id, its title and its goal in minutes
-    And it is reported as not done today while no completion exists for today
+    Then the summary carries the habit id, its title and its goal in times a day
+    And it is reported as not done today while it has no attempt today
 
   @scenario:S3
-  Scenario: A habit completed today is reported done
-    Given a habit already marked done today
+  Scenario: A habit that reached its goal today is reported done
+    Given a habit whose attempts today have reached its goal
     When the Today screen asks for its habits
-    Then the summary reports it done today, read from the completion history
+    Then the summary reports it done today, read from the day's attempt count
 
   @scenario:S4
   Scenario: An empty board shows the invitation and its only gesture
@@ -61,3 +61,26 @@ Feature: List the board habits for today
     When the Today screen renders
     Then the masthead reads « Samedi 19 septembre »
     And it does not read « Aujourd'hui »
+
+  @scenario:S9
+  Scenario Outline: Today shows a habit as done only once its day count has reached its goal
+    Given a habit with a goal of 3 times a day
+    And <attempts> attempts recorded today
+    When the Today screen renders
+    Then the habit's goal reads « 3 fois par jour »
+    And the habit is shown as <state>
+    And no count of attempts is shown for the habit
+    And no alarm style marks the habit
+
+    Examples:
+      | attempts | state    |
+      | 0        | not done |
+      | 1        | not done |
+      | 3        | done     |
+      | 5        | done     |
+
+  @scenario:S10
+  Scenario: The tally counts the habits that reached their goal
+    Given one active habit that reached its goal today and one that did not
+    When the Today screen renders
+    Then the tally reads « 1 sur 2 »

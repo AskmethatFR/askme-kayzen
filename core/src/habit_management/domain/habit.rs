@@ -29,7 +29,7 @@ impl fmt::Display for HabitError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             HabitError::GoalTooSmall { min } => {
-                write!(f, "a goal must be at least {min} minute(s) per day")
+                write!(f, "a goal must be at least {min} time(s) per day")
             }
             HabitError::TitleLength { min, max } => {
                 write!(f, "a title size must be between {min} and {max} characters")
@@ -114,8 +114,12 @@ impl Habit {
         self.steps.started_on()
     }
 
-    pub fn toggle_done(&mut self, today: LocalDate) {
-        self.completion_history.toggle(today);
+    pub fn record_attempt(&mut self, today: LocalDate) {
+        self.completion_history.record(today);
+    }
+
+    pub fn undo_attempt(&mut self, today: LocalDate) {
+        self.completion_history.withdraw(today);
     }
 
     pub fn pause(&mut self) -> Result<(), TransitionError> {
@@ -162,22 +166,63 @@ impl Habit {
         self.completion_history.contains(day)
     }
 
-    /// Minutes practised from creation through `today`, each completed day
-    /// weighed by the goal that was in force on it (never today's goal).
-    /// Walks the recorded completions, not the calendar, so the cost is
-    /// bounded by how much was actually practised rather than the device
-    /// clock's distance from `created_on`.
-    ///
-    /// Clock skew (device date moved back, westward TZ change on the
-    /// creation day) can put `today` before `created_on`. Clamping the
-    /// range's end to whichever is later keeps it covering at least the
-    /// creation day, instead of an inverted range that silently drops it.
-    pub fn minutes_practised(&self, today: LocalDate) -> u32 {
+    pub fn attempts_on(&self, day: LocalDate) -> u32 {
+        self.completion_history.attempts_on(day)
+    }
+
+    pub fn reached_goal_on(&self, day: LocalDate) -> bool {
+        self.attempts_on(day) >= self.steps.goal_on(day).value()
+    }
+
+    // @algo: clock skew can put `today` before `created_on`; clamping the range end to the later of the two keeps the creation day counted.
+    pub fn times_practised(&self, today: LocalDate) -> u32 {
         let created_on = self.created_on();
         self.completion_history
-            .between(created_on, today.max(created_on))
-            .fold(0u32, |minutes, day| {
-                minutes.saturating_add(self.steps.goal_on(day).value())
-            })
+            .attempts_between(created_on, today.max(created_on))
+    }
+}
+
+#[cfg(test)]
+mod undo_attempt_tests {
+    use super::*;
+
+    #[test]
+    fn undoing_an_attempt_lowers_that_days_count_by_one() {
+        let day = LocalDate::from_epoch_day(20_000);
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Read one page".to_string()).unwrap(),
+            Goal::new(2).unwrap(),
+            day,
+        );
+        habit.record_attempt(day);
+        habit.record_attempt(day);
+
+        habit.undo_attempt(day);
+
+        assert_eq!(habit.attempts_on(day), 1);
+    }
+}
+
+#[cfg(test)]
+mod reached_goal_tests {
+    use super::*;
+
+    #[test]
+    fn a_past_day_is_judged_by_the_goal_in_force_on_that_day() {
+        let first_day = LocalDate::from_epoch_day(20_000);
+        let later_day = LocalDate::from_epoch_day(20_001);
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Read one page".to_string()).unwrap(),
+            Goal::new(2).unwrap(),
+            first_day,
+        );
+        habit.record_attempt(first_day);
+        habit.record_attempt(first_day);
+        habit.grow(later_day);
+
+        assert!(habit.reached_goal_on(first_day));
+        assert!(!habit.reached_goal_on(later_day));
     }
 }

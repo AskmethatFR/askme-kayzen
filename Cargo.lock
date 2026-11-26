@@ -2879,7 +2879,6 @@ dependencies = [
  "serde_json",
  "sys-locale",
  "web-sys",
- "web-time",
 ]
 
 [[package]]

@@ -3,6 +3,7 @@ use std::rc::Rc;
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::{Path, PathBuf};
 
+use kayzen_core::habit_management::domain::goal::Goal;
 use kayzen_core::habit_management::domain::habit_repository::HabitRepository;
 use kayzen_core::habit_management::infrastructure::persistent_habit_repository::PersistentHabitRepository;
 use kayzen_core::habit_management::queries::get_habit_detail::GetHabitDetail;
@@ -18,12 +19,13 @@ use kayzen_core::habit_management::use_cases::mark_done::MarkDone;
 use kayzen_core::habit_management::use_cases::pause_habit::PauseHabit;
 use kayzen_core::habit_management::use_cases::readmit_habit::ReadmitHabit;
 use kayzen_core::habit_management::use_cases::resume_habit::ResumeHabit;
+use kayzen_core::habit_management::use_cases::undo_attempt::UndoAttempt;
 use kayzen_core::shared::clock::{CalendarParts, Clock, SystemClock, calendar_parts};
 use kayzen_core::shared::guid_generator::UuidGenerator;
 
 /// The default daily goal offered to every new habit — a flexible target, not
 /// a ceiling. Kaizen begins gently, not necessarily tiny.
-pub(crate) const STARTING_GOAL: u32 = 5;
+pub(crate) const STARTING_GOAL: u32 = Goal::DEFAULT;
 
 /// Composition root: a pure DI registry. It builds and holds each action service
 /// over a single shared set of stores, then is provided once at the app root via
@@ -34,6 +36,7 @@ pub(crate) const STARTING_GOAL: u32 = 5;
 pub struct Services {
     pub list_board_habits: ListBoardHabits,
     pub mark_done: MarkDone,
+    pub undo_attempt: UndoAttempt,
     pub add_habit: AddHabit,
     pub get_habit_detail: GetHabitDetail,
     pub get_week_recap: GetWeekRecap,
@@ -86,6 +89,7 @@ impl Services {
                 Rc::clone(&clock),
             ),
             mark_done: MarkDone::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
+            undo_attempt: UndoAttempt::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
             get_habit_detail: GetHabitDetail::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
             get_week_recap: GetWeekRecap::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
             grow_goal: GrowGoal::new(Rc::clone(&habit_repository), Rc::clone(&clock)),
@@ -255,10 +259,12 @@ mod tests {
             .execute("Bouger un peu".to_string(), STARTING_GOAL)
             .expect("a fresh directory has room for one habit");
         let habit_id = first_launch.list_board_habits.handle().active[0].id.clone();
-        first_launch
-            .mark_done
-            .execute(&habit_id)
-            .expect("the habit was just added");
+        for _ in 0..STARTING_GOAL {
+            first_launch
+                .mark_done
+                .execute(&habit_id)
+                .expect("the habit was just added");
+        }
 
         let relaunch = Services::with_repository_and_clock(
             Rc::new(persistent_habit_repository_at(&dir)),

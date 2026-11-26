@@ -134,9 +134,6 @@ mod tests {
         assert_eq!(history.current(), &Goal::new(6).unwrap());
     }
 
-    // Test List — StepHistory::goal_on (published contract: called directly by
-    // GetHabitDetail via `step_history()`, and by Habit::minutes_practised —
-    // test-ddd-tactical Entry Gate, same shape as `record` above):
     // - a day older than the seeded step falls back to the seeded goal.
     // - a day exactly on the seeded step's date returns the seeded goal.
     // - a day after a later recorded step returns that step's goal.

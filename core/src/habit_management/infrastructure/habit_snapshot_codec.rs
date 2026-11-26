@@ -51,7 +51,9 @@ enum StateRecord {
 pub struct HabitSnapshotCodec;
 
 impl HabitSnapshotCodec {
-    const VERSION: u32 = 1;
+    const VERSION: u32 = 2;
+    // @law: adr-0026, a minutes-era snapshot is upgraded on read: default goal, steps re-seeded.
+    const MINUTES_VERSION: u32 = 1;
 
     /// Above this, a stored payload is refused before a single byte is
     /// handed to `serde_json` — Security's F-4: `load()` gives an S2 file
@@ -89,13 +91,15 @@ impl HabitSnapshotCodec {
             return None;
         }
         let snapshot: SnapshotV1 = serde_json::from_str(payload).ok()?;
-        if snapshot.v != Self::VERSION {
-            return None;
-        }
+        let from_minutes = match snapshot.v {
+            Self::VERSION => false,
+            Self::MINUTES_VERSION => true,
+            _ => return None,
+        };
         snapshot
             .habits
             .into_iter()
-            .map(Self::decode_habit)
+            .map(|record| Self::decode_habit(record, from_minutes))
             .collect()
     }
 
@@ -109,6 +113,7 @@ impl HabitSnapshotCodec {
                 goal: change.goal().value(),
             })
             .collect();
+        // @algo: shortcut: completions are one entry per attempt, so the snapshot grows with every tap and the 4 MB decode cap can be reached after about 700k attempts (then the board quarantines), upgrade to (day, count) pairs in a new snapshot version.
         let completions = habit
             .completion_history()
             .dates()
@@ -137,7 +142,7 @@ impl HabitSnapshotCodec {
     /// edited, or an older writer bug) is still rejected — rather than
     /// silently sorted — keeping the same all-or-nothing stance taken for
     /// every other structurally-broken field.
-    fn decode_habit(record: HabitRecord) -> Option<Habit> {
+    fn decode_habit(record: HabitRecord, from_minutes: bool) -> Option<Habit> {
         let id = HabitId::new(&record.id).ok()?;
         let title = HabitTitle::new(record.title).ok()?;
 
@@ -156,7 +161,12 @@ impl HabitSnapshotCodec {
             previous_on = on;
             rest.push((on, goal));
         }
-        let step_history = StepHistory::rehydrate(first_on, first_goal, rest);
+        let step_history = if from_minutes {
+            let default = Goal::new(Goal::DEFAULT).expect("Goal::DEFAULT is at least Goal::MIN");
+            StepHistory::seeded(first_on, default)
+        } else {
+            StepHistory::rehydrate(first_on, first_goal, rest)
+        };
 
         let mut completion_dates = Vec::with_capacity(record.completions.len());
         for day in record.completions {

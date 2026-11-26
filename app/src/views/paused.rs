@@ -254,7 +254,9 @@ mod tests {
         let clock: Rc<dyn Clock> = Rc::new(FixedClock(LocalDate::from_epoch_day(20_005)));
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
         let mut habit = a_habit("h-1", "Lire une page");
-        habit.toggle_done(clock.today());
+        for _ in 0..5 {
+            habit.record_attempt(clock.today());
+        }
         habit.pause().expect("a fresh habit is active");
         repository.save(&habit);
         let services = Services::with_repository_and_clock(repository, clock);

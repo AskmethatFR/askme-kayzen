@@ -74,6 +74,7 @@ mod tests {
     use super::*;
     use crate::habit_management::domain::goal::Goal;
     use crate::habit_management::domain::habit_title::HabitTitle;
+    use crate::habit_management::domain::lifecycle_state::LifecycleState;
     use crate::habit_management::infrastructure::snapshot_store::InMemorySnapshotStore;
     use crate::shared::local_date::LocalDate;
 
@@ -105,7 +106,7 @@ mod tests {
     fn a_completion_survives_a_restart_at_the_exact_date() {
         let store: Rc<dyn SnapshotStore> = Rc::new(InMemorySnapshotStore::empty());
         let mut habit = a_habit("h-1");
-        habit.toggle_done(LocalDate::from_epoch_day(20_003));
+        habit.record_attempt(LocalDate::from_epoch_day(20_003));
         repository_over(Rc::clone(&store)).save(&habit);
 
         let reopened = repository_over(Rc::clone(&store));
@@ -113,6 +114,23 @@ mod tests {
         let rehydrated = reopened.get(&HabitId::new("h-1").unwrap()).unwrap();
         assert!(rehydrated.is_done_on(LocalDate::from_epoch_day(20_003)));
         assert!(!rehydrated.is_done_on(LocalDate::from_epoch_day(20_004)));
+    }
+
+    #[test]
+    fn a_day_with_two_attempts_still_counts_two_after_a_restart() {
+        let store: Rc<dyn SnapshotStore> = Rc::new(InMemorySnapshotStore::empty());
+        let mut habit = a_habit("h-1");
+        habit.record_attempt(LocalDate::from_epoch_day(20_003));
+        habit.record_attempt(LocalDate::from_epoch_day(20_003));
+        habit.record_attempt(LocalDate::from_epoch_day(20_005));
+        repository_over(Rc::clone(&store)).save(&habit);
+
+        let reopened = repository_over(Rc::clone(&store));
+
+        let rehydrated = reopened.get(&HabitId::new("h-1").unwrap()).unwrap();
+        assert_eq!(rehydrated.attempts_on(LocalDate::from_epoch_day(20_003)), 2);
+        assert_eq!(rehydrated.attempts_on(LocalDate::from_epoch_day(20_005)), 1);
+        assert_eq!(rehydrated.attempts_on(LocalDate::from_epoch_day(20_004)), 0);
     }
 
     #[test]
@@ -140,8 +158,8 @@ mod tests {
             let mut habit = a_habit("h-1");
             habit.grow(LocalDate::from_epoch_day(20_003));
             habit.lighten(LocalDate::from_epoch_day(20_010));
-            habit.toggle_done(LocalDate::from_epoch_day(20_000));
-            habit.toggle_done(LocalDate::from_epoch_day(20_011));
+            habit.record_attempt(LocalDate::from_epoch_day(20_000));
+            habit.record_attempt(LocalDate::from_epoch_day(20_011));
             transition(&mut habit);
             repository_over(Rc::clone(&store)).save(&habit);
 
@@ -177,7 +195,7 @@ mod tests {
 
     #[test]
     fn a_payload_with_an_unknown_version_takes_the_unreadable_path_without_being_parsed() {
-        let payload = r#"{"v":2,"habits":[{"id":"h-1","title":"Read one page","state":"Active","steps":[{"on":20000,"goal":3}],"completions":[]}]}"#;
+        let payload = r#"{"v":3,"habits":[{"id":"h-1","title":"Read one page","state":"Active","steps":[{"on":20000,"goal":3}],"completions":[]}]}"#;
         let store: Rc<dyn SnapshotStore> = Rc::new(InMemorySnapshotStore::seeded(payload));
         let quarantine: Rc<dyn SnapshotStore> = Rc::new(InMemorySnapshotStore::empty());
 
@@ -192,6 +210,23 @@ mod tests {
         assert_eq!(quarantine.load(), Some(payload.to_string()));
     }
 
+    #[test]
+    fn a_payload_with_version_zero_or_far_above_the_known_ones_is_quarantined() {
+        for version in [0, 99] {
+            let payload = format!(
+                r#"{{"v":{version},"habits":[{{"id":"h-1","title":"Read one page","state":"Active","steps":[{{"on":20000,"goal":3}}],"completions":[]}}]}}"#
+            );
+            let store: Rc<dyn SnapshotStore> = Rc::new(InMemorySnapshotStore::seeded(&payload));
+            let quarantine: Rc<dyn SnapshotStore> = Rc::new(InMemorySnapshotStore::empty());
+
+            let repository =
+                PersistentHabitRepository::hydrated_from(Rc::clone(&store), Rc::clone(&quarantine));
+
+            assert_eq!(repository.all(), Vec::new(), "version {version}");
+            assert_eq!(quarantine.load(), Some(payload), "version {version}");
+        }
+    }
+
     // B9: the previous version of this test asserted on the same instance,
     // never reopening over the store — it duplicated
     // in_memory_habit_repository.rs's own overwrite test and stayed green
@@ -203,17 +238,13 @@ mod tests {
         let mut habit = a_habit("h-1");
         repository_over(Rc::clone(&store)).save(&habit);
 
-        habit.toggle_done(LocalDate::from_epoch_day(20_000));
+        habit.record_attempt(LocalDate::from_epoch_day(20_000));
         repository_over(Rc::clone(&store)).save(&habit);
 
         let reopened = repository_over(Rc::clone(&store));
         assert_eq!(reopened.all(), vec![habit]);
     }
 
-    // B1 / Security F-1: an out-of-range stored date used to reach
-    // `Habit::minutes_practised` unbounded and unvalidated, turning a day-by-day
-    // walk from `today` down to `created_on` into an attacker-controlled loop
-    // (measured: ~2124 years extrapolated at i64::MIN, freezing on every launch).
     // `LocalDate::parse_stored` rejects it at the parse point, so it falls onto
     // the same all-or-nothing path as any other unreadable field.
     #[test]
@@ -345,5 +376,50 @@ mod tests {
             1,
             "the second step repeats the same goal and must collapse into the first"
         );
+    }
+
+    const A_MINUTES_SNAPSHOT: &str = r#"{"v":1,"habits":[{"id":"h-1","title":"Read one page","state":"Paused","steps":[{"on":20003,"goal":5},{"on":20010,"goal":6}],"completions":[20003,20003,20005]}]}"#;
+
+    #[test]
+    fn a_minutes_snapshot_opens_with_its_days_as_attempts_and_the_default_goal() {
+        let store: Rc<dyn SnapshotStore> =
+            Rc::new(InMemorySnapshotStore::seeded(A_MINUTES_SNAPSHOT));
+
+        let repository = repository_over(Rc::clone(&store));
+
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+        assert_eq!(habit.current_goal(), Goal::DEFAULT);
+        assert_eq!(habit.current_goal(), 3);
+        assert_eq!(habit.step_history().changes().len(), 1);
+        assert_eq!(habit.created_on(), LocalDate::from_epoch_day(20_003));
+        assert_eq!(habit.title().value(), "Read one page");
+        assert_eq!(habit.state(), LifecycleState::Paused);
+        assert_eq!(habit.attempts_on(LocalDate::from_epoch_day(20_003)), 2);
+        assert_eq!(habit.attempts_on(LocalDate::from_epoch_day(20_005)), 1);
+    }
+
+    #[test]
+    fn a_minutes_snapshot_is_written_as_version_2_by_the_next_save() {
+        let store: Rc<dyn SnapshotStore> =
+            Rc::new(InMemorySnapshotStore::seeded(A_MINUTES_SNAPSHOT));
+        let repository = repository_over(Rc::clone(&store));
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+
+        repository.save(&habit);
+
+        let stored = store.load().unwrap();
+        assert!(stored.contains(r#""v":2"#), "stored: {stored}");
+    }
+
+    #[test]
+    fn opening_a_minutes_snapshot_leaves_the_stored_text_untouched() {
+        let store: Rc<dyn SnapshotStore> =
+            Rc::new(InMemorySnapshotStore::seeded(A_MINUTES_SNAPSHOT));
+        let quarantine: Rc<dyn SnapshotStore> = Rc::new(InMemorySnapshotStore::empty());
+
+        PersistentHabitRepository::hydrated_from(Rc::clone(&store), Rc::clone(&quarantine));
+
+        assert_eq!(store.load(), Some(A_MINUTES_SNAPSHOT.to_string()));
+        assert_eq!(quarantine.load(), None);
     }
 }

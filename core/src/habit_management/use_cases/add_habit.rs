@@ -252,7 +252,7 @@ mod tests {
             ),
             (
                 AddHabitError::InvalidHabit(HabitError::GoalTooSmall { min: 1 }),
-                "a goal must be at least 1 minute(s) per day".to_string(),
+                "a goal must be at least 1 time(s) per day".to_string(),
             ),
             (
                 AddHabitError::InvalidHabit(HabitError::IdLength { min: 1, max: 64 }),

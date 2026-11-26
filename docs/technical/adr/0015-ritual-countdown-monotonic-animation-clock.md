@@ -28,7 +28,7 @@ relations:
     - "adr-0006-cqrs-light"
     - "adr-0007-habit-lifecycle-aggregate"
 answers:
-  - "How long does the ritual count down, and what happens when it reaches zero?"
+  - "How long does the ritual count down, and what happens when it reaches zero? (Superseded 2026-11-25: it no longer counts down; see the amendment.)"
   - "Why is the remaining time a subtraction over a monotonic timestamp rather than a tally of ticks?"
   - "What drives the countdown's heartbeat, and why is it not a timer crate or a JS setTimeout loop?"
   - "Why does a throttled, hidden or backgrounded screen come back correct with no code written for that case?"
@@ -60,6 +60,8 @@ decided_in:
 > **Links**: [[adr-0010-crate-boundary-trust-boundary]] (the door it now goes through),
 > [[adr-0014-view-wiring-click-dispatch-harness]] (the harness it extends),
 > [[architecture-overview]] (current shape).
+
+> **Amended 2026-11-25 (S10, owner ruling G1)**: the ritual's timer is removed. The ritual is a tap counter: no goal time, no countdown, no clock, no beat, no at-zero state. Each completion gesture adds one attempt for today (ADR-0025). §1, §2, §3, §5(c) and the clock MUST items are superseded for the ritual; §4 stands; the fixed-minute rejection covers every fixed duration.
 
 ## Context
 

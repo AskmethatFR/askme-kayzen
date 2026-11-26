@@ -26,7 +26,7 @@ today-empty-lede-2 = One tiny habit is enough to start.
 today-add-cta = + Add a tiny habit
 today-lede = One small step is enough for today.
 today-eyebrow-active = Your small steps
-today-habit-meta = every day · { $minutes } min
+today-habit-meta = { $goal } times a day
 today-done-aria = Done today · { $title }
 today-mark-done-aria = Mark as done · { $title }
 today-tally = { $done } of { $total } · that's already something.
@@ -35,21 +35,45 @@ paused-heading = Paused
 paused-empty-note = Nothing here. Everything is back in your daily life.
 not-found-title = This page doesn't exist.
 not-found-today-link = Today
-staircase-aria = Your last seven days, current goal { $goal } minutes
+staircase-aria = { $goal ->
+    [one] Your last seven days, current goal { $goal } time a day
+   *[other] Your last seven days, current goal { $goal } times a day
+}
 masthead-back-to-today = ← Today
 detail-back-to-today = Back to today
-habit-detail-active-dose = every day · { $goal } min
-habit-detail-paused-dose = paused · { $goal } min
-habit-detail-anchored-dose = anchored · { $goal } min
+habit-detail-active-dose = { $goal ->
+    [one] { $goal } time a day
+   *[other] { $goal } times a day
+}
+habit-detail-paused-dose = { $goal ->
+    [one] paused · { $goal } time a day
+   *[other] paused · { $goal } times a day
+}
+habit-detail-anchored-dose = { $goal ->
+    [one] anchored · { $goal } time a day
+   *[other] anchored · { $goal } times a day
+}
 adjust-goal-eyebrow = Adjust, at your own pace
-grow-goal-label = Move to { $goal } min
-grow-goal-aria = Move to { $goal } min · { $title }
-lighten-goal-label = Lighten to { $goal } min
-lighten-goal-aria = Lighten to { $goal } min · { $title }
+grow-goal-label = Move to { $goal } times
+grow-goal-aria = Move to { $goal } times · { $title }
+lighten-goal-label = { $goal ->
+    [one] Lighten to { $goal } time
+   *[other] Lighten to { $goal } times
+}
+lighten-goal-aria = { $goal ->
+    [one] Lighten to { $goal } time · { $title }
+   *[other] Lighten to { $goal } times · { $title }
+}
 start-ritual-label = Start
 habit-detail-mark-done-label = It's done
 habit-detail-mark-done-aria = It's done · { $title }
 habit-detail-done-aria = Done today · { $title }
+habit-detail-undo-label = Remove one
+habit-detail-today-count = { $count ->
+    [one] { $count } time today
+   *[other] { $count } times today
+}
+habit-detail-undo-aria = Remove one · { $title }
 pause-habit-label = Pause, no guilt
 pause-habit-aria = Pause, no guilt · { $title }
 anchor-habit-label = Anchor it · it's become natural
@@ -59,21 +83,21 @@ resume-habit-aria = Resume it · { $title }
 habit-not-found-message = This habit is no longer on your list.
 habit-not-found-back-link = Back to Today
 week-heading = This week
-week-minutes-practised = { $count ->
-    [one] minute practised
-   *[other] minutes practised
+week-times-practised = { $count ->
+    [one] time practised
+   *[other] times practised
 }
 week-message-fresh-start = A perfect start. Everything is still ahead.
 week-message-resting = This week is resting. It's here whenever you're ready, no rush.
 week-message-growing = You're moving forward, at your own pace.
 week-rhythm-aria = Your rhythm over the last seven days
-week-curve-aria = { $title }'s journey, from { $starting_goal } to { $current_goal } minutes, { $practised_days ->
+week-curve-aria = { $title }'s journey, from { $starting_goal } to { $current_goal } times a day, { $practised_days ->
     [one] { $practised_days } day practised
    *[other] { $practised_days } days practised
 }
 week-habit-goal = { $changed ->
-    [yes] { $starting_goal } to { $current_goal } min
-   *[no] { $goal } min
+    [yes] { $starting_goal } to { $current_goal } times a day
+   *[no] { $goal } times a day
 }
 ritual-not-found-message = This habit is no longer on your list.
 ritual-not-found-back-link = Back to Today
@@ -83,7 +107,6 @@ ritual-complete-aria = Done · { $title }
 ritual-complete-label = Done
 ritual-stop-aria = Stop, that's okay · { $title }
 ritual-stop-label = Stop, that's okay
-ritual-timer-aria = Timer · { $title }
 ritual-gentle-word = You gave yourself this moment. That's already a lot.
 anchored-heading = Anchored
 anchored-readmit-aria = Bring it back into my daily life · { $title }
@@ -93,13 +116,13 @@ anchored-daily-life-tally = You're following { $count } / { $max } habits in par
 anchored-refusal-full = Your daily life is full · anchor another one first to bring this one back
 anchored-refusal-duplicate = It's already in your daily life
 add-habit-heading = A new tiny habit
-add-habit-lede = A gentle goal: 5 minutes a day. Less is already something; more, even better.
+add-habit-lede = A gentle goal: { $goal } times a day. Less is already something; more, even better.
 add-habit-ideas-eyebrow = A few ideas, ready to go
-add-habit-idea-meta = { $minutes } min a day
+add-habit-idea-meta = { $goal } times a day
 add-habit-idea-add-aria = Add "{ $label }"
 add-habit-own-eyebrow = Or your own
 add-habit-name-input-label = Habit name
-add-habit-submit = Add, at { $minutes } min a day
+add-habit-submit = Add, at { $goal } times a day
 idea-drink-water = Drink a glass of water
 idea-put-away-an-object = Put an object away
 idea-write-a-line = Write a line

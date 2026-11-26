@@ -55,6 +55,7 @@ So the native substrate is a file, and `localStorage` survives only as the web a
 | Wire format | A **persistence DTO confined to the infrastructure module** carries the `serde` derives. Domain types are rebuilt through their own validating constructors, so nothing under `domain/` is coupled to a wire format and no second construction door opens ([[adr-0001-validation-by-construction]]) |
 | Decoding | **All-or-nothing.** One unparsable field discards the whole payload. A partially rebuilt habit is not a lesser failure than an empty board — it is a worse one, because it looks like data |
 | Unreadable payload | **Quarantined at a fixed, never-timestamped sibling slot, before anything can overwrite it.** The invariant, stated once: *the primary is never destroyed without a copy existing first.* The board then simply starts empty |
+| Older snapshot version | **Upgraded on read, not quarantined** ([[adr-0026-older-snapshot-upgraded-on-read]]): a version 1 snapshot opens and the next save writes version 2. An unknown version is still quarantined as an unreadable payload |
 | No durable location | **Refuse at startup, with an explicit screen.** Never fall back to somewhere writable |
 
 ## Rejected alternatives

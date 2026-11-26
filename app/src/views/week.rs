@@ -15,8 +15,8 @@ pub fn Week() -> Element {
     let recap = use_signal(move || services.get_week_recap.handle());
     let recap = recap();
     let legend = tr!(
-        "week-minutes-practised",
-        count: recap.minutes_practised as i64
+        "week-times-practised",
+        count: recap.times_practised as i64
     );
     let staircase = staircase_points(&recap.rhythm);
     let staircase_trace = staircase
@@ -32,7 +32,7 @@ pub fn Week() -> Element {
 
             div { class: "week-tint-card",
                 div { class: "week-tint-figure",
-                    span { class: "week-figure", "{recap.minutes_practised}" }
+                    span { class: "week-figure", "{recap.times_practised}" }
                     span { class: "week-figure-label", "{legend}" }
                 }
                 if recap.rhythm.iter().any(|practised| *practised) {
@@ -73,9 +73,9 @@ pub fn Week() -> Element {
                                 class: "week-habit-goal",
                                 {tr!(
                                     "week-habit-goal",
-                                    changed: if habit.current_goal == habit.starting_goal { "no" } else { "yes" },
+                                    changed: if habit.from_goal.is_some() { "yes" } else { "no" },
                                     goal: habit.current_goal as i64,
-                                    starting_goal: habit.starting_goal as i64,
+                                    starting_goal: habit.from_goal.unwrap_or(habit.current_goal) as i64,
                                     current_goal: habit.current_goal as i64
                                 )}
                             }
@@ -86,7 +86,7 @@ pub fn Week() -> Element {
                                 "aria-label": tr!(
                                     "week-curve-aria",
                                     title: habit.title.clone(),
-                                    starting_goal: habit.starting_goal as i64,
+                                    starting_goal: habit.from_goal.unwrap_or(habit.current_goal) as i64,
                                     current_goal: habit.current_goal as i64,
                                     practised_days: habit.practised_day_goals.len() as i64
                                 ),
@@ -247,7 +247,7 @@ mod tests {
             for (id, days_done) in [("h-1", 3), ("h-2", 2), ("h-3", 1)] {
                 let mut habit = a_habit(id, 5, TODAY - 6);
                 for days_back in 0..days_done {
-                    habit.toggle_done(LocalDate::from_epoch_day(TODAY - days_back));
+                    habit.record_attempt(LocalDate::from_epoch_day(TODAY - days_back));
                 }
                 repository.save(&habit);
             }
@@ -334,11 +334,14 @@ mod tests {
         );
         assert!(
             html.contains(
-                r#"<span class="week-figure">30</span><span class="week-figure-label">minutes de pratique accumulées</span>"#
+                r#"<span class="week-figure">6</span><span class="week-figure-label">fois pratiquées</span>"#
             ),
             "expected the figure and its legend apart — the figure prints the \
-             sum, the legend names accumulated practice and never gain over \
-             the starting goal, got: {html}"
+             sum of attempts, the legend names the times practised, got: {html}"
+        );
+        assert!(
+            !html.contains("minute") && !html.contains(" min<"),
+            "the Week screen reads in times, never in minutes, got: {html}"
         );
         assert!(
             html.contains("Vous avancez"),
@@ -356,13 +359,13 @@ mod tests {
             let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
             let mut paused = a_habit("h-1", 5, TODAY - 6);
             for days_back in 0..4 {
-                paused.toggle_done(LocalDate::from_epoch_day(TODAY - 3 - days_back));
+                paused.record_attempt(LocalDate::from_epoch_day(TODAY - 3 - days_back));
             }
             paused.pause().expect("a fresh habit is active");
             repository.save(&paused);
             let mut anchored = a_habit("h-2", 5, TODAY - 6);
             for days_back in 0..3 {
-                anchored.toggle_done(LocalDate::from_epoch_day(TODAY - days_back));
+                anchored.record_attempt(LocalDate::from_epoch_day(TODAY - days_back));
             }
             anchored.anchor().expect("a fresh habit is active");
             repository.save(&anchored);
@@ -381,9 +384,9 @@ mod tests {
 
         assert!(
             html.contains(
-                r#"<span class="week-figure">35</span><span class="week-figure-label">minutes de pratique accumulées</span>"#
+                r#"<span class="week-figure">7</span><span class="week-figure-label">fois pratiquées</span>"#
             ),
-            "pausing or anchoring must never take lived minutes back, got: {html}"
+            "pausing or anchoring must never take lived times back, got: {html}"
         );
     }
 
@@ -414,7 +417,7 @@ mod tests {
         );
         assert!(
             html.contains(
-                r#"<span class="week-figure">0</span><span class="week-figure-label">minutes de pratique accumulées</span>"#
+                r#"<span class="week-figure">0</span><span class="week-figure-label">fois pratiquées</span>"#
             ),
             "a fresh week's figure is never a bare zero — it always carries \
              its label, got: {html}"
@@ -430,7 +433,7 @@ mod tests {
         use_context_provider(|| {
             let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
             let mut habit = a_habit("h-1", 5, TODAY - 20);
-            habit.toggle_done(LocalDate::from_epoch_day(TODAY - 10));
+            habit.record_attempt(LocalDate::from_epoch_day(TODAY - 10));
             repository.save(&habit);
             services_with(repository)
         });
@@ -459,7 +462,7 @@ mod tests {
         use_context_provider(|| {
             let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
             let mut habit = a_habit("h-1", 1, TODAY);
-            habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+            habit.record_attempt(LocalDate::from_epoch_day(TODAY));
             repository.save(&habit);
             services_with(repository)
         });
@@ -475,9 +478,9 @@ mod tests {
 
         assert!(
             html.contains(
-                r#"<span class="week-figure">1</span><span class="week-figure-label">minute de pratique accumulée</span>"#
+                r#"<span class="week-figure">1</span><span class="week-figure-label">fois pratiquée</span>"#
             ),
-            "one minute must read the singular form, never the plural, got: {html}"
+            "one time reads \"fois pratiquée\" — the participle agrees with the count, got: {html}"
         );
     }
 
@@ -599,7 +602,7 @@ mod tests {
             habit.grow(LocalDate::from_epoch_day(TODAY - 4));
             habit.grow(LocalDate::from_epoch_day(TODAY - 2));
             for days_back in 0..4 {
-                habit.toggle_done(LocalDate::from_epoch_day(TODAY - days_back));
+                habit.record_attempt(LocalDate::from_epoch_day(TODAY - days_back));
             }
             repository.save(&habit);
             services_with(repository)
@@ -615,7 +618,7 @@ mod tests {
         let html = render(RootAtWeekScreenWithAGrowingHabit);
 
         assert!(
-            html.contains(r#"class="week-habit-goal">3 → 5 min<"#),
+            html.contains(r#"class="week-habit-goal">3 → 5 fois par jour<"#),
             "expected the row to read the starting and current goal, got: {html}"
         );
         assert_eq!(
@@ -644,7 +647,7 @@ mod tests {
             habit.grow(LocalDate::from_epoch_day(TODAY - 4));
             habit.grow(LocalDate::from_epoch_day(TODAY - 2));
             for days_back in 0..4 {
-                habit.toggle_done(LocalDate::from_epoch_day(TODAY - days_back));
+                habit.record_attempt(LocalDate::from_epoch_day(TODAY - days_back));
             }
             repository.save(&habit);
             services_with(repository)
@@ -660,10 +663,44 @@ mod tests {
         let html = render(RootAtWeekScreenWithAGrowingHabitInEnglish);
 
         assert!(
-            html.contains(r#"class="week-habit-goal">3 to 5 min<"#),
+            html.contains(r#"class="week-habit-goal">3 to 5 times a day<"#),
             "expected the week-habit-goal line to read the starting/current \
              goal through the i18n layer under English, not a language-neutral \
              literal, got: {html}"
+        );
+    }
+
+    #[component]
+    fn RootAtWeekScreenWithAGoalRaisedLongAgo() -> Element {
+        crate::i18n::use_locale_for_tests();
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| {
+            let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = a_habit("h-1", 3, TODAY - 60);
+            habit.grow(LocalDate::from_epoch_day(TODAY - 30));
+            habit.grow(LocalDate::from_epoch_day(TODAY - 30));
+            repository.save(&habit);
+            services_with(repository)
+        });
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: week-recap/S12
+    #[test]
+    fn a_goal_raised_long_ago_reads_its_current_goal_with_no_arrow() {
+        let html = render(RootAtWeekScreenWithAGoalRaisedLongAgo);
+
+        assert!(
+            html.contains(r#"class="week-habit-goal">5 fois par jour<"#),
+            "expected the row to read the current goal alone, got: {html}"
+        );
+        assert!(
+            !html.contains('→'),
+            "a goal raised before this week must draw no arrow, got: {html}"
         );
     }
 
@@ -689,7 +726,7 @@ mod tests {
         let html = render(RootAtWeekScreenWithAFreshHabit);
 
         assert!(
-            html.contains(r#"class="week-habit-goal">5 min<"#),
+            html.contains(r#"class="week-habit-goal">5 fois par jour<"#),
             "expected a goal that has not moved to read without an arrow, got: {html}"
         );
         assert!(
@@ -726,9 +763,9 @@ mod tests {
         );
         assert!(
             html.contains(
-                r#"<span class="week-figure">0</span><span class="week-figure-label">minutes practised</span>"#
+                r#"<span class="week-figure">0</span><span class="week-figure-label">times practised</span>"#
             ),
-            "expected the accumulated-minutes figure and its legend in English, got: {html}"
+            "expected the times-practised figure and its legend in English, got: {html}"
         );
         assert!(
             html.contains(r#"class="week-word">A perfect start. Everything is still ahead.<"#),
@@ -749,11 +786,11 @@ mod tests {
         use_context_provider(|| {
             let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
             let mut habit = a_habit("h-1", 5, TODAY - 6);
-            habit.toggle_done(LocalDate::from_epoch_day(TODAY - 5));
+            habit.record_attempt(LocalDate::from_epoch_day(TODAY - 5));
             habit.grow(LocalDate::from_epoch_day(TODAY - 4));
-            habit.toggle_done(LocalDate::from_epoch_day(TODAY - 4));
+            habit.record_attempt(LocalDate::from_epoch_day(TODAY - 4));
             habit.lighten(LocalDate::from_epoch_day(TODAY - 2));
-            habit.toggle_done(LocalDate::from_epoch_day(TODAY - 2));
+            habit.record_attempt(LocalDate::from_epoch_day(TODAY - 2));
             repository.save(&habit);
             services_with(repository)
         });
@@ -794,11 +831,11 @@ mod tests {
         use_context_provider(|| {
             let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
             let mut habit_a = a_habit("h-1", 5, TODAY - 6);
-            habit_a.toggle_done(LocalDate::from_epoch_day(TODAY - 6));
-            habit_a.toggle_done(LocalDate::from_epoch_day(TODAY - 2));
+            habit_a.record_attempt(LocalDate::from_epoch_day(TODAY - 6));
+            habit_a.record_attempt(LocalDate::from_epoch_day(TODAY - 2));
             repository.save(&habit_a);
             let mut habit_b = a_habit("h-2", 5, TODAY - 6);
-            habit_b.toggle_done(LocalDate::from_epoch_day(TODAY - 4));
+            habit_b.record_attempt(LocalDate::from_epoch_day(TODAY - 4));
             repository.save(&habit_b);
             services_with(repository)
         });
@@ -829,7 +866,7 @@ mod tests {
         use_context_provider(|| {
             let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
             let mut practised = a_habit("h-1", 5, TODAY - 6);
-            practised.toggle_done(LocalDate::from_epoch_day(TODAY));
+            practised.record_attempt(LocalDate::from_epoch_day(TODAY));
             repository.save(&practised);
             repository.save(&a_habit("h-2", 5, TODAY));
             services_with(repository)
@@ -870,7 +907,7 @@ mod tests {
         );
         assert_eq!(
             the_week_curve_html(&html),
-            r#"<div class="week-curve" aria-label="Trajectoire de Lire une page, de 5 à 5 minutes, 1 jour pratiqué"><span class="week-pebble" style="--practice-ratio: 1"></span></div>"#,
+            r#"<div class="week-curve" aria-label="Trajectoire de Lire une page, de 5 à 5 fois par jour, 1 jour pratiqué"><span class="week-pebble" style="--practice-ratio: 1"></span></div>"#,
             "the practised row must gain nothing beyond its pebbles and its \
              enriched aria-label; the unpractised row must draw no band at \
              all — no counter, no mark of absence"
@@ -886,10 +923,10 @@ mod tests {
         use_context_provider(|| {
             let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
             let mut inside_window = a_habit("h-1", 5, TODAY - 20);
-            inside_window.toggle_done(LocalDate::from_epoch_day(TODAY - 6));
+            inside_window.record_attempt(LocalDate::from_epoch_day(TODAY - 6));
             repository.save(&inside_window);
             let mut outside_window = a_habit("h-2", 5, TODAY - 20);
-            outside_window.toggle_done(LocalDate::from_epoch_day(TODAY - 8));
+            outside_window.record_attempt(LocalDate::from_epoch_day(TODAY - 8));
             repository.save(&outside_window);
             services_with(repository)
         });
@@ -927,15 +964,15 @@ mod tests {
         rsx! {
             p {
                 span { class: "week-figure", "0" }
-                span { class: "week-figure-label", {tr!("week-minutes-practised", count: 0i64)} }
+                span { class: "week-figure-label", {tr!("week-times-practised", count: 0i64)} }
             }
             p {
                 span { class: "week-figure", "1" }
-                span { class: "week-figure-label", {tr!("week-minutes-practised", count: 1i64)} }
+                span { class: "week-figure-label", {tr!("week-times-practised", count: 1i64)} }
             }
             p {
                 span { class: "week-figure", "2" }
-                span { class: "week-figure-label", {tr!("week-minutes-practised", count: 2i64)} }
+                span { class: "week-figure-label", {tr!("week-times-practised", count: 2i64)} }
             }
         }
     }
@@ -946,15 +983,15 @@ mod tests {
         rsx! {
             p {
                 span { class: "week-figure", "0" }
-                span { class: "week-figure-label", {tr!("week-minutes-practised", count: 0i64)} }
+                span { class: "week-figure-label", {tr!("week-times-practised", count: 0i64)} }
             }
             p {
                 span { class: "week-figure", "1" }
-                span { class: "week-figure-label", {tr!("week-minutes-practised", count: 1i64)} }
+                span { class: "week-figure-label", {tr!("week-times-practised", count: 1i64)} }
             }
             p {
                 span { class: "week-figure", "2" }
-                span { class: "week-figure-label", {tr!("week-minutes-practised", count: 2i64)} }
+                span { class: "week-figure-label", {tr!("week-times-practised", count: 2i64)} }
             }
         }
     }
@@ -965,22 +1002,21 @@ mod tests {
 
         assert!(
             html.contains(
-                r#"<p><span class="week-figure">0</span><span class="week-figure-label">minutes de pratique accumulées</span></p>"#
+                r#"<p><span class="week-figure">0</span><span class="week-figure-label">fois pratiquées</span></p>"#
             ),
-            "expected n=0 to keep the figure and read the plural — the D1 \
-             divergence from recap-minutes-label, got: {html}"
+            "expected n=0 to keep the figure and read \"fois pratiquées\", got: {html}"
         );
         assert!(
             html.contains(
-                r#"<p><span class="week-figure">1</span><span class="week-figure-label">minute de pratique accumulée</span></p>"#
+                r#"<p><span class="week-figure">1</span><span class="week-figure-label">fois pratiquée</span></p>"#
             ),
-            "expected n=1 to read the singular, got: {html}"
+            "expected n=1 to read \"fois pratiquée\" — the participle agrees with the count, got: {html}"
         );
         assert!(
             html.contains(
-                r#"<p><span class="week-figure">2</span><span class="week-figure-label">minutes de pratique accumulées</span></p>"#
+                r#"<p><span class="week-figure">2</span><span class="week-figure-label">fois pratiquées</span></p>"#
             ),
-            "expected n=2 to read the plural, got: {html}"
+            "expected n=2 to read \"fois pratiquées\", got: {html}"
         );
     }
 
@@ -990,19 +1026,19 @@ mod tests {
 
         assert!(
             html.contains(
-                r#"<p><span class="week-figure">0</span><span class="week-figure-label">minutes practised</span></p>"#
+                r#"<p><span class="week-figure">0</span><span class="week-figure-label">times practised</span></p>"#
             ),
             "expected n=0 to read the plural (English `other` covers 0), got: {html}"
         );
         assert!(
             html.contains(
-                r#"<p><span class="week-figure">1</span><span class="week-figure-label">minute practised</span></p>"#
+                r#"<p><span class="week-figure">1</span><span class="week-figure-label">time practised</span></p>"#
             ),
             "expected n=1 to read the singular, got: {html}"
         );
         assert!(
             html.contains(
-                r#"<p><span class="week-figure">2</span><span class="week-figure-label">minutes practised</span></p>"#
+                r#"<p><span class="week-figure">2</span><span class="week-figure-label">times practised</span></p>"#
             ),
             "expected n=2 to read the plural, got: {html}"
         );
@@ -1017,7 +1053,7 @@ mod tests {
         use_context_provider(|| {
             let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
             let mut habit = a_habit("h-1", 5, TODAY - 6);
-            habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+            habit.record_attempt(LocalDate::from_epoch_day(TODAY));
             repository.save(&habit);
             services_with(repository)
         });
@@ -1035,8 +1071,8 @@ mod tests {
         use_context_provider(|| {
             let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
             let mut habit = a_habit("h-1", 5, TODAY - 6);
-            habit.toggle_done(LocalDate::from_epoch_day(TODAY));
-            habit.toggle_done(LocalDate::from_epoch_day(TODAY - 1));
+            habit.record_attempt(LocalDate::from_epoch_day(TODAY));
+            habit.record_attempt(LocalDate::from_epoch_day(TODAY - 1));
             repository.save(&habit);
             services_with(repository)
         });
@@ -1070,7 +1106,7 @@ mod tests {
         use_context_provider(|| {
             let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
             let mut habit = a_habit("h-1", 5, TODAY - 6);
-            habit.toggle_done(LocalDate::from_epoch_day(TODAY));
+            habit.record_attempt(LocalDate::from_epoch_day(TODAY));
             repository.save(&habit);
             services_with(repository)
         });
@@ -1088,8 +1124,8 @@ mod tests {
         use_context_provider(|| {
             let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
             let mut habit = a_habit("h-1", 5, TODAY - 6);
-            habit.toggle_done(LocalDate::from_epoch_day(TODAY));
-            habit.toggle_done(LocalDate::from_epoch_day(TODAY - 1));
+            habit.record_attempt(LocalDate::from_epoch_day(TODAY));
+            habit.record_attempt(LocalDate::from_epoch_day(TODAY - 1));
             repository.save(&habit);
             services_with(repository)
         });
@@ -1124,7 +1160,7 @@ mod tests {
             let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
             let mut habit = a_habit("h-1", 5, TODAY - 6);
             for days_back in 0..7 {
-                habit.toggle_done(LocalDate::from_epoch_day(TODAY - days_back));
+                habit.record_attempt(LocalDate::from_epoch_day(TODAY - days_back));
             }
             repository.save(&habit);
             services_with(repository)
@@ -1144,7 +1180,7 @@ mod tests {
             let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
             let mut habit = a_habit("h-1", 5, TODAY - 6);
             for days_back in [6, 4, 2] {
-                habit.toggle_done(LocalDate::from_epoch_day(TODAY - days_back));
+                habit.record_attempt(LocalDate::from_epoch_day(TODAY - days_back));
             }
             repository.save(&habit);
             services_with(repository)

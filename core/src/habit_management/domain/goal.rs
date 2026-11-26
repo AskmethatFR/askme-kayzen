@@ -5,6 +5,7 @@ pub struct Goal(u32);
 
 impl Goal {
     pub const MIN: u32 = 1;
+    pub const DEFAULT: u32 = 3;
 
     pub fn new(value: u32) -> Result<Goal, HabitError> {
         if value < Self::MIN {
