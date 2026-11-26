@@ -220,7 +220,6 @@ sur ces points ; ce sont des faits, pas des choix de design.
 | Carte d'Aujourd'hui | seul le nom (`.habit-name`) ouvre le Détail, pas toute la carte, et il n'atteint pas 44dp de haut ; le nom d'une habitude en pause (lien `.habit-name` de l'écran « En pause ») n'en fait qu'environ 25px |
 | Écran Ajouter | un refus (plafond, champ vide, doublon) ne dit rien (`03-ecrans` l. 108) ; pas de formulaire, donc pas de validation par Entrée ; pas de `maxlength` ; le bouton paraît actif sur un champ vide |
 | Notes vivantes | seule la note de refus d'Ancrées porte `role="status"` ; le compte du Détail (`habit_detail.rs:89`, « n fois aujourd'hui ») change aussi après une action, sans `role="status"` |
-| Espacements hors échelle | `main.css` : `gap: 2px` (`.bottom-nav a`, `.pace-tile`), `margin: 2px 0 0` (`.quiet-note`), `padding: 14px` (`.summary-card`), `gap: 8px` (`.action-dock .action-done`, valeur de `--space-2` écrite en dur), `gap: 10px` (`.pace-grid`) |
 | Galet d'Aujourd'hui | l'état éteint de `.pebble` se dessine avec `--color-ink-soft`, pas avec le contour `--color-outline` que la règle des états éteints prescrit |
 | Annuler un pas | rien n'annule une validation faite sur la cible d'Aujourd'hui |
 | Texte à zéro | « 0 sur 3 · c'est déjà quelque chose » sonne ironique quand rien n'est fait |

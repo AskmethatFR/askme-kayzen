@@ -159,7 +159,7 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2px;
+    gap: var(--space-1);
     min-width: 64px;
     min-height: 44px;
     font-size: 12px;
@@ -271,7 +271,7 @@ body {
 .quiet-note {
     font-size: 14px;
     color: var(--color-ink-soft);
-    margin: 2px 0 0;
+    margin: var(--space-1) 0 0;
 }
 
 /* ---- Summary card (Today screen) ----
@@ -283,7 +283,7 @@ body {
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    padding: 14px var(--space-4);
+    padding: var(--space-3) var(--space-4);
     background: var(--color-card);
     border-radius: var(--radius-card);
 }
@@ -817,7 +817,7 @@ body {
 }
 
 .action-dock .action-done {
-    gap: 8px;
+    gap: var(--space-2);
 }
 
 .action-done.is-done {
@@ -904,7 +904,7 @@ body {
 .week-card {
     background: var(--color-card);
     border-radius: var(--radius-habit);
-    padding: 18px 20px;
+    padding: var(--space-4);
 }
 
 .pebble-track {
@@ -935,7 +935,7 @@ body {
 /* The practice action: the dock's pill, with its decorative triangle held off
    the label by a gap. */
 .action-primary {
-    gap: 10px;
+    gap: var(--space-2);
     font-size: 17px;
     font-weight: 600;
 }
@@ -966,7 +966,7 @@ body {
 .pace-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    gap: var(--space-3);
 }
 
 .pace-tile {
@@ -974,7 +974,7 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2px;
+    gap: var(--space-1);
     min-height: 72px;
     padding: 0;
     border: none;
