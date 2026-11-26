@@ -34,7 +34,6 @@ today-paused-link = { $count } paused · no pressure
 paused-heading = Paused
 paused-empty-note = Nothing here. Everything is back in your daily life.
 not-found-title = This page doesn't exist.
-not-found-today-link = Today
 staircase-aria = { $goal ->
     [one] Your last seven days, current goal { $goal } time a day
    *[other] Your last seven days, current goal { $goal } times a day

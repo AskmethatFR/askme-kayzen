@@ -34,7 +34,6 @@ today-paused-link = { $count } en pause · aucune pression
 paused-heading = En pause
 paused-empty-note = Rien ici. Tout est de retour dans votre quotidien.
 not-found-title = Cette page n'existe pas.
-not-found-today-link = Aujourd'hui
 staircase-aria = Vos sept derniers jours, objectif actuel { $goal } fois par jour
 detail-back-to-today = Retour à aujourd'hui
 habit-detail-active-dose = { $goal } fois par jour

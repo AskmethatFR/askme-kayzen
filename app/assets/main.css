@@ -1036,21 +1036,6 @@ body {
     stroke: var(--color-anchored);
 }
 
-.tag {
-    font-size: 12px;
-    letter-spacing: .1em;
-    text-transform: uppercase;
-    padding: 3px var(--space-2);
-    border-radius: var(--radius-pill);
-    background: var(--color-tint);
-    color: var(--color-on-tint);
-}
-
-.tag-accent {
-    background: var(--color-tint);
-    color: var(--color-on-tint);
-}
-
 .field {
     display: block;
     margin-bottom: var(--space-4);

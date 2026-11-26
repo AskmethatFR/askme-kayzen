@@ -5,8 +5,10 @@ use dioxus::prelude::*;
 #[component]
 pub fn NotFound(segments: Vec<String>) -> Element {
     rsx! {
-        h1 { {tr!("not-found-title")} }
-        Link { to: Route::Today {}, {tr!("not-found-today-link")} }
+        div { class: "screen",
+            h1 { class: "greeting", {tr!("not-found-title")} }
+            Link { class: "quiet-link", to: Route::Today {}, {tr!("habit-not-found-back-link")} }
+        }
     }
 }
 
@@ -56,8 +58,27 @@ mod tests {
             "expected the title in English, got: {html}"
         );
         assert!(
-            html.contains(">Today<"),
+            html.contains(">Back to Today<"),
             "expected the back-to-today link in English, got: {html}"
+        );
+    }
+
+    // @scenario: language/S1
+    #[test]
+    fn the_not_found_screen_uses_the_shared_screen_shell() {
+        let html = render(RootWithFrenchLocale);
+
+        assert!(
+            html.contains(r#"class="screen""#),
+            "expected the page inside the shared .screen shell, got: {html}"
+        );
+        assert!(
+            html.contains(r#"<h1 class="greeting">"#),
+            "expected the title as h1.greeting, got: {html}"
+        );
+        assert!(
+            html.contains(r#"class="quiet-link""#),
+            "expected the back link to be a quiet-link, got: {html}"
         );
     }
 
@@ -70,8 +91,8 @@ mod tests {
             "expected the byte-identical French title, got: {html}"
         );
         assert!(
-            html.contains(">Aujourd&#39;hui<"),
-            "expected the byte-identical French back-to-today link, got: {html}"
+            html.contains(">Retour à Aujourd&#39;hui<"),
+            "expected the French back-to-today link with the shared label, got: {html}"
         );
     }
 }

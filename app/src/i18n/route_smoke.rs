@@ -57,7 +57,7 @@ fn every_route() -> [&'static str; 8] {
 
 fn expected_content_marker(path: &str) -> &'static str {
     if path == "/this-route-does-not-exist" {
-        "<h1>"
+        r#"<h1 class="greeting">"#
     } else {
         r#"class="screen"#
     }
