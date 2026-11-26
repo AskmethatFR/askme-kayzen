@@ -1,6 +1,7 @@
 use crate::composition::Services;
 use crate::i18n::tr;
 use crate::route::Route;
+use crate::views::back_link::BackLink;
 use dioxus::prelude::*;
 use dioxus::router::Navigator;
 use kayzen_core::habit_management::queries::get_habit_detail::HabitState;
@@ -25,19 +26,19 @@ pub fn Ritual(id: String) -> Element {
             HabitState::Paused => rsx! {
                 div { class: "screen",
                     header { class: "masthead",
-                        Link { class: "quiet-link", to: Route::Today {}, {tr!("masthead-back-to-today")} }
+                        BackLink {}
                     }
                     h1 { class: "greeting", "{habit.title}" }
-                    p { class: "quiet-note", {tr!("ritual-paused-message")} }
+                    p { class: "lede", {tr!("ritual-paused-message")} }
                 }
             },
             HabitState::Anchored => rsx! {
                 div { class: "screen",
                     header { class: "masthead",
-                        Link { class: "quiet-link", to: Route::Today {}, {tr!("masthead-back-to-today")} }
+                        BackLink {}
                     }
                     h1 { class: "greeting", "{habit.title}" }
-                    p { class: "quiet-note", {tr!("ritual-anchored-message")} }
+                    p { class: "lede", {tr!("ritual-anchored-message")} }
                 }
             },
             HabitState::Active => rsx! {
@@ -465,8 +466,18 @@ mod tests {
         ] {
             let html = render(root);
             assert!(
-                html.contains(expected_message),
-                "expected the refusal copy, got: {html}"
+                html.contains(&format!(r#"<p class="lede">{expected_message}</p>"#)),
+                "expected the refusal copy as the screen's lede, got: {html}"
+            );
+            assert!(
+                html.contains(r#"aria-label="Retour à aujourd&#39;hui""#)
+                    && html.contains(r#"class="detail-back""#)
+                    && html.contains(r#"class="detail-back-icon""#),
+                "expected the round back link carrying its chevron, got: {html}"
+            );
+            assert!(
+                !html.contains("← Aujourd"),
+                "expected the text back link to be gone, got: {html}"
             );
             assert!(
                 !html.contains("J&#39;ai termin"),

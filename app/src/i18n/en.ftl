@@ -39,7 +39,6 @@ staircase-aria = { $goal ->
     [one] Your last seven days, current goal { $goal } time a day
    *[other] Your last seven days, current goal { $goal } times a day
 }
-masthead-back-to-today = ← Today
 detail-back-to-today = Back to today
 habit-detail-active-dose = { $goal ->
     [one] { $goal } time a day
