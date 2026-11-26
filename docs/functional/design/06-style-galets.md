@@ -215,7 +215,6 @@ sur ces points ; ce sont des faits, pas des choix de design.
 | Sujet | Fait |
 | --- | --- |
 | Retour | le composant `BackLink`, pastille ronde à chevron, sert Détail, Ajout, En pause et le repli En pause ou Ancrée du Rituel ; les replis « habitude introuvable » (Rituel, Détail) et la page introuvable gardent un lien texte ; rien sur les onglets |
-| Titres | les eyebrows sont des `<p>` ; le Rituel met un `h3` après le `h1` ; le titre de la semaine est un `h1.week-heading`, pas `.greeting` |
 | `NotFound` | sans style |
 | `DataUnavailable` | l'étiquette « Kaizen » est codée en dur |
 | `role="status"` | aucune note `.quiet-note` ne le porte |

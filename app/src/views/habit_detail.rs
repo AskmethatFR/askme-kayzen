@@ -23,6 +23,7 @@ pub fn HabitDetail(id: String) -> Element {
             let week = rsx! {
                 div {
                     class: "week-card",
+                    role: "img",
                     "aria-label": tr!("staircase-aria", goal: habit.current_goal as i64),
                     div { class: "pebble-track",
                         for (day_offset, (day, ratio)) in
@@ -790,7 +791,7 @@ mod tests {
         );
         assert!(
             html.contains(
-                r#"aria-label="Vos sept derniers jours, objectif actuel 5 fois par jour""#
+                r#"role="img" aria-label="Vos sept derniers jours, objectif actuel 5 fois par jour""#
             ),
             "expected the band to keep its own accessible name, got: {html}"
         );

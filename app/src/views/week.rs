@@ -28,7 +28,7 @@ pub fn Week() -> Element {
 
     rsx! {
         div { class: "screen",
-            h1 { class: "week-heading", {tr!("week-heading")} }
+            h1 { class: "greeting", {tr!("week-heading")} }
 
             div { class: "week-tint-card",
                 div { class: "week-tint-figure",
@@ -55,7 +55,7 @@ pub fn Week() -> Element {
 
             p { class: "week-word", {tr_key(week_copy_key(recap.message))} }
 
-            div { class: "rhythm", "aria-label": tr!("week-rhythm-aria"),
+            div { class: "rhythm", role: "img", "aria-label": tr!("week-rhythm-aria"),
                 for (day_offset, practised) in recap.rhythm.iter().enumerate() {
                     span {
                         key: "{day_offset}",
@@ -83,6 +83,7 @@ pub fn Week() -> Element {
                         if !habit.practised_day_goals.is_empty() {
                             div {
                                 class: "week-curve",
+                                role: "img",
                                 "aria-label": tr!(
                                     "week-curve-aria",
                                     title: habit.title.clone(),
@@ -758,7 +759,7 @@ mod tests {
         let html = render(RootAtWeekScreenWithAFreshHabitAndEnglishLocale);
 
         assert!(
-            html.contains(r#"<h1 class="week-heading">This week</h1>"#),
+            html.contains(r#"<h1 class="greeting">This week</h1>"#),
             "expected the week heading in English, got: {html}"
         );
         assert!(
@@ -772,7 +773,7 @@ mod tests {
             "expected the fresh-start message in English, got: {html}"
         );
         assert!(
-            html.contains(r#"aria-label="Your rhythm over the last seven days""#),
+            html.contains(r#"role="img" aria-label="Your rhythm over the last seven days""#),
             "expected the rhythm aria-label in English, got: {html}"
         );
     }
@@ -907,7 +908,7 @@ mod tests {
         );
         assert_eq!(
             the_week_curve_html(&html),
-            r#"<div class="week-curve" aria-label="Trajectoire de Lire une page, de 5 à 5 fois par jour, 1 jour pratiqué"><span class="week-pebble" style="--practice-ratio: 1"></span></div>"#,
+            r#"<div class="week-curve" role="img" aria-label="Trajectoire de Lire une page, de 5 à 5 fois par jour, 1 jour pratiqué"><span class="week-pebble" style="--practice-ratio: 1"></span></div>"#,
             "the practised row must gain nothing beyond its pebbles and its \
              enriched aria-label; the unpractised row must draw no band at \
              all — no counter, no mark of absence"

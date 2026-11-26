@@ -62,7 +62,7 @@ pub fn Today() -> Element {
                         }
                     }
 
-                    p { class: "eyebrow", {tr!("today-eyebrow-active")} }
+                    h2 { class: "eyebrow", {tr!("today-eyebrow-active")} }
                     ul { class: "habit-list",
                         for habit in today_habits.active {
                             li { key: "{habit.id}", class: "habit-row",
@@ -449,7 +449,7 @@ mod tests {
             "expected the greeting in English, got: {html}"
         );
         assert!(
-            html.contains("Your small steps"),
+            html.contains(r#"<h2 class="eyebrow">Your small steps</h2>"#),
             "expected the active-habits eyebrow in English, got: {html}"
         );
         assert!(

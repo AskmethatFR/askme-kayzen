@@ -52,7 +52,7 @@ pub fn AddHabit() -> Element {
             h1 { class: "greeting", {tr!("add-habit-heading")} }
             p { class: "lede", {tr!("add-habit-lede", goal: STARTING_GOAL as i64)} }
 
-            p { class: "eyebrow", {tr!("add-habit-ideas-eyebrow")} }
+            h2 { class: "eyebrow", {tr!("add-habit-ideas-eyebrow")} }
             ul { class: "habit-list",
                 for key in idea_keys() {
                     {
@@ -87,7 +87,7 @@ pub fn AddHabit() -> Element {
                 }
             }
 
-            p { class: "eyebrow", {tr!("add-habit-own-eyebrow")} }
+            h2 { class: "eyebrow", {tr!("add-habit-own-eyebrow")} }
             div { class: "field",
                 input {
                     class: "input",
@@ -288,11 +288,11 @@ mod tests {
             "expected the heading in English, got: {html}"
         );
         assert!(
-            html.contains(r#"class="eyebrow">A few ideas, ready to go<"#),
+            html.contains(r#"<h2 class="eyebrow">A few ideas, ready to go</h2>"#),
             "expected the ready-made ideas eyebrow in English, got: {html}"
         );
         assert!(
-            html.contains(r#"class="eyebrow">Or your own<"#),
+            html.contains(r#"<h2 class="eyebrow">Or your own</h2>"#),
             "expected the freeform-own eyebrow in English, got: {html}"
         );
         assert!(

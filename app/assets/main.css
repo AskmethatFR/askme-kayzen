@@ -527,13 +527,6 @@ body {
    holding the accumulated figure and its staircase, the week's word, the
    rhythm in dots, then one card per habit — cards separated by a gap, never
    by a rule. */
-.week-heading {
-    font-family: var(--font-display);
-    font-size: 40px;
-    font-weight: 500;
-    margin: 0;
-}
-
 .week-tint-card {
     display: flex;
     align-items: flex-end;

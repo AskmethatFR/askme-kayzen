@@ -59,8 +59,7 @@ fn PracticeCounter(id: String, title: String) -> Element {
     rsx! {
             div { class: "screen ritual",
                 h1 { class: "greeting", "{title}" }
-                h3
-                {
+                p {
                     class: "motivation", {tr!("ritual-gentle-word")}
                 }
                 button {
@@ -341,7 +340,7 @@ mod tests {
             "expected the completion gesture, got: {html}"
         );
         assert!(
-            html.contains(r#"class="motivation">Vous avez pris ce moment pour vous. C&#39;est déjà beaucoup.</h3>"#),
+            html.contains(r#"<p class="motivation">Vous avez pris ce moment pour vous. C&#39;est déjà beaucoup.</p>"#),
             "expected the gentle word above the completion gesture, got: {html}"
         );
     }
