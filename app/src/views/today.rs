@@ -98,6 +98,9 @@ pub fn Today() -> Element {
                                     } else {
                                         span { class: "target-ink" }
                                     }
+                                    if habit.attempts_today >= 1 {
+                                        span { class: "target-count", "{habit.attempts_today}" }
+                                    }
                                 }
                             }
                         }
@@ -569,6 +572,52 @@ mod tests {
         assert!(
             html.contains("1 sur 1 ·"),
             "expected the tally to count the freshly-done habit, got: {html}"
+        );
+    }
+
+    fn target_button(html: &str) -> &str {
+        let start = html
+            .find("<button")
+            .expect("expected the habit's target button");
+        let after_open = &html[start..];
+        let end = after_open
+            .find("</button>")
+            .expect("expected the target button to close");
+        &after_open[..end]
+    }
+
+    #[test]
+    fn a_tap_shows_one_inside_the_target() {
+        let mut screen = Screen::open(RootWithUndoneHabit);
+
+        screen.click("Marquer comme fait · Read one page");
+
+        let html = screen.html();
+        assert!(
+            target_button(&html).contains(r#"<span class="target-count">1</span>"#),
+            "expected the target to read 1 after one tap, got: {html}"
+        );
+    }
+
+    #[test]
+    fn a_habit_part_way_to_its_goal_shows_its_count_inside_a_target_not_yet_done() {
+        let html = render(RootWithHabitPartWayToItsGoal);
+
+        let target = target_button(&html);
+        assert!(
+            target.contains(r#"<span class="target-count">3</span>"#)
+                && !target.contains("is-done"),
+            "expected 3 inside a target not yet done, got: {html}"
+        );
+    }
+
+    #[test]
+    fn a_habit_with_no_attempt_today_shows_no_number_in_its_target() {
+        let html = render(RootWithUndoneHabit);
+
+        assert!(
+            !target_button(&html).contains("target-count"),
+            "expected an empty target before any attempt, got: {html}"
         );
     }
 

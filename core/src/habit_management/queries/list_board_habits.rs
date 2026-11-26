@@ -16,6 +16,7 @@ pub struct HabitSummary {
     pub title: String,
     pub goal: u32,
     pub done_today: bool,
+    pub attempts_today: u32,
 }
 
 /// A paused habit's presence in the Today screen's paused zone — just enough
@@ -62,6 +63,7 @@ impl ListBoardHabits {
                     title: habit.title().value().to_string(),
                     goal: habit.current_goal(),
                     done_today: habit.reached_goal_on(today),
+                    attempts_today: habit.attempts_on(today),
                 }),
                 LifecycleState::Paused => paused.push(PausedHabit {
                     id: habit.id().value().to_string(),
@@ -139,8 +141,32 @@ mod tests {
                 title: "Read one page".to_string(),
                 goal: 3,
                 done_today: false,
+                attempts_today: 0,
             }]
         );
+    }
+
+    #[test]
+    fn a_habit_reports_how_many_attempts_it_has_today() {
+        let cases = [0, 1, 2, 5];
+
+        for attempts in cases {
+            let repository = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = a_habit();
+            for _ in 0..attempts {
+                habit.record_attempt(LocalDate::from_epoch_day(TODAY));
+            }
+            habit.record_attempt(LocalDate::from_epoch_day(TODAY - 1));
+            repository.save(&habit);
+            let query = list_over(Rc::clone(&repository));
+
+            let result = query.handle();
+
+            assert_eq!(
+                result.active[0].attempts_today, attempts,
+                "attempts today, plus one yesterday that must not count"
+            );
+        }
     }
 
     // @scenario: today-habit-list/S3
@@ -209,6 +235,7 @@ mod tests {
                 title: "Move a little".to_string(),
                 goal: 4,
                 done_today: false,
+                attempts_today: 0,
             }]
         );
         assert_eq!(
@@ -245,6 +272,7 @@ mod tests {
                 title: "Move a little".to_string(),
                 goal: 4,
                 done_today: false,
+                attempts_today: 0,
             }]
         );
         assert_eq!(result.paused, Vec::new());
@@ -293,6 +321,7 @@ mod tests {
                 title: "Read one page".to_string(),
                 goal: 3,
                 done_today: false,
+                attempts_today: 0,
             }]
         );
         assert_eq!(result.paused, Vec::new());
