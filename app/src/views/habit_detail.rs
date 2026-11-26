@@ -946,8 +946,8 @@ mod tests {
         let html = render(RootAtFloorHabitDoneToday);
 
         assert!(
-            html.contains("aria-label=\"Fait aujourd&#39;hui · Lire une page\""),
-            "expected the recorded fact to be announced, got: {html}"
+            html.contains("aria-label=\"C&#39;est fait · objectif du jour atteint · Lire une page\""),
+            "expected the spoken name to contain the visible label and the recorded fact, got: {html}"
         );
         assert!(
             html.contains(r#"class="btn btn-secondary action-done is-done""#)

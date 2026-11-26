@@ -67,7 +67,7 @@ lighten-goal-aria = { $goal ->
 start-ritual-label = Start
 habit-detail-mark-done-label = It's done
 habit-detail-mark-done-aria = It's done · { $title }
-habit-detail-done-aria = Done today · { $title }
+habit-detail-done-aria = It's done · today's goal reached · { $title }
 habit-detail-undo-label = Remove one
 habit-detail-today-count = { $count ->
     [one] { $count } time today
