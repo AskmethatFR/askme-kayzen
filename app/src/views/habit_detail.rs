@@ -94,6 +94,7 @@ pub fn HabitDetail(id: String) -> Element {
                                 {tr!("habit-detail-mark-done-label")}
                             }
                             if habit.attempts_today >= 1 {
+                                span { class: "quiet-note", {tr!("habit-detail-today-count", count: habit.attempts_today as i64)} }
                                 button {
                                     class: "btn btn-secondary action-undo",
                                     aria_label: tr!("habit-detail-undo-aria", title: habit.title.clone()),
@@ -1444,6 +1445,54 @@ mod tests {
         assert!(
             !html.contains("Retirer une fois"),
             "expected the control to leave once today has no attempt, got: {html}"
+        );
+    }
+
+    #[component]
+    fn RootAtOneAttemptTodayAndEnglishLocale() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_one_attempt_today);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[test]
+    fn a_tap_on_the_done_gesture_shows_todays_count_beside_it() {
+        let mut screen = Screen::open(RootAtKnownHabit);
+
+        screen.click("C'est fait · Lire une page");
+
+        let html = screen.html();
+        assert!(
+            html.contains(">1 fois aujourd&#39;hui<"),
+            "expected the count of today's attempts beside the done gesture after one tap, got: {html}"
+        );
+    }
+
+    #[test]
+    fn a_tap_that_adds_a_second_attempt_updates_the_count_in_english() {
+        let mut screen = Screen::open(RootAtOneAttemptTodayAndEnglishLocale);
+
+        screen.click("It's done · Lire une page");
+
+        let html = screen.html();
+        assert!(
+            html.contains(">2 times today<"),
+            "expected the count to read 2 times today after the second attempt, got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_count_line_is_absent_when_today_has_no_attempt() {
+        let html = render(RootAtKnownHabit);
+
+        assert!(
+            !html.contains("fois aujourd&#39;hui<"),
+            "expected no count line at 0 attempts today, got: {html}"
         );
     }
 

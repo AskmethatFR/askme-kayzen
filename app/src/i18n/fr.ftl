@@ -51,6 +51,7 @@ habit-detail-mark-done-label = C'est fait
 habit-detail-mark-done-aria = C'est fait · { $title }
 habit-detail-done-aria = Fait aujourd'hui · { $title }
 habit-detail-undo-label = Retirer une fois
+habit-detail-today-count = { $count } fois aujourd'hui
 habit-detail-undo-aria = Retirer une fois · { $title }
 pause-habit-label = Mettre en pause, sans culpabilité
 pause-habit-aria = Mettre en pause, sans culpabilité · { $title }

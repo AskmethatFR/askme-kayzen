@@ -69,6 +69,10 @@ habit-detail-mark-done-label = It's done
 habit-detail-mark-done-aria = It's done · { $title }
 habit-detail-done-aria = Done today · { $title }
 habit-detail-undo-label = Remove one
+habit-detail-today-count = { $count ->
+    [one] { $count } time today
+   *[other] { $count } times today
+}
 habit-detail-undo-aria = Remove one · { $title }
 pause-habit-label = Pause, no guilt
 pause-habit-aria = Pause, no guilt · { $title }
