@@ -193,10 +193,11 @@ l'entrée, pas en la filtrant à la lecture.
 
 **Le rituel ne valide plus à l'échéance.** Le dessin d'origine disait
 `ritual(id) → minuteur 60 s ; à la fin → done_today = true`. Les deux moitiés sont
-tombées le 2026-08-20 (issue #13) : le minuteur porte l'objectif de l'habitude, et
-atteindre zéro ne valide rien — il s'arrête et attend « J'ai terminé ». Valider à
-l'échéance ferait de la pratique une épreuve à réussir, quand le geste #1 dit
-« anti-échec par design » : on ne peut pas rater un rituel qu'on a choisi d'arrêter.
+tombées : le rituel n'a plus de minuteur (S10, 2026-11-25) — c'est un simple compteur,
+sans durée ni échéance, et chaque « J'ai terminé » ajoute une tentative pour
+aujourd'hui. Valider à l'échéance ferait de la pratique une épreuve à réussir, quand le
+geste #1 dit « anti-échec par design » : on ne peut pas rater un rituel qu'on a choisi
+d'arrêter.
 
 **Ancrer ne renvoie pas à Aujourd'hui non plus.** Même décision et même raison
 que pour la mise en pause en slice 5 : le dessin d'origine disait

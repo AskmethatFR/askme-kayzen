@@ -84,7 +84,6 @@ ritual-complete-aria = J'ai terminé · { $title }
 ritual-complete-label = J'ai terminé
 ritual-stop-aria = Arrêter, ce n'est pas grave · { $title }
 ritual-stop-label = Arrêter, ce n'est pas grave
-ritual-timer-aria = Minuteur · { $title }
 ritual-gentle-word = Vous avez pris ce moment pour vous. C'est déjà beaucoup.
 anchored-heading = Ancrées
 anchored-readmit-aria = La remettre dans mon quotidien · { $title }

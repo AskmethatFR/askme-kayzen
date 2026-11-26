@@ -4,12 +4,6 @@ use crate::route::Route;
 use dioxus::prelude::*;
 use dioxus::router::Navigator;
 use kayzen_core::habit_management::queries::get_habit_detail::HabitState;
-use std::time::Duration;
-use web_time::Instant;
-
-const RING_CENTER: f64 = 140.0;
-const RING_RADIUS: f64 = 124.0;
-const RING_HEAD_RADIUS: f64 = 7.0;
 
 #[component]
 pub fn Ritual(id: String) -> Element {
@@ -47,10 +41,9 @@ pub fn Ritual(id: String) -> Element {
                 }
             },
             HabitState::Active => rsx! {
-                PracticeTimer {
+                PracticeCounter {
                     id: habit.id.clone(),
                     title: habit.title.clone(),
-                    goal_minutes: habit.current_goal,
                 }
             },
         },
@@ -58,25 +51,13 @@ pub fn Ritual(id: String) -> Element {
 }
 
 #[component]
-fn PracticeTimer(id: String, title: String, goal_minutes: u32) -> Element {
+fn PracticeCounter(id: String, title: String) -> Element {
     let services = use_context::<Services>();
     let navigator = use_navigator();
-    let started_at = use_hook(Instant::now);
-    let mut now = use_signal(move || started_at);
-
-    let total = total_seconds(goal_minutes);
-    let elapsed = now().duration_since(started_at);
-    let remaining = remaining_seconds(total, elapsed);
 
     rsx! {
             div { class: "screen ritual",
-                h1 { class: "greeting", "{title} · {goal_minutes} min" }
-                PracticeCountdown {
-                    title: title.clone(),
-                    total,
-                    remaining,
-                    on_tick: move |()| now.set(Instant::now()),
-                }
+                h1 { class: "greeting", "{title}" }
                 h3
                 {
                     class: "motivation", {tr!("ritual-gentle-word")}
@@ -101,63 +82,6 @@ fn PracticeTimer(id: String, title: String, goal_minutes: u32) -> Element {
     }
 }
 
-// Named for what it does, not for one of its three siblings: the dial, the
-// at-zero note and the tick sensor are all just the countdown, and none
-// alone. Everything here depends only on `remaining`/`total` and nothing
-// needs a mounted `Router` (unlike `PracticeTimer`'s `Link`) — that split is
-// what lets tests pin the at-zero branch and the live ring/countdown
-// directly, with crafted `remaining` values, instead of only through a real
-// wall-clock wait.
-#[component]
-fn PracticeCountdown(
-    title: String,
-    total: u64,
-    remaining: u64,
-    on_tick: EventHandler<()>,
-) -> Element {
-    rsx! {
-        div {
-            class: "ritual-dial",
-            role: "timer",
-            aria_label: tr!("ritual-timer-aria", title: title.clone()),
-            svg { class: "ritual-ring", view_box: "0 0 280 280",
-                circle {
-                    class: "ritual-ring-disc",
-                    r: "{RING_RADIUS}",
-                    cx: "{RING_CENTER}",
-                    cy: "{RING_CENTER}",
-                }
-                circle {
-                    class: "ritual-ring-run",
-                    r: "{RING_RADIUS}",
-                    cx: "{RING_CENTER}",
-                    cy: "{RING_CENTER}",
-                    transform: "rotate(-90 {RING_CENTER} {RING_CENTER})",
-                    stroke_dasharray: "{ring_circumference()}",
-                    stroke_dashoffset: "{ring_offset(remaining, total)}",
-                }
-                circle {
-                    class: "ritual-ring-head",
-                    r: "{RING_HEAD_RADIUS}",
-                    cx: "{ring_head_x(remaining, total)}",
-                    cy: "{ring_head_y(remaining, total)}",
-                }
-            }
-            div { class: "ritual-countdown", "{countdown_label(remaining)}" }
-        }
-        if remaining == 0 {
-            p { class: "quiet-note", {tr!("ritual-gentle-word")} }
-        }
-        if remaining > 0 {
-            div {
-                class: "ritual-tick",
-                aria_hidden: "true",
-                onanimationiteration: move |_| on_tick.call(()),
-            }
-        }
-    }
-}
-
 fn complete_and_go_home(services: &Services, navigator: Navigator, id: &str) {
     record_todays_practice(services, id);
     navigator.push(Route::Today {});
@@ -165,48 +89,6 @@ fn complete_and_go_home(services: &Services, navigator: Navigator, id: &str) {
 
 fn record_todays_practice(services: &Services, id: &str) {
     services.mark_done.execute(id).ok();
-}
-
-#[must_use]
-fn total_seconds(goal_minutes: u32) -> u64 {
-    u64::from(goal_minutes) * 60
-}
-
-#[must_use]
-fn remaining_seconds(total: u64, elapsed: Duration) -> u64 {
-    total.saturating_sub(elapsed.as_secs())
-}
-
-#[must_use]
-fn countdown_label(remaining: u64) -> String {
-    format!("{}:{:02}", remaining / 60, remaining % 60)
-}
-
-#[must_use]
-fn ring_circumference() -> f64 {
-    2.0 * std::f64::consts::PI * RING_RADIUS
-}
-
-// `total` is never 0: it is `goal_minutes * 60` and `Goal::MIN == 1`, an
-// invariant kayzen-core enforces, not re-checked here.
-#[must_use]
-fn ring_offset(remaining: u64, total: u64) -> f64 {
-    ring_circumference() * (1.0 - remaining as f64 / total as f64)
-}
-
-#[must_use]
-fn ring_head_angle(remaining: u64, total: u64) -> f64 {
-    std::f64::consts::TAU * remaining as f64 / total as f64
-}
-
-#[must_use]
-fn ring_head_x(remaining: u64, total: u64) -> f64 {
-    RING_CENTER + RING_RADIUS * ring_head_angle(remaining, total).sin()
-}
-
-#[must_use]
-fn ring_head_y(remaining: u64, total: u64) -> f64 {
-    RING_CENTER - RING_RADIUS * ring_head_angle(remaining, total).cos()
 }
 
 #[cfg(test)]
@@ -344,10 +226,6 @@ mod tests {
         let html = render(RootAtActiveHabitGoalFiveAndEnglishLocale);
 
         assert!(
-            html.contains(r#"aria-label="Timer · Lire une page""#),
-            "expected the timer aria-label in English, got: {html}"
-        );
-        assert!(
             html.contains(r#"aria-label="Done · Lire une page""#) && html.contains(">Done<"),
             "expected the complete gesture in English, got: {html}"
         );
@@ -437,88 +315,30 @@ mod tests {
     }
 
     #[test]
-    fn total_seconds_multiplies_minutes_by_sixty() {
-        assert_eq!(total_seconds(5), 300);
-        assert_eq!(total_seconds(3), 180);
-    }
-
-    #[test]
-    fn remaining_seconds_subtracts_elapsed_from_total() {
-        assert_eq!(remaining_seconds(300, Duration::ZERO), 300);
-        assert_eq!(remaining_seconds(300, Duration::from_secs(90)), 210);
-    }
-
-    // @scenario: ritual/S6
-    #[test]
-    fn remaining_seconds_saturates_to_zero_without_underflowing_when_elapsed_exceeds_total() {
-        assert_eq!(remaining_seconds(300, Duration::from_secs(300)), 0);
-        assert_eq!(remaining_seconds(300, Duration::from_secs(400)), 0);
-    }
-
-    #[test]
-    fn countdown_label_formats_as_minutes_colon_two_digit_seconds() {
-        assert_eq!(countdown_label(300), "5:00");
-        assert_eq!(countdown_label(180), "3:00");
-        assert_eq!(countdown_label(210), "3:30");
-        assert_eq!(countdown_label(65), "1:05");
-        assert_eq!(countdown_label(0), "0:00");
-    }
-
-    #[test]
-    fn ring_circumference_is_two_pi_times_the_ring_radius() {
-        let expected = 2.0 * std::f64::consts::PI * RING_RADIUS;
-        assert!((ring_circumference() - expected).abs() < f64::EPSILON);
-    }
-
-    #[test]
-    fn ring_offset_scales_linearly_from_full_dose_to_none_remaining() {
-        assert_eq!(ring_offset(300, 300), 0.0);
-        let midpoint = ring_offset(150, 300);
-        assert!((midpoint - ring_circumference() / 2.0).abs() < f64::EPSILON);
-        assert_eq!(ring_offset(0, 300), ring_circumference());
-    }
-
-    #[test]
-    fn the_ring_head_rests_at_the_top_when_the_goal_is_untouched_or_fully_spent() {
-        for remaining in [0, 300] {
-            assert!((ring_head_x(remaining, 300) - RING_CENTER).abs() < 1e-9);
-            assert!((ring_head_y(remaining, 300) - (RING_CENTER - RING_RADIUS)).abs() < 1e-9);
-        }
-    }
-
-    #[test]
-    fn the_ring_head_stands_a_quarter_turn_clockwise_once_a_quarter_of_the_goal_is_left() {
-        assert!((ring_head_x(75, 300) - (RING_CENTER + RING_RADIUS)).abs() < 1e-9);
-        assert!((ring_head_y(75, 300) - RING_CENTER).abs() < 1e-9);
-    }
-
-    #[test]
-    fn the_ritual_heading_carries_the_habits_name_and_its_goal() {
+    fn the_ritual_heading_carries_the_habits_name_alone() {
         let html = render(RootAtActiveHabitGoalFive);
 
         assert!(
-            html.contains("Lire une page · 5 min"),
-            "expected the habit's name and its minutes above the dial, got: {html}"
+            html.contains(r#"<h1 class="greeting">Lire une page</h1>"#),
+            "expected the habit's name alone as the heading, got: {html}"
         );
     }
 
     // @scenario: ritual/S1
     #[test]
-    fn opening_the_ritual_counts_down_from_the_habits_own_goal_not_a_fixed_minute() {
-        for (root, expected_label) in [
-            (RootAtActiveHabitGoalFive as fn() -> Element, "5:00"),
-            (RootAtActiveHabitGoalThree as fn() -> Element, "3:00"),
-        ] {
-            let html = render(root);
+    fn opening_the_ritual_shows_the_habit_as_a_counter_with_no_duration() {
+        let html = render(RootAtActiveHabitGoalFive);
+
+        for absent in [" min", "5:00", "ritual-dial", "ritual-countdown"] {
             assert!(
-                html.contains(expected_label),
-                "expected the countdown to start at the habit's own goal ({expected_label}), got: {html}"
-            );
-            assert!(
-                html.contains("aria-label=\"Minuteur · Lire une page\""),
-                "expected the dial to carry the habit's own name, got: {html}"
+                !html.contains(absent),
+                "expected no duration on the ritual (found {absent}), got: {html}"
             );
         }
+        assert!(
+            html.contains(r#"aria-label="J&#39;ai terminé · Lire une page""#),
+            "expected the completion gesture, got: {html}"
+        );
     }
 
     // @scenario: ritual/S3
@@ -677,137 +497,6 @@ mod tests {
         assert!(
             html.contains("Aujourd") && html.contains("quiet-link"),
             "expected a way back, got: {html}"
-        );
-    }
-
-    // Test List — PracticeCountdown (deterministic, crafted remaining/total, no Router needed):
-    // - a partial remaining renders the countdown FROM remaining, not total
-    // - a partial remaining renders the ring offset computed from remaining/total,
-    //   not a hardcoded constant
-    // - remaining == 0 renders the "time's up" note; a positive remaining does not
-    // - remaining > 0 renders the tick sensor; remaining == 0 does not (it must stop
-    //   ticking once there is nothing left to count down)
-
-    #[component]
-    fn RootAtDialPartial() -> Element {
-        use_locale_for_tests();
-        rsx! {
-            PracticeCountdown {
-                title: "Lire une page".to_string(),
-                total: 300,
-                remaining: 210,
-                on_tick: move |()| {},
-            }
-        }
-    }
-
-    #[component]
-    fn RootAtDialZero() -> Element {
-        use_locale_for_tests();
-        rsx! {
-            PracticeCountdown {
-                title: "Lire une page".to_string(),
-                total: 300,
-                remaining: 0,
-                on_tick: move |()| {},
-            }
-        }
-    }
-
-    #[test]
-    fn the_dial_countdown_reflects_remaining_time_not_the_total_goal() {
-        let html = render(RootAtDialPartial);
-        assert!(
-            html.contains("3:30"),
-            "expected the countdown to read the remaining 3:30, got: {html}"
-        );
-    }
-
-    // "Minuteur" is a stable, static label — never the countdown text itself,
-    // which changes every second and would make an unreliable accessible
-    // name. `role="timer"` plus this static label is the correct pairing for
-    // a live-updating region, so it deliberately departs from the visible
-    // text convention used elsewhere in this codebase.
-    #[test]
-    fn the_dial_exposes_a_stable_timer_role_and_label_for_assistive_tech() {
-        let html = render(RootAtDialPartial);
-        assert!(
-            html.contains(r#"role="timer""#),
-            "expected the dial to carry role=\"timer\", got: {html}"
-        );
-        assert!(
-            html.contains("aria-label=\"Minuteur · Lire une page\""),
-            "expected a stable accessible name, got: {html}"
-        );
-    }
-
-    #[test]
-    fn the_dial_ring_offset_is_computed_from_remaining_and_total() {
-        let html = render(RootAtDialPartial);
-        let expected = format!("{}", ring_offset(210, 300));
-        assert!(
-            html.contains(&expected),
-            "expected the ring's stroke-dashoffset to carry the computed value {expected}, got: {html}"
-        );
-    }
-
-    #[test]
-    fn the_dial_head_carries_the_position_computed_from_remaining_and_total() {
-        let html = render(RootAtDialPartial);
-        let expected_x = format!("cx=\"{}\"", ring_head_x(210, 300));
-        let expected_y = format!("cy=\"{}\"", ring_head_y(210, 300));
-        assert!(
-            html.contains(&expected_x) && html.contains(&expected_y),
-            "expected the ring head at ({expected_x}, {expected_y}), got: {html}"
-        );
-    }
-
-    // @scenario: ritual/S8
-    #[test]
-    fn the_dial_says_a_gentle_word_only_once_remaining_reaches_zero() {
-        let gentle_word = "Vous avez pris ce moment pour vous. C&#39;est déjà beaucoup.";
-        assert!(
-            render(RootAtDialZero).contains(gentle_word),
-            "expected the gentle word at remaining == 0"
-        );
-        assert!(
-            !render(RootAtDialPartial).contains(gentle_word),
-            "expected no gentle word while time remains"
-        );
-    }
-
-    #[test]
-    fn the_dial_stops_ticking_once_remaining_reaches_zero() {
-        assert!(
-            render(RootAtDialPartial).contains("ritual-tick"),
-            "expected the tick sensor while time remains"
-        );
-        assert!(
-            !render(RootAtDialZero).contains("ritual-tick"),
-            "expected no tick sensor once remaining reaches zero"
-        );
-    }
-
-    #[test]
-    fn firing_the_tick_advances_the_countdown_from_a_live_clock() {
-        let mut screen = Screen::open(RootAtActiveHabitGoalFive);
-        let before = screen.html();
-        assert!(
-            before.contains("5:00"),
-            "expected the countdown to start at 5:00, got: {before}"
-        );
-
-        std::thread::sleep(std::time::Duration::from_millis(1100));
-        screen.fire_animation_iteration("animationiteration");
-
-        let after = screen.html();
-        assert!(
-            !after.contains("5:00"),
-            "expected the countdown to have moved off 5:00 after a real tick, got: {after}"
-        );
-        assert!(
-            !after.contains(&format!("stroke-dashoffset=\"{}\"", ring_offset(300, 300))),
-            "expected the ring offset to have moved off its starting value, got: {after}"
         );
     }
 }

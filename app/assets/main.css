@@ -1125,9 +1125,8 @@ body:has(.screen.ritual) {
     background: var(--color-ritual-ground);
 }
 
-/* The dose line replaces the display-size title on this screen: the mockup
-   gives the habit's name and its minutes one small line above the dial, so
-   the dial — not the title — is what this screen is about. */
+/* The habit's name is one small line on this screen: the tap counter below
+   it, not the title, is what this screen is about. */
 .screen.ritual .greeting {
     font-family: var(--font-body);
     font-size: 14px;
@@ -1162,81 +1161,6 @@ body:has(.screen.ritual) {
 .screen.ritual .quiet-link {
     color: var(--color-ritual-ink-soft);
     font-size: 15px;
-}
-
-.ritual-dial {
-    position: relative;
-    width: min(280px, 100%);
-    aspect-ratio: 1;
-    margin: var(--space-5) auto 0;
-    display: grid;
-    place-items: center;
-}
-
-/* Stacked in the same grid cell (not two grid auto-rows) so the countdown
-   reads inside the ring instead of below it. */
-.ritual-ring,
-.ritual-countdown {
-    grid-area: 1 / 1;
-}
-
-.ritual-ring {
-    position: relative;
-    width: 100%;
-    height: 100%;
-}
-
-/* The disc and the rail are one circle: the mockup draws them as two, at the
-   same radius, so the rail simply straddles the disc's edge. */
-.ritual-ring-disc {
-    fill: var(--color-ritual-disc);
-    stroke: var(--color-ritual-rail);
-    stroke-width: 3;
-}
-
-/* The remaining time, drawn as an arc that the head leads. Both carry the
-   soft tone the mockup reserves for them, so the ring reads as one gesture
-   against the countdown's full ink. */
-.ritual-ring-run {
-    fill: none;
-    stroke: var(--color-ritual-ink-soft);
-    stroke-width: 3;
-    stroke-linecap: round;
-}
-
-.ritual-ring-head {
-    fill: var(--color-ritual-ink-soft);
-}
-
-/* position: relative is the stacking lift, not decoration: it puts this
-   grid item on the z-index:auto positioned paint step alongside the
-   positioned `.ritual-ring`, so DOM order (this rule comes after
-   `.ritual-ring`) decides paint order and the digits land on top. Without
-   it, grid items paint in the earlier in-flow step and the ring — painted
-   later — covers the countdown outright. Do not remove this as "redundant
-   with grid placement" (595697e did, and it silently hid the digits behind
-   the pebble that used to sit here). */
-.ritual-countdown {
-    position: relative;
-    font-size: clamp(52px, 16.5vw, 64px);
-    font-weight: 400;
-    letter-spacing: .01em;
-    font-variant-numeric: tabular-nums;
-    font-family: var(--font-display);
-    color: var(--color-ritual-ink);
-}
-
-/* Invisible by design: this element's only job is to fire an
-   animationiteration event every .25s so the countdown re-reads the clock.
-   It must keep animating under prefers-reduced-motion — it moves no pixel,
-   so silencing it would freeze the countdown instead of calming the screen. */
-.ritual-tick {
-    position: absolute;
-    width: 0;
-    height: 0;
-    opacity: 0;
-    pointer-events: none;
-    animation: kzTick .25s linear infinite;
 }
 
 /* The way out sits under the gesture; both are pushed to the foot of the
@@ -1309,15 +1233,6 @@ body:has(.screen.ritual) {
     to {
         opacity: 1;
         transform: none;
-    }
-}
-
-@keyframes kzTick {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 0;
     }
 }
 

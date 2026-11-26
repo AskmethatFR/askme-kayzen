@@ -103,7 +103,6 @@ ritual-complete-aria = Done · { $title }
 ritual-complete-label = Done
 ritual-stop-aria = Stop, that's okay · { $title }
 ritual-stop-label = Stop, that's okay
-ritual-timer-aria = Timer · { $title }
 ritual-gentle-word = You gave yourself this moment. That's already a lot.
 anchored-heading = Anchored
 anchored-readmit-aria = Bring it back into my daily life · { $title }
