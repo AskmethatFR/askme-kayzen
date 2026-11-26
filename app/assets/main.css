@@ -473,9 +473,7 @@ body {
     place-items: center;
 }
 
-/* Today's attempt count rides above the ink: ink-coloured on the empty
-   bubble, on-accent once the stamp fills it. With the check also showing,
-   the check lifts and the number sits beneath it. */
+/* Today's attempt count shows inside the bubble while the habit is partly done. */
 .target-count {
     position: absolute;
     inset: 0;
@@ -484,20 +482,6 @@ body {
     font-size: 20px;
     font-weight: 600;
     color: var(--color-ink);
-}
-
-.target.is-done .target-count {
-    color: var(--color-on-accent);
-    place-items: end center;
-    padding-bottom: 6px;
-    font-size: 13px;
-    line-height: 1;
-}
-
-.target.is-done .target-check {
-    width: 20px;
-    height: 20px;
-    transform: translateY(-7px);
 }
 
 .target.is-done::after {

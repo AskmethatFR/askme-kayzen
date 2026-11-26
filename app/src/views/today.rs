@@ -78,7 +78,7 @@ pub fn Today() -> Element {
                                     }
                                 }
                                 button {
-                                    class: if habit.done_today { "target is-done" } else { "target" },
+                                    class: if habit.done_today { "target is-done" } else if habit.attempts_today >= 1 { "target has-count" } else { "target" },
                                     aria_label: if habit.done_today { tr!("today-done-aria", title: habit.title.clone()) } else { tr!("today-mark-done-aria", title: habit.title.clone()) },
                                     onclick: {
                                         let services = services.clone();
@@ -638,6 +638,28 @@ mod tests {
         assert!(
             !target.contains("target-count") && target.contains("is-done"),
             "expected a done target with no number inside, got: {html}"
+        );
+    }
+
+    #[test]
+    fn a_habit_part_way_to_its_goal_marks_its_target_as_carrying_a_count() {
+        let html = render(RootWithHabitPartWayToItsGoal);
+
+        let target = target_button(&html);
+        assert!(
+            target.contains(r#"class="target has-count""#),
+            "expected a part-way target to carry the has-count class, got: {html}"
+        );
+    }
+
+    #[test]
+    fn a_habit_fully_done_today_marks_its_target_without_a_count() {
+        let html = render(RootWithHabitFullyDoneOnAGoalOfTwo);
+
+        let target = target_button(&html);
+        assert!(
+            !target.contains("has-count"),
+            "expected a fully done target not to carry the has-count class, got: {html}"
         );
     }
 
