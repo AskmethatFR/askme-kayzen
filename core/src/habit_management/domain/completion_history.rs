@@ -54,6 +54,9 @@ impl CompletionHistory {
     }
 
     pub fn attempts_between(&self, from: LocalDate, to: LocalDate) -> u32 {
+        if from > to {
+            return 0;
+        }
         self.0
             .range(from..=to)
             .fold(0u32, |total, (_, attempts)| total.saturating_add(*attempts))
@@ -97,5 +100,28 @@ mod tests {
         history.withdraw(day);
 
         assert_eq!(history, CompletionHistory::with_attempts(other, 3));
+    }
+
+    #[test]
+    fn withdrawing_on_one_day_leaves_another_days_count_unchanged() {
+        let day = LocalDate::from_epoch_day(DAY);
+        let other = LocalDate::from_epoch_day(DAY - 1);
+        let mut history = CompletionHistory::with_attempts(other, 3);
+        history.record(day);
+        history.record(day);
+
+        history.withdraw(day);
+
+        assert_eq!(history.attempts_on(day), 1);
+        assert_eq!(history.attempts_on(other), 3);
+    }
+
+    #[test]
+    fn a_range_whose_start_is_after_its_end_counts_no_attempts() {
+        let day = LocalDate::from_epoch_day(DAY);
+        let earlier = LocalDate::from_epoch_day(DAY - 1);
+        let history = CompletionHistory::with_attempts(day, 2);
+
+        assert_eq!(history.attempts_between(day, earlier), 0);
     }
 }

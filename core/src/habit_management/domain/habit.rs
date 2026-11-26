@@ -171,7 +171,7 @@ impl Habit {
     }
 
     pub fn reached_goal_on(&self, day: LocalDate) -> bool {
-        self.attempts_on(day) >= self.current_goal()
+        self.attempts_on(day) >= self.steps.goal_on(day).value()
     }
 
     // @algo: clock skew can put `today` before `created_on`; clamping the range end to the later of the two keeps the creation day counted.
@@ -201,5 +201,28 @@ mod undo_attempt_tests {
         habit.undo_attempt(day);
 
         assert_eq!(habit.attempts_on(day), 1);
+    }
+}
+
+#[cfg(test)]
+mod reached_goal_tests {
+    use super::*;
+
+    #[test]
+    fn a_past_day_is_judged_by_the_goal_in_force_on_that_day() {
+        let first_day = LocalDate::from_epoch_day(20_000);
+        let later_day = LocalDate::from_epoch_day(20_001);
+        let mut habit = Habit::new(
+            HabitId::new("h-1").unwrap(),
+            HabitTitle::new("Read one page".to_string()).unwrap(),
+            Goal::new(2).unwrap(),
+            first_day,
+        );
+        habit.record_attempt(first_day);
+        habit.record_attempt(first_day);
+        habit.grow(later_day);
+
+        assert!(habit.reached_goal_on(first_day));
+        assert!(!habit.reached_goal_on(later_day));
     }
 }

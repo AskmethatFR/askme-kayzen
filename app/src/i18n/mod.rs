@@ -205,10 +205,9 @@ mod tests {
     fn every_aria_reads_its_label_followed_by_the_title_placeholder() {
         const TITLE: &str = "Lire une page";
 
-        for (file_name, text, locale) in [
-            ("fr.ftl", FR, langid!("fr")),
-            ("en.ftl", EN, langid!("en")),
-        ] {
+        for (file_name, text, locale) in
+            [("fr.ftl", FR, langid!("fr")), ("en.ftl", EN, langid!("en"))]
+        {
             let messages = message_texts(text, file_name);
             let bundle = resolving_bundle(text, file_name, locale);
 

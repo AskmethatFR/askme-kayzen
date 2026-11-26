@@ -62,6 +62,7 @@ habit-not-found-message = Cette habitude n'est plus sur votre liste.
 habit-not-found-back-link = Retour à Aujourd'hui
 week-heading = Cette semaine
 week-times-practised = { $count ->
+    [1] fois pratiquée
    *[other] fois pratiquées
 }
 week-message-fresh-start = Un début parfait. Tout est encore devant.

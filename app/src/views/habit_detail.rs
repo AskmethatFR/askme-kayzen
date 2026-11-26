@@ -93,7 +93,7 @@ pub fn HabitDetail(id: String) -> Element {
                                 }
                                 {tr!("habit-detail-mark-done-label")}
                             }
-                            if habit.days.last().is_some_and(|today| today.attempts >= 1) {
+                            if habit.attempts_today >= 1 {
                                 button {
                                     class: "btn btn-secondary action-undo",
                                     aria_label: tr!("habit-detail-undo-aria", title: habit.title.clone()),
@@ -667,10 +667,8 @@ mod tests {
         let today = LocalDate::from_epoch_day(20_005);
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
         repository.save(&a_habit());
-        let services = Services::with_repository_and_clock(
-            Rc::clone(&repository),
-            Rc::new(FixedClock(today)),
-        );
+        let services =
+            Services::with_repository_and_clock(Rc::clone(&repository), Rc::new(FixedClock(today)));
 
         let detail = mark_done_and_reload(&services, "h-1");
 
@@ -798,7 +796,9 @@ mod tests {
             "expected the seven days to live in a card, got: {html}"
         );
         assert!(
-            html.contains(r#"aria-label="Vos sept derniers jours, objectif actuel 5 fois par jour""#),
+            html.contains(
+                r#"aria-label="Vos sept derniers jours, objectif actuel 5 fois par jour""#
+            ),
             "expected the band to keep its own accessible name, got: {html}"
         );
         assert_eq!(

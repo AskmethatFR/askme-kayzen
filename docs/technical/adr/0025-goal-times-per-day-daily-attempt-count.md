@@ -45,7 +45,7 @@ decided_in:
 | Day's practice | `CompletionHistory` keeps a **count of attempts per local date** (`core/src/habit_management/domain/completion_history.rs`). A day with no attempt has **no entry**, so no stored count is ever 0, and the practised days are exactly the recorded dates |
 | The gesture | `Habit::record_attempt(today)` adds 1 (saturating). `record_attempt` never decrements (undo is a separate gesture, see below), so a count never goes below 0. `MarkDone` calls it (`core/src/habit_management/use_cases/mark_done.rs`), still with one public method |
 | Past the goal | Accepted and counted. Exceeding the goal is never an error |
-| Reads | `Habit::attempts_on(day)` is the day's count; `is_done_on(day)` means at least one attempt. Range reads (`between`) still yield practised days only |
+| Reads | `Habit::attempts_on(day)` is the day's count; `is_done_on(day)` means at least one attempt. Range reads (`attempts_between`) sum the attempts over the range |
 | Independence | A count is keyed by habit (inside its aggregate) and by local date. No count is shared across habits or days |
 
 Undo, added later, is a separate gesture and does not touch the rows above: `Habit::undo_attempt(today)` removes one attempt of today (`UndoAttempt`, one public method), never below zero, and never removes a day that still has attempts. The gesture that records an attempt still never decrements.

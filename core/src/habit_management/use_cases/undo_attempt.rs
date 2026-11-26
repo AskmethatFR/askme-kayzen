@@ -96,7 +96,7 @@ mod tests {
 
     // @scenario: undo-attempt/S1
     #[test]
-    fn undoing_one_of_two_attempts_leaves_one_and_the_day_still_done() {
+    fn undoing_one_of_two_attempts_leaves_one_the_day_practised_and_below_the_goal() {
         let repository = Rc::new(InMemoryHabitRepository::new());
         repository.save(&a_habit_with_attempts_today("h-1", 2));
         let undo = undo_attempt_over(Rc::clone(&repository));
@@ -107,6 +107,25 @@ mod tests {
         let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
         assert_eq!(habit.attempts_on(today()), 1);
         assert!(habit.is_done_on(today()));
+        assert!(!habit.reached_goal_on(today()));
+    }
+
+    #[test]
+    fn undoing_today_leaves_another_days_count_unchanged() {
+        let yesterday = LocalDate::from_epoch_day(TODAY - 1);
+        let mut habit = a_habit_with_attempts_today("h-1", 2);
+        habit.record_attempt(yesterday);
+        habit.record_attempt(yesterday);
+        habit.record_attempt(yesterday);
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&habit);
+        let undo = undo_attempt_over(Rc::clone(&repository));
+
+        undo.execute("h-1").unwrap();
+
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+        assert_eq!(habit.attempts_on(today()), 1);
+        assert_eq!(habit.attempts_on(yesterday), 3);
     }
 
     // @scenario: undo-attempt/S2

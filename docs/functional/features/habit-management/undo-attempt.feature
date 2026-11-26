@@ -6,9 +6,9 @@ Feature: Undo the last attempt of today
 
   @scenario:S1
   Scenario: Undoing today's attempt lowers today's count by one
-    Given a habit with 2 attempts today
+    Given a habit with a goal of 2 and 2 attempts today
     When the user removes one attempt
-    Then today's count of attempts is 1 and the habit is still done today
+    Then today's count of attempts is 1, the day is still practised and the habit is not done today, because the count is below the goal
 
   @scenario:S2
   Scenario: Undoing the only attempt of today clears it

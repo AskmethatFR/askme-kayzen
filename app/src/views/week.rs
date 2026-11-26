@@ -478,9 +478,9 @@ mod tests {
 
         assert!(
             html.contains(
-                r#"<span class="week-figure">1</span><span class="week-figure-label">fois pratiquées</span>"#
+                r#"<span class="week-figure">1</span><span class="week-figure-label">fois pratiquée</span>"#
             ),
-            "one time reads \"fois pratiquées\" — French has no singular here, got: {html}"
+            "one time reads \"fois pratiquée\" — the participle agrees with the count, got: {html}"
         );
     }
 
@@ -974,9 +974,9 @@ mod tests {
         );
         assert!(
             html.contains(
-                r#"<p><span class="week-figure">1</span><span class="week-figure-label">fois pratiquées</span></p>"#
+                r#"<p><span class="week-figure">1</span><span class="week-figure-label">fois pratiquée</span></p>"#
             ),
-            "expected n=1 to read \"fois pratiquées\" too — French has no singular here, got: {html}"
+            "expected n=1 to read \"fois pratiquée\" — the participle agrees with the count, got: {html}"
         );
         assert!(
             html.contains(

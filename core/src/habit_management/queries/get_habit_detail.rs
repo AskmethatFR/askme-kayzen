@@ -21,6 +21,7 @@ pub struct HabitDetail {
     pub days: Vec<PracticeDay>,
     pub state: HabitState,
     pub done_today: bool,
+    pub attempts_today: u32,
 }
 
 /// The habit's lifecycle as seen by the detail screen — a DTO-side type, kept
@@ -81,6 +82,7 @@ impl GetHabitDetail {
                 LifecycleState::Anchored => HabitState::Anchored,
             },
             done_today: habit.reached_goal_on(today),
+            attempts_today: habit.attempts_on(today),
         })
     }
 }
@@ -152,8 +154,24 @@ mod tests {
                 days: seven_unpractised_days(5),
                 state: HabitState::Active,
                 done_today: false,
+                attempts_today: 0,
             })
         );
+    }
+
+    #[test]
+    fn the_detail_carries_only_todays_attempts_whatever_the_other_days() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit();
+        habit.record_attempt(LocalDate::from_epoch_day(TODAY - 1));
+        habit.record_attempt(LocalDate::from_epoch_day(TODAY));
+        habit.record_attempt(LocalDate::from_epoch_day(TODAY));
+        repository.save(&habit);
+        let query = get_habit_detail_over(Rc::clone(&repository));
+
+        let result = query.handle("h-1");
+
+        assert_eq!(result.map(|detail| detail.attempts_today), Some(2));
     }
 
     // @scenario: adjust-goal/S7

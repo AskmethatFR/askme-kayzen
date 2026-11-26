@@ -210,6 +210,23 @@ mod tests {
         assert_eq!(quarantine.load(), Some(payload.to_string()));
     }
 
+    #[test]
+    fn a_payload_with_version_zero_or_far_above_the_known_ones_is_quarantined() {
+        for version in [0, 99] {
+            let payload = format!(
+                r#"{{"v":{version},"habits":[{{"id":"h-1","title":"Read one page","state":"Active","steps":[{{"on":20000,"goal":3}}],"completions":[]}}]}}"#
+            );
+            let store: Rc<dyn SnapshotStore> = Rc::new(InMemorySnapshotStore::seeded(&payload));
+            let quarantine: Rc<dyn SnapshotStore> = Rc::new(InMemorySnapshotStore::empty());
+
+            let repository =
+                PersistentHabitRepository::hydrated_from(Rc::clone(&store), Rc::clone(&quarantine));
+
+            assert_eq!(repository.all(), Vec::new(), "version {version}");
+            assert_eq!(quarantine.load(), Some(payload), "version {version}");
+        }
+    }
+
     // B9: the previous version of this test asserted on the same instance,
     // never reopening over the store — it duplicated
     // in_memory_habit_repository.rs's own overwrite test and stayed green
@@ -372,6 +389,7 @@ mod tests {
 
         let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
         assert_eq!(habit.current_goal(), Goal::DEFAULT);
+        assert_eq!(habit.current_goal(), 3);
         assert_eq!(habit.step_history().changes().len(), 1);
         assert_eq!(habit.created_on(), LocalDate::from_epoch_day(20_003));
         assert_eq!(habit.title().value(), "Read one page");

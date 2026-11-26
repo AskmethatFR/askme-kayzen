@@ -113,6 +113,7 @@ impl HabitSnapshotCodec {
                 goal: change.goal().value(),
             })
             .collect();
+        // @algo: shortcut: completions are one entry per attempt, so the snapshot grows with every tap and the 4 MB decode cap can be reached after about 700k attempts (then the board quarantines), upgrade to (day, count) pairs in a new snapshot version.
         let completions = habit
             .completion_history()
             .dates()

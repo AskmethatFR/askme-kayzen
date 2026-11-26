@@ -408,8 +408,6 @@ mod tests {
         );
     }
 
-    // Test List — record_todays_practice (the completion gesture's guard,
-    // surrounded from both directions per the mutation table):
     // - called twice from an empty day -> the day stays recorded (never
     //   un-marked by a second call).
     // - called once from an empty day -> the day becomes recorded.
