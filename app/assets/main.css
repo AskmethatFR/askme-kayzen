@@ -55,6 +55,10 @@
     --bottom-nav-offset: 20px;
     --action-dock-height: 60px;
     --lifecycle-gesture-height: 56px;
+    --dock-tally-height: 44px;
+    /* What the dock's second row adds above its first; 0 until the Detail
+       screen sets it (`.screen.detail:has(.dock-tally)`). */
+    --dock-extra-height: 0px;
     --radius-bar: 4px;
     --radius-field: 22px;
     --radius-card: 20px;
@@ -754,6 +758,7 @@ body {
     padding-bottom: calc(
         var(--space-5)
         + var(--action-dock-height)
+        + var(--dock-extra-height)
         + var(--space-3)
         + 2 * var(--lifecycle-gesture-height)
         + var(--space-1)
@@ -762,9 +767,19 @@ body {
     );
 }
 
+/* With an attempt today the dock grows a second row (the count and the undo).
+   The fixed foot cannot be seen by the flow, so the one custom property below
+   feeds every calc that clears the dock: the screen's padding and the
+   lifecycle rows' offset. `:has()` is the `.screen.ritual` idiom. */
+.screen.detail:has(.dock-tally) {
+    --dock-extra-height: calc(var(--dock-tally-height) + var(--space-1));
+}
+
 /* The screen's actions, held at the foot of the viewport so they stay within
    thumb reach in every state. Content, never chrome: this route mounts no bar
-   (adr-0021), so the dock scopes itself here rather than in the layout. */
+   (adr-0021), so the dock scopes itself here rather than in the layout.
+   Row 1 (`.dock-pills`) is the two pills; row 2 (`.dock-tally`) is the quiet
+   count and undo. */
 .action-dock {
     position: fixed;
     bottom: calc(var(--space-5) + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
@@ -773,28 +788,44 @@ body {
     max-width: calc(var(--screen-max-width) - 2 * var(--space-5));
     margin-inline: auto;
     display: flex;
-    gap: 10px;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.dock-pills {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.dock-tally {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-height: var(--dock-tally-height);
+}
+
+.dock-tally .quiet-note {
+    margin: 0;
 }
 
 /* The docked gestures' geometry belongs to the dock: one flex row, centred, at
    the dock's height — whether or not a gesture carries a glyph to its left.
-   `min-width: 0` lets a long label shrink and wrap rather than widen the dock
-   past the viewport. */
+   A pill never shrinks below its own label (`flex-basis: auto` plus `nowrap`):
+   a squeezed primary collapsed into an oval at 407dp. The inline padding is
+   `--space-4` so both labels fit a 312px dock at the 1.3x font. */
 .action-dock .btn {
-    flex: 1;
-    min-width: 0;
+    flex: 1 0 auto;
+    width: auto;
     display: flex;
     align-items: center;
     justify-content: center;
     min-height: var(--action-dock-height);
+    padding-inline: var(--space-4);
+    white-space: nowrap;
 }
 
-/* The gesture that says the day is done takes only the room its own copy
-   needs, so the practice gesture keeps the width it had when the dock carried
-   one control. */
-.action-dock .action-done,
-.action-dock .action-undo {
-    flex: 0 1 auto;
+.action-dock .action-done {
     gap: 8px;
 }
 
@@ -810,6 +841,15 @@ body {
     stroke-width: 2.5;
     stroke-linecap: round;
     stroke-linejoin: round;
+}
+
+/* On a narrow phone the check no longer fits beside "C'est fait" at the 1.3x
+   font. The label and the accent border still say it is done; the glyph is
+   aria-hidden, so the accessible name is unchanged. */
+@media (max-width: 379.98px) {
+    .action-done-check {
+        display: none;
+    }
 }
 
 .screen.detail:before {
@@ -978,7 +1018,7 @@ body {
 .lifecycle {
     position: fixed;
     /* clears the dock: its bottom offset, its height, then a breath */
-    bottom: calc(var(--space-5) + var(--action-dock-height) + var(--space-3) + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+    bottom: calc(var(--space-5) + var(--action-dock-height) + var(--dock-extra-height) + var(--space-3) + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
     left: calc(var(--space-5) + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
     right: calc(var(--space-5) + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
     max-width: calc(var(--screen-max-width) - 2 * var(--space-5));

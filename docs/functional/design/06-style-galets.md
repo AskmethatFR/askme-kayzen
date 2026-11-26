@@ -224,7 +224,7 @@ sur ces points ; ce sont des faits, pas des choix de design.
 | `NotFound` | sans style |
 | `DataUnavailable` | l'étiquette « Kaizen » est codée en dur |
 | `role="status"` | aucune note `.quiet-note` ne le porte |
-| Dock d'action du Détail | déborde à 407dp dès qu'il y a au moins un essai |
+| Dock d'action du Détail | deux rangées (pastilles, puis compte + « Retirer une fois » en texte) ; sous 380px la coche de « C'est fait » disparaît ; de 380 à 385px en police 1,3x, la rangée 1 déborde de 6px au plus |
 | Rythme / escalier | l'escalier du Détail garde le défaut #32 signalé sous Broadsheet |
 
 ## Aperçu des écrans

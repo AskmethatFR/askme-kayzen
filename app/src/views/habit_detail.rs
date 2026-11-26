@@ -62,48 +62,52 @@ pub fn HabitDetail(id: String) -> Element {
                         {week}
 
                         div { class: "action-dock",
-                            Link {
-                                class: "btn btn-primary btn-block action-primary",
-                                to: Route::Ritual { id: habit.id.clone() },
-                                svg {
-                                    class: "action-glyph",
-                                    view_box: "0 0 24 24",
-                                    "aria-hidden": "true",
-                                    "focusable": "false",
-                                    path { d: "M7 5l12 7-12 7z" }
-                                }
-                                {tr!("start-ritual-label")}
-                            }
-                            button {
-                                class: if habit.done_today { "btn btn-secondary action-done is-done" } else { "btn btn-secondary action-done" },
-                                aria_label: if habit.done_today { tr!("habit-detail-done-aria", title: habit.title.clone()) } else { tr!("habit-detail-mark-done-aria", title: habit.title.clone()) },
-                                onclick: {
-                                    let services = services.clone();
-                                    let id = id.clone();
-                                    move |_| detail.set(mark_done_and_reload(&services, &id))
-                                },
-                                if habit.done_today {
+                            div { class: "dock-pills",
+                                Link {
+                                    class: "btn btn-primary btn-block action-primary",
+                                    to: Route::Ritual { id: habit.id.clone() },
                                     svg {
-                                        class: "action-done-check",
+                                        class: "action-glyph",
                                         view_box: "0 0 24 24",
                                         "aria-hidden": "true",
                                         "focusable": "false",
-                                        path { d: "M5 12l5 5L19 7" }
+                                        path { d: "M7 5l12 7-12 7z" }
                                     }
+                                    {tr!("start-ritual-label")}
                                 }
-                                {tr!("habit-detail-mark-done-label")}
-                            }
-                            if habit.attempts_today >= 1 {
-                                span { class: "quiet-note", {tr!("habit-detail-today-count", count: habit.attempts_today as i64)} }
                                 button {
-                                    class: "btn btn-secondary action-undo",
-                                    aria_label: tr!("habit-detail-undo-aria", title: habit.title.clone()),
+                                    class: if habit.done_today { "btn btn-secondary action-done is-done" } else { "btn btn-secondary action-done" },
+                                    aria_label: if habit.done_today { tr!("habit-detail-done-aria", title: habit.title.clone()) } else { tr!("habit-detail-mark-done-aria", title: habit.title.clone()) },
                                     onclick: {
                                         let services = services.clone();
                                         let id = id.clone();
-                                        move |_| detail.set(undo_attempt_and_reload(&services, &id))
+                                        move |_| detail.set(mark_done_and_reload(&services, &id))
                                     },
-                                    {tr!("habit-detail-undo-label")}
+                                    if habit.done_today {
+                                        svg {
+                                            class: "action-done-check",
+                                            view_box: "0 0 24 24",
+                                            "aria-hidden": "true",
+                                            "focusable": "false",
+                                            path { d: "M5 12l5 5L19 7" }
+                                        }
+                                    }
+                                    {tr!("habit-detail-mark-done-label")}
+                                }
+                            }
+                            if habit.attempts_today >= 1 {
+                                div { class: "dock-tally",
+                                    span { class: "quiet-note", {tr!("habit-detail-today-count", count: habit.attempts_today as i64)} }
+                                    button {
+                                        class: "resume-link action-undo",
+                                        aria_label: tr!("habit-detail-undo-aria", title: habit.title.clone()),
+                                        onclick: {
+                                            let services = services.clone();
+                                            let id = id.clone();
+                                            move |_| detail.set(undo_attempt_and_reload(&services, &id))
+                                        },
+                                        {tr!("habit-detail-undo-label")}
+                                    }
                                 }
                             }
                         }
@@ -1413,6 +1417,34 @@ mod tests {
         assert!(
             !one.contains("quiet-link"),
             "expected the undo control not to be a quiet-link, got: {one}"
+        );
+    }
+
+    #[test]
+    fn with_an_attempt_the_dock_keeps_its_two_pills_on_row_one_and_the_count_and_undo_on_a_quiet_row_two() {
+        let none = render(RootAtKnownHabit);
+        let one = render(RootAtOneAttemptToday);
+
+        assert!(
+            !none.contains("dock-tally"),
+            "expected no second row at 0 attempts today, got: {none}"
+        );
+        let pills = one
+            .find(r#"class="dock-pills""#)
+            .expect("expected the two pills on their own row");
+        let tally = one
+            .find(r#"class="dock-tally""#)
+            .expect("expected the count and the undo on a second row");
+        let done = one.find(">C&#39;est fait<").expect("expected the done pill");
+        let count = one.find(">1 fois aujourd&#39;hui<").expect("expected the count");
+        assert!(
+            pills < done && done < tally && tally < count,
+            "expected the pills first, then the tally row holding the count, got: {one}"
+        );
+        assert!(
+            one.contains(r#"class="resume-link action-undo""#)
+                && !one.contains("btn btn-secondary action-undo"),
+            "expected the undo to be a quiet text gesture, not a pill, got: {one}"
         );
     }
 
