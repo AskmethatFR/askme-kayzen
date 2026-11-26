@@ -34,18 +34,21 @@ pub struct WeekRecap {
 #[derive(Debug, Clone, PartialEq)]
 pub struct HabitProgress {
     pub title: String,
-    pub starting_goal: u32,
+    pub from_goal: Option<u32>,
     pub current_goal: u32,
     pub practised_day_goals: Vec<u32>,
 }
 
 impl HabitProgress {
     fn for_habit(habit: &Habit, today: LocalDate) -> HabitProgress {
-        let changes = habit.step_history().changes();
+        let current_goal = habit.current_goal();
+        let window_start = today.minus_days(ROLLING_WINDOW_DAYS - 1);
+        let goal_at_window_start = habit.step_history().goal_on(window_start).value();
         HabitProgress {
             title: habit.title().value().to_string(),
-            starting_goal: changes[0].goal().value(),
-            current_goal: habit.current_goal(),
+            // @algo: the arrow is the net change over the window (goal in force at its first day vs today's), never the lifetime starting goal; a younger habit falls back to its creation goal.
+            from_goal: Some(goal_at_window_start).filter(|&goal| goal != current_goal),
+            current_goal,
             practised_day_goals: practised_day_goals_for(habit, today),
         }
     }
@@ -282,7 +285,7 @@ mod tests {
             recap.habits[0],
             HabitProgress {
                 title: "Lire une page".to_string(),
-                starting_goal: 5,
+                from_goal: None,
                 current_goal: 5,
                 practised_day_goals: vec![5, 5, 5, 5],
             },
@@ -294,7 +297,7 @@ mod tests {
             recap.habits[1],
             HabitProgress {
                 title: "Lire une page".to_string(),
-                starting_goal: 5,
+                from_goal: None,
                 current_goal: 5,
                 practised_day_goals: vec![5, 5, 5],
             },
@@ -431,13 +434,100 @@ mod tests {
             recap.habits[0],
             HabitProgress {
                 title: "Lire une page".to_string(),
-                starting_goal: 3,
+                from_goal: Some(3),
                 current_goal: 5,
                 practised_day_goals: vec![4, 5, 5, 5],
             },
             "four days were practised (TODAY-3..=TODAY) — the curve must \
              draw one bar per day practised, each carrying the goal in \
              force that day, not one bar per recorded goal step (3)"
+        );
+    }
+
+    // @scenario: week-recap/S12
+    #[test]
+    fn a_goal_raised_long_ago_shows_its_current_goal_with_no_from_goal() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit("h-1", 3, TODAY - 60);
+        habit.grow(LocalDate::from_epoch_day(TODAY - 30));
+        habit.grow(LocalDate::from_epoch_day(TODAY - 30));
+        repository.save(&habit);
+        let query = get_week_recap_over(repository);
+
+        let recap = query.handle();
+
+        assert_eq!(
+            (recap.habits[0].from_goal, recap.habits[0].current_goal),
+            (None, 5),
+            "the goal moved before the window, so this week's row has no \
+             arrow: got {:?}",
+            recap.habits[0]
+        );
+    }
+
+    // @scenario: week-recap/S5
+    #[test]
+    fn a_goal_changed_in_the_window_shows_the_goal_in_force_at_its_start() {
+        let cases: Vec<(i64, Option<u32>)> = vec![(7, None), (6, None), (5, Some(3))];
+
+        for (raised_days_back, expected) in cases {
+            let repository = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = a_habit("h-1", 3, TODAY - 60);
+            habit.grow(LocalDate::from_epoch_day(TODAY - raised_days_back));
+            habit.grow(LocalDate::from_epoch_day(TODAY - raised_days_back));
+            repository.save(&habit);
+            let query = get_week_recap_over(repository);
+
+            let recap = query.handle();
+
+            assert_eq!(
+                recap.habits[0].from_goal, expected,
+                "a goal raised {raised_days_back} days back: the window opens \
+                 six days back, so a raise on or before that day is already \
+                 in force at its start and a later one is a change this week"
+            );
+        }
+    }
+
+    // @scenario: week-recap/S5
+    #[test]
+    fn a_goal_raised_then_lowered_back_inside_the_window_shows_no_from_goal() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit("h-1", 3, TODAY - 60);
+        habit.grow(LocalDate::from_epoch_day(TODAY - 4));
+        habit.grow(LocalDate::from_epoch_day(TODAY - 4));
+        habit.lighten(LocalDate::from_epoch_day(TODAY - 2));
+        habit.lighten(LocalDate::from_epoch_day(TODAY - 2));
+        repository.save(&habit);
+        let query = get_week_recap_over(repository);
+
+        let recap = query.handle();
+
+        assert_eq!(
+            (recap.habits[0].from_goal, recap.habits[0].current_goal),
+            (None, 3),
+            "3 -> 5 -> 3 is no net change this week: got {:?}",
+            recap.habits[0]
+        );
+    }
+
+    // @scenario: week-recap/S5
+    #[test]
+    fn a_habit_created_inside_the_window_starts_from_its_creation_goal() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit("h-1", 3, TODAY - 2);
+        habit.grow(LocalDate::from_epoch_day(TODAY - 1));
+        habit.grow(LocalDate::from_epoch_day(TODAY - 1));
+        repository.save(&habit);
+        let query = get_week_recap_over(repository);
+
+        let recap = query.handle();
+
+        assert_eq!(
+            (recap.habits[0].from_goal, recap.habits[0].current_goal),
+            (Some(3), 5),
+            "no earlier goal exists before creation: got {:?}",
+            recap.habits[0]
         );
     }
 
@@ -482,7 +572,7 @@ mod tests {
             recap.habits[0],
             HabitProgress {
                 title: "Lire une page".to_string(),
-                starting_goal: 5,
+                from_goal: None,
                 current_goal: 5,
                 practised_day_goals: vec![],
             },

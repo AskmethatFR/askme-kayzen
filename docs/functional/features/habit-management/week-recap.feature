@@ -38,9 +38,9 @@ Feature: Read the week's practice as times practised and rhythm
 
   @scenario:S5
   Scenario: Each habit's pebble band draws one pebble per day practised
-    Given a habit grown from 3 to 5 times a day mid-week and practised on four of the last seven days
+    Given a habit whose goal was 3 times a day when the week opened, grown to 5 mid-week, and practised on four of the last seven days
     When the user opens the week screen
-    Then that habit's row reads "3 → 5 fois par jour"
+    Then that habit's row reads "3 → 5 fois par jour", because its goal changed during this week
     And its pebble band draws four pebbles, one per day practised, never one per goal step
     And each pebble stands, in its size, at the goal that was in force on the day it draws
 
@@ -88,3 +88,10 @@ Feature: Read the week's practice as times practised and rhythm
     When the user opens the week screen
     Then the tinted card shows its zero figure and draws no staircase, neither trace nor pebble
     And the rhythm row still shows its seven faint dots
+
+  @scenario:S12
+  Scenario: A goal raised long ago shows its current goal, with no arrow
+    Given a habit whose goal was raised from 3 to 5 times a day two months ago, with no change since
+    When the user opens the week screen
+    Then that habit's row reads "5 fois par jour", because its goal did not change during this week
+    And the row shows no arrow

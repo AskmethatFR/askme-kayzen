@@ -73,9 +73,9 @@ pub fn Week() -> Element {
                                 class: "week-habit-goal",
                                 {tr!(
                                     "week-habit-goal",
-                                    changed: if habit.current_goal == habit.starting_goal { "no" } else { "yes" },
+                                    changed: if habit.from_goal.is_some() { "yes" } else { "no" },
                                     goal: habit.current_goal as i64,
-                                    starting_goal: habit.starting_goal as i64,
+                                    starting_goal: habit.from_goal.unwrap_or(habit.current_goal) as i64,
                                     current_goal: habit.current_goal as i64
                                 )}
                             }
@@ -86,7 +86,7 @@ pub fn Week() -> Element {
                                 "aria-label": tr!(
                                     "week-curve-aria",
                                     title: habit.title.clone(),
-                                    starting_goal: habit.starting_goal as i64,
+                                    starting_goal: habit.from_goal.unwrap_or(habit.current_goal) as i64,
                                     current_goal: habit.current_goal as i64,
                                     practised_days: habit.practised_day_goals.len() as i64
                                 ),
@@ -667,6 +667,40 @@ mod tests {
             "expected the week-habit-goal line to read the starting/current \
              goal through the i18n layer under English, not a language-neutral \
              literal, got: {html}"
+        );
+    }
+
+    #[component]
+    fn RootAtWeekScreenWithAGoalRaisedLongAgo() -> Element {
+        crate::i18n::use_locale_for_tests();
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| {
+            let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+            let mut habit = a_habit("h-1", 3, TODAY - 60);
+            habit.grow(LocalDate::from_epoch_day(TODAY - 30));
+            habit.grow(LocalDate::from_epoch_day(TODAY - 30));
+            repository.save(&habit);
+            services_with(repository)
+        });
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: week-recap/S12
+    #[test]
+    fn a_goal_raised_long_ago_reads_its_current_goal_with_no_arrow() {
+        let html = render(RootAtWeekScreenWithAGoalRaisedLongAgo);
+
+        assert!(
+            html.contains(r#"class="week-habit-goal">5 fois par jour<"#),
+            "expected the row to read the current goal alone, got: {html}"
+        );
+        assert!(
+            !html.contains('→'),
+            "a goal raised before this week must draw no arrow, got: {html}"
         );
     }
 
