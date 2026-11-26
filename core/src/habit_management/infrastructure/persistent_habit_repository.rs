@@ -74,6 +74,7 @@ mod tests {
     use super::*;
     use crate::habit_management::domain::goal::Goal;
     use crate::habit_management::domain::habit_title::HabitTitle;
+    use crate::habit_management::domain::lifecycle_state::LifecycleState;
     use crate::habit_management::infrastructure::snapshot_store::InMemorySnapshotStore;
     use crate::shared::local_date::LocalDate;
 
@@ -194,7 +195,7 @@ mod tests {
 
     #[test]
     fn a_payload_with_an_unknown_version_takes_the_unreadable_path_without_being_parsed() {
-        let payload = r#"{"v":2,"habits":[{"id":"h-1","title":"Read one page","state":"Active","steps":[{"on":20000,"goal":3}],"completions":[]}]}"#;
+        let payload = r#"{"v":3,"habits":[{"id":"h-1","title":"Read one page","state":"Active","steps":[{"on":20000,"goal":3}],"completions":[]}]}"#;
         let store: Rc<dyn SnapshotStore> = Rc::new(InMemorySnapshotStore::seeded(payload));
         let quarantine: Rc<dyn SnapshotStore> = Rc::new(InMemorySnapshotStore::empty());
 
@@ -362,5 +363,49 @@ mod tests {
             1,
             "the second step repeats the same goal and must collapse into the first"
         );
+    }
+
+    const A_MINUTES_SNAPSHOT: &str = r#"{"v":1,"habits":[{"id":"h-1","title":"Read one page","state":"Paused","steps":[{"on":20003,"goal":5},{"on":20010,"goal":6}],"completions":[20003,20003,20005]}]}"#;
+
+    #[test]
+    fn a_minutes_snapshot_opens_with_its_days_as_attempts_and_the_default_goal() {
+        let store: Rc<dyn SnapshotStore> =
+            Rc::new(InMemorySnapshotStore::seeded(A_MINUTES_SNAPSHOT));
+
+        let repository = repository_over(Rc::clone(&store));
+
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+        assert_eq!(habit.current_goal(), Goal::DEFAULT);
+        assert_eq!(habit.step_history().changes().len(), 1);
+        assert_eq!(habit.created_on(), LocalDate::from_epoch_day(20_003));
+        assert_eq!(habit.title().value(), "Read one page");
+        assert_eq!(habit.state(), LifecycleState::Paused);
+        assert_eq!(habit.attempts_on(LocalDate::from_epoch_day(20_003)), 2);
+        assert_eq!(habit.attempts_on(LocalDate::from_epoch_day(20_005)), 1);
+    }
+
+    #[test]
+    fn a_minutes_snapshot_is_written_as_version_2_by_the_next_save() {
+        let store: Rc<dyn SnapshotStore> =
+            Rc::new(InMemorySnapshotStore::seeded(A_MINUTES_SNAPSHOT));
+        let repository = repository_over(Rc::clone(&store));
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+
+        repository.save(&habit);
+
+        let stored = store.load().unwrap();
+        assert!(stored.contains(r#""v":2"#), "stored: {stored}");
+    }
+
+    #[test]
+    fn opening_a_minutes_snapshot_leaves_the_stored_text_untouched() {
+        let store: Rc<dyn SnapshotStore> =
+            Rc::new(InMemorySnapshotStore::seeded(A_MINUTES_SNAPSHOT));
+        let quarantine: Rc<dyn SnapshotStore> = Rc::new(InMemorySnapshotStore::empty());
+
+        PersistentHabitRepository::hydrated_from(Rc::clone(&store), Rc::clone(&quarantine));
+
+        assert_eq!(store.load(), Some(A_MINUTES_SNAPSHOT.to_string()));
+        assert_eq!(quarantine.load(), None);
     }
 }
