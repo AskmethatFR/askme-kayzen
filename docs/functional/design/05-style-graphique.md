@@ -1,9 +1,10 @@
 # 5 · Style graphique
 
-> **Remplacé par [`06-style-galets.md`](06-style-galets.md)** (issue #55, 2026-09). Conservé
-> comme trace du système « Broadsheet ». Ses deux règles d'accent (#30, #32), ses icônes et
-> ses animations restent valables et sont reprises ou référencées par Galets ; tout le reste
-> (palette, Source Serif 4, « pas de sans-serif », rayon 2px) ne décrit plus l'app.
+> **Remplacé par [`06-style-galets.md`](06-style-galets.md)** (« Système de design —
+> Galets »). Trace historique du système « Broadsheet » : ne plus s'y référer pour
+> habiller un écran. Ses règles d'accent (#30, #32), ses icônes, sa règle de focus et ses
+> animations sont reprises dans 06 ; tout le reste (palette, Source Serif 4, « pas de
+> sans-serif », rayon 2px) ne décrit plus l'app.
 
 Le design suit le système **Broadsheet** : du newsprint pour le web — Source Serif 4 noir
 sur papier blanc, avec l'accent d'imprimerie (cyan) en petites touches
