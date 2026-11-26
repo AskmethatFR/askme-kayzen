@@ -836,6 +836,15 @@ body {
     }
 }
 
+/* From 380 to 391px the check still shows and, at the 1.3x font, row 1 would
+   overflow by up to 11px; `--space-3` inline padding saves 16px across the two
+   pills. */
+@media (min-width: 380px) and (max-width: 391.98px) {
+    .action-dock .btn {
+        padding-inline: var(--space-3);
+    }
+}
+
 .screen.detail:before {
     content: none;
 }

@@ -223,7 +223,7 @@ sur ces points ; ce sont des faits, pas des choix de design.
 | Galet d'Aujourd'hui | l'état éteint de `.pebble` se dessine avec `--color-ink-soft`, pas avec le contour `--color-outline` que la règle des états éteints prescrit |
 | Annuler un pas | rien n'annule une validation faite sur la cible d'Aujourd'hui |
 | Texte à zéro | « 0 sur 3 · c'est déjà quelque chose » sonne ironique quand rien n'est fait |
-| Pied fixe | il est haut ; déplacer les lignes de fin de vie change la `safe-area-bleed` et S3 ; sous 380px la coche de « C'est fait » disparaît, et de 380 à 385px en police 1,3x la rangée 1 déborde de 6px au plus |
+| Pied fixe | il est haut ; déplacer les lignes de fin de vie change la `safe-area-bleed` et S3 ; sous 380px la coche de « C'est fait » disparaît |
 | Barre système | sous le Rituel sombre, la barre de navigation Android reste claire |
 | Paysage | l'orientation paysage n'est pas traitée |
 | Escalier du Détail | pas de lettre de jour de la semaine ; un jour à moitié fait se lit comme un jour plein |
