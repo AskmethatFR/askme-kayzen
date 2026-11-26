@@ -77,6 +77,13 @@
     box-sizing: border-box;
 }
 
+/* The one keyboard focus ring: every control inherits it, no component
+   redefines or removes it. `.input` keeps its accent border on top of it. */
+:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+}
+
 html, body {
     margin: 0;
     padding: 0;
@@ -157,11 +164,6 @@ body {
 .bottom-nav a[aria-current="page"] {
     color: var(--color-paper);
     font-weight: 600;
-}
-
-.bottom-nav a:focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 3px;
 }
 
 .bottom-nav-icon {
@@ -325,12 +327,6 @@ body {
     text-decoration: underline;
 }
 
-.resume-link:focus-visible,
-.readmit:focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 3px;
-}
-
 /* ---- Ancrées screen (acquired habits) ----
    Its own pebble, ochre and anchored bottom-left, where the global disc is
    cyan and top-right. `.screen` declares no `position`, and the global disc
@@ -435,11 +431,6 @@ body {
     transform: scale(.94);
 }
 
-.target:focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 3px;
-}
-
 .target-ink {
     position: absolute;
     inset: 5px;
@@ -508,7 +499,9 @@ body {
 }
 
 .quiet-link {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
     color: var(--color-accent-text);
     text-decoration: none;
     font-size: 17px;
@@ -522,12 +515,6 @@ body {
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-}
-
-.footer-links .quiet-link {
-    display: flex;
-    align-items: center;
-    min-height: 44px;
 }
 
 .add-cta {
@@ -867,11 +854,6 @@ body {
     background: var(--color-card);
 }
 
-.detail-back:focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 3px;
-}
-
 .detail-back-icon {
     width: 20px;
     height: 20px;
@@ -999,11 +981,6 @@ body {
     background: var(--color-tile-neutral);
 }
 
-.pace-tile:focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 3px;
-}
-
 .pace-glyph {
     font-size: 20px;
     line-height: 1;
@@ -1049,11 +1026,6 @@ body {
 
 .lifecycle-gesture.is-anchor {
     color: var(--color-anchored);
-}
-
-.lifecycle-gesture:focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 3px;
 }
 
 .lifecycle-icon {
@@ -1102,7 +1074,6 @@ body {
 }
 
 .input:focus-visible {
-    outline: 2px solid var(--color-accent);
     border-color: var(--color-accent);
 }
 
@@ -1137,11 +1108,6 @@ body {
 
 .add-target:active {
     transform: scale(.94);
-}
-
-.add-target:focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 3px;
 }
 
 /* ---- Ritual (practice timer) ---- */

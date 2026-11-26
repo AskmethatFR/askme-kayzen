@@ -217,7 +217,6 @@ sur ces points ; ce sont des faits, pas des choix de design.
 | Contour du galet-jour (`.day-pebble`) | **1,39:1** |
 | Placeholder des champs | **4,38:1** (sous 4,5:1) |
 | `--color-outline` | n'existe pas dans `:root` ; les contours de contrôle utilisent `--color-rule` ou `--color-ink-soft` |
-| Focus visible | une règle `:focus-visible` par classe (`.bottom-nav a`, `.resume-link`, `.target`, `.pace-tile`, le lien de retour du Détail et quelques autres) ; aucune règle globale |
 | Retour | trois traitements : pastille ronde à chevron (Détail, Ajout), lien texte « ← Aujourd'hui » (En pause, repli du Rituel), rien sur les onglets |
 | Lien de retour rond | balisage copié dans `habit_detail.rs` et `add_habit.rs`, aucun composant |
 | Titres | les eyebrows sont des `<p>` ; le Rituel met un `h3` après le `h1` ; le titre de la semaine est un `h1.week-heading`, pas `.greeting` |
