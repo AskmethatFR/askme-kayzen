@@ -21,6 +21,9 @@ pub fn Anchored() -> Element {
             h1 { class: "greeting", {tr!("anchored-heading")} }
             p { class: "tally", {tr!("anchored-count-tally", count: count)} }
             p { class: "tally", {tr!("anchored-daily-life-tally", count: screen().in_daily_life as i64, max: max)} }
+            if screen().habits.is_empty() {
+                p { class: "quiet-note", {tr!("anchored-empty-note")} }
+            }
             ul { class: "habit-list",
                 for habit in screen().habits {
                     li { key: "{habit.id}", class: "habit-row is-anchored",
@@ -40,7 +43,7 @@ pub fn Anchored() -> Element {
                             .as_ref()
                             .filter(|(row_id, _)| row_id == &habit.id)
                         {
-                            p { class: "quiet-note", {tr_key(message_key)} }
+                            p { class: "quiet-note", role: "status", {tr_key(message_key)} }
                         }
                         button {
                             class: "readmit",
@@ -378,6 +381,29 @@ mod tests {
         );
     }
 
+    // @scenario: anchor-habit/S5
+    #[test]
+    fn the_ancrees_screen_explains_itself_when_nothing_is_anchored() {
+        let html = render(RootAtEmptyAnchoredScreen);
+
+        assert!(
+            html.contains(
+                r#"<p class="quiet-note">Aucune pour l&#39;instant. Une habitude devenue naturelle viendra se poser ici.</p>"#
+            ),
+            "expected the empty-state note on an Ancrées screen with nothing anchored, got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_ancrees_screen_with_anchored_habits_carries_no_empty_state_note() {
+        let html = render(RootAtAnchoredScreen);
+
+        assert!(
+            !html.contains("Aucune pour l&#39;instant"),
+            "expected no empty-state note while habits are anchored, got: {html}"
+        );
+    }
+
     #[test]
     fn readmit_and_relist_removes_the_habit_from_the_screen_grows_the_parallel_count_and_clears_the_message()
      {
@@ -525,7 +551,7 @@ mod tests {
             "Le quotidien est complet · pour la remettre, ancrez-en une autre d&#39;abord";
         assert!(
             html.contains(&format!(
-                r#"</div><p class="quiet-note">{message}</p><button"#
+                r#"</div><p class="quiet-note" role="status">{message}</p><button"#
             )),
             "expected the refusal note to own its own line, under the refused row's head \
              line and above its readmit button — not a sibling inside the head line, got: {html}"

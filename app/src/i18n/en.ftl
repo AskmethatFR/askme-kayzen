@@ -112,6 +112,7 @@ anchored-readmit-aria = Bring it back into my daily life · { $title }
 anchored-readmit-label = Bring it back into my daily life
 anchored-count-tally = { $count } · became natural
 anchored-daily-life-tally = You're following { $count } / { $max } habits in parallel
+anchored-empty-note = None yet. A habit that has become natural will settle here.
 anchored-refusal-full = Your daily life is full · anchor another one first to bring this one back
 anchored-refusal-duplicate = It's already in your daily life
 add-habit-heading = A new tiny habit

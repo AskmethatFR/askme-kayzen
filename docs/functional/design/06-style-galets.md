@@ -217,7 +217,7 @@ sur ces points ; ce sont des faits, pas des choix de design.
 | Retour | le composant `BackLink`, pastille ronde à chevron, sert Détail, Ajout, En pause et le repli En pause ou Ancrée du Rituel ; les replis « habitude introuvable » (Rituel, Détail) et la page introuvable gardent un lien texte ; rien sur les onglets |
 | `NotFound` | sans style |
 | `DataUnavailable` | l'étiquette « Kaizen » est codée en dur |
-| `role="status"` | aucune note `.quiet-note` ne le porte |
+| `role="status"` | seule la note de refus d'Ancrées le porte (aucune autre note vivante n'a été auditée depuis) |
 | Dock d'action du Détail | deux rangées (pastilles, puis compte + « Retirer une fois » en texte) ; sous 380px la coche de « C'est fait » disparaît ; de 380 à 385px en police 1,3x, la rangée 1 déborde de 6px au plus |
 | Rythme / escalier | l'escalier du Détail garde le défaut #32 signalé sous Broadsheet |
 

@@ -91,6 +91,7 @@ anchored-readmit-aria = La remettre dans mon quotidien · { $title }
 anchored-readmit-label = La remettre dans mon quotidien
 anchored-count-tally = { $count } · devenues naturelles
 anchored-daily-life-tally = Vous suivez { $count } / { $max } habitudes en parallèle
+anchored-empty-note = Aucune pour l'instant. Une habitude devenue naturelle viendra se poser ici.
 anchored-refusal-full = Le quotidien est complet · pour la remettre, ancrez-en une autre d'abord
 anchored-refusal-duplicate = Elle est déjà dans votre quotidien
 add-habit-heading = Une nouvelle petite habitude
