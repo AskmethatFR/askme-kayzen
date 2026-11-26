@@ -98,7 +98,7 @@ pub fn Today() -> Element {
                                     } else {
                                         span { class: "target-ink" }
                                     }
-                                    if habit.attempts_today >= 1 {
+                                    if habit.attempts_today >= 1 && !habit.done_today {
                                         span { class: "target-count", "{habit.attempts_today}" }
                                     }
                                 }
@@ -231,6 +231,16 @@ mod tests {
         services_with_attempts_on_the_goal_four_habit(6)
     }
 
+    fn services_with_one_habit_fully_done_on_a_goal_of_two() -> Services {
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock(LocalDate::from_epoch_day(20_005)));
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_second_habit();
+        habit.record_attempt(clock.today());
+        habit.record_attempt(clock.today());
+        repository.save(&habit);
+        Services::with_repository_and_clock(repository, clock)
+    }
+
     fn services_with_one_anchored_habit() -> Services {
         let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
         let mut anchored = a_habit();
@@ -308,6 +318,15 @@ mod tests {
     fn RootWithHabitPastItsGoal() -> Element {
         use_locale_for_tests();
         use_context_provider(services_with_one_habit_past_its_goal);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootWithHabitFullyDoneOnAGoalOfTwo() -> Element {
+        use_locale_for_tests();
+        use_context_provider(services_with_one_habit_fully_done_on_a_goal_of_two);
         rsx! {
             Router::<Route> {}
         }
@@ -608,6 +627,17 @@ mod tests {
             target.contains(r#"<span class="target-count">3</span>"#)
                 && !target.contains("is-done"),
             "expected 3 inside a target not yet done, got: {html}"
+        );
+    }
+
+    #[test]
+    fn a_habit_fully_done_today_shows_no_number_in_its_target() {
+        let html = render(RootWithHabitFullyDoneOnAGoalOfTwo);
+
+        let target = target_button(&html);
+        assert!(
+            !target.contains("target-count") && target.contains("is-done"),
+            "expected a done target with no number inside, got: {html}"
         );
     }
 
