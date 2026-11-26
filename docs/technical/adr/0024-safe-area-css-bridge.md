@@ -2,6 +2,11 @@
 id: "adr-0024-safe-area-css-bridge"
 type: "technical"
 owner: "architect"
+# FACET SUPERSESSION 2026-11-27 — [[adr-0027-android-back-goes-up-one-level-by-asking-the-page]]
+# retires exactly ONE facet of this node: the seam evaluating a single script (the
+# insets push). It now also evaluates the fixed Back question `window.__kzBack()`.
+# The bridge surface (one object, one 0-arg method, no references) is untouched.
+# Scope also recorded in this node's docs/INDEX.md row; body untouched.
 status: "current"
 updated: "2026-10-06"
 relations:

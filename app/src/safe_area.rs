@@ -109,12 +109,25 @@ mod tests {
         );
         assert_eq!(
             block.matches("evaluateJavascript(").count(),
-            1,
-            "the seam evaluates exactly one push script"
+            2,
+            "the seam evaluates exactly two scripts: the insets push and the fixed Back question \
+             (adr-0027)"
         );
-        assert!(
-            block.contains("webView.post {"),
-            "the push is posted to the WebView thread like wry's own evalScript"
+        assert_eq!(
+            block
+                .matches(
+                    "webView.post { webView.evaluateJavascript(safeArea.applyScript(), null) }"
+                )
+                .count(),
+            1,
+            "the insets push is posted to the WebView thread like wry's own evalScript"
+        );
+        assert_eq!(
+            block
+                .matches(r#"webView.evaluateJavascript("window.__kzBack()") { answer ->"#)
+                .count(),
+            1,
+            "the only other script is the fixed Back question, a constant with no interpolation"
         );
 
         for needle in [

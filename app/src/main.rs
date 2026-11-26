@@ -1,5 +1,6 @@
 use dioxus::prelude::*;
 
+mod back_key;
 mod composition;
 mod i18n;
 mod infrastructure;
@@ -269,14 +270,24 @@ mod tests {
 
         let evals = spy.evals.take();
         assert_eq!(
-            evals.len(),
+            evals
+                .iter()
+                .filter(|js| js.as_str() == safe_area::BOOTSTRAP_JS)
+                .count(),
             1,
             "app_shell must eval the safe-area bootstrap exactly once per mount, got: {evals:?}"
         );
+        let mut installed = evals.clone();
+        installed.sort();
+        let mut expected = vec![
+            back_key::BACK_JS.to_string(),
+            safe_area::BOOTSTRAP_JS.to_string(),
+        ];
+        expected.sort();
         assert_eq!(
-            evals[0],
-            safe_area::BOOTSTRAP_JS,
-            "the installed script must be the BOOTSTRAP_JS contract itself"
+            installed, expected,
+            "the mount evals exactly the two fixed scripts, BOOTSTRAP_JS and BACK_JS, each once, \
+             and nothing else (adr-0027)"
         );
     }
 

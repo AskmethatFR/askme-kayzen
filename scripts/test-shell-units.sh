@@ -4108,11 +4108,21 @@ for ma_needle in \
     '@android.webkit.JavascriptInterface' \
     'java.util.Locale.US' \
     'window.__kzApplySafeAreaInsets(' \
-    'webView.post { webView.evaluateJavascript('; do
+    'webView.post { webView.evaluateJavascript(' \
+    'onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {' \
+    'webView.evaluateJavascript("window.__kzBack()") { answer ->' \
+    'if (answer != "true") {' \
+    'isEnabled = false' \
+    'onBackPressedDispatcher.onBackPressed()' \
+    'isEnabled = true'; do
     ma_hits="$(grep -cF "$ma_needle" "$MA_FIXTURE" || true)"
     assert_eq "1" "$ma_hits" \
         "patch_main_activity_edge_to_edge: exactly one occurrence of $ma_needle"
 done
+
+ma_eval_hits="$(grep -oF 'evaluateJavascript(' "$MA_FIXTURE" | wc -l | tr -d ' ')"
+assert_eq "2" "$ma_eval_hits" \
+    "patch_main_activity_edge_to_edge: the seam evaluates the insets push and the fixed Back question, nothing else (adr-0027)"
 
 ma_padding_hits="$(grep -cF 'view.setPadding(' "$MA_FIXTURE" || true)"
 assert_eq "0" "$ma_padding_hits" \

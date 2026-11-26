@@ -473,6 +473,17 @@ class MainActivity : WryActivity() {
         safeAreaWebView = webView
         webView.addJavascriptInterface(safeArea, "AskmeSafeArea")
         window.decorView.requestApplyInsets()
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                webView.evaluateJavascript("window.__kzBack()") { answer ->
+                    if (answer != "true") {
+                        isEnabled = false
+                        onBackPressedDispatcher.onBackPressed()
+                        isEnabled = true
+                    }
+                }
+            }
+        })
     }
 }
 
