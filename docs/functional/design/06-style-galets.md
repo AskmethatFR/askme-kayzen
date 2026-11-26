@@ -214,10 +214,16 @@ sur ces points ; ce sont des faits, pas des choix de design.
 
 | Sujet | Fait |
 | --- | --- |
-| Retour | le composant `BackLink`, pastille ronde à chevron, sert Détail, Ajout, En pause et le repli En pause ou Ancrée du Rituel ; les replis « habitude introuvable » (Rituel, Détail) et la page introuvable gardent un lien texte ; rien sur les onglets |
-| `role="status"` | seule la note de refus d'Ancrées le porte (aucune autre note vivante n'a été auditée depuis) |
-| Dock d'action du Détail | deux rangées (pastilles, puis compte + « Retirer une fois » en texte) ; sous 380px la coche de « C'est fait » disparaît ; de 380 à 385px en police 1,3x, la rangée 1 déborde de 6px au plus |
-| Rythme / escalier | l'escalier du Détail garde le défaut #32 signalé sous Broadsheet |
+| Retour Android | depuis Ajouter et le Rituel, Retour quitte l'app (coque native, [adr-0023](../../technical/adr/0023-platform-behaviour-seam-patched-kotlin.md)) |
+| Carte d'Aujourd'hui | seul le nom (`.habit-name`) ouvre le Détail, pas toute la carte, et il n'atteint pas 44dp de haut |
+| Écran Ajouter | un refus (plafond, champ vide, doublon) ne dit rien (`03-ecrans` l. 108) ; pas de formulaire, donc pas de validation par Entrée ; pas de `maxlength` ; le bouton paraît actif sur un champ vide ; seule la note de refus d'Ancrées porte `role="status"` |
+| Annuler un pas | rien n'annule une validation faite sur la cible d'Aujourd'hui |
+| Texte à zéro | « 0 sur 3 · c'est déjà quelque chose » sonne ironique quand rien n'est fait |
+| Pied fixe | il est haut ; déplacer les lignes de fin de vie change la `safe-area-bleed` et S3 ; sous 380px la coche de « C'est fait » disparaît, et de 380 à 385px en police 1,3x la rangée 1 déborde de 6px au plus |
+| Barre système | sous le Rituel sombre, la barre de navigation Android reste claire |
+| Paysage | l'orientation paysage n'est pas traitée |
+| Escalier du Détail | pas de lettre de jour de la semaine ; un jour à moitié fait se lit comme un jour plein |
+| Ancrée | le Détail d'une habitude ancrée est une impasse et le nom, dans Ancrées, n'est pas un lien : le propriétaire a tranché « aucun geste » (`03-ecrans` l. 196-200) |
 
 ## Aperçu des écrans
 
@@ -225,7 +231,7 @@ Captures de l'app elle-même (build web, viewport 360 × 800 — le format 20:9 
 celui que reçoit l'app Android). Elles se régénèrent, jamais à la main :
 
 ```sh
-dx build --platform web
+dx build --platform web --package kayzen-app
 python3 docs/functional/design/images/build_captures.py
 ```
 
