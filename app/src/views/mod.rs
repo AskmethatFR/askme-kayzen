@@ -1,5 +1,6 @@
 mod add_habit;
 mod anchored;
+mod back_link;
 mod bottom_nav;
 #[cfg(test)]
 mod click_harness;

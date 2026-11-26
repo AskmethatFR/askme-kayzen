@@ -1,6 +1,7 @@
 use crate::composition::{STARTING_GOAL, Services};
 use crate::i18n::{tr, tr_key};
 use crate::route::Route;
+use crate::views::back_link::BackLink;
 use dioxus::prelude::*;
 use rand::seq::SliceRandom;
 
@@ -43,24 +44,10 @@ pub fn AddHabit() -> Element {
     let idea_keys = use_signal(two_random_idea_keys);
     let name_label = tr!("add-habit-name-input-label");
 
-    let back_link = rsx! {
-        Link {
-            class: "detail-back",
-            to: Route::Today {},
-            aria_label: tr!("detail-back-to-today"),
-            svg {
-                class: "detail-back-icon",
-                view_box: "0 0 24 24",
-                "aria-hidden": "true",
-                "focusable": "false",
-                path { d: "M15 5l-7 7 7 7" }
-            }
-        }
-    };
     rsx! {
         div { class: "screen",
             header { class: "masthead",
-                {back_link}
+                BackLink {}
             }
             h1 { class: "greeting", {tr!("add-habit-heading")} }
             p { class: "lede", {tr!("add-habit-lede", goal: STARTING_GOAL as i64)} }

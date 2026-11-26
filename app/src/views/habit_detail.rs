@@ -1,6 +1,7 @@
 use crate::composition::Services;
 use crate::i18n::tr;
 use crate::route::Route;
+use crate::views::back_link::BackLink;
 use dioxus::prelude::*;
 use kayzen_core::habit_management::queries::get_habit_detail::HabitDetail as HabitDetailData;
 use kayzen_core::habit_management::queries::get_habit_detail::HabitState;
@@ -17,20 +18,7 @@ pub fn HabitDetail(id: String) -> Element {
 
     match detail() {
         Some(habit) => {
-            let back_link = rsx! {
-                Link {
-                    class: "detail-back",
-                    to: Route::Today {},
-                    aria_label: tr!("detail-back-to-today"),
-                    svg {
-                        class: "detail-back-icon",
-                        view_box: "0 0 24 24",
-                        "aria-hidden": "true",
-                        "focusable": "false",
-                        path { d: "M15 5l-7 7 7 7" }
-                    }
-                }
-            };
+            let back_link = rsx! { BackLink {} };
 
             let week = rsx! {
                 div {

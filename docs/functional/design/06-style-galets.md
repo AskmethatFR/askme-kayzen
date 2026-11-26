@@ -214,8 +214,7 @@ sur ces points ; ce sont des faits, pas des choix de design.
 
 | Sujet | Fait |
 | --- | --- |
-| Retour | trois traitements : pastille ronde à chevron (Détail, Ajout), lien texte « ← Aujourd'hui » (En pause, repli du Rituel), rien sur les onglets |
-| Lien de retour rond | balisage copié dans `habit_detail.rs` et `add_habit.rs`, aucun composant |
+| Retour | deux traitements : le composant `BackLink`, pastille ronde à chevron (Détail, Ajout, En pause), et le lien texte « ← Aujourd'hui » du repli du Rituel ; rien sur les onglets |
 | Titres | les eyebrows sont des `<p>` ; le Rituel met un `h3` après le `h1` ; le titre de la semaine est un `h1.week-heading`, pas `.greeting` |
 | `NotFound` | sans style |
 | `DataUnavailable` | l'étiquette « Kaizen » est codée en dur |

@@ -1,6 +1,7 @@
 use crate::composition::Services;
 use crate::i18n::tr;
 use crate::route::Route;
+use crate::views::back_link::BackLink;
 use dioxus::prelude::*;
 use kayzen_core::habit_management::queries::list_board_habits::PausedHabit;
 
@@ -16,7 +17,7 @@ pub fn Paused() -> Element {
     rsx! {
         div { class: "screen",
             header { class: "masthead",
-                Link { class: "quiet-link", to: Route::Today {}, {tr!("masthead-back-to-today")} }
+                BackLink {}
             }
             h1 { class: "greeting", {tr!("paused-heading")} }
             if paused.is_empty() {
@@ -185,6 +186,22 @@ mod tests {
         assert!(
             html.contains(">La reprendre<"),
             "expected the resume label on each row, got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_paused_screen_opens_on_the_round_back_link_not_a_text_link() {
+        let html = render(RootAtPausedScreen);
+
+        assert!(
+            html.contains(r#"aria-label="Retour à aujourd&#39;hui""#)
+                && html.contains(r#"class="detail-back""#)
+                && html.contains(r#"class="detail-back-icon""#),
+            "expected the round back link carrying its chevron, got: {html}"
+        );
+        assert!(
+            !html.contains("← Aujourd"),
+            "expected the text back link to be gone, got: {html}"
         );
     }
 
