@@ -18,7 +18,7 @@ pub fn Ritual(id: String) -> Element {
     match habit {
         None => rsx! {
             div { class: "screen",
-                p { class: "lede", {tr!("ritual-not-found-message")} }
+                h1 { class: "greeting", {tr!("ritual-not-found-message")} }
                 Link { class: "quiet-link", to: Route::Today {}, {tr!("ritual-not-found-back-link")} }
             }
         },
@@ -499,7 +499,7 @@ mod tests {
             "expected the quiet fallback copy, got: {html}"
         );
         assert!(
-            html.contains("Aujourd") && html.contains("quiet-link"),
+            html.contains("Retour à aujourd") && html.contains("quiet-link"),
             "expected a way back, got: {html}"
         );
     }

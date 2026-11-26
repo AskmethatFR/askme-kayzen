@@ -60,7 +60,6 @@
     /* What the dock's second row adds above its first; 0 until the Detail
        screen sets it (`.screen.detail:has(.dock-tally)`). */
     --dock-extra-height: 0px;
-    --radius-bar: 4px;
     --radius-field: 22px;
     --radius-card: 20px;
     --radius-habit: 24px;
@@ -373,6 +372,11 @@ body {
     padding: var(--space-4) var(--space-5);
 }
 
+/* The refusal's live region is always in the card; empty, it cancels its flex gap. */
+.habit-row.is-anchored .quiet-note:empty {
+    margin-top: calc(-1 * var(--space-3));
+}
+
 .habit-head {
     display: flex;
     align-items: center;
@@ -588,7 +592,7 @@ body {
 
 /* ---- Rhythm row (Week screen) ----
    One dot per day over the rolling seven-day window, oldest first. Presence,
-   never density: a day without practice keeps its dot faint — present,
+   never density: a day without practice keeps its dot as a hollow ring — present,
    never a gap, never a warning. Lit is a filled accent dot, unlit a hollow
    ring in --color-outline at full opacity (3.39:1 on paper, SC 1.4.11): the
    difference is the fill, not a shade (#32). */
@@ -859,7 +863,7 @@ body {
 
 /* Title and dose read as one block: the global `.greeting` rule keeps its own
    padding, so this wrapper adds no gap of its own. The dose is the quiet
-   sub-line — never `.lede`, which six other views still emit. */
+   sub-line — never `.lede`, which other views still emit. */
 .detail-head {
     display: flex;
     flex-direction: column;

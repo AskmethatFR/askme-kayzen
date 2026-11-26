@@ -42,11 +42,13 @@ pub(crate) fn render_route(path: &'static str, locale: LanguageIdentifier) -> St
     dioxus_ssr::render(&vdom)
 }
 
-fn every_route() -> [&'static str; 8] {
+fn every_route() -> [&'static str; 10] {
     [
         "/",
         "/habit/route-smoke-1",
         "/habit/route-smoke-1/ritual",
+        "/habit/unknown-habit",
+        "/habit/unknown-habit/ritual",
         "/week",
         "/anchored",
         "/paused",
@@ -88,6 +90,20 @@ fn every_route_under_every_carried_locale_renders_with_no_bidi_residue() {
                 "expected no bidi-isolate marks in {path} under {locale}, got: {html}"
             );
         }
+    }
+}
+
+#[test]
+fn every_route_renders_exactly_one_h1_including_the_unknown_habit_screens() {
+    for path in every_route() {
+        let html = render_route(path, langid!("fr"));
+        assert_route_rendered_real_content(path, &html);
+
+        assert_eq!(
+            html.matches("<h1").count(),
+            1,
+            "expected exactly one h1 on {path}, got: {html}"
+        );
     }
 }
 

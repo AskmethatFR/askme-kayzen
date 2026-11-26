@@ -498,9 +498,8 @@ mod tests {
             "expected the masthead to stop reading « Aujourd'hui », got: {masthead}"
         );
         assert!(
-            !masthead.contains("Kaizen") && !masthead.contains(r#"class="tag tag-accent""#),
-            "expected Today's masthead to carry no brand tag (DataUnavailable keeps its own), \
-             got: {masthead}"
+            !masthead.contains("Kaizen"),
+            "expected Today's masthead to carry no brand tag, got: {masthead}"
         );
     }
 

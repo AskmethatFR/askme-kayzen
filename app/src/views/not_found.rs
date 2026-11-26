@@ -63,7 +63,6 @@ mod tests {
         );
     }
 
-    // @scenario: language/S1
     #[test]
     fn the_not_found_screen_uses_the_shared_screen_shell() {
         let html = render(RootWithFrenchLocale);
@@ -83,15 +82,15 @@ mod tests {
     }
 
     #[test]
-    fn a_french_locale_renders_the_not_found_screen_unchanged() {
+    fn a_french_locale_renders_the_not_found_title_and_back_link_in_french() {
         let html = render(RootWithFrenchLocale);
 
         assert!(
             html.contains("Cette page n&#39;existe pas."),
-            "expected the byte-identical French title, got: {html}"
+            "expected the French title, got: {html}"
         );
         assert!(
-            html.contains(">Retour à Aujourd&#39;hui<"),
+            html.contains(">Retour à aujourd&#39;hui<"),
             "expected the French back-to-today link with the shared label, got: {html}"
         );
     }

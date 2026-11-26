@@ -207,7 +207,7 @@ pub fn HabitDetail(id: String) -> Element {
         }
         None => rsx! {
             div { class: "screen",
-                p { class: "lede", {tr!("habit-not-found-message")} }
+                h1 { class: "greeting", {tr!("habit-not-found-message")} }
                 Link { class: "quiet-link", to: Route::Today {}, {tr!("habit-not-found-back-link")} }
             }
         },
@@ -935,7 +935,9 @@ mod tests {
         let html = render(RootAtFloorHabitDoneToday);
 
         assert!(
-            html.contains("aria-label=\"C&#39;est fait · objectif du jour atteint · Lire une page\""),
+            html.contains(
+                "aria-label=\"C&#39;est fait · objectif du jour atteint · Lire une page\""
+            ),
             "expected the spoken name to contain the visible label and the recorded fact, got: {html}"
         );
         assert!(
@@ -1165,7 +1167,7 @@ mod tests {
             "expected the quiet not-found copy, got: {html}"
         );
         assert!(
-            html.contains("Aujourd") && html.contains("quiet-link"),
+            html.contains("Retour à aujourd") && html.contains("quiet-link"),
             "expected a link back to Aujourd'hui, got: {html}"
         );
     }
@@ -1410,7 +1412,8 @@ mod tests {
     }
 
     #[test]
-    fn with_an_attempt_the_dock_keeps_its_two_pills_on_row_one_and_the_count_and_undo_on_a_quiet_row_two() {
+    fn with_an_attempt_the_dock_keeps_its_two_pills_on_row_one_and_the_count_and_undo_on_a_quiet_row_two()
+     {
         let none = render(RootAtKnownHabit);
         let one = render(RootAtOneAttemptToday);
 
@@ -1424,8 +1427,12 @@ mod tests {
         let tally = one
             .find(r#"class="dock-tally""#)
             .expect("expected the count and the undo on a second row");
-        let done = one.find(">C&#39;est fait<").expect("expected the done pill");
-        let count = one.find(">1 fois aujourd&#39;hui<").expect("expected the count");
+        let done = one
+            .find(">C&#39;est fait<")
+            .expect("expected the done pill");
+        let count = one
+            .find(">1 fois aujourd&#39;hui<")
+            .expect("expected the count");
         assert!(
             pills < done && done < tally && tally < count,
             "expected the pills first, then the tally row holding the count, got: {one}"

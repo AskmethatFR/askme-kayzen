@@ -108,15 +108,16 @@ la section, comme le ferait un `h2` : si elle titre du contenu, elle prend la m�
 | `--radius-card` | `20px` | carte récap d'Aujourd'hui |
 | `--radius-habit` | `24px` | ligne d'habitude, cartes de la semaine |
 | `--radius-tint` | `26px` | grande carte teintée de la semaine |
-| `--radius-bar` | `4px` | sommet des barres de courbe |
 | `--space-1…7` | 4 · 8 · 12 · 16 · 24 · 32 · 48 px | toute marge, tout écart ; pas de valeur hors échelle |
 | `--screen-max-width` | `620px` | largeur du contenu, centré au-delà |
 | `--bottom-nav-height` / `--bottom-nav-offset` | `64px` / `20px` | barre du bas et son décalage ; le contenu les dégage |
 | `--action-dock-height` | `60px` | hauteur du bouton d'action fixé en bas (Détail, Rituel) |
 | `--lifecycle-gesture-height` | `56px` | hauteur d'une ligne de geste de fin de vie (Détail) |
+| `--dock-tally-height` | `44px` | hauteur de la seconde rangée du pied fixe (compte et annulation, Détail) |
+| `--dock-extra-height` | `0px`, puis `--dock-tally-height` + `--space-1` | ce que la seconde rangée ajoute au pied fixe ; posé par `.screen.detail:has(.dock-tally)` |
 
 Les hauteurs fixes (`--bottom-nav-height`, `--action-dock-height`,
-`--lifecycle-gesture-height`) servent à réserver la place des éléments en `position: fixed` :
+`--lifecycle-gesture-height`, `--dock-tally-height`) servent à réserver la place des éléments en `position: fixed` :
 un écran qui en porte réserve leur somme en bas. Les ombres restent douces (`--shadow-sm` /
 `--shadow-md`), dérivées de l'encre. Les marges de sécurité (`--safe-area-inset-*`) s'ajoutent
 à tout élément collé à un bord.
@@ -166,7 +167,7 @@ l'identique dans le Détail et l'Ajout — est le cas actuel : il devient le com
 | Focus clavier | un seul anneau **global** `:focus-visible` : accent, `2px`, `outline-offset: 3px`, ≥ 3:1 sur papier, encre et fond du rituel ; aucun composant ne le redéfinit ni ne le supprime |
 | Couleur | jamais seule : toujours doublée d'une forme (règle #32) |
 | Titres | **un seul `h1` par écran**, puis des `h2` pour les sections, `h3` seulement sous un `h2` ; jamais de saut de niveau |
-| Nom accessible | `aria-label` seulement sur un contrôle (bouton, lien) ou un `role="img"` ; jamais sur un `div`/`p`/`span` nus |
+| Nom accessible | `aria-label` seulement sur un contrôle (bouton, lien), un `role="img"` ou un landmark `nav` ; jamais sur un `div`/`p`/`span` nus |
 | Note vivante | une note qui apparaît ou change après une action (`.quiet-note` de confirmation) porte `role="status"` |
 | Texte | via le catalogue Fluent ; jamais de chaîne littérale dans le RSX |
 
@@ -215,8 +216,11 @@ sur ces points ; ce sont des faits, pas des choix de design.
 | Sujet | Fait |
 | --- | --- |
 | Retour Android | depuis Ajouter et le Rituel, Retour quitte l'app (coque native, [adr-0023](../../technical/adr/0023-platform-behaviour-seam-patched-kotlin.md)) |
-| Carte d'Aujourd'hui | seul le nom (`.habit-name`) ouvre le Détail, pas toute la carte, et il n'atteint pas 44dp de haut |
-| Écran Ajouter | un refus (plafond, champ vide, doublon) ne dit rien (`03-ecrans` l. 108) ; pas de formulaire, donc pas de validation par Entrée ; pas de `maxlength` ; le bouton paraît actif sur un champ vide ; seule la note de refus d'Ancrées porte `role="status"` |
+| Carte d'Aujourd'hui | seul le nom (`.habit-name`) ouvre le Détail, pas toute la carte, et il n'atteint pas 44dp de haut ; le nom d'une habitude en pause (lien `.habit-name` de l'écran « En pause ») n'en fait qu'environ 25px |
+| Écran Ajouter | un refus (plafond, champ vide, doublon) ne dit rien (`03-ecrans` l. 108) ; pas de formulaire, donc pas de validation par Entrée ; pas de `maxlength` ; le bouton paraît actif sur un champ vide |
+| Notes vivantes | seule la note de refus d'Ancrées porte `role="status"` ; le compte du Détail (`habit_detail.rs:89`, « n fois aujourd'hui ») change aussi après une action, sans `role="status"` |
+| Espacements hors échelle | `main.css` : `gap: 2px` (`.bottom-nav a`, `.pace-tile`), `margin: 2px 0 0` (`.quiet-note`), `padding: 14px` (`.summary-card`), `gap: 8px` (`.action-dock .action-done`, valeur de `--space-2` écrite en dur), `gap: 10px` (`.pace-grid`) |
+| Galet d'Aujourd'hui | l'état éteint de `.pebble` se dessine avec `--color-ink-soft`, pas avec le contour `--color-outline` que la règle des états éteints prescrit |
 | Annuler un pas | rien n'annule une validation faite sur la cible d'Aujourd'hui |
 | Texte à zéro | « 0 sur 3 · c'est déjà quelque chose » sonne ironique quand rien n'est fait |
 | Pied fixe | il est haut ; déplacer les lignes de fin de vie change la `safe-area-bleed` et S3 ; sous 380px la coche de « C'est fait » disparaît, et de 380 à 385px en police 1,3x la rangée 1 déborde de 6px au plus |
