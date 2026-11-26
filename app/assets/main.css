@@ -39,8 +39,6 @@
     --color-shadow: 42, 38, 34;
 
     --color-ritual-ground: #12303A;
-    --color-ritual-disc: #1C4552;
-    --color-ritual-rail: #2E6B7E;
     --color-ritual-ink: #F4F1EA;
     --color-ritual-ink-soft: #B8D6DF;
 
@@ -1146,7 +1144,7 @@ body:has(.screen.ritual) {
     align-self: center;
 }
 
-/* The gentle word is the only paragraph on the dark screen: the mockup gives
+/* The gentle word (h3.motivation) is the only running line on the dark screen: the mockup gives
    it the display face at its own size, in full ink — the soft tone is kept
    for the dose line and for the way out. */
 .screen.ritual .quiet-note {

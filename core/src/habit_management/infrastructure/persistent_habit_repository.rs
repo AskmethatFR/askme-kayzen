@@ -228,10 +228,6 @@ mod tests {
         assert_eq!(reopened.all(), vec![habit]);
     }
 
-    // B1 / Security F-1: an out-of-range stored date used to reach
-    // `Habit::minutes_practised` unbounded and unvalidated, turning a day-by-day
-    // walk from `today` down to `created_on` into an attacker-controlled loop
-    // (measured: ~2124 years extrapolated at i64::MIN, freezing on every launch).
     // `LocalDate::parse_stored` rejects it at the parse point, so it falls onto
     // the same all-or-nothing path as any other unreadable field.
     #[test]

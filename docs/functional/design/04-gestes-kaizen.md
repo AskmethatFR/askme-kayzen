@@ -1,18 +1,18 @@
 # 4 · Les six gestes Kaizen
 
-1. **Le rituel de la minute** (kaizen 一分間) — « Commencer » : un minuteur
-   doux avec respiration, réglé sur **l'objectif de l'habitude**. Le principe n'est pas la
-   durée, c'est de ne pas casser la chaîne intérieure. Anti-échec par design : à zéro le
-   minuteur s'arrête et attend, il ne valide rien tout seul.
+1. **Le rituel de la minute** (kaizen 一分間) — « Commencer » : un compteur doux,
+   réglé sur **l'objectif de l'habitude** (fois par jour). Le principe n'est pas la
+   durée, c'est de ne pas casser la chaîne intérieure. Anti-échec par design : le compteur
+   ne s'arrête ni n'expire, il ne valide rien tout seul ; chaque tentative est un geste.
    *(Amendé 2026-08-20 — issue #13. Le nom du geste reste : 一分間 nomme la philosophie
    du départ minuscule, pas le réglage du chronomètre. Ce qui change est la mécanique —
    le minuteur portait 60 s pour toutes, il porte désormais la dose de chacune. Le libellé
    du bouton avait déjà cessé d'annoncer une durée en #12.)*
-2. **Le prochain tout petit pas** — « Passer à N+1 min », **à l'initiative seule de
+2. **Le prochain tout petit pas** — « Passer à N+1 fois », **à l'initiative seule de
    l'utilisateur**, quand *lui* le décide. Le système ne détecte rien et ne suggère rien.
    *(Amendé 2026-07-23 — plus de « proposé par le système » ; voir
    `[[adr-0008-goal-based-dose-user-paced-progression]]`.)*
-3. **Enlever la friction** (muda) — « Alléger à N−1 min ». *Alléger n'est pas reculer, c'est
+3. **Enlever la friction** (muda) — « Alléger à N−1 fois ». *Alléger n'est pas reculer, c'est
    enlever ce qui freine.*
 4. **Aller voir le réel** (gemba) — relier l'habitude à un déclencheur écrit librement
    (`trigger`) : un moment (« après le café »), une habitude ancrée (**habit stacking** :

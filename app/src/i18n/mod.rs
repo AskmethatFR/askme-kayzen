@@ -167,6 +167,41 @@ mod tests {
     }
 
     #[test]
+    fn no_catalogue_message_speaks_of_minutes_as_a_goal() {
+        const HABIT_TITLES_NAMING_A_MINUTE: [&str; 4] = [
+            "idea-walk-a-minute",
+            "idea-close-your-eyes-a-minute",
+            "idea-stand-tall-a-minute",
+            "idea-meditate-a-minute",
+        ];
+
+        for (file_name, text) in [("fr.ftl", FR), ("en.ftl", EN)] {
+            let hits: Vec<String> = message_texts(text, file_name)
+                .into_iter()
+                .filter(|(id, _)| !HABIT_TITLES_NAMING_A_MINUTE.contains(&id.as_str()))
+                .filter(|(id, serialized)| {
+                    let value = serialized.strip_prefix(id.as_str()).unwrap_or(serialized);
+                    names_minutes(value)
+                })
+                .map(|(id, _)| id)
+                .collect();
+
+            assert!(
+                hits.is_empty(),
+                "expected no goal in minutes in {file_name} (goals read as times: \
+                 fois / times a day), found: {hits:?}"
+            );
+        }
+    }
+
+    fn names_minutes(value: &str) -> bool {
+        value
+            .split(|c: char| !c.is_alphabetic())
+            .map(str::to_lowercase)
+            .any(|word| word == "min" || word == "mins" || word.starts_with("minute"))
+    }
+
+    #[test]
     fn every_aria_reads_its_label_followed_by_the_title_placeholder() {
         const TITLE: &str = "Lire une page";
 

@@ -14,7 +14,7 @@
 
 ## Approved lifecycle model (functional view)
 
-- A habit's **goal** (minutes) is a **soft daily target** (default 5, floor 1, no ceiling).
+- A habit's **goal** (times a day) is a **soft daily target** (default 5, floor 1, no ceiling).
   It changes **only through a user gesture** — *grandir* (+1) or *alléger* (−1, floor 1),
   **always available, whenever the user decides**. No automatic mutation, and **no system
   detection or suggestion** (per `[[design-principes-kaizen]]` and `[[design-gestes-kaizen]]`
@@ -22,10 +22,10 @@
 - **~~Growth suggestion~~** — **removed.** There is no stability detection and no "Passer à
   N+1" system prompt. Anchoring is likewise **user-initiated** (no 10-of-14 suggestion).
 - **Completion** = one local date per day, toggleable the same day. No timestamps,
-  no multi-completion. Full completion history is kept forever (feeds "minutes
-  gagnées depuis les débuts").
-- Everything the screens show (`done_today`, 21-day dots, 7-day rhythm, minutes
-  gained) is **derived from the histories**, never stored.
+  no multi-completion. Full completion history is kept forever (feeds the
+  attempts total).
+- Everything the screens show (`done_today`, 21-day dots, 7-day rhythm, attempts
+  total) is **derived from the histories**, never stored.
 
 ## Approved answers to the open questions (Q1–Q5)
 
@@ -288,7 +288,7 @@ implementation and shipped locked.
 | D3 | **Inclusive span**: every day from creation to today counts, done or not. `days_done + empty_days = age in days`. A habit created today and not done reads « 0 réalisé · 1 autre jour » — the `FreshStart` message carries the gentleness |
 | D4 | The recap shows in **all 3 states** (Active / Paused / Anchored) — it is a reading, not a gesture; the rest screens forbid gestures only |
 | D5 | **3 messages, none congratulating**. Rest threshold = **7 days** without practice — the only rhythm this app speaks (`WINDOW_DAYS`). No streak, ever |
-| D6 | Copy: « réalisés » / « autres jours » / « minutes de pratique accumulées » — "autres jours" avoids the word *empty*; "pratique accumulée" lifts the total-vs-delta ambiguity |
+| D6 | Copy: « réalisés » / « autres jours » / « fois pratiquées » — "autres jours" avoids the word *empty*; "pratique accumulée" lifts the total-vs-delta ambiguity |
 | D7 | **No ADR** — everything applies [[adr-0006-cqrs-light]]. An ADR is never amended; a genuinely changed decision would be a new ADR with `supersedes:` |
 | D8 | `CompletionHistory` stays **closed** (`new / toggle / contains` only) — the day-by-day walk needs only `contains`, `minus_days` and `Ord` |
 

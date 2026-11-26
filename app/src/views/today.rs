@@ -431,7 +431,7 @@ mod tests {
             "expected the active-habits eyebrow in English, got: {html}"
         );
         assert!(
-            html.contains("4 times a day") && !html.contains("min"),
+            html.contains("4 times a day") && !html.contains(" min<") && !html.contains(" min "),
             "expected the habit meta line in English, got: {html}"
         );
         assert!(

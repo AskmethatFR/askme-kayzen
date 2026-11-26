@@ -174,7 +174,6 @@ mod tests {
     }
 
     // Test List — GetWeekRecap (@feature:week-recap):
-    // - the figure sums minutes practised across every habit (S1).
     // - paused and anchored habits still count in the sum, and each still
     //   reads its own journey as a row, whatever its lifecycle state (S2).
     // - no practice yet -> message FreshStart, figure at 0 (S3).

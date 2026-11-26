@@ -339,6 +339,10 @@ mod tests {
             html.contains(r#"aria-label="J&#39;ai terminé · Lire une page""#),
             "expected the completion gesture, got: {html}"
         );
+        assert!(
+            html.contains(r#"class="motivation">Vous avez pris ce moment pour vous. C&#39;est déjà beaucoup.</h3>"#),
+            "expected the gentle word above the completion gesture, got: {html}"
+        );
     }
 
     // @scenario: ritual/S3
@@ -465,14 +469,6 @@ mod tests {
             assert!(
                 html.contains(expected_message),
                 "expected the refusal copy, got: {html}"
-            );
-            assert!(
-                !html.contains("ritual-dial"),
-                "expected no dial offered to a habit at rest, got: {html}"
-            );
-            assert!(
-                !html.contains("ritual-countdown"),
-                "expected no countdown offered to a habit at rest, got: {html}"
             );
             assert!(
                 !html.contains("J&#39;ai termin"),

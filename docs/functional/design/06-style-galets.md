@@ -60,11 +60,6 @@ gardent le défaut signalé sous Broadsheet ; il attend toujours sa passe d'acce
 | Ocre sur teinte ocre | 4,8:1 |
 | Texte rituel / fond rituel | 12,3:1 (doux : 9,1:1) |
 | Tête et arc restant du rituel / disque | 6,8:1 |
-| Piste de l'anneau / disque | 1,7:1 — **décoratif, assumé** |
-
-L'anneau du rituel ne porte aucune information que le compte à rebours ne donne pas déjà en
-chiffres, et il reste à la couleur de la maquette : la piste est décorative, l'arc n'est que
-la même information dite en longueur.
 
 ## Typographie
 
