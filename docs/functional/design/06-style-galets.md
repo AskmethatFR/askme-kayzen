@@ -158,6 +158,9 @@ Règles de composition :
   ≥ 3:1 sur papier, carte et teinte), jamais par `--color-rule`.
 - Un état éteint (point de rythme, jour sans pratique) se dessine avec le même contour, vide ;
   l'état allumé est plein. La différence est la présence du remplissage.
+- Les galets de jour du Détail (`.day-pebble`) et le galet du résumé d'Aujourd'hui (`.pebble`)
+  sont des **cercles** : largeur = hauteur à toute taille (ruling du propriétaire, S36). Les cibles
+  et le bouton d'ajout gardent la forme `--radius-pebble`.
 - Chaque galet de l'escalier du Détail porte le nom court de son jour (`practice-staircase` S8,
   comme le rythme de la Semaine, `week-recap` S13).
 - Le Détail d'une habitude ancrée ne propose aucun geste et dit seulement comment elle revient,

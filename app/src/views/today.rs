@@ -982,6 +982,16 @@ mod tests {
         );
     }
 
+    #[test]
+    fn the_summary_pebble_is_a_circle() {
+        const MAIN_CSS: &str = include_str!("../../assets/main.css");
+
+        assert!(
+            MAIN_CSS.contains(".pebble {\n    width: 18px;\n    height: 18px;"),
+            "expected the summary pebble to be a circle: width and height both 18px"
+        );
+    }
+
     // @scenario: persistence/S3
     // @scenario: today-habit-list/S4
     #[test]

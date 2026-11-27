@@ -321,7 +321,7 @@ a.habit-name::after {
 }
 
 .pebble {
-    width: 22px;
+    width: 18px;
     height: 18px;
     border-radius: 50%;
     background: transparent;
@@ -1001,8 +1001,9 @@ a.habit-name::after {
    Size follows the day's attempts against that day's own goal (--day-ratio,
    0..1, capped in the view): a practised pebble is drawn at its ratio, so one
    attempt of five stands at two fifths of full height. Below a quarter the
-   pebble would vanish, so .25 is the visible minimum (a 6x5px filled dot). A
-   day without practice keeps the hollow ring at the .6 floor.
+   pebble would vanish, so .25 is the visible minimum (a 5x5px filled dot). A
+   day without practice keeps the hollow ring at the .6 floor. Width and height
+   scale together, so every day pebble is a circle (owner ruling, S36).
    Each pebble stands over its weekday's short name (aria-hidden, the card's own
    label already says the week); the block margin centres the pebble in a fixed
    20px slot so the names align whatever the pebbles' sizes. */
@@ -1020,7 +1021,7 @@ a.habit-name::after {
 
 .day-pebble {
     --pebble-scale: .6;
-    width: calc(24px * var(--pebble-scale));
+    width: calc(20px * var(--pebble-scale));
     height: calc(20px * var(--pebble-scale));
     margin-block: calc(10px * (1 - var(--pebble-scale)));
     border-radius: 50%;

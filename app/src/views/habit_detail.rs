@@ -1507,6 +1507,18 @@ mod tests {
         );
     }
 
+    #[test]
+    fn every_day_pebble_is_a_circle_at_every_scale() {
+        const MAIN_CSS: &str = include_str!("../../assets/main.css");
+
+        assert!(
+            MAIN_CSS.contains(
+                ".day-pebble {\n    --pebble-scale: .6;\n    width: calc(20px * var(--pebble-scale));\n    height: calc(20px * var(--pebble-scale));"
+            ),
+            "a day pebble must be a circle: width and height both 20px times its scale, so they stay equal at every ratio"
+        );
+    }
+
     fn services_with_one_attempt_today() -> Services {
         let today = LocalDate::from_epoch_day(20_020);
         let clock: Rc<dyn Clock> = Rc::new(FixedClock(today));
