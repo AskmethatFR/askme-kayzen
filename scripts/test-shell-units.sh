@@ -4105,7 +4105,9 @@ for ma_needle in \
     'WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightNavigationBars = true' \
     'override fun onWebViewCreate(webView: android.webkit.WebView)' \
     'webView.addJavascriptInterface(safeArea, "AskmeSafeArea")' \
-    '@android.webkit.JavascriptInterface' \
+    'webView.addJavascriptInterface(AskmeSystemBars(this), "AskmeSystemBars")' \
+    'fun darkGround(dark: Boolean) {' \
+    'activity.runOnUiThread {' \
     'java.util.Locale.US' \
     'window.__kzApplySafeAreaInsets(' \
     'webView.post { webView.evaluateJavascript(' \
@@ -4118,6 +4120,16 @@ for ma_needle in \
     ma_hits="$(grep -cF "$ma_needle" "$MA_FIXTURE" || true)"
     assert_eq "1" "$ma_hits" \
         "patch_main_activity_edge_to_edge: exactly one occurrence of $ma_needle"
+done
+
+ma_interface_hits="$(grep -oF '@android.webkit.JavascriptInterface' "$MA_FIXTURE" | wc -l | tr -d ' ')"
+assert_eq "2" "$ma_interface_hits" \
+    "patch_main_activity_edge_to_edge: two @JavascriptInterface members, insets() and darkGround(Boolean), nothing else (adr-0028)"
+
+for ma_member in 'fun insets(): String' 'fun darkGround(dark: Boolean) {'; do
+    ma_annotated="$(grep -B1 -F "$ma_member" "$MA_FIXTURE" | grep -cF '@android.webkit.JavascriptInterface' || true)"
+    assert_eq "1" "$ma_annotated" \
+        "patch_main_activity_edge_to_edge: the @JavascriptInterface annotation sits directly on $ma_member"
 done
 
 ma_eval_hits="$(grep -oF 'evaluateJavascript(' "$MA_FIXTURE" | wc -l | tr -d ' ')"

@@ -49,8 +49,9 @@ mod tests {
         );
         assert_eq!(
             block.matches("addJavascriptInterface(").count(),
-            1,
-            "exactly one addJavascriptInterface call in the seam block"
+            2,
+            "exactly two addJavascriptInterface calls in the seam block: AskmeSafeArea and \
+             AskmeSystemBars (adr-0028)"
         );
         let hook = block
             .find("override fun onWebViewCreate(")
@@ -65,22 +66,17 @@ mod tests {
 
         assert_eq!(
             block.matches("@android.webkit.JavascriptInterface").count(),
-            1,
-            "exactly one @JavascriptInterface member: insets(), geometry only"
+            2,
+            "exactly two @JavascriptInterface members: insets(), geometry only, and \
+             darkGround(Boolean), a cosmetic switch (adr-0028)"
         );
         assert!(
             block.contains("fun insets(): String"),
             "the bridge exposes the 0-arg insets(): String reader"
         );
-        let annotation = block
-            .find("@android.webkit.JavascriptInterface")
-            .expect("the bridge carries the @JavascriptInterface annotation");
-        let reader = block
-            .find("fun insets(): String")
-            .expect("the bridge carries the insets() reader");
         assert!(
-            annotation < reader,
-            "the @JavascriptInterface annotation must sit on insets(), not elsewhere"
+            block.contains("@android.webkit.JavascriptInterface\n    fun insets(): String"),
+            "the @JavascriptInterface annotation must sit directly on insets(), not elsewhere"
         );
 
         assert_eq!(

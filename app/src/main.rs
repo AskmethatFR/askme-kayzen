@@ -6,6 +6,7 @@ mod i18n;
 mod infrastructure;
 mod route;
 mod safe_area;
+mod system_bars;
 mod views;
 
 use composition::Services;

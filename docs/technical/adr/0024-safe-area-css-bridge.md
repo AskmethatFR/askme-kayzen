@@ -12,6 +12,12 @@ owner: "architect"
 # rows left `position: fixed` (S23), taking three sites with them: the count is now 12.
 # The rule is untouched — chain form and count stay pinned (`safe-area-bleed` S3).
 # Scope also recorded in this node's docs/INDEX.md row; body untouched.
+# FACET SUPERSESSION 2026-11-27 — [[adr-0028-system-bar-colours-follow-the-page-ground-through-one-boolean-setter]]
+# retires exactly ONE facet of this node: the bridge surface being one interface with
+# one method. The seam also registers `AskmeSystemBars` with one `darkGround(Boolean)`;
+# security finding S1 is re-accepted there for that cosmetic boolean. `AskmeSafeArea`
+# (one object, one 0-arg method, no references) is untouched.
+# Scope also recorded in this node's docs/INDEX.md row; body untouched.
 status: "current"
 updated: "2026-10-06"
 relations:

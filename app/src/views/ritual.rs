@@ -1,6 +1,7 @@
 use crate::composition::Services;
 use crate::i18n::tr;
 use crate::route::Route;
+use crate::system_bars::{DARK_GROUND_JS, PAPER_GROUND_JS};
 use crate::views::back_link::BackLink;
 use dioxus::prelude::*;
 use dioxus::router::Navigator;
@@ -55,6 +56,14 @@ pub fn Ritual(id: String) -> Element {
 fn PracticeCounter(id: String, title: String) -> Element {
     let services = use_context::<Services>();
     let navigator = use_navigator();
+    let page = use_hook(|| {
+        let page = document::document();
+        page.eval(DARK_GROUND_JS.to_string());
+        page
+    });
+    use_drop(move || {
+        page.eval(PAPER_GROUND_JS.to_string());
+    });
 
     rsx! {
             div { class: "screen ritual",
@@ -501,6 +510,101 @@ mod tests {
         assert!(
             html.contains("Retour à aujourd") && html.contains("quiet-link"),
             "expected a way back, got: {html}"
+        );
+    }
+
+    struct SilentEvaluator;
+
+    impl dioxus::document::Evaluator for SilentEvaluator {
+        fn poll_join(
+            &mut self,
+            _: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Result<serde_json::Value, dioxus::document::EvalError>> {
+            std::task::Poll::Pending
+        }
+
+        fn poll_recv(
+            &mut self,
+            _: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Result<serde_json::Value, dioxus::document::EvalError>> {
+            std::task::Poll::Pending
+        }
+
+        fn send(&self, _: serde_json::Value) -> Result<(), dioxus::document::EvalError> {
+            Ok(())
+        }
+    }
+
+    #[derive(Default)]
+    struct PageSpy {
+        scripts: std::cell::RefCell<Vec<String>>,
+        owner: generational_box::Owner,
+    }
+
+    impl dioxus::document::Document for PageSpy {
+        fn eval(&self, js: String) -> dioxus::document::Eval {
+            self.scripts.borrow_mut().push(js);
+            dioxus::document::Eval::new(self.owner.insert(Box::new(SilentEvaluator)))
+        }
+    }
+
+    impl PageSpy {
+        fn system_bar_switches(&self) -> Vec<String> {
+            self.scripts
+                .take()
+                .into_iter()
+                .filter(|js| js.contains("AskmeSystemBars"))
+                .collect()
+        }
+    }
+
+    thread_local! {
+        static SHARED_PAGE: std::cell::RefCell<Option<Rc<PageSpy>>> =
+            const { std::cell::RefCell::new(None) };
+    }
+
+    struct SharedPageGuard;
+
+    impl Drop for SharedPageGuard {
+        fn drop(&mut self) {
+            SHARED_PAGE.with(|cell| *cell.borrow_mut() = None);
+        }
+    }
+
+    #[component]
+    fn RootAtActiveHabitGoalFiveOverSharedPage() -> Element {
+        let page = SHARED_PAGE.with(|cell| {
+            cell.borrow()
+                .clone()
+                .expect("a page spy was seeded before opening the screen")
+        });
+        use_context_provider(move || page as Rc<dyn dioxus::document::Document>);
+        rsx! {
+            RootAtActiveHabitGoalFive {}
+        }
+    }
+
+    // @scenario: safe-area-bleed/S4
+    #[test]
+    fn safe_area_bleed_s4_the_system_bars_take_the_dark_ground_while_the_ritual_is_shown() {
+        let page = Rc::new(PageSpy::default());
+        SHARED_PAGE.with(|cell| *cell.borrow_mut() = Some(page.clone()));
+        let _guard = SharedPageGuard;
+
+        let mut screen = Screen::open(RootAtActiveHabitGoalFiveOverSharedPage);
+
+        assert_eq!(
+            page.system_bar_switches(),
+            vec![crate::system_bars::DARK_GROUND_JS.to_string()],
+            "opening the ritual switches the system bars to the dark ground, once"
+        );
+
+        screen.click("Arrêter, ce n'est pas grave · Lire une page");
+
+        assert_eq!(
+            page.system_bar_switches(),
+            vec![crate::system_bars::PAPER_GROUND_JS.to_string()],
+            "leaving the ritual gives the system bars back the paper ground, once"
         );
     }
 }
