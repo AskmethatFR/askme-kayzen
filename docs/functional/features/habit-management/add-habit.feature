@@ -48,3 +48,9 @@ Feature: Add a habit to my daily life
     Given a daily life holding fewer than 5 habits
     When a habit is added through the add flow with no goal chosen
     Then the habit is stored with a goal of 3 times a day
+
+  @scenario:S8
+  Scenario: The add screen blocks gently on a full daily life and invites anchoring one
+    Given a daily life holding 5 habits, paused ones included, none anchored
+    When the add screen is opened
+    Then no idea and no field are offered, only the invitation to anchor one first

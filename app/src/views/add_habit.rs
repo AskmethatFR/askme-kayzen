@@ -3,6 +3,7 @@ use crate::i18n::{tr, tr_key};
 use crate::route::Route;
 use crate::views::back_link::BackLink;
 use dioxus::prelude::*;
+use kayzen_core::habit_management::domain::habit::Habit;
 use rand::seq::SliceRandom;
 
 /// Ready-made tiny habits, all one minute — tap one to add it without typing.
@@ -43,6 +44,20 @@ pub fn AddHabit() -> Element {
     let mut name = use_signal(String::new);
     let idea_keys = use_signal(two_random_idea_keys);
     let name_label = tr!("add-habit-name-input-label");
+    let daily_life_full =
+        services.list_anchored_habits.handle().in_daily_life >= Habit::MAX_IN_DAILY_LIFE;
+
+    if daily_life_full {
+        return rsx! {
+            div { class: "screen",
+                header { class: "masthead",
+                    BackLink {}
+                }
+                h1 { class: "greeting", {tr!("add-habit-heading")} }
+                p { class: "quiet-note", {tr!("add-habit-full-note")} }
+            }
+        };
+    }
 
     rsx! {
         div { class: "screen",
@@ -240,6 +255,115 @@ mod tests {
         assert!(
             html.contains("3 fois par jour") && !html.contains("min"),
             "expected the default goal of a new habit as times a day, not minutes, got: {html}"
+        );
+    }
+
+    fn services_holding_habits(count: usize, paused: usize) -> Services {
+        let services = Services::with_repository(Rc::new(InMemoryHabitRepository::new()));
+        for index in 0..count {
+            services
+                .add_habit
+                .execute(format!("Habitude {index}"), STARTING_GOAL)
+                .unwrap();
+        }
+        for summary in services
+            .list_board_habits
+            .handle()
+            .active
+            .iter()
+            .take(paused)
+        {
+            services.pause_habit.execute(&summary.id).unwrap();
+        }
+        services
+    }
+
+    #[component]
+    fn RootAtAddHabitScreenWithFiveHabitsOneOfThemPaused() -> Element {
+        use_locale_for_tests();
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/add")));
+        });
+        use_context_provider(|| services_holding_habits(5, 1));
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootAtAddHabitScreenWithFourHabits() -> Element {
+        use_locale_for_tests();
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/add")));
+        });
+        use_context_provider(|| services_holding_habits(4, 0));
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootAtAddHabitScreenWithFiveHabitsInEnglish() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/add")));
+        });
+        use_context_provider(|| services_holding_habits(5, 0));
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: add-habit/S8
+    #[test]
+    fn a_full_daily_life_blocks_the_add_screen_gently_and_invites_anchoring_one() {
+        let html = render(RootAtAddHabitScreenWithFiveHabitsOneOfThemPaused);
+
+        assert!(
+            html.contains(
+                r#"<p class="quiet-note">Le quotidien est complet · pour en ajouter une, ancrez-en une d&#39;abord</p>"#
+            ),
+            "expected the gentle invitation to anchor one first, got: {html}"
+        );
+        assert!(
+            !html.contains(r#"class="add-target""#) && !html.contains("<input"),
+            "expected no idea and no field on a full daily life, got: {html}"
+        );
+        assert!(
+            html.contains(r#"class="detail-back""#),
+            "expected the way back to stay, got: {html}"
+        );
+    }
+
+    // @scenario: add-habit/S8
+    #[test]
+    fn four_habits_in_daily_life_still_offer_the_form_without_the_invitation() {
+        let html = render(RootAtAddHabitScreenWithFourHabits);
+
+        assert!(
+            html.contains(r#"class="add-target""#) && html.contains("<input"),
+            "expected the ideas and the field below the cap, got: {html}"
+        );
+        assert!(
+            !html.contains("Le quotidien est complet"),
+            "expected no invitation below the cap, got: {html}"
+        );
+    }
+
+    // @scenario: add-habit/S8
+    #[test]
+    fn a_full_daily_life_invites_anchoring_one_in_english() {
+        let html = render(RootAtAddHabitScreenWithFiveHabitsInEnglish);
+
+        assert!(
+            html.contains(
+                r#"<p class="quiet-note">Your daily life is full · to add one, anchor one first</p>"#
+            ),
+            "expected the invitation in English, got: {html}"
+        );
+        assert!(
+            !html.contains(r#"class="add-target""#) && !html.contains("<input"),
+            "expected no idea and no field on a full daily life, got: {html}"
         );
     }
 
