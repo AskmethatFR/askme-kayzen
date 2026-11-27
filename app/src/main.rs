@@ -413,6 +413,71 @@ mod tests {
         }
     }
 
+    fn css_rule_body<'a>(css: &'a str, selector: &str) -> &'a str {
+        let opener = format!("\n{selector} {{");
+        let start = css.find(&opener).expect("main.css declares this rule") + opener.len();
+        &css[start..start + css[start..].find('}').expect("a CSS rule closes")]
+    }
+
+    #[test]
+    fn the_action_dock_paints_the_paper_ground_so_content_never_shows_through_it() {
+        assert!(
+            css_rule_body(MAIN_CSS_SOURCE, ".action-dock")
+                .contains("background: var(--color-paper)"),
+            "a transparent dock lets the scrolled content read through its pills"
+        );
+    }
+
+    #[test]
+    fn the_page_clips_the_disc_sideways_and_the_screen_stays_unpositioned_so_the_disc_stays_round()
+    {
+        assert!(
+            css_rule_body(MAIN_CSS_SOURCE, "html").contains("overflow-x: hidden"),
+            "the disc bleeds past the right edge: the viewport must not scroll to it"
+        );
+        let body = css_rule_body(MAIN_CSS_SOURCE, "body");
+        for declaration in ["position: relative;", "overflow-x: clip;"] {
+            assert!(
+                body.contains(declaration),
+                "the body is the disc's frame at the viewport edge, it lacks {declaration}"
+            );
+        }
+        assert!(
+            !css_rule_body(MAIN_CSS_SOURCE, ".screen").contains("position:"),
+            "a positioned screen anchors the disc to the column and cuts it flat at the column edge"
+        );
+    }
+
+    #[test]
+    fn a_short_landscape_viewport_shrinks_the_fixed_bars_so_they_clear_the_content() {
+        let block = MAIN_CSS_SOURCE
+            .split("@media (orientation: landscape) and (max-height: 480px) {")
+            .nth(1)
+            .and_then(|after_opener| after_opener.split("\n}\n").next())
+            .expect("main.css has a short-landscape block");
+        for shrunk in [
+            "--bottom-nav-height: 48px;",
+            "--bottom-nav-offset: 8px;",
+            "--action-dock-height: 48px;",
+            "--dock-tally-height: 44px;",
+            "--screen-top-space: var(--space-4);",
+            "flex-flow: row wrap;",
+        ] {
+            assert!(block.contains(shrunk), "landscape block lacks {shrunk}");
+        }
+    }
+
+    #[test]
+    fn a_habit_name_link_is_a_44px_target_that_leaves_the_card_its_height() {
+        let rule = css_rule_body(MAIN_CSS_SOURCE, "a.habit-name");
+        for declaration in ["min-height: 44px;", "margin-block: -9px;"] {
+            assert!(
+                rule.contains(declaration),
+                "a.habit-name lacks {declaration}"
+            );
+        }
+    }
+
     // @scenario: safe-area-bleed/S3
     #[test]
     fn main_css_keeps_every_safe_area_site_on_the_var_env_chain_form() {

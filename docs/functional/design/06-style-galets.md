@@ -111,8 +111,9 @@ la section, comme le ferait un `h2` : si elle titre du contenu, elle prend la m�
 | `--radius-tint` | `26px` | grande carte teintée de la semaine |
 | `--space-1…7` | 4 · 8 · 12 · 16 · 24 · 32 · 48 px | toute marge, tout écart ; pas de valeur hors échelle |
 | `--screen-max-width` | `620px` | largeur du contenu, centré au-delà |
-| `--bottom-nav-height` / `--bottom-nav-offset` | `64px` / `20px` | barre du bas et son décalage ; le contenu les dégage |
-| `--action-dock-height` | `60px` | hauteur du bouton d'action fixé en bas (Détail, Rituel) |
+| `--screen-top-space` | `--space-7`, `--space-4` en paysage court | espace au-dessus du contenu, avant la marge de sécurité du haut |
+| `--bottom-nav-height` / `--bottom-nav-offset` | `64px` / `20px` ; `48px` / `8px` en paysage court | barre du bas et son décalage ; le contenu les dégage |
+| `--action-dock-height` | `60px` ; `48px` en paysage court | hauteur du bouton d'action fixé en bas (Détail, Rituel) |
 | `--lifecycle-gesture-height` | `56px` | hauteur minimale d'une ligne de geste de fin de vie (Détail) ; ces lignes défilent avec la page, elles ne sont pas fixées |
 | `--dock-tally-height` | `44px` | hauteur de la seconde rangée du pied fixe (compte et annulation, Détail) |
 | `--dock-extra-height` | `0px`, puis `--dock-tally-height` + `--space-1` | ce que la seconde rangée ajoute au pied fixe ; posé par `.screen.detail:has(.dock-tally)` |
@@ -120,9 +121,16 @@ la section, comme le ferait un `h2` : si elle titre du contenu, elle prend la m�
 Les hauteurs fixes (`--bottom-nav-height`, `--action-dock-height`,
 `--dock-tally-height`) servent à réserver la place des éléments en `position: fixed` :
 un écran qui en porte réserve leur somme en bas. Sur le Détail, seul le pied d'action est fixé ; les lignes de
-fin de vie (pause, ancrage) suivent le flux, sous les tuiles de rythme. Les ombres restent douces (`--shadow-sm` /
+fin de vie (pause, ancrage) suivent le flux, sous les tuiles de rythme. Le pied d'action peint le fond
+papier : la page défile dessous sans transparaître. Les ombres restent douces (`--shadow-sm` /
 `--shadow-md`), dérivées de l'encre. Les marges de sécurité (`--safe-area-inset-*`) s'ajoutent
 à tout élément collé à un bord.
+
+En **paysage court** (`orientation: landscape` et hauteur ≤ 480px) la barre et le pied rétrécissent,
+l'en-tête reprend un `--screen-top-space` réduit et un titre plus petit, et sur le Détail le retour
+tient sur la ligne du titre ; la rangée du compte garde 44px (le lien d'annulation est une cible).
+Le lien `.habit-name` d'Aujourd'hui et de En pause mesure 44px de haut (marge négative : la carte
+garde sa hauteur ; la carte entière est déjà cliquable par le lien étiré).
 
 ## Composants
 
@@ -221,7 +229,7 @@ sur ces points ; ce sont des faits, pas des choix de design.
 | Galet d'Aujourd'hui | l'état éteint de `.pebble` se dessine avec `--color-ink-soft`, pas avec le contour `--color-outline` que la règle des états éteints prescrit |
 | Annuler un pas | rien n'annule une validation faite sur la cible d'Aujourd'hui |
 | Pied fixe | il est haut ; les lignes de fin de vie ne sont plus fixées (elles défilent avec la page, 12 sites de marge de sécurité, `safe-area-bleed` S3) ; sous 380px la coche de « C'est fait » disparaît |
-| Paysage | l'orientation paysage n'est pas traitée |
+| Paysage court | à 360-412px de haut, le défilement est inévitable : au repos, la ligne qui chevauche le bord de la barre ou du pied (la deuxième carte d'Aujourd'hui, la seconde ancrée) passe dessous, et sur le Détail à 360px avec le compte du jour, les tuiles de rythme dépassent sous le pied ; tout reste atteignable en défilant, rien n'est couvert en bas de page |
 | Escalier du Détail | pas de lettre de jour de la semaine ; un jour à moitié fait se lit comme un jour plein |
 | Ancrée | le Détail d'une habitude ancrée est une impasse et le nom, dans Ancrées, n'est pas un lien : le propriétaire a tranché « aucun geste » (`03-ecrans` l. 196-200) |
 

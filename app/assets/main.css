@@ -52,6 +52,7 @@
     --space-6: 32px;
     --space-7: 48px;
     --screen-max-width: 620px;
+    --screen-top-space: var(--space-7);
     --bottom-nav-height: 64px;
     --bottom-nav-offset: 20px;
     --action-dock-height: 60px;
@@ -95,8 +96,19 @@ html, body {
     padding: 0;
 }
 
+/* The masthead disc bleeds 65px past the right edge. Without its entry
+   animation (reduced motion) it positions against the viewport and would widen
+   the page: the html box stops the sideways scroll, and the body, as the disc's
+   frame, cuts it at the viewport edge, so the disc stays round at the corner
+   instead of being cut at the column's edge. */
+html {
+    overflow-x: hidden;
+}
+
 body {
     background: var(--color-paper);
+    position: relative;
+    overflow-x: clip;
     color: var(--color-ink);
     font-family: var(--font-body);
     font-size: 17px;
@@ -114,7 +126,7 @@ body {
     max-width: var(--screen-max-width);
     margin: 0px auto;
     overflow: hidden;
-    padding: calc(var(--space-7) + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) calc(var(--space-5) + var(--safe-area-inset-right, env(safe-area-inset-right, 0px))) calc(var(--space-7) + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))) calc(var(--space-5) + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
+    padding: calc(var(--screen-top-space) + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) calc(var(--space-5) + var(--safe-area-inset-right, env(safe-area-inset-right, 0px))) calc(var(--space-7) + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))) calc(var(--space-5) + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
     animation: kzUp .3s ease both;
 }
 
@@ -275,6 +287,15 @@ a.habit-name::after {
     content: "";
     position: absolute;
     inset: 0;
+}
+
+/* The link's own box is a 44px target; the negative margin hands the 18px back
+   so the card keeps its height. */
+a.habit-name {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin-block: -9px;
 }
 
 .resume-link {
@@ -792,6 +813,10 @@ a.habit-name::after {
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
+    /* Opaque: the page scrolls under the dock, and a transparent one lets the
+       content read through the pills. The screen's own ground, so it reads as
+       the page, not as a new component. */
+    background: var(--color-paper);
 }
 
 .dock-pills {
@@ -861,6 +886,54 @@ a.habit-name::after {
 @media (min-width: 380px) and (max-width: 391.98px) {
     .action-dock .btn {
         padding-inline: var(--space-3);
+    }
+}
+
+/* A phone held sideways leaves 360-412px of height, and the portrait bars
+   (64px nav, 60px dock) would take a third of it. The fixed bars shrink; every
+   screen reserves them through the same custom properties. The header gives
+   back its top space and its largest type, so the first card sits above the
+   nav instead of under it. */
+@media (orientation: landscape) and (max-height: 480px) {
+    :root {
+        --bottom-nav-height: 48px;
+        --bottom-nav-offset: 8px;
+        --action-dock-height: 48px;
+        /* The undo link keeps its 44px target, so the row cannot shrink. */
+        --dock-tally-height: 44px;
+        --screen-top-space: var(--space-4);
+    }
+
+    .screen.detail {
+        flex-flow: row wrap;
+        align-items: center;
+        gap: var(--space-4);
+    }
+
+    .screen.detail > .detail-head {
+        flex: 1;
+    }
+
+    .screen.detail > :is(.week-card, .pace, .lifecycle) {
+        flex: 0 0 100%;
+    }
+
+    .masthead {
+        padding-bottom: 0;
+    }
+
+    .greeting {
+        font-size: 32px;
+        padding-bottom: var(--space-2);
+    }
+
+    .lede {
+        width: auto;
+        margin-bottom: var(--space-3);
+    }
+
+    .eyebrow {
+        margin-top: var(--space-3);
     }
 }
 
