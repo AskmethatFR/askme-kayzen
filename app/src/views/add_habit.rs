@@ -4,6 +4,7 @@ use crate::route::Route;
 use crate::views::back_link::BackLink;
 use dioxus::prelude::*;
 use kayzen_core::habit_management::domain::habit::{Habit, HabitError};
+use kayzen_core::habit_management::domain::habit_title::HabitTitle;
 use kayzen_core::habit_management::use_cases::add_habit::AddHabitError;
 use rand::seq::SliceRandom;
 
@@ -138,6 +139,7 @@ pub fn AddHabit() -> Element {
                         class: "input",
                         "aria-label": "{name_label}",
                         value: "{name}",
+                        maxlength: "{HabitTitle::MAX_LEN}",
                         placeholder: "{name_label}",
                         oninput: move |event| name.set(event.value()),
                     }
@@ -526,6 +528,17 @@ mod tests {
                 .count(),
             1,
             "expected exactly one live region, empty before any refusal, got: {html}"
+        );
+    }
+
+    // @scenario: add-habit/S15
+    #[test]
+    fn the_name_field_stops_typing_at_the_title_limit() {
+        let html = render(RootAtAddHabitScreenOverTheStore);
+
+        assert!(
+            html.contains(&format!(r#"maxlength="{}""#, HabitTitle::MAX_LEN)),
+            "expected the name field to carry maxlength, got: {html}"
         );
     }
 

@@ -7,10 +7,34 @@ impl HabitTitle {
     pub const MIN_LEN: usize = 1;
     pub const MAX_LEN: usize = 50;
 
+    // @law: tab, newline and carriage return become a space, then the other control (char::is_control) and bidi-override (U+202A..202E, U+2066..2069) characters are stripped before trim and length, so a title made only of them is refused as TitleLength; length counts characters, not bytes
     pub fn new(value: String) -> Result<HabitTitle, HabitError> {
-        let value = value.trim().to_string();
+        let value: String = value
+            .chars()
+            .map(|c| {
+                if matches!(c, '\t' | '\n' | '\r') {
+                    ' '
+                } else {
+                    c
+                }
+            })
+            .filter(|c| {
+                !c.is_control() && !matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}')
+            })
+            .collect();
+        Self::within_range(value)
+    }
 
-        if value.len() < Self::MIN_LEN || value.len() > Self::MAX_LEN {
+    // @law: a title stored before control characters were stripped must still load, so the codec falls back here, keeping it as stored (trimmed and length-checked only) rather than quarantining the whole snapshot
+    pub fn from_stored(value: String) -> Result<HabitTitle, HabitError> {
+        Self::within_range(value)
+    }
+
+    fn within_range(value: String) -> Result<HabitTitle, HabitError> {
+        let value = value.trim().to_string();
+        let length = value.chars().count();
+
+        if length < Self::MIN_LEN || length > Self::MAX_LEN {
             return Err(HabitError::TitleLength {
                 min: Self::MIN_LEN,
                 max: Self::MAX_LEN,

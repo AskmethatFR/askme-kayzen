@@ -378,6 +378,29 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_stored_title_made_only_of_control_characters_still_loads_with_its_whole_snapshot() {
+        let bidi_override = '\u{202e}';
+        let payload = format!(
+            r#"{{"v":1,"habits":[{{"id":"h-1","title":"Lire une page","state":"Active","steps":[{{"on":20000,"goal":3}}],"completions":[]}},{{"id":"h-2","title":"{bidi_override}","state":"Active","steps":[{{"on":20000,"goal":3}}],"completions":[]}}]}}"#
+        );
+        let store: Rc<dyn SnapshotStore> = Rc::new(InMemorySnapshotStore::seeded(payload));
+        let quarantine: Rc<dyn SnapshotStore> = Rc::new(InMemorySnapshotStore::empty());
+
+        let repository =
+            PersistentHabitRepository::hydrated_from(Rc::clone(&store), Rc::clone(&quarantine));
+
+        let titles: Vec<String> = repository
+            .all()
+            .iter()
+            .map(|habit| habit.title().value().to_string())
+            .collect();
+        assert_eq!(titles.len(), 2);
+        assert!(titles.contains(&"Lire une page".to_string()));
+        assert!(titles.contains(&"\u{202e}".to_string()));
+        assert_eq!(quarantine.load(), None);
+    }
+
     const A_MINUTES_SNAPSHOT: &str = r#"{"v":1,"habits":[{"id":"h-1","title":"Read one page","state":"Paused","steps":[{"on":20003,"goal":5},{"on":20010,"goal":6}],"completions":[20003,20003,20005]}]}"#;
 
     #[test]

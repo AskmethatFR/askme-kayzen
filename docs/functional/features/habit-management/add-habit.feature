@@ -74,3 +74,33 @@ Feature: Add a habit to my daily life
     Given a daily life holding fewer than 5 habits
     When the add screen is opened
     Then exactly one status note is present and it is empty
+
+  @scenario:S12
+  Scenario: The 50-character limit counts characters, so accents never cut a title shorter
+    Given a daily life holding fewer than 5 habits
+    When a habit is added with a title of 50 accented characters
+    Then the habit is added, because the limit counts characters and not bytes
+
+  @scenario:S13
+  Scenario: Control and bidi-override characters are stripped from a title
+    Given a daily life holding fewer than 5 habits
+    When a habit is added with a title holding a newline, a NUL and a right-to-left override
+    Then the habit is stored with those characters removed, a tab or newline between words becoming a space
+
+  @scenario:S14
+  Scenario: A title of 51 accented characters is refused
+    Given a daily life holding fewer than 5 habits
+    When a habit is added with a title of 51 accented characters
+    Then it is rejected with the title-length rule
+
+  @scenario:S15
+  Scenario: The add field stops typing at 50 characters
+    Given a daily life holding fewer than 5 habits
+    When the add screen is opened
+    Then the name field carries a maximum length of 50 characters
+
+  @scenario:S16
+  Scenario: A title made only of control or bidi-override characters is refused
+    Given a daily life holding fewer than 5 habits
+    When a habit is added with a title made only of control and bidi-override characters
+    Then it is rejected with the title-length rule

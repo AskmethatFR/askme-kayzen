@@ -144,7 +144,9 @@ impl HabitSnapshotCodec {
     /// every other structurally-broken field.
     fn decode_habit(record: HabitRecord, from_minutes: bool) -> Option<Habit> {
         let id = HabitId::new(&record.id).ok()?;
-        let title = HabitTitle::new(record.title).ok()?;
+        let title = HabitTitle::new(record.title.clone())
+            .or_else(|_| HabitTitle::from_stored(record.title))
+            .ok()?;
 
         let mut steps = record.steps.into_iter();
         let first = steps.next()?;
