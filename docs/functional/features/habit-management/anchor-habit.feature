@@ -33,3 +33,9 @@ Feature: Anchor a habit that has become natural
     Given no anchored habit
     When the user opens the Ancrées screen
     Then it says there are none yet and that a habit that has become natural will settle there
+
+  @scenario:S6
+  Scenario: An anchored habit's detail says how it comes back
+    Given an anchored habit
+    When the user opens its detail
+    Then one quiet line says it can come back into the daily life from Anchored

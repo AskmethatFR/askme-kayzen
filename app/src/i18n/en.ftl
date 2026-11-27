@@ -54,6 +54,7 @@ habit-detail-anchored-dose = { $goal ->
     [one] anchored · { $goal } time a day
    *[other] anchored · { $goal } times a day
 }
+habit-detail-anchored-return = It can come back to your daily life from Anchored.
 adjust-goal-eyebrow = Adjust, at your own pace
 grow-goal-label = Move to { $goal } times
 grow-goal-aria = Move to { $goal } times · { $title }

@@ -210,6 +210,8 @@ pub fn HabitDetail(id: String) -> Element {
                         }
 
                         {week}
+
+                        p { class: "quiet-note", {tr!("habit-detail-anchored-return")} }
                     }
                 },
             }
@@ -1209,6 +1211,52 @@ mod tests {
         assert!(
             !html.contains("L&#39;ancrer"),
             "expected no anchor gesture on an already-anchored habit, got: {html}"
+        );
+    }
+
+    #[component]
+    fn RootAtAnchoredHabitAndEnglishLocale() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_one_anchored_habit);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: anchor-habit/S6
+    #[test]
+    fn an_anchored_habits_detail_says_how_it_comes_back_in_french() {
+        let html = render(RootAtAnchoredHabit);
+
+        assert!(
+            html.contains(r#"<p class="quiet-note">Elle peut revenir dans votre quotidien depuis Ancrées.</p>"#),
+            "expected one quiet line saying how the habit comes back, got: {html}"
+        );
+        assert_eq!(
+            html.matches("<a ").count(),
+            1,
+            "expected only the back link, no new link, got: {html}"
+        );
+        assert_eq!(
+            html.matches("<button").count(),
+            0,
+            "expected no button on an anchored habit's detail, got: {html}"
+        );
+    }
+
+    // @scenario: anchor-habit/S6
+    #[test]
+    fn an_anchored_habits_detail_says_how_it_comes_back_in_english() {
+        let html = render(RootAtAnchoredHabitAndEnglishLocale);
+
+        assert!(
+            html.contains(
+                r#"<p class="quiet-note">It can come back to your daily life from Anchored.</p>"#
+            ),
+            "expected the same quiet line in English, naming the Anchored nav label, got: {html}"
         );
     }
 

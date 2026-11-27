@@ -42,6 +42,7 @@ detail-back-to-today = Retour à aujourd'hui
 habit-detail-active-dose = { $goal } fois par jour
 habit-detail-paused-dose = en pause · { $goal } fois par jour
 habit-detail-anchored-dose = ancrée · { $goal } fois par jour
+habit-detail-anchored-return = Elle peut revenir dans votre quotidien depuis Ancrées.
 adjust-goal-eyebrow = Ajuster, à votre rythme
 grow-goal-label = Passer à { $goal } fois
 grow-goal-aria = Passer à { $goal } fois · { $title }
