@@ -29,18 +29,20 @@ today-eyebrow-active = Vos petits pas
 today-habit-meta = { $goal } fois par jour
 today-done-aria = Fait aujourd'hui · { $title }
 today-mark-done-aria = Marquer comme fait · { $title }
-today-tally = { $done } sur { $total } · c'est déjà quelque chose.
+today-tally = { $done ->
+    [0] Rien d'obligatoire aujourd'hui.
+   *[other] { $done } sur { $total } · c'est déjà quelque chose.
+}
 today-paused-link = { $count } en pause · aucune pression
 paused-heading = En pause
 paused-empty-note = Rien ici. Tout est de retour dans votre quotidien.
 not-found-title = Cette page n'existe pas.
-not-found-today-link = Aujourd'hui
 staircase-aria = Vos sept derniers jours, objectif actuel { $goal } fois par jour
-masthead-back-to-today = ← Aujourd'hui
 detail-back-to-today = Retour à aujourd'hui
 habit-detail-active-dose = { $goal } fois par jour
 habit-detail-paused-dose = en pause · { $goal } fois par jour
 habit-detail-anchored-dose = ancrée · { $goal } fois par jour
+habit-detail-anchored-return = Elle peut revenir dans votre quotidien depuis Ancrées.
 adjust-goal-eyebrow = Ajuster, à votre rythme
 grow-goal-label = Passer à { $goal } fois
 grow-goal-aria = Passer à { $goal } fois · { $title }
@@ -49,7 +51,7 @@ lighten-goal-aria = Alléger à { $goal } fois · { $title }
 start-ritual-label = Commencer
 habit-detail-mark-done-label = C'est fait
 habit-detail-mark-done-aria = C'est fait · { $title }
-habit-detail-done-aria = Fait aujourd'hui · { $title }
+habit-detail-done-aria = C'est fait · objectif du jour atteint · { $title }
 habit-detail-undo-label = Retirer une fois
 habit-detail-today-count = { $count } fois aujourd'hui
 habit-detail-undo-aria = Retirer une fois · { $title }
@@ -60,7 +62,7 @@ anchor-habit-aria = L'ancrer · elle est devenue naturelle · { $title }
 resume-habit-label = La reprendre
 resume-habit-aria = La reprendre · { $title }
 habit-not-found-message = Cette habitude n'est plus sur votre liste.
-habit-not-found-back-link = Retour à Aujourd'hui
+habit-not-found-back-link = Retour à aujourd'hui
 week-heading = Cette semaine
 week-times-practised = { $count ->
     [1] fois pratiquée
@@ -70,6 +72,15 @@ week-message-fresh-start = Un début parfait. Tout est encore devant.
 week-message-resting = Cette semaine se repose. Elle vous attend, sans presser.
 week-message-growing = Vous avancez, à votre rythme.
 week-rhythm-aria = Votre rythme sur les sept derniers jours
+weekday-short = { $weekday ->
+    [0] lu
+    [1] ma
+    [2] me
+    [3] je
+    [4] ve
+    [5] sa
+   *[6] di
+}
 week-curve-aria = Trajectoire de { $title }, de { $starting_goal } à { $current_goal } fois par jour, { $practised_days ->
     [one] { $practised_days } jour pratiqué
    *[other] { $practised_days } jours pratiqués
@@ -79,7 +90,7 @@ week-habit-goal = { $changed ->
    *[no] { $goal } fois par jour
 }
 ritual-not-found-message = Cette habitude n'est plus sur votre liste.
-ritual-not-found-back-link = Retour à Aujourd'hui
+ritual-not-found-back-link = Retour à aujourd'hui
 ritual-paused-message = Cette habitude se repose en ce moment. Elle vous attend, sans presser.
 ritual-anchored-message = Cette habitude est devenue naturelle. Elle a quitté votre quotidien.
 ritual-complete-aria = J'ai terminé · { $title }
@@ -92,6 +103,7 @@ anchored-readmit-aria = La remettre dans mon quotidien · { $title }
 anchored-readmit-label = La remettre dans mon quotidien
 anchored-count-tally = { $count } · devenues naturelles
 anchored-daily-life-tally = Vous suivez { $count } / { $max } habitudes en parallèle
+anchored-empty-note = Aucune pour l'instant. Une habitude devenue naturelle viendra se poser ici.
 anchored-refusal-full = Le quotidien est complet · pour la remettre, ancrez-en une autre d'abord
 anchored-refusal-duplicate = Elle est déjà dans votre quotidien
 add-habit-heading = Une nouvelle petite habitude
@@ -101,6 +113,8 @@ add-habit-idea-meta = { $goal } fois par jour
 add-habit-idea-add-aria = Ajouter « { $label } »
 add-habit-own-eyebrow = Ou la vôtre
 add-habit-name-input-label = Nom de l'habitude
+add-habit-full-note = Le quotidien est complet · pour en ajouter une, ancrez-en une d'abord
+add-habit-refusal-no-name = Donnez-lui un nom pour commencer
 add-habit-submit = Ajouter, à { $goal } fois par jour
 idea-drink-water = Boire un verre d'eau
 idea-put-away-an-object = Ranger un objet

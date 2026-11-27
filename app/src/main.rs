@@ -1,10 +1,12 @@
 use dioxus::prelude::*;
 
+mod back_key;
 mod composition;
 mod i18n;
 mod infrastructure;
 mod route;
 mod safe_area;
+mod system_bars;
 mod views;
 
 use composition::Services;
@@ -269,14 +271,24 @@ mod tests {
 
         let evals = spy.evals.take();
         assert_eq!(
-            evals.len(),
+            evals
+                .iter()
+                .filter(|js| js.as_str() == safe_area::BOOTSTRAP_JS)
+                .count(),
             1,
             "app_shell must eval the safe-area bootstrap exactly once per mount, got: {evals:?}"
         );
+        let mut installed = evals.clone();
+        installed.sort();
+        let mut expected = vec![
+            back_key::BACK_JS.to_string(),
+            safe_area::BOOTSTRAP_JS.to_string(),
+        ];
+        expected.sort();
         assert_eq!(
-            evals[0],
-            safe_area::BOOTSTRAP_JS,
-            "the installed script must be the BOOTSTRAP_JS contract itself"
+            installed, expected,
+            "the mount evals exactly the two fixed scripts, BOOTSTRAP_JS and BACK_JS, each once, \
+             and nothing else (adr-0027)"
         );
     }
 
@@ -401,6 +413,122 @@ mod tests {
         }
     }
 
+    fn css_rule_body<'a>(css: &'a str, selector: &str) -> &'a str {
+        let opener = format!("\n{selector} {{");
+        let start = css.find(&opener).expect("main.css declares this rule") + opener.len();
+        &css[start..start + css[start..].find('}').expect("a CSS rule closes")]
+    }
+
+    #[test]
+    fn the_action_dock_paints_the_paper_ground_so_content_never_shows_through_it() {
+        assert!(
+            css_rule_body(MAIN_CSS_SOURCE, ".action-dock")
+                .contains("background: var(--color-paper)"),
+            "a transparent dock lets the scrolled content read through its pills"
+        );
+    }
+
+    #[test]
+    fn the_page_clips_the_disc_sideways_and_the_screen_stays_unpositioned_so_the_disc_stays_round()
+    {
+        assert!(
+            css_rule_body(MAIN_CSS_SOURCE, "html").contains("overflow-x: hidden"),
+            "the disc bleeds past the right edge: the viewport must not scroll to it"
+        );
+        let body = css_rule_body(MAIN_CSS_SOURCE, "body");
+        for declaration in ["position: relative;", "overflow-x: clip;"] {
+            assert!(
+                body.contains(declaration),
+                "the body is the disc's frame at the viewport edge, it lacks {declaration}"
+            );
+        }
+        assert!(
+            !css_rule_body(MAIN_CSS_SOURCE, ".screen").contains("position:"),
+            "a positioned screen anchors the disc to the column and cuts it flat at the column edge"
+        );
+    }
+
+    #[test]
+    fn the_anchored_screen_stays_unpositioned_so_its_disc_is_framed_by_the_page_not_the_column() {
+        assert!(
+            !css_rule_body(MAIN_CSS_SOURCE, ".screen.anchored").contains("position:"),
+            "a positioned Ancrées screen cuts its disc flat at the column edge in landscape"
+        );
+        assert!(
+            css_rule_body(MAIN_CSS_SOURCE, ".screen")
+                .contains("animation: kzUp .3s ease backwards;"),
+            "a forwards-filled entry animation keeps a transform on the screen, which frames every screen's disc at the column edge"
+        );
+    }
+
+    #[test]
+    fn the_bottom_nav_stacks_above_the_z_indexed_controls_so_none_paints_or_taps_over_it() {
+        assert!(
+            css_rule_body(MAIN_CSS_SOURCE, ".bottom-nav").contains("z-index: 2;"),
+            "with reduced motion the screen is no stacking context: a z-index 1 target scrolls over the fixed nav"
+        );
+    }
+
+    #[test]
+    fn the_week_rhythm_spreads_its_seven_days_across_the_card_width() {
+        assert!(
+            css_rule_body(MAIN_CSS_SOURCE, ".rhythm").contains("justify-content: space-between;"),
+            "the rhythm row hugs the left instead of spreading its days across the width"
+        );
+    }
+
+    #[test]
+    fn the_lifecycle_block_stays_in_the_page_flow_so_it_scrolls_with_the_content() {
+        assert!(
+            !css_rule_body(MAIN_CSS_SOURCE, ".lifecycle").contains("position:"),
+            "a positioned lifecycle block leaves the page flow and stops scrolling with its content"
+        );
+    }
+
+    #[test]
+    fn the_ritual_ground_focus_ring_takes_the_9_to_1_ink_not_the_accent() {
+        assert!(
+            css_rule_body(MAIN_CSS_SOURCE, ".screen.ritual :focus-visible")
+                .contains("outline-color: var(--color-ritual-ink-soft);"),
+            "on the ritual ground the accent ring reads 3.41:1, the focus ring must take the ink"
+        );
+    }
+
+    #[test]
+    fn a_short_landscape_viewport_shrinks_the_fixed_bars_so_they_clear_the_content() {
+        let block = MAIN_CSS_SOURCE
+            .split("@media (orientation: landscape) and (max-height: 480px) {")
+            .nth(1)
+            .and_then(|after_opener| after_opener.split("\n}\n").next())
+            .expect("main.css has a short-landscape block");
+        for shrunk in [
+            "--bottom-nav-height: 48px;",
+            "--bottom-nav-offset: 8px;",
+            "--action-dock-height: 48px;",
+            "--dock-tally-height: 44px;",
+            "--screen-top-space: var(--space-4);",
+            "flex-flow: row wrap;",
+        ] {
+            assert!(block.contains(shrunk), "landscape block lacks {shrunk}");
+        }
+    }
+
+    #[test]
+    fn a_habit_name_link_adds_no_box_because_its_stretched_layer_makes_the_whole_card_the_target() {
+        assert!(
+            !MAIN_CSS_SOURCE.contains("\na.habit-name {"),
+            "the title link needs no box of its own: its stretched layer covers the card"
+        );
+        assert!(
+            css_rule_body(MAIN_CSS_SOURCE, ".habit-row").contains("position: relative;"),
+            "the stretched layer covers the card only if the card is its containing block"
+        );
+        assert!(
+            css_rule_body(MAIN_CSS_SOURCE, "a.habit-name::after").contains("inset: 0;"),
+            "the stretched layer must cover the whole card"
+        );
+    }
+
     // @scenario: safe-area-bleed/S3
     #[test]
     fn main_css_keeps_every_safe_area_site_on_the_var_env_chain_form() {
@@ -433,14 +561,14 @@ mod tests {
             rest = &tail[end + 1..];
         }
         assert_eq!(
-            sites, 15,
-            "main.css must keep its 15 chain sites: var(--safe-area-inset-*, \
+            sites, 12,
+            "main.css must keep its 12 chain sites: var(--safe-area-inset-*, \
              env(safe-area-inset-*, 0px)) carries the Android arm (native bridge) \
              and the web/iOS arm (env(), which measures 0 on Android, adr-0021)"
         );
         assert_eq!(
             MAIN_CSS_SOURCE.matches(chain_opener).count(),
-            15,
+            12,
             "every var(--safe-area-inset-*) chain must carry its env() arm — \
              a chain without one would leave web/iOS on the Android value only"
         );

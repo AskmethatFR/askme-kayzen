@@ -27,6 +27,7 @@
     --color-ink-mid: #4A443E;
     --color-on-ink-soft: #B9B1A5;
     --color-rule: #DCD5C8;
+    --color-outline: #8A8177;
     --color-accent: #0088b0;
     --color-accent-text: #00708F;
     --color-accent-hover: #005A73;
@@ -51,11 +52,15 @@
     --space-6: 32px;
     --space-7: 48px;
     --screen-max-width: 620px;
+    --screen-top-space: var(--space-7);
     --bottom-nav-height: 64px;
     --bottom-nav-offset: 20px;
     --action-dock-height: 60px;
     --lifecycle-gesture-height: 56px;
-    --radius-bar: 4px;
+    --dock-tally-height: 44px;
+    /* What the dock's second row adds above its first; 0 until the Detail
+       screen sets it (`.screen.detail:has(.dock-tally)`). */
+    --dock-extra-height: 0px;
     --radius-field: 22px;
     --radius-card: 20px;
     --radius-habit: 24px;
@@ -73,13 +78,37 @@
     box-sizing: border-box;
 }
 
+/* The one keyboard focus ring: every control inherits it, no component
+   redefines or removes it. `.input` keeps its accent border on top of it.
+   Sole exception: on the ritual ground (`.screen.ritual`) the accent ring
+   reads 3.41:1, so the ring takes --color-ritual-ink-soft (9.09:1). */
+:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+}
+
+.screen.ritual :focus-visible {
+    outline-color: var(--color-ritual-ink-soft);
+}
+
 html, body {
     margin: 0;
     padding: 0;
 }
 
+/* The masthead disc bleeds 65px past the right edge. Without its entry
+   animation (reduced motion) it positions against the viewport and would widen
+   the page: the html box stops the sideways scroll, and the body, as the disc's
+   frame, cuts it at the viewport edge, so the disc stays round at the corner
+   instead of being cut at the column's edge. */
+html {
+    overflow-x: hidden;
+}
+
 body {
     background: var(--color-paper);
+    position: relative;
+    overflow-x: clip;
     color: var(--color-ink);
     font-family: var(--font-body);
     font-size: 17px;
@@ -97,8 +126,11 @@ body {
     max-width: var(--screen-max-width);
     margin: 0px auto;
     overflow: hidden;
-    padding: calc(var(--space-7) + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) calc(var(--space-5) + var(--safe-area-inset-right, env(safe-area-inset-right, 0px))) calc(var(--space-7) + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))) calc(var(--space-5) + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
-    animation: kzUp .3s ease both;
+    padding: calc(var(--screen-top-space) + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) calc(var(--space-5) + var(--safe-area-inset-right, env(safe-area-inset-right, 0px))) calc(var(--space-7) + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))) calc(var(--space-5) + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
+    /* `backwards`, not `both`: the end state of kzUp is the natural state, and a
+       forwards-filled `transform` would keep the screen a containing block, so
+       its disc would be framed (cut flat) at the column edge, not the viewport's. */
+    animation: kzUp .3s ease backwards;
 }
 
 .screen:before {
@@ -135,6 +167,9 @@ body {
     background: var(--color-ink);
     border-radius: var(--radius-pill);
     box-shadow: var(--shadow-md);
+    /* above the z-index 1 controls (`.target`, `.resume-link`): with reduced motion
+       `.screen` is no stacking context and they would scroll over the fixed bar */
+    z-index: 2;
 }
 
 .bottom-nav a {
@@ -142,7 +177,7 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2px;
+    gap: var(--space-1);
     min-width: 64px;
     min-height: 44px;
     font-size: 12px;
@@ -153,11 +188,6 @@ body {
 .bottom-nav a[aria-current="page"] {
     color: var(--color-paper);
     font-weight: 600;
-}
-
-.bottom-nav a:focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 3px;
 }
 
 .bottom-nav-icon {
@@ -230,6 +260,7 @@ body {
 }
 
 .habit-row {
+    position: relative;
     display: flex;
     align-items: center;
     gap: var(--space-4);
@@ -255,11 +286,24 @@ body {
     color: var(--color-accent-text);
 }
 
+/* Stretched link: the title's invisible layer covers the whole card, so a tap
+   anywhere on it opens the Detail; the card's own control sits above it.
+   Scoped to `a`: the Ancrées name is a span and its card opens nothing. */
+a.habit-name::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+}
+
+.resume-link {
+    z-index: 1;
+}
+
 .habit-meta,
 .quiet-note {
     font-size: 14px;
     color: var(--color-ink-soft);
-    margin: 2px 0 0;
+    margin: var(--space-1) 0 0;
 }
 
 /* ---- Summary card (Today screen) ----
@@ -271,13 +315,13 @@ body {
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    padding: 14px var(--space-4);
+    padding: var(--space-3) var(--space-4);
     background: var(--color-card);
     border-radius: var(--radius-card);
 }
 
 .pebble {
-    width: 22px;
+    width: 18px;
     height: 18px;
     border-radius: 50%;
     background: transparent;
@@ -321,29 +365,21 @@ body {
     text-decoration: underline;
 }
 
-.resume-link:focus-visible,
-.readmit:focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 3px;
-}
-
 /* ---- Ancrées screen (acquired habits) ----
    Its own pebble, ochre and anchored bottom-left, where the global disc is
-   cyan and top-right. `.screen` declares no `position`, and the global disc
-   gets away with it only because a top-corner offset lands it in the frame
-   either way; a bottom-left one has no such luck, so this screen — and only
-   this screen — scopes itself a positioning context, the `.screen.ritual`
-   idiom. The disc keeps `z-index: -1` and `pointer-events: none` from the
-   base rule, so the content paints above it without any stacking lift.
+   cyan and top-right. Like every screen it declares no `position`: the body is
+   the disc's frame, so in landscape the disc sits at the viewport's left edge
+   and is cut there, round, instead of being cut flat at the column's edge.
+   The disc keeps `z-index: -1` and `pointer-events: none` from the base rule,
+   so the content paints above it without any stacking lift.
 
-   `min-height` is what puts the pebble at the *frame's* bottom rather than at
+   `min-height` is what puts the pebble at the page's bottom rather than at
    the content's: `.screen` hugs its content, so on a board holding one or two
-   habits the box ends mid-page and `bottom` measures from there, leaving the
+   habits the body ends mid-page and `bottom` measures from there, leaving the
    galet floating in the middle instead of sitting level with the bottom bar.
    Filling the viewport restores the mockup's frame; the 100vh/100dvh pair
    mirrors `.screen.ritual`'s own idiom (dvh last, for the mobile URL bar). */
 .screen.anchored {
-    position: relative;
     min-height: 100vh;
     min-height: 100dvh;
 }
@@ -370,6 +406,11 @@ body {
     align-items: stretch;
     gap: var(--space-3);
     padding: var(--space-4) var(--space-5);
+}
+
+/* The refusal's live region is always in the card; empty, it cancels its flex gap. */
+.habit-row.is-anchored .quiet-note:empty {
+    margin-top: calc(-1 * var(--space-3));
 }
 
 .habit-head {
@@ -411,11 +452,12 @@ body {
 /* ---- Round target (mark done) ---- */
 .target {
     position: relative;
+    z-index: 1;
     flex: none;
     width: 52px;
     height: 52px;
     border-radius: var(--radius-pebble);
-    border: 2px dashed var(--color-rule);
+    border: 2px dashed var(--color-outline);
     background: var(--color-paper);
     cursor: pointer;
     display: grid;
@@ -429,11 +471,6 @@ body {
 
 .target:active {
     transform: scale(.94);
-}
-
-.target:focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 3px;
 }
 
 .target-ink {
@@ -504,7 +541,9 @@ body {
 }
 
 .quiet-link {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
     color: var(--color-accent-text);
     text-decoration: none;
     font-size: 17px;
@@ -520,12 +559,6 @@ body {
     gap: var(--space-3);
 }
 
-.footer-links .quiet-link {
-    display: flex;
-    align-items: center;
-    min-height: 44px;
-}
-
 .add-cta {
     margin-top: var(--space-6);
 }
@@ -535,13 +568,6 @@ body {
    holding the accumulated figure and its staircase, the week's word, the
    rhythm in dots, then one card per habit — cards separated by a gap, never
    by a rule. */
-.week-heading {
-    font-family: var(--font-display);
-    font-size: 40px;
-    font-weight: 500;
-    margin: 0;
-}
-
 .week-tint-card {
     display: flex;
     align-items: flex-end;
@@ -603,28 +629,47 @@ body {
 
 /* ---- Rhythm row (Week screen) ----
    One dot per day over the rolling seven-day window, oldest first. Presence,
-   never density: a day without practice keeps its dot faint — present,
-   never a gap, never a warning. The
-   opacity is load-bearing: at full strength the unlit rule falls to 2.80:1
-   against the accent, under the 3:1 SC 1.4.11 floor an all-chroma signal
-   needs — composited faint it holds 3.31:1. */
+   never density: a day without practice keeps its dot as a hollow ring — present,
+   never a gap, never a warning. Lit is a filled accent dot, unlit a hollow
+   ring in --color-outline at full opacity (3.39:1 on paper, SC 1.4.11): the
+   difference is the fill, not a shade (#32). Each dot stands over its weekday's
+   short name (the window slides daily, so position alone cannot tell the days
+   apart); the names are aria-hidden, the row's own label already says the week. */
 .rhythm {
     display: flex;
+    justify-content: space-between;
     gap: var(--space-2);
     margin-top: var(--space-5);
+}
+
+.rhythm-day,
+.pebble-day {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    min-width: var(--space-5);
+}
+
+.rhythm-day-name,
+.pebble-day-name {
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--color-ink-soft);
 }
 
 .rhythm-dot {
     width: 12px;
     height: 12px;
     border-radius: var(--radius-pebble);
-    background: var(--color-rule);
-    opacity: 0.35;
+    background: transparent;
+    border: 2px solid var(--color-outline);
 }
 
 .rhythm-dot.is-practised {
     background: var(--color-accent);
-    opacity: 1;
+    border-color: var(--color-accent);
 }
 
 /* ---- Habit cards (Week screen) ----
@@ -718,7 +763,7 @@ body {
 }
 
 .btn-secondary {
-    border-color: var(--color-rule);
+    border-color: var(--color-outline);
 }
 
 .btn-block {
@@ -746,25 +791,33 @@ body {
        its duration (adr-0021's MUST NOT) — so this screen fades in instead of
        rising, and its dock is viewport-relative from the first paint. */
     animation-name: kzFade;
-    /* The whole fixed foot — the end-of-life lines and the action dock — is
-       space the flow cannot see, so the screen reserves it: the dock, the gap
-       above it, the two-line block over that, and one more breathing space. On
-       a viewport too short for the content the page scrolls, rather than
-       hiding a control behind the stack. */
+    /* The fixed action dock is space the flow cannot see, so the screen
+       reserves it: the dock, the gap above it, and one more breathing space.
+       On a viewport too short for the content the page scrolls, rather than
+       hiding a control behind the dock. */
     padding-bottom: calc(
         var(--space-5)
         + var(--action-dock-height)
+        + var(--dock-extra-height)
         + var(--space-3)
-        + 2 * var(--lifecycle-gesture-height)
-        + var(--space-1)
         + var(--space-5)
         + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))
     );
 }
 
+/* With an attempt today the dock grows a second row (the count and the undo).
+   The fixed foot cannot be seen by the flow, so the one custom property below
+   feeds the calc that clears the dock: the screen's padding. `:has()` is the
+   `.screen.ritual` idiom. */
+.screen.detail:has(.dock-tally) {
+    --dock-extra-height: calc(var(--dock-tally-height) + var(--space-1));
+}
+
 /* The screen's actions, held at the foot of the viewport so they stay within
    thumb reach in every state. Content, never chrome: this route mounts no bar
-   (adr-0021), so the dock scopes itself here rather than in the layout. */
+   (adr-0021), so the dock scopes itself here rather than in the layout.
+   Row 1 (`.dock-pills`) is the two pills; row 2 (`.dock-tally`) is the quiet
+   count and undo. */
 .action-dock {
     position: fixed;
     bottom: calc(var(--space-5) + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
@@ -773,29 +826,50 @@ body {
     max-width: calc(var(--screen-max-width) - 2 * var(--space-5));
     margin-inline: auto;
     display: flex;
-    gap: 10px;
+    flex-direction: column;
+    gap: var(--space-1);
+    /* Opaque: the page scrolls under the dock, and a transparent one lets the
+       content read through the pills. The screen's own ground, so it reads as
+       the page, not as a new component. */
+    background: var(--color-paper);
+}
+
+.dock-pills {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.dock-tally {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-height: var(--dock-tally-height);
+}
+
+.dock-tally .quiet-note {
+    margin: 0;
 }
 
 /* The docked gestures' geometry belongs to the dock: one flex row, centred, at
    the dock's height — whether or not a gesture carries a glyph to its left.
-   `min-width: 0` lets a long label shrink and wrap rather than widen the dock
-   past the viewport. */
+   A pill never shrinks below its own label (`flex-basis: auto` plus `nowrap`):
+   a squeezed primary collapsed into an oval at 407dp. The inline padding is
+   `--space-4` (`--space-3` at 380-391px, see below) so both labels fit a 312px
+   dock at the 1.3x font. */
 .action-dock .btn {
-    flex: 1;
-    min-width: 0;
+    flex: 1 0 auto;
+    width: auto;
     display: flex;
     align-items: center;
     justify-content: center;
     min-height: var(--action-dock-height);
+    padding-inline: var(--space-4);
+    white-space: nowrap;
 }
 
-/* The gesture that says the day is done takes only the room its own copy
-   needs, so the practice gesture keeps the width it had when the dock carried
-   one control. */
-.action-dock .action-done,
-.action-dock .action-undo {
-    flex: 0 1 auto;
-    gap: 8px;
+.action-dock .action-done {
+    gap: var(--space-2);
 }
 
 .action-done.is-done {
@@ -810,6 +884,72 @@ body {
     stroke-width: 2.5;
     stroke-linecap: round;
     stroke-linejoin: round;
+}
+
+/* On a narrow phone the check no longer fits beside "C'est fait" at the 1.3x
+   font. The label and the accent border still say it is done; the glyph is
+   aria-hidden, so the accessible name is unchanged. */
+@media (max-width: 379.98px) {
+    .action-done-check {
+        display: none;
+    }
+}
+
+/* From 380 to 391px the check still shows and, at the 1.3x font, row 1 would
+   overflow by up to 11px; `--space-3` inline padding saves 16px across the two
+   pills. */
+@media (min-width: 380px) and (max-width: 391.98px) {
+    .action-dock .btn {
+        padding-inline: var(--space-3);
+    }
+}
+
+/* A phone held sideways leaves 360-412px of height, and the portrait bars
+   (64px nav, 60px dock) would take a third of it. The fixed bars shrink; every
+   screen reserves them through the same custom properties. The header gives
+   back its top space and its largest type, so the first card sits above the
+   nav instead of under it. */
+@media (orientation: landscape) and (max-height: 480px) {
+    :root {
+        --bottom-nav-height: 48px;
+        --bottom-nav-offset: 8px;
+        --action-dock-height: 48px;
+        /* The undo link keeps its 44px target, so the row cannot shrink. */
+        --dock-tally-height: 44px;
+        --screen-top-space: var(--space-4);
+    }
+
+    .screen.detail {
+        flex-flow: row wrap;
+        align-items: center;
+        gap: var(--space-4);
+    }
+
+    .screen.detail > .detail-head {
+        flex: 1;
+    }
+
+    .screen.detail > :is(.week-card, .pace, .lifecycle) {
+        flex: 0 0 100%;
+    }
+
+    .masthead {
+        padding-bottom: 0;
+    }
+
+    .greeting {
+        font-size: 32px;
+        padding-bottom: var(--space-2);
+    }
+
+    .lede {
+        width: auto;
+        margin-bottom: var(--space-3);
+    }
+
+    .eyebrow {
+        margin-top: var(--space-3);
+    }
 }
 
 .screen.detail:before {
@@ -827,11 +967,6 @@ body {
     background: var(--color-card);
 }
 
-.detail-back:focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 3px;
-}
-
 .detail-back-icon {
     width: 20px;
     height: 20px;
@@ -844,7 +979,7 @@ body {
 
 /* Title and dose read as one block: the global `.greeting` rule keeps its own
    padding, so this wrapper adds no gap of its own. The dose is the quiet
-   sub-line — never `.lede`, which six other views still emit. */
+   sub-line — never `.lede`, which other views still emit. */
 .detail-head {
     display: flex;
     flex-direction: column;
@@ -864,43 +999,51 @@ body {
    never two nuances of one shape (06-style-galets rule #32). Today — the last
    of the seven — is told apart by its dashed outline until it is practised.
    Size follows the day's attempts against that day's own goal (--day-ratio,
-   0..1, capped in the view): a day without practice has ratio 0 and stands at
-   the floor. The size scale (.6 + .4 x ratio) keeps even that floor visible. */
+   0..1, capped in the view): a practised pebble is drawn at its ratio, so one
+   attempt of five stands at two fifths of full height. Below a quarter the
+   pebble would vanish, so .25 is the visible minimum (a 5x5px filled dot). A
+   day without practice keeps the hollow ring at the .6 floor. Width and height
+   scale together, so every day pebble is a circle (owner ruling, S36).
+   Each pebble stands over its weekday's short name (aria-hidden, the card's own
+   label already says the week); the block margin centres the pebble in a fixed
+   20px slot so the names align whatever the pebbles' sizes. */
 .week-card {
     background: var(--color-card);
     border-radius: var(--radius-habit);
-    padding: 18px 20px;
+    padding: var(--space-4);
 }
 
 .pebble-track {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
 }
 
 .day-pebble {
-    --pebble-scale: calc(.6 + .4 * var(--day-ratio, 1));
-    width: calc(24px * var(--pebble-scale));
+    --pebble-scale: .6;
+    width: calc(20px * var(--pebble-scale));
     height: calc(20px * var(--pebble-scale));
+    margin-block: calc(10px * (1 - var(--pebble-scale)));
     border-radius: 50%;
     background: transparent;
-    border: 2px solid var(--color-rule);
+    border: 2px solid var(--color-outline);
 }
 
 .day-pebble.is-done {
+    --pebble-scale: max(.25, var(--day-ratio, 1));
     background: var(--color-accent);
     border-color: var(--color-accent);
 }
 
 .day-pebble.is-today {
     border-style: dashed;
-    border-color: var(--color-on-ink-soft);
+    border-color: var(--color-outline);
 }
 
 /* The practice action: the dock's pill, with its decorative triangle held off
    the label by a gap. */
 .action-primary {
-    gap: 10px;
+    gap: var(--space-2);
     font-size: 17px;
     font-weight: 600;
 }
@@ -931,7 +1074,7 @@ body {
 .pace-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    gap: var(--space-3);
 }
 
 .pace-tile {
@@ -939,7 +1082,7 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2px;
+    gap: var(--space-1);
     min-height: 72px;
     padding: 0;
     border: none;
@@ -959,11 +1102,6 @@ body {
     background: var(--color-tile-neutral);
 }
 
-.pace-tile:focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 3px;
-}
-
 .pace-glyph {
     font-size: 20px;
     line-height: 1;
@@ -972,17 +1110,9 @@ body {
 /* ---- End-of-life gestures (Detail screen) ----
    Two lines under a hairline, recessed: text-only rows with a decorative
    glyph, the anchoring one carrying the ocre pair this screen already uses
-   for an acquired habit. Like the action dock they are held at the foot of
-   the viewport, stacked above it — and, like it, they are space the flow
-   cannot see, which is why `.screen.detail` reserves their height. */
+   for an acquired habit. They sit in the page's flow, after the pace tiles,
+   and scroll with it; only the action dock stays fixed. */
 .lifecycle {
-    position: fixed;
-    /* clears the dock: its bottom offset, its height, then a breath */
-    bottom: calc(var(--space-5) + var(--action-dock-height) + var(--space-3) + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
-    left: calc(var(--space-5) + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
-    right: calc(var(--space-5) + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
-    max-width: calc(var(--screen-max-width) - 2 * var(--space-5));
-    margin-inline: auto;
     border-top: 1.5px solid var(--color-rule);
 }
 
@@ -1011,11 +1141,6 @@ body {
     color: var(--color-anchored);
 }
 
-.lifecycle-gesture:focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 3px;
-}
-
 .lifecycle-icon {
     flex: none;
     width: 20px;
@@ -1031,21 +1156,6 @@ body {
     stroke: var(--color-anchored);
 }
 
-.tag {
-    font-size: 12px;
-    letter-spacing: .1em;
-    text-transform: uppercase;
-    padding: 3px var(--space-2);
-    border-radius: var(--radius-pill);
-    background: var(--color-tint);
-    color: var(--color-on-tint);
-}
-
-.tag-accent {
-    background: var(--color-tint);
-    color: var(--color-on-tint);
-}
-
 .field {
     display: block;
     margin-bottom: var(--space-4);
@@ -1056,13 +1166,17 @@ body {
     font-family: var(--font-body);
     font-size: 18px;
     padding: var(--space-3);
-    border: 1px solid var(--color-rule);
+    border: 1px solid var(--color-outline);
     border-radius: var(--radius-field);
     background: var(--color-card);
 }
 
+.input::placeholder {
+    color: var(--color-ink-soft);
+    opacity: 1;
+}
+
 .input:focus-visible {
-    outline: 2px solid var(--color-accent);
     border-color: var(--color-accent);
 }
 
@@ -1097,11 +1211,6 @@ body {
 
 .add-target:active {
     transform: scale(.94);
-}
-
-.add-target:focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 3px;
 }
 
 /* ---- Ritual (practice timer) ---- */
@@ -1153,18 +1262,6 @@ body:has(.screen.ritual) {
     font-weight: 500;
     width: 80%;
     align-self: center;
-}
-
-/* The gentle word (h3.motivation) is the only running line on the dark screen: the mockup gives
-   it the display face at its own size, in full ink — the soft tone is kept
-   for the dose line and for the way out. */
-.screen.ritual .quiet-note {
-    font-family: var(--font-display);
-    font-size: 22px;
-    line-height: 1.35;
-    color: var(--color-ritual-ink);
-    max-width: 290px;
-    margin: 8px auto 0;
 }
 
 .screen.ritual .quiet-link {

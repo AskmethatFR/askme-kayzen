@@ -27,3 +27,15 @@ Feature: Anchor a habit that has become natural
     Given a habit completed on 10 of the last 14 days
     When the user opens its detail
     Then nothing suggests anchoring it, because anchoring is user-initiated
+
+  @scenario:S5
+  Scenario: The Ancrées screen explains itself when nothing is anchored yet
+    Given no anchored habit
+    When the user opens the Ancrées screen
+    Then it says there are none yet and that a habit that has become natural will settle there
+
+  @scenario:S6
+  Scenario: An anchored habit's detail says how it comes back
+    Given an anchored habit
+    When the user opens its detail
+    Then one quiet line says it can come back into the daily life from Anchored

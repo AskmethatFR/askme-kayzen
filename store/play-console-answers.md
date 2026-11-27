@@ -128,9 +128,10 @@ enfants et ne collecte rien.
 | Élément | Fichier |
 | --- | --- |
 | Icône 512×512 (PNG 32 bits avec alpha, < 1 Mo) | `store/icon/ic_launcher-512.png` |
-| Feature graphic 1024×500 (sans canal alpha) | `store/listing/feature-graphic-1024x500.png` |
-| Captures téléphone fr-FR (6 × 1080×1920) | `store/listing/screenshots/fr/` |
-| Captures téléphone en-US (6 × 1080×1920) | `store/listing/screenshots/en/` |
+| Feature graphic 1024×500 fr-FR (sans canal alpha) | `store/listing/feature-graphic-fr-1024x500.png` |
+| Feature graphic 1024×500 en-US (sans canal alpha) | `store/listing/feature-graphic-en-1024x500.png` |
+| Captures téléphone fr-FR (6 × 1080×1920) | `store/listing/tiles/fr/` |
+| Captures téléphone en-US (6 × 1080×1920) | `store/listing/tiles/en/` |
 | Titre, descriptions courte et complète | `store/listing/copy.fr.md`, `store/listing/copy.en.md` |
 | E-mail de contact | `ateixeira@askmethat.fr` |
 
@@ -161,21 +162,14 @@ des déclarations ci-dessus fausse ou une exigence technique non satisfaite.
 | 1 | `@import` Google Fonts dans `app/assets/main.css` | Requête sortante vers Google à chaque lancement → « aucune donnée collectée » devient faux |
 | 2 | `@import` Google Fonts (police Inter) dans l'`index.html` généré par `dx` | **Deuxième fuite, indépendante de la première** : elle vient du gabarit `dx` 0.7.9, pas de notre feuille de style. La retirer demande de fournir notre propre `index.html`. Sans cela, supprimer le point 1 ne suffit pas |
 | 3 | Icône non injectée dans la build | `res/` est régénéré sous `target/` à chaque build et `[android].icon` n'est pas câblé dans `dx` 0.7.9 : les fichiers de `app/android/res/` sont inertes tant qu'un mécanisme ne les copie pas |
-| 4 | `android:label` encore à `Kaizen` | Le lanceur afficherait un autre nom que la fiche (`app/android/AndroidManifest.xml:39,46`, et `title` dans `app/Dioxus.toml:6`) |
-| 4bis | Le bandeau de l'application affiche `Kaizen` en dur | `app/src/views/today.rs:28` — la marque vue à l'écran contredit la fiche, **et elle est visible sur toutes les captures** : les captures sont à régénérer après la correction (`python3 store/listing/build_screenshots.py`) |
+| 4 | `android:label` encore à `Kaizen` | Le lanceur afficherait un autre nom que la fiche (`app/android/AndroidManifest.xml:66,73`, et `title` dans `app/Dioxus.toml:11`) |
+| ~~4bis~~ | ~~Le bandeau de l'application affiche `Kaizen` en dur~~ | **Levé** — le bandeau d'Aujourd'hui ne porte plus de marque, et `app/src/views/today.rs:501` vérifie qu'il ne contient pas `Kaizen` |
 | ~~5~~ | ~~Branche `gh-pages` inexistante~~ | **Levé** — pages en ligne, `/docs` vérifié non servi (404) |
 | 6 | AAB aligné 16 Ko et signé | Issue #28, slices S2a et S2b |
 | 7 | `versionCode` dérivé du tag | Issue #28 ; en dur à `1` dans le gabarit, donc aucune mise à jour ne pourrait être publiée ensuite |
 
 Les points 1 à 5 sont l'objet des tickets de la phase technique ; les points 6 et 7 sont
 déjà couverts par l'issue #28.
-
-> **Sur le point 4bis** — le choix entre `Kaizen` (le concept japonais dont le produit tire
-> son principe) et `Kayzen` (le nom du produit, du paquet et du dépôt) appartient au
-> propriétaire. Tout le reste de la publication est aligné sur **Kayzen** : le paquet
-> `com.askmethat.kayzen`, la fiche, l'icône, le graphique, les pages légales. Laisser
-> `Kaizen` à l'écran est possible, mais c'est alors un écart volontaire à assumer, pas un
-> oubli.
 
 ---
 

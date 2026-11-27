@@ -5,9 +5,6 @@ use dioxus::prelude::*;
 pub fn DataUnavailable() -> Element {
     rsx! {
         div { class: "screen",
-            header { class: "masthead",
-                span { class: "tag tag-accent", "Kaizen" }
-            }
             h1 { class: "greeting", {tr!("data-unavailable-title")} }
             div { class: "empty-state",
                 p { class: "lede", {tr!("data-unavailable-lede-1")} }
@@ -70,6 +67,16 @@ mod tests {
                 "expected no technical wording ('{jargon}'), got: {html}"
             );
         }
+    }
+
+    #[test]
+    fn the_screen_has_no_hard_coded_brand_tag() {
+        let html = render(RootAtDataUnavailable);
+
+        assert!(
+            !html.contains("Kaizen"),
+            "expected no hard-coded 'Kaizen' tag on the refusal screen, got: {html}"
+        );
     }
 
     // @scenario: persistence/S5

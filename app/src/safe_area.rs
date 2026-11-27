@@ -41,6 +41,8 @@ mod tests {
     fn safe_area_bleed_s2_given_the_release_seam_then_it_registers_one_read_only_bridge_under_on_web_view_create()
      {
         let block = seam_block();
+        // @law: Kotlin ignores whitespace before a `(`, so the surface counts run on the block with every space removed.
+        let squeezed: String = block.split_whitespace().collect();
 
         assert_eq!(
             block.matches("\"AskmeSafeArea\"").count(),
@@ -48,10 +50,24 @@ mod tests {
             "the bridge must be registered under the AskmeSafeArea name exactly once"
         );
         assert_eq!(
-            block.matches("addJavascriptInterface(").count(),
-            1,
-            "exactly one addJavascriptInterface call in the seam block"
+            squeezed.matches("addJavascriptInterface(").count(),
+            2,
+            "exactly two addJavascriptInterface calls in the seam block: AskmeSafeArea and \
+             AskmeSystemBars (adr-0028)"
         );
+        assert_eq!(
+            squeezed.matches("JavascriptInterface").count(),
+            4,
+            "JavascriptInterface appears only as the two registrations and the two annotations: \
+             no import alias, no second spelling of the annotation"
+        );
+        for widening in ["typealias", "addWebMessageListener", "loadUrl"] {
+            assert!(
+                !squeezed.contains(widening),
+                "the seam block never uses {widening}: an alias hides an annotation, the others \
+                 open another page-to-native channel (adr-0024 reopening trigger)"
+            );
+        }
         let hook = block
             .find("override fun onWebViewCreate(")
             .expect("the seam overrides WryActivity.onWebViewCreate");
@@ -65,22 +81,17 @@ mod tests {
 
         assert_eq!(
             block.matches("@android.webkit.JavascriptInterface").count(),
-            1,
-            "exactly one @JavascriptInterface member: insets(), geometry only"
+            2,
+            "exactly two @JavascriptInterface members: insets(), geometry only, and \
+             darkGround(Boolean), a cosmetic switch (adr-0028)"
         );
         assert!(
             block.contains("fun insets(): String"),
             "the bridge exposes the 0-arg insets(): String reader"
         );
-        let annotation = block
-            .find("@android.webkit.JavascriptInterface")
-            .expect("the bridge carries the @JavascriptInterface annotation");
-        let reader = block
-            .find("fun insets(): String")
-            .expect("the bridge carries the insets() reader");
         assert!(
-            annotation < reader,
-            "the @JavascriptInterface annotation must sit on insets(), not elsewhere"
+            block.contains("@android.webkit.JavascriptInterface\n    fun insets(): String"),
+            "the @JavascriptInterface annotation must sit directly on insets(), not elsewhere"
         );
 
         assert_eq!(
@@ -108,13 +119,26 @@ mod tests {
             "the seam pushes through the single writer entry point"
         );
         assert_eq!(
-            block.matches("evaluateJavascript(").count(),
-            1,
-            "the seam evaluates exactly one push script"
+            squeezed.matches("evaluateJavascript(").count(),
+            2,
+            "the seam evaluates exactly two scripts: the insets push and the fixed Back question \
+             (adr-0027)"
         );
-        assert!(
-            block.contains("webView.post {"),
-            "the push is posted to the WebView thread like wry's own evalScript"
+        assert_eq!(
+            block
+                .matches(
+                    "webView.post { webView.evaluateJavascript(safeArea.applyScript(), null) }"
+                )
+                .count(),
+            1,
+            "the insets push is posted to the WebView thread like wry's own evalScript"
+        );
+        assert_eq!(
+            block
+                .matches(r#"webView.evaluateJavascript("window.__kzBack()") { answer ->"#)
+                .count(),
+            1,
+            "the only other script is the fixed Back question, a constant with no interpolation"
         );
 
         for needle in [

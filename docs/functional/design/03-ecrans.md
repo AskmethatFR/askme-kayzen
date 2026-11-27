@@ -6,7 +6,7 @@ L'app tient en **six écrans**, un seul visible à la fois (`App.screen`).
 
 Masthead (date + « Kaizen »), une phrase d'encouragement en italique, puis la liste des
 habitudes actives (**3 max visibles, 5 max au total**). Chaque ligne : icône, nom,
-« [déclencheur] · N min », et une grosse cible ronde.
+« N fois par jour », et une grosse cible ronde.
 
 La liste est **triée par déclencheur** pour épouser le fil de la journée.
 
@@ -16,19 +16,19 @@ La liste est **triée par déclencheur** pour épouser le fil de la journée.
 - « + Ajouter une toute petite habitude » en bas.
 - Liens : « Voir comment je grandis · cette semaine » ; « Mes habitudes ancrées · N »
   (si au moins une ancrée).
-- Pied de page : « X sur Y · c'est déjà quelque chose ».
+- Pied de page : « X sur Y · c'est déjà quelque chose » (à zéro : « Rien d'obligatoire aujourd'hui. »).
 - Zone « En pause · aucune pression » sous la liste (habitudes en pause, reprenables d'un tap).
 
 ## Cette semaine — l'amélioration continue
 
 Le cœur « Kaizen » : montrer qu'on grandit, jamais culpabiliser.
-- Un **grand chiffre** = les minutes **vécues** : la somme, sur toutes les habitudes, de
+- Un **grand chiffre** = le nombre de fois **vécues** : la somme, sur toutes les habitudes, de
   l'objectif en vigueur chaque jour pratiqué. *(Corrigé 2026-08-20 — issue #22. Remplace
   « minutes gagnées depuis les débuts (somme de `current − steps[0]`) » : un gain sur
   l'objectif de départ affiche « 0 » à qui pratique fidèlement sans jamais grandir, ce que
   le ton de l'écran interdit. La même règle valait pour le récap du détail, retiré depuis
   (2026-09-21) — voir `[[feature-catalog]]` F-8.)*
-- Par habitude : l'évolution « 2 → 4 min » avec une mini-courbe, **une barre par jour
+- Par habitude : l'évolution « 2 → 4 fois par jour » avec une mini-courbe, **une barre par jour
   pratiqué** dans la fenêtre glissante de sept jours, du plus ancien au plus récent.
   Chaque barre se tient à **l'objectif en vigueur ce jour-là**. Les hauteurs sont
   **relatives à la ligne** : la plus grande remplit la courbe, les autres suivent en
@@ -63,7 +63,7 @@ déplacée ailleurs. Le récap informe, il ne recueille rien.
 
 ## Détail — une habitude
 
-- Titre + résumé (« passée de 2 à 4 min, tout doucement »).
+- Titre + dose (« N fois par jour » ; « en pause · N fois par jour » ; « ancrée · N fois par jour »).
 - **Déclencheur** : champ texte libre + chips « après une habitude ancrée » (habit stacking).
 - **Escalier de pratique** — une barre par jour sur les **7 derniers jours**. Le jour fait
   est plein, le jour non fait est **la même barre en opacité faible** — jamais un trou,
@@ -72,7 +72,7 @@ déplacée ailleurs. Le récap informe, il ne recueille rien.
   l'objectif actif ce jour-là, **relativement au plus haut objectif de la fenêtre** : le jour
   le plus haut remplit l'escalier, les autres suivent en proportion. Le profil est donc
   intact — la normalisation préserve les rapports — mais deux semaines d'une même habitude,
-  l'une à 5 min et l'autre à 30, dessinent le même escalier ; on n'en voit jamais qu'une à la
+  l'une à 2 fois par jour et l'autre à 6, dessinent le même escalier ; on n'en voit jamais qu'une à la
   fois. *(Amendé 2026-07-27 par l'owner — voir `[[lifecycle-backlog]]` slice 3b. Remplace
   « une barre par étape de `steps` » : l'escalier dessine la pratique, pas l'intention.
   Hauteurs relatives tranchées 2026-08-21 par l'owner : en absolu, une barre débordait de
@@ -103,9 +103,9 @@ aucun cadran, aucun minuteur : l'écran compte l'objectif de l'habitude en fois 
 ## Ajouter — une nouvelle petite habitude
 
 - Quelques idées prêtes (boire un verre d'eau, ranger un objet, écrire une ligne, s'étirer),
-  toutes à 1 min. Taper une idée → ajoutée.
-- Sinon un champ libre + « Ajouter, à 1 min par jour ».
-- **Si 5 habitudes actives** : l'écran se bloque en douceur et invite à en ancrer une pour
+  toutes à 3 fois par jour. Taper une idée → ajoutée.
+- Sinon un champ libre + « Ajouter, à 3 fois par jour ».
+- **Si le quotidien compte 5 habitudes (en pause comprises)** : l'écran se bloque en douceur et invite à en ancrer une pour
   libérer une place.
 - *Règle :* aucune configuration d'objectif. On commence toujours tout petit.
 
@@ -209,6 +209,6 @@ où le refus à board plein devient le sujet — et « La remettre dans mon quot
 ou si le titre a été repris.
 
 **Copie approuvée :** bouton du détail « L'ancrer · elle est devenue naturelle » ;
-bandeau ancrée « ancrée · {N} min » ; lien d'Aujourd'hui « Mes habitudes ancrées ·
+bandeau ancrée « ancrée · {N} fois par jour » ; lien d'Aujourd'hui « Mes habitudes ancrées ·
 {N} » (affiché seulement si N ≥ 1) ; écran Ancrées : les titres + « {N} · devenues
 naturelles ».

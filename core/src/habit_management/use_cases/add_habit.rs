@@ -374,6 +374,158 @@ mod tests {
         assert_eq!(repository.all().len(), Habit::MAX_IN_DAILY_LIFE);
     }
 
+    // @scenario: add-habit/S12
+    // @scenario: add-habit/S14
+    #[test]
+    fn a_title_of_fifty_accented_characters_is_accepted_and_fifty_one_is_refused() {
+        let (add_habit, repository) = a_fresh_add_habit();
+        let at_the_limit = "é".repeat(HabitTitle::MAX_LEN);
+        let past_the_limit = "é".repeat(HabitTitle::MAX_LEN + 1);
+
+        let accepted = add_habit.execute(at_the_limit.clone(), 3);
+        let refused = a_fresh_add_habit().0.execute(past_the_limit, 3);
+
+        assert_eq!(accepted, Ok(()));
+        assert_eq!(
+            repository
+                .get(&HabitId::new("fixed-guid").unwrap())
+                .map(|habit| habit.title().value().to_string()),
+            Some(at_the_limit)
+        );
+        assert_eq!(
+            refused,
+            Err(AddHabitError::InvalidHabit(HabitError::TitleLength {
+                min: HabitTitle::MIN_LEN,
+                max: HabitTitle::MAX_LEN,
+            }))
+        );
+    }
+
+    // @scenario: add-habit/S13
+    #[test]
+    fn control_and_bidi_override_characters_are_stripped_from_the_stored_title() {
+        let (add_habit, repository) = a_fresh_add_habit();
+
+        let result = add_habit.execute(String::from("Lire\u{202E} une\0 page\n"), 3);
+
+        assert_eq!(result, Ok(()));
+        assert_eq!(
+            repository.all(),
+            vec![a_habit("fixed-guid", "Lire une page", 3)]
+        );
+    }
+
+    // @scenario: add-habit/S16
+    #[test]
+    fn a_title_made_only_of_control_and_bidi_characters_is_refused_and_stores_nothing() {
+        let (add_habit, repository) = a_fresh_add_habit();
+
+        let result = add_habit.execute(String::from("\u{202A}\n\0\u{2066} \u{2069}\u{202E}"), 3);
+
+        assert_eq!(
+            result,
+            Err(AddHabitError::InvalidHabit(HabitError::TitleLength {
+                min: HabitTitle::MIN_LEN,
+                max: HabitTitle::MAX_LEN,
+            }))
+        );
+        assert!(repository.all().is_empty());
+    }
+
+    const INVISIBLES: [char; 17] = [
+        '\u{200B}', '\u{200E}', '\u{200F}', '\u{2060}', '\u{2061}', '\u{2062}', '\u{2063}',
+        '\u{2064}', '\u{FEFF}', '\u{00AD}', '\u{3164}', '\u{115F}', '\u{1160}', '\u{2066}',
+        '\u{2069}', '\u{202A}', '\u{202E}',
+    ];
+
+    // @scenario: add-habit/S16
+    #[test]
+    fn a_title_made_only_of_invisible_characters_is_refused_and_stores_nothing() {
+        let joiners = [
+            String::from("\u{200D}"),
+            String::from("\u{200C}"),
+            String::from("\u{200D} \u{200C}"),
+        ];
+        let invisibles = INVISIBLES.iter().map(|c| format!("{c}{c} "));
+        for title in invisibles.chain(joiners) {
+            let (add_habit, repository) = a_fresh_add_habit();
+
+            let result = add_habit.execute(title.clone(), 3);
+
+            assert_eq!(
+                result,
+                Err(AddHabitError::InvalidHabit(HabitError::TitleLength {
+                    min: HabitTitle::MIN_LEN,
+                    max: HabitTitle::MAX_LEN,
+                })),
+                "{title:?}"
+            );
+            assert!(repository.all().is_empty(), "{title:?}");
+        }
+    }
+
+    // @scenario: add-habit/S13
+    #[test]
+    fn an_invisible_character_between_words_is_stripped_from_the_stored_title() {
+        for invisible in INVISIBLES {
+            let (add_habit, repository) = a_fresh_add_habit();
+
+            let result = add_habit.execute(format!("Lire{invisible} une page"), 3);
+
+            assert_eq!(result, Ok(()), "U+{:04X}", invisible as u32);
+            assert_eq!(
+                repository.all(),
+                vec![a_habit("fixed-guid", "Lire une page", 3)],
+                "U+{:04X}",
+                invisible as u32
+            );
+        }
+    }
+
+    // @scenario: add-habit/S13
+    #[test]
+    fn a_zero_width_joiner_inside_an_emoji_sequence_is_kept() {
+        let (add_habit, repository) = a_fresh_add_habit();
+        let family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467} sport";
+
+        let result = add_habit.execute(String::from(family), 3);
+
+        assert_eq!(result, Ok(()));
+        assert_eq!(repository.all(), vec![a_habit("fixed-guid", family, 3)]);
+    }
+
+    // @scenario: add-habit/S13
+    #[test]
+    fn an_interior_newline_or_tab_becomes_a_space_instead_of_gluing_the_words() {
+        let (add_habit, repository) = a_fresh_add_habit();
+
+        let result = add_habit.execute(String::from("Lire\nune\tpage\rici"), 3);
+
+        assert_eq!(result, Ok(()));
+        assert_eq!(
+            repository.all(),
+            vec![a_habit("fixed-guid", "Lire une page ici", 3)]
+        );
+    }
+
+    // @scenario: add-habit/S13
+    #[test]
+    fn every_bidi_control_character_is_stripped_not_only_the_range_ends() {
+        for bidi in ['\u{202B}', '\u{202C}', '\u{202D}', '\u{2067}', '\u{2068}'] {
+            let (add_habit, repository) = a_fresh_add_habit();
+
+            let result = add_habit.execute(format!("Lire{bidi} une page"), 3);
+
+            assert_eq!(result, Ok(()), "U+{:04X}", bidi as u32);
+            assert_eq!(
+                repository.all(),
+                vec![a_habit("fixed-guid", "Lire une page", 3)],
+                "U+{:04X}",
+                bidi as u32
+            );
+        }
+    }
+
     // Test List — AddHabit threading the Clock (adr-0007 AD-1):
     // - the persisted habit's first step is dated with the clock's "today",
     //   not a default/hardcoded date.

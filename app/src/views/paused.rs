@@ -1,6 +1,7 @@
 use crate::composition::Services;
 use crate::i18n::tr;
 use crate::route::Route;
+use crate::views::back_link::BackLink;
 use dioxus::prelude::*;
 use kayzen_core::habit_management::queries::list_board_habits::PausedHabit;
 
@@ -16,7 +17,7 @@ pub fn Paused() -> Element {
     rsx! {
         div { class: "screen",
             header { class: "masthead",
-                Link { class: "quiet-link", to: Route::Today {}, {tr!("masthead-back-to-today")} }
+                BackLink {}
             }
             h1 { class: "greeting", {tr!("paused-heading")} }
             if paused.is_empty() {
@@ -185,6 +186,39 @@ mod tests {
         assert!(
             html.contains(">La reprendre<"),
             "expected the resume label on each row, got: {html}"
+        );
+    }
+
+    // @scenario: paused-habits/S3
+    #[test]
+    fn a_tap_anywhere_on_a_paused_card_opens_its_detail_while_resume_keeps_its_own_tap() {
+        const MAIN_CSS: &str = include_str!("../../assets/main.css");
+
+        assert!(
+            MAIN_CSS.contains(
+                "a.habit-name::after {\n    content: \"\";\n    position: absolute;\n    inset: 0;"
+            ),
+            "expected the title link's layer stretched over the whole card"
+        );
+        assert!(
+            MAIN_CSS.contains(".resume-link {\n    z-index: 1;"),
+            "expected « La reprendre » above the stretched layer"
+        );
+    }
+
+    #[test]
+    fn the_paused_screen_opens_on_the_round_back_link_not_a_text_link() {
+        let html = render(RootAtPausedScreen);
+
+        assert!(
+            html.contains(r#"aria-label="Retour à aujourd&#39;hui""#)
+                && html.contains(r#"class="detail-back""#)
+                && html.contains(r#"class="detail-back-icon""#),
+            "expected the round back link carrying its chevron, got: {html}"
+        );
+        assert!(
+            !html.contains("← Aujourd"),
+            "expected the text back link to be gone, got: {html}"
         );
     }
 

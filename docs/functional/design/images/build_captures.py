@@ -23,7 +23,7 @@ floor and the staged page's `html { zoom }` shrinks the CSS pixel back to a
 phone's. The image Chrome writes is the window multiplied by the scale factor,
 so the capture lands at 1000x2222 and is resampled down to 720x1600.
 
-Prerequisite: dx build --platform web
+Prerequisite: dx build --platform web --package kayzen-app
 Usage: python3 docs/functional/design/images/build_captures.py
 """
 
@@ -56,6 +56,13 @@ def capture(bs, name, route):
     ever, so Chrome writes the PNG when its virtual-time budget expires but
     does not exit. The file settling at a stable size is what says the capture
     is done.
+
+    The screen's entry fade (`kzUp`) does not advance under the virtual clock:
+    probed at the end of the budget it sat at currentTime 0 and opacity 0, so
+    the PNG caught a near-invisible screen and the nav, which does not animate,
+    stood out crisp. `--force-prefers-reduced-motion` triggers main.css's
+    reduced-motion block, which drops the fade, so every capture is the settled
+    screen.
     """
     out = os.path.join(OUT, f"{name}.png")
     if os.path.exists(out):
@@ -71,6 +78,7 @@ def capture(bs, name, route):
             f"--window-size={bs.CHROME_MIN_WINDOW_W},{round(VIEWPORT_H * bs.ZOOM)}",
             f"--force-device-scale-factor={CAPTURE_DPR}",
             "--hide-scrollbars",
+            "--force-prefers-reduced-motion",
             "--virtual-time-budget=6000",
             "--lang=fr",
             "--accept-lang=fr-FR,fr",
@@ -103,13 +111,13 @@ def capture(bs, name, route):
 def main():
     bs = store_module()
     if not os.path.isdir(bs.PUBLIC):
-        sys.exit("no web build found -- run: dx build --platform web")
+        sys.exit("no web build found -- run: dx build --platform web --package kayzen-app")
     if not os.path.exists(bs.CHROME):
         sys.exit(f"headless Chrome not found at {bs.CHROME}")
 
     from PIL import Image
 
-    root = bs.stage("fr")
+    root = bs.stage("fr", VIEWPORT_H)
     httpd = bs.serve(root)
     try:
         for name, route in bs.SHOTS:

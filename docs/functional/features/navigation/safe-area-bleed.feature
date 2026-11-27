@@ -26,4 +26,11 @@ Feature: Content paints under the system bars and respects the device insets
   Scenario: The web/iOS fallback arm survives on every safe-area site
     Given the stylesheet of the app
     Then every safe-area site reads var(--safe-area-inset-*, env(safe-area-inset-*, 0px))
-    And the source contract pins exactly 15 safe-area sites
+    And the source contract pins exactly 12 safe-area sites
+
+  @scenario:S4
+  Scenario: On the Ritual, the system bars take the dark ground
+    Given the user practises an active habit
+    When the user opens its Ritual
+    Then the status bar and the nav bar switch to the dark ground, with light icons
+    And they switch back to the paper ground, with dark icons, once the user leaves the Ritual

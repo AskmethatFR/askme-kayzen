@@ -62,7 +62,7 @@ pub fn Today() -> Element {
                         }
                     }
 
-                    p { class: "eyebrow", {tr!("today-eyebrow-active")} }
+                    h2 { class: "eyebrow", {tr!("today-eyebrow-active")} }
                     ul { class: "habit-list",
                         for habit in today_habits.active {
                             li { key: "{habit.id}", class: "habit-row",
@@ -449,7 +449,7 @@ mod tests {
             "expected the greeting in English, got: {html}"
         );
         assert!(
-            html.contains("Your small steps"),
+            html.contains(r#"<h2 class="eyebrow">Your small steps</h2>"#),
             "expected the active-habits eyebrow in English, got: {html}"
         );
         assert!(
@@ -461,7 +461,7 @@ mod tests {
             "expected the mark-done aria-label in English, got: {html}"
         );
         assert!(
-            html.contains("0 of 1 ·") && html.contains("that&#39;s already something."),
+            html.contains("Nothing required today."),
             "expected the tally in English, got: {html}"
         );
         assert!(
@@ -498,9 +498,8 @@ mod tests {
             "expected the masthead to stop reading « Aujourd'hui », got: {masthead}"
         );
         assert!(
-            !masthead.contains("Kaizen") && !masthead.contains(r#"class="tag tag-accent""#),
-            "expected Today's masthead to carry no brand tag (DataUnavailable keeps its own), \
-             got: {masthead}"
+            !masthead.contains("Kaizen"),
+            "expected Today's masthead to carry no brand tag, got: {masthead}"
         );
     }
 
@@ -705,8 +704,8 @@ mod tests {
             "expected no alarm style on a habit short of its goal, got: {html}"
         );
         assert!(
-            html.contains("0 sur 1 ·"),
-            "expected the tally to count habits that reached their goal only, got: {html}"
+            html.contains("Rien d&#39;obligatoire aujourd&#39;hui."),
+            "expected the zero-done tally to read nothing required, got: {html}"
         );
     }
 
@@ -815,6 +814,36 @@ mod tests {
         assert!(
             html.contains("2 sur 3 ·"),
             "expected the tally to count the active habits only, got: {html}"
+        );
+    }
+
+    // @scenario: today-habit-list/S12
+    #[test]
+    fn a_board_with_nothing_done_today_reads_nothing_required_in_french() {
+        let html = render(RootWithUndoneHabit);
+
+        assert!(
+            html.contains("Rien d&#39;obligatoire aujourd&#39;hui."),
+            "expected the zero-done tally in French, got: {html}"
+        );
+        assert!(
+            !html.contains("0 sur 1"),
+            "expected no count at zero done, got: {html}"
+        );
+    }
+
+    // @scenario: today-habit-list/S12
+    #[test]
+    fn a_board_with_nothing_done_today_reads_nothing_required_in_english() {
+        let html = render(RootWithUndoneHabitAndEnglishLocale);
+
+        assert!(
+            html.contains("Nothing required today."),
+            "expected the zero-done tally in English, got: {html}"
+        );
+        assert!(
+            !html.contains("0 of 1"),
+            "expected no count at zero done, got: {html}"
         );
     }
 
@@ -929,6 +958,37 @@ mod tests {
         assert!(
             !screen_content.contains(r#"href="/week""#),
             "expected no link to the Week screen in Today's content, got: {screen_content}"
+        );
+    }
+
+    // @scenario: today-habit-list/S11
+    #[test]
+    fn a_tap_anywhere_on_a_card_opens_its_detail_while_the_target_keeps_its_own_tap() {
+        const MAIN_CSS: &str = include_str!("../../assets/main.css");
+
+        assert!(
+            MAIN_CSS.contains(".habit-row {\n    position: relative;"),
+            "expected the card to bound the title link's stretched layer"
+        );
+        assert!(
+            MAIN_CSS.contains(
+                "a.habit-name::after {\n    content: \"\";\n    position: absolute;\n    inset: 0;"
+            ),
+            "expected the title link's layer stretched over the whole card"
+        );
+        assert!(
+            MAIN_CSS.contains(".target {\n    position: relative;\n    z-index: 1;"),
+            "expected the target above the stretched layer"
+        );
+    }
+
+    #[test]
+    fn the_summary_pebble_is_a_circle() {
+        const MAIN_CSS: &str = include_str!("../../assets/main.css");
+
+        assert!(
+            MAIN_CSS.contains(".pebble {\n    width: 18px;\n    height: 18px;"),
+            "expected the summary pebble to be a circle: width and height both 18px"
         );
     }
 

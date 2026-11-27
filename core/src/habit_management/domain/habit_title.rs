@@ -7,14 +7,60 @@ impl HabitTitle {
     pub const MIN_LEN: usize = 1;
     pub const MAX_LEN: usize = 50;
 
+    // @law: tab, newline and carriage return become a space, then the other control (char::is_control), bidi-override (U+202A..202E, U+2066..2069) and invisible (U+200B, U+200E/200F, U+2060..2064, U+FEFF, U+00AD, U+3164, U+115F, U+1160) characters are stripped before trim and length, so a title made only of them is refused as TitleLength; ZWJ/ZWNJ (U+200D/200C) are kept for emoji and Persian/Indic text, but a title with nothing else left is refused too; length counts characters, not bytes
     pub fn new(value: String) -> Result<HabitTitle, HabitError> {
+        let value: String = value
+            .chars()
+            .map(|c| {
+                if matches!(c, '\t' | '\n' | '\r') {
+                    ' '
+                } else {
+                    c
+                }
+            })
+            .filter(|c| {
+                !c.is_control()
+                    && !matches!(
+                        c,
+                        '\u{202A}'..='\u{202E}'
+                            | '\u{2066}'..='\u{2069}'
+                            | '\u{200B}'
+                            | '\u{200E}'..='\u{200F}'
+                            | '\u{2060}'..='\u{2064}'
+                            | '\u{FEFF}'
+                            | '\u{00AD}'
+                            | '\u{3164}'
+                            | '\u{115F}'
+                            | '\u{1160}'
+                    )
+            })
+            .collect();
+        if value
+            .chars()
+            .all(|c| c.is_whitespace() || matches!(c, '\u{200C}' | '\u{200D}'))
+        {
+            return Err(Self::length_error());
+        }
+        Self::within_range(value)
+    }
+
+    // @law: a title stored before control characters were stripped must still load, so the codec falls back here, keeping it as stored (trimmed and length-checked only) rather than quarantining the whole snapshot
+    pub(crate) fn from_stored(value: String) -> Result<HabitTitle, HabitError> {
+        Self::within_range(value)
+    }
+
+    fn length_error() -> HabitError {
+        HabitError::TitleLength {
+            min: Self::MIN_LEN,
+            max: Self::MAX_LEN,
+        }
+    }
+
+    fn within_range(value: String) -> Result<HabitTitle, HabitError> {
         let value = value.trim().to_string();
 
-        if value.len() < Self::MIN_LEN || value.len() > Self::MAX_LEN {
-            return Err(HabitError::TitleLength {
-                min: Self::MIN_LEN,
-                max: Self::MAX_LEN,
-            });
+        if !(Self::MIN_LEN..=Self::MAX_LEN).contains(&value.chars().count()) {
+            return Err(Self::length_error());
         }
 
         Ok(HabitTitle(value))

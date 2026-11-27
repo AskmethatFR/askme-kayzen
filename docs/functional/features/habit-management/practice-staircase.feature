@@ -36,6 +36,7 @@ Feature: Read a habit's recent practice as a staircase
     Given a habit with a goal of 5 times a day, practised 2 times one day and 7 times the next
     When the user opens its detail
     Then the first pebble stands at two fifths of full height and the second at full height, because a count above the goal stands at full height
+    And a practised day under a quarter of its goal stands at a quarter of full height, so it stays visible
 
   @scenario:S5
   Scenario: The week covers the last seven days
@@ -54,3 +55,11 @@ Feature: Read a habit's recent practice as a staircase
     Given a habit the user has not marked done today
     When the user opens its detail
     Then today's pebble is drawn as a dashed outline, and the other days as plain outlines
+
+  @scenario:S8
+  Scenario: Each pebble names its weekday
+    Given today is a Monday
+    When the user opens a habit's detail
+    Then under the seven pebbles, oldest first, the short weekday names read "ma me je ve sa di lu"
+    And in English they read "Tu We Th Fr Sa Su Mo"
+    And the week card's accessible label is unchanged, the names staying out of the accessibility tree

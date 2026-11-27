@@ -1,7 +1,11 @@
-"""Render the 1024x500 Play Store feature graphic.
+"""Render the two 1024x500 Play Store feature graphics, one per locale.
 
-Same Broadsheet masthead as the app: Source Serif 4 ink on paper, the cyan
-stamp as the only spot colour, a 2px ink rule, and nothing else.
+Galets style (docs/functional/design/06-style-galets.md): a sand ground, the
+Fraunces "Kayzen" with the cyan dot of the icon, one Figtree line under it,
+centred in the middle ~70%. Filled cyan pebbles (practised) and outlined
+pebbles (not yet) sit near the two edges only, in varied sizes like the app's
+staircase. No phone: Play crops the edges and warns against device imagery.
+PEBBLES rows are (x, y, w, h, filled), all within the outer 15% of a side.
 
 Play rejects a feature graphic that carries an alpha channel, so the output is
 flattened to RGB on purpose.
@@ -9,99 +13,150 @@ flattened to RGB on purpose.
 Usage: python3 store/listing/build_feature_graphic.py
 """
 
+import html as html_escape
+import importlib.util
 import os
-import subprocess
 import sys
 
 from PIL import Image
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 HERE = os.path.join(ROOT, "store", "listing")
-CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-SCALE = 2
+WORK = os.path.join(ROOT, "target", "store-feature-graphic")
+FONTS = os.path.join(ROOT, "app", "assets", "fonts")
 WIDTH, HEIGHT = 1024, 500
 
+SAND = "#F4F1EA"
+INK = "#2A2622"
+CYAN = "#0088b0"
+OUTLINE = "#8A8177"
+
+LINES = {"fr": "Petits pas, sans série.", "en": "Small steps, no streaks."}
+ALT = {
+    "fr": "Le nom Kayzen et la phrase « Petits pas, sans série. » sur un papier sable, "
+          "entre des galets cyan pleins et des galets en contour.",
+    "en": "The Kayzen name and the line \"Small steps, no streaks.\" on sand-coloured paper, "
+          "between filled cyan pebbles and outlined pebbles.",
+}
+
+PEBBLES = [
+    (28, 60, 56, 50, True),
+    (92, 118, 34, 30, False),
+    (30, 190, 92, 80, True),
+    (100, 292, 40, 36, False),
+    (24, 340, 64, 56, False),
+    (84, 420, 44, 40, True),
+    (936, 54, 44, 40, False),
+    (884, 126, 70, 62, True),
+    (950, 216, 40, 36, True),
+    (890, 270, 96, 84, False),
+    (960, 380, 36, 32, True),
+    (894, 410, 56, 50, True),
+]
+
 HTML = """<!doctype html>
-<title>Kayzen feature graphic</title>
+<meta charset="utf-8">
+<title>Kayzen feature graphic {locale}</title>
 <style>
   @font-face {{
-    font-family: 'Source Serif 4';
-    src: url('../../app/assets/fonts/SourceSerif4Variable-Roman.woff2') format('woff2');
-    font-weight: 200 900;
+    font-family: 'Fraunces';
+    src: url('{fonts}/Fraunces-Variable.woff2') format('woff2');
+    font-weight: 100 900;
   }}
   @font-face {{
-    font-family: 'Source Serif 4';
-    src: url('../../app/assets/fonts/SourceSerif4Variable-Italic.woff2') format('woff2');
-    font-weight: 200 900;
-    font-style: italic;
+    font-family: 'Figtree';
+    src: url('{fonts}/Figtree-Variable.woff2') format('woff2');
+    font-weight: 300 900;
   }}
   html, body {{ margin: 0; padding: 0; }}
   body {{
     width: {w}px; height: {h}px;
-    background: #f3f2f2;
-    font-family: 'Source Serif 4', Georgia, serif;
-    color: #201e1d;
+    background: {sand};
+    overflow: hidden;
+    position: relative;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
   }}
-  .kicker {{
-    font-size: {kicker}px;
-    letter-spacing: {track}px;
-    text-transform: uppercase;
-    color: #6f6a68;
-    margin-bottom: {gap1}px;
-  }}
   .wordmark {{
-    font-size: {word}px;
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 150px;
     line-height: 1;
-    font-variation-settings: 'wght' 660, 'opsz' 60;
+    color: {ink};
+    font-variation-settings: 'wght' 620, 'opsz' 144, 'SOFT' 30;
   }}
-  .stamp {{ color: #0088b0; }}
-  .rule {{
-    width: {rule}px; height: {ruleh}px;
-    background: #201e1d;
-    margin: {gap2}px 0 {gap3}px;
+  .dot {{ color: {cyan}; }}
+  .line {{
+    font-family: 'Figtree', system-ui, sans-serif;
+    font-size: 44px;
+    font-weight: 500;
+    color: {ink};
+    margin-top: 18px;
   }}
-  .tagline {{
-    font-style: italic;
-    font-size: {tag}px;
-    color: #201e1d;
-    font-variation-settings: 'wght' 400, 'opsz' 40;
+  .pebble {{
+    position: absolute;
+    box-sizing: border-box;
+    border-radius: 48% 52% 46% 54% / 55% 47% 53% 45%;
   }}
+  .filled {{ background: {cyan}; }}
+  .hollow {{ border: 4px solid {outline}; }}
 </style>
-<div class="kicker">Une habitude à la fois</div>
-<div class="wordmark">Kayzen<span class="stamp">.</span></div>
-<div class="rule"></div>
-<div class="tagline">Pas de série. Pas de rouge. Pas de pression.</div>
+<div class="wordmark">Kayzen<span class="dot">.</span></div>
+<div class="line">{line}</div>
+{pebbles}
 """
 
 
+def output_path(locale):
+    return os.path.join(HERE, f"feature-graphic-{locale}-{WIDTH}x{HEIGHT}.png")
+
+
+def page_html(locale):
+    pebbles = "\n".join(
+        f'<div class="pebble {"filled" if filled else "hollow"}" '
+        f'style="left:{x}px;top:{y}px;width:{w}px;height:{h}px"></div>'
+        for x, y, w, h, filled in PEBBLES
+    )
+    return HTML.format(
+        locale=locale, fonts=FONTS.replace(os.sep, "/"), w=WIDTH, h=HEIGHT,
+        sand=SAND, ink=INK, cyan=CYAN, outline=OUTLINE,
+        line=html_escape.escape(LINES[locale]), pebbles=pebbles,
+    )
+
+
+def tiles_module():
+    spec = importlib.util.spec_from_file_location(
+        "kayzen_store_tiles", os.path.join(HERE, "build_store_tiles.py")
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def main():
-    if not os.path.exists(CHROME):
-        sys.exit(f"headless Chrome not found at {CHROME}")
+    tiles = tiles_module()
+    chrome = tiles.store_module().CHROME
+    if not os.path.exists(chrome):
+        sys.exit(f"headless Chrome not found at {chrome}")
 
-    w, h = WIDTH * SCALE, HEIGHT * SCALE
-    html = HTML.format(
-        w=w, h=h,
-        kicker=int(19 * SCALE), track=int(4.5 * SCALE), gap1=int(26 * SCALE),
-        word=int(112 * SCALE), rule=int(300 * SCALE), ruleh=int(2 * SCALE),
-        gap2=int(30 * SCALE), gap3=int(22 * SCALE), tag=int(27 * SCALE),
-    )
-    src = os.path.join(HERE, ".feature-graphic.html")
-    raw = os.path.join(HERE, ".feature-graphic.png")
-    open(src, "w").write(html)
-    subprocess.run(
-        [CHROME, "--headless", "--disable-gpu", f"--screenshot={raw}",
-         f"--window-size={w},{h}", "--force-device-scale-factor=1",
-         "--hide-scrollbars", src],
-        capture_output=True, check=True,
-    )
-
-    out = os.path.join(HERE, "feature-graphic-1024x500.png")
-    Image.open(raw).convert("RGB").resize((WIDTH, HEIGHT), Image.LANCZOS).save(out, optimize=True)
-    os.remove(src)
-    os.remove(raw)
-    print(f"  {os.path.relpath(out, ROOT)}  {WIDTH}x{HEIGHT}")
+    os.makedirs(WORK, exist_ok=True)
+    for locale in LINES:
+        src = os.path.join(WORK, f"{locale}.html")
+        raw = os.path.join(WORK, f"{locale}.png")
+        open(src, "w", encoding="utf-8").write(page_html(locale))
+        if os.path.exists(raw):
+            os.remove(raw)
+        tiles.run_chrome(
+            chrome,
+            [f"--window-size={WIDTH},{HEIGHT}", "--force-device-scale-factor=1",
+             "--allow-file-access-from-files", src],
+            raw,
+            f"{locale} feature graphic",
+        )
+        img = Image.open(raw).convert("RGB")
+        if img.size != (WIDTH, HEIGHT):
+            raise ValueError(f"{locale}: Chrome wrote {img.size}, not {WIDTH}x{HEIGHT}")
+        img.save(output_path(locale), optimize=True)
+        print(f"  {os.path.relpath(output_path(locale), ROOT)}  {WIDTH}x{HEIGHT}")
 
 
 if __name__ == "__main__":

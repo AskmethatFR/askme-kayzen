@@ -2,6 +2,22 @@
 id: "adr-0024-safe-area-css-bridge"
 type: "technical"
 owner: "architect"
+# FACET SUPERSESSION 2026-11-27 — [[adr-0027-android-back-goes-up-one-level-by-asking-the-page]]
+# retires exactly ONE facet of this node: the seam evaluating a single script (the
+# insets push). It now also evaluates the fixed Back question `window.__kzBack()`.
+# The bridge surface (one object, one 0-arg method, no references) is untouched.
+# Scope also recorded in this node's docs/INDEX.md row; body untouched.
+# FACET AMENDMENT 2026-11-27 — retires exactly ONE facet of this node: the count of
+# "15" chain sites (Decision table, MUST, Consequences). The Detail screen's end-of-life
+# rows left `position: fixed` (S23), taking three sites with them: the count is now 12.
+# The rule is untouched — chain form and count stay pinned (`safe-area-bleed` S3).
+# Scope also recorded in this node's docs/INDEX.md row; body untouched.
+# FACET SUPERSESSION 2026-11-27 — [[adr-0028-system-bar-colours-follow-the-page-ground-through-one-boolean-setter]]
+# retires exactly ONE facet of this node: the bridge surface being one interface with
+# one method. The seam also registers `AskmeSystemBars` with one `darkGround(Boolean)`;
+# security finding S1 is re-accepted there for that cosmetic boolean. `AskmeSafeArea`
+# (one object, one 0-arg method, no references) is untouched.
+# Scope also recorded in this node's docs/INDEX.md row; body untouched.
 status: "current"
 updated: "2026-10-06"
 relations:

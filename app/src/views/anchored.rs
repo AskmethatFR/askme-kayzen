@@ -21,41 +21,47 @@ pub fn Anchored() -> Element {
             h1 { class: "greeting", {tr!("anchored-heading")} }
             p { class: "tally", {tr!("anchored-count-tally", count: count)} }
             p { class: "tally", {tr!("anchored-daily-life-tally", count: screen().in_daily_life as i64, max: max)} }
-            ul { class: "habit-list",
-                for habit in screen().habits {
-                    li { key: "{habit.id}", class: "habit-row is-anchored",
-                        div { class: "habit-head",
-                            span { class: "habit-pebble", "aria-hidden": "true",
-                                svg {
-                                    class: "habit-pebble-icon",
-                                    view_box: "0 0 24 24",
-                                    "focusable": "false",
-                                    ellipse { cx: "12", cy: "15", rx: "7", ry: "4.5" }
-                                    path { d: "M12 10.5V4" }
+            if screen().habits.is_empty() {
+                p { class: "quiet-note", {tr!("anchored-empty-note")} }
+            } else {
+                ul { class: "habit-list",
+                    for habit in screen().habits {
+                        li { key: "{habit.id}", class: "habit-row is-anchored",
+                            div { class: "habit-head",
+                                span { class: "habit-pebble", "aria-hidden": "true",
+                                    svg {
+                                        class: "habit-pebble-icon",
+                                        view_box: "0 0 24 24",
+                                        "focusable": "false",
+                                        ellipse { cx: "12", cy: "15", rx: "7", ry: "4.5" }
+                                        path { d: "M12 10.5V4" }
+                                    }
+                                }
+                                span { class: "habit-name", "{habit.title}" }
+                            }
+                            p { class: "quiet-note", role: "status",
+                                if let Some((_, message_key)) = readmit_error()
+                                    .as_ref()
+                                    .filter(|(row_id, _)| row_id == &habit.id)
+                                {
+                                    {tr_key(message_key)}
                                 }
                             }
-                            span { class: "habit-name", "{habit.title}" }
-                        }
-                        if let Some((_, message_key)) = readmit_error()
-                            .as_ref()
-                            .filter(|(row_id, _)| row_id == &habit.id)
-                        {
-                            p { class: "quiet-note", {tr_key(message_key)} }
-                        }
-                        button {
-                            class: "readmit",
-                            aria_label: tr!("anchored-readmit-aria", title: habit.title.clone()),
-                            onclick: {
-                                let services = services.clone();
-                                let habit_id = habit.id.clone();
-                                move |_| {
-                                    let (reloaded, message) =
-                                        readmit_and_relist(&services, &habit_id);
-                                    screen.set(reloaded);
-                                    readmit_error.set(message.map(|key| (habit_id.clone(), key)));
-                                }
-                            },
-                            {tr!("anchored-readmit-label")}
+                            button {
+                                class: "readmit",
+                                aria_label: tr!("anchored-readmit-aria", title: habit.title.clone()),
+                                onclick: {
+                                    let services = services.clone();
+                                    let habit_id = habit.id.clone();
+                                    move |_| {
+                                        let (reloaded, message) =
+                                            readmit_and_relist(&services, &habit_id);
+                                        screen.set(reloaded);
+                                        readmit_error.set(message.map(|key| (habit_id.clone(), key)));
+                                    }
+                                },
+                                {tr!("anchored-readmit-label")}
+                            }
                         }
                     }
                 }
@@ -378,6 +384,51 @@ mod tests {
         );
     }
 
+    // @scenario: anchor-habit/S5
+    #[test]
+    fn the_ancrees_screen_explains_itself_when_nothing_is_anchored() {
+        let html = render(RootAtEmptyAnchoredScreen);
+
+        assert!(
+            html.contains(
+                r#"<p class="quiet-note">Aucune pour l&#39;instant. Une habitude devenue naturelle viendra se poser ici.</p>"#
+            ),
+            "expected the empty-state note on an Ancrées screen with nothing anchored, got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_ancrees_screen_with_nothing_anchored_renders_no_empty_list() {
+        let html = render(RootAtEmptyAnchoredScreen);
+
+        assert!(
+            !html.contains("habit-list"),
+            "expected the empty note instead of an empty list, got: {html}"
+        );
+    }
+
+    #[test]
+    fn every_anchored_row_holds_an_empty_status_region_before_any_refusal() {
+        let html = render(RootAtAnchoredScreen);
+
+        assert_eq!(
+            html.matches(r#"</div><p class="quiet-note" role="status"></p><button"#)
+                .count(),
+            2,
+            "expected each row's live region to exist, empty, before its content changes, got: {html}"
+        );
+    }
+
+    #[test]
+    fn the_ancrees_screen_with_anchored_habits_carries_no_empty_state_note() {
+        let html = render(RootAtAnchoredScreen);
+
+        assert!(
+            !html.contains("Aucune pour l&#39;instant"),
+            "expected no empty-state note while habits are anchored, got: {html}"
+        );
+    }
+
     #[test]
     fn readmit_and_relist_removes_the_habit_from_the_screen_grows_the_parallel_count_and_clears_the_message()
      {
@@ -525,7 +576,7 @@ mod tests {
             "Le quotidien est complet · pour la remettre, ancrez-en une autre d&#39;abord";
         assert!(
             html.contains(&format!(
-                r#"</div><p class="quiet-note">{message}</p><button"#
+                r#"</div><p class="quiet-note" role="status">{message}</p><button"#
             )),
             "expected the refusal note to own its own line, under the refused row's head \
              line and above its readmit button — not a sibling inside the head line, got: {html}"

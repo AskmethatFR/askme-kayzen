@@ -472,7 +472,30 @@ class MainActivity : WryActivity() {
     override fun onWebViewCreate(webView: android.webkit.WebView) {
         safeAreaWebView = webView
         webView.addJavascriptInterface(safeArea, "AskmeSafeArea")
+        webView.addJavascriptInterface(AskmeSystemBars(this), "AskmeSystemBars")
         window.decorView.requestApplyInsets()
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                webView.evaluateJavascript("window.__kzBack()") { answer ->
+                    if (answer != "true") {
+                        isEnabled = false
+                        onBackPressedDispatcher.onBackPressed()
+                        isEnabled = true
+                    }
+                }
+            }
+        })
+    }
+}
+
+class AskmeSystemBars(private val activity: android.app.Activity) {
+    @android.webkit.JavascriptInterface
+    fun darkGround(dark: Boolean) {
+        activity.runOnUiThread {
+            val bars = androidx.core.view.WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+            bars.isAppearanceLightStatusBars = !dark
+            bars.isAppearanceLightNavigationBars = !dark
+        }
     }
 }
 

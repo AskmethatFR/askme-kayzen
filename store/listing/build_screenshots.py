@@ -18,14 +18,14 @@ clipped. The capture lands above Play's 1080x1920 and is resampled down to it.
 
 The demo board is seeded straight into `localStorage` under the key the web
 composition root uses (`kayzen.habits.v1`), by injecting one script into a copy
-of the built index.html before the wasm boots. Dates are computed relative to
-the day the script runs, so the seven-day staircase always lands inside its
-window.
+of the built index.html before the wasm boots. Dates are computed
+relative to FIXED_DAY, and the same copy pins the app's clock and random source
+to it, so two runs give identical captures.
 
 The copy also drops the Inter @import that the dx template puts in index.html,
 so a capture never depends on reaching fonts.googleapis.com.
 
-Prerequisite: dx build --platform web
+Prerequisite: dx build --platform web --package kayzen-app
 Usage: python3 store/listing/build_screenshots.py
 """
 
@@ -80,12 +80,16 @@ TITLES = {
 # step dated before a completion is what makes the staircase rise -- the demo
 # board grows "Lire une page" twice so the seven-day window shows two heights.
 BOARD = [
-    ("lire-une-page", "Active", [(-24, 5), (-9, 6), (-3, 7)], [-6, -5, -3, -1, 0]),
-    ("bouger-un-peu", "Active", [(-18, 5)], [-5, -4, -2]),
-    ("respirer-une-minute", "Active", [(-12, 3)], [-6, -4, -3, -1, 0]),
-    ("ecrire-trois-lignes", "Paused", [(-30, 5)], [-20, -18, -15]),
-    ("un-verre-d-eau", "Anchored", [(-70, 5)], [-9, -8, -7, -5, -4, -2, -1, 0]),
-    ("ranger-une-chose", "Anchored", [(-52, 5), (-30, 6)], [-11, -9, -8, -6, -4, -3, -1]),
+    ("lire-une-page", "Active", [(-24, 3), (-3, 4)],
+     [(-10, 3), (-6, 3), (-5, 2), (-3, 4), (-2, 3), (-1, 2), (0, 4)]),
+    ("bouger-un-peu", "Active", [(-18, 3)], [(-5, 3), (-4, 2), (-2, 3), (0, 1)]),
+    ("respirer-une-minute", "Active", [(-12, 2)],
+     [(-6, 2), (-4, 2), (-3, 1), (-1, 2), (0, 2)]),
+    ("ecrire-trois-lignes", "Paused", [(-30, 3)], [(-20, 3), (-18, 2), (-15, 3)]),
+    ("un-verre-d-eau", "Anchored", [(-70, 3)],
+     [(-9, 3), (-8, 3), (-7, 3), (-5, 3), (-4, 3), (-2, 3), (-1, 3), (0, 3)]),
+    ("ranger-une-chose", "Anchored", [(-52, 2), (-30, 3)],
+     [(-11, 3), (-9, 3), (-8, 3), (-6, 3), (-4, 3), (-3, 3), (-1, 3)]),
 ]
 
 SHOTS = [
@@ -98,6 +102,62 @@ SHOTS = [
 ]
 
 
+# @law: every capture shows FIXED_DAY, so two runs produce the same PNGs.
+FIXED_DAY = datetime.date(2026, 3, 17)
+BLANK_MAX_COLOURS = 16
+
+# @law: Date and crypto.getRandomValues are shimmed in the staged copy only, never in the dx build.
+DATE_SHIM = (
+    "(()=>{const R=Date,n=new R(%d,%d,%d,12).getTime();"
+    "class D extends R{constructor(...a){a.length?super(...a):super(n)}static now(){return n}}"
+    "Date=D;})();"
+)
+RNG_SHIM = (
+    "(()=>{let s=12345;const next=()=>{s=(s+0x6D2B79F5)|0;let t=Math.imul(s^(s>>>15),1|s);"
+    "t=(t+Math.imul(t^(t>>>7),61|t))^t;return (t^(t>>>14))&255};"
+    "Crypto.prototype.getRandomValues=function(a){"
+    "const b=new Uint8Array(a.buffer,a.byteOffset,a.byteLength);"
+    "for(let i=0;i<b.length;i++)b[i]=next();return a};})();"
+)
+
+
+def assert_not_blank(path):
+    from PIL import Image
+
+    if Image.open(path).convert("RGB").getcolors(maxcolors=BLANK_MAX_COLOURS) is not None:
+        raise RuntimeError(f"{path}: blank capture (<= {BLANK_MAX_COLOURS} colours)")
+
+
+CAPTURE_ATTEMPTS = 3
+
+
+def publish(shoot, out, attempts=CAPTURE_ATTEMPTS):
+    """Shoot into WORK and move into `out` only a capture that has content.
+
+    Chrome sometimes writes a blank PNG when the virtual-time budget runs out
+    before the wasm app has rendered (about one run in two on a busy machine).
+    A blank shot is retried; the tracked file is never touched until a good
+    one exists, so a failed run leaves the previous captures in place.
+    """
+    from PIL import Image
+
+    raw = os.path.join(WORK, os.path.basename(out))
+    for attempt in range(1, attempts + 1):
+        shoot(raw)
+        Image.open(raw).convert("RGB").resize((OUT_W, OUT_H), Image.LANCZOS).save(raw, optimize=True)
+        try:
+            assert_not_blank(raw)
+        except RuntimeError:
+            if attempt == attempts:
+                raise
+            print(f"  blank capture of {os.path.basename(out)}, retry {attempt}/{attempts - 1}")
+            continue
+        if attempt > 1:
+            print(f"  recovered {os.path.basename(out)} on attempt {attempt}")
+        os.replace(raw, out)
+        return out
+
+
 def today_as_stored():
     """The integer a stored date carries.
 
@@ -107,33 +167,39 @@ def today_as_stored():
     exact Python equivalent. Seeding epoch days instead silently produces a
     board whose completions all sit ~719_000 days in the past.
     """
-    return datetime.date.today().toordinal()
+    return FIXED_DAY.toordinal()
 
 
 def snapshot(locale):
     today = today_as_stored()
     titles = TITLES[locale]
     return {
-        "v": 1,
+        "v": 2,
         "habits": [
             {
                 "id": hid,
                 "title": titles[hid],
                 "state": state,
                 "steps": [{"on": today + d, "goal": g} for d, g in steps],
-                "completions": [today + d for d in done],
+                "completions": [today + d for d, n in done for _ in range(n)],
             }
             for hid, state, steps, done in BOARD
         ],
     }
 
 
-def stage(locale):
+def stage(locale, viewport_h):
     """Copy the build, seed the board, drop the remote fonts, pin the viewport.
 
     The zoom is what buys a phone layout: Chrome refuses a window narrower
     than 500 CSS pixels, so shrinking the CSS pixel by 500/360 is the only way
     left to hand the page the 360dp viewport the Android app actually runs in.
+
+    `.screen.ritual` and `.screen.anchored` are `min-height: 100dvh`, and under
+    that zoom the unit is the window scaled up again: the screen came out
+    taller than the frame, which pushed the ritual's completion button and stop
+    link below the fold. They are pinned to the phone's `viewport_h` instead.
+    The `html` prefix outranks main.css, which dx links after this style.
     """
     root = os.path.join(WORK, locale)
     if os.path.exists(root):
@@ -147,9 +213,17 @@ def stage(locale):
         line for line in html.splitlines() if "fonts.googleapis.com" not in line
     )
     payload = json.dumps(json.dumps(snapshot(locale), ensure_ascii=False))
-    seed = f"<script>localStorage.setItem({json.dumps(STORAGE_KEY)}, {payload});</script>"
+    shims = DATE_SHIM % (FIXED_DAY.year, FIXED_DAY.month - 1, FIXED_DAY.day) + RNG_SHIM
+    seed = (
+        f"<script>{shims}"
+        f"localStorage.setItem({json.dumps(STORAGE_KEY)}, {payload});</script>"
+    )
     html = html.replace("<head>", "<head>\n" + seed, 1)
-    html = html.replace("</head>", f"<style>html{{zoom:{ZOOM:.6f}}}</style>\n</head>", 1)
+    pin = f"html .screen.ritual,html .screen.anchored{{min-height:{viewport_h}px}}"
+    still = "*{transition:none!important}"
+    html = html.replace(
+        "</head>", f"<style>html{{zoom:{ZOOM:.6f}}}{pin}{still}</style>\n</head>", 1
+    )
     open(index, "w", encoding="utf-8").write(html)
     print(f"  staged {locale}: seeded board, dropped {before} remote font import(s)")
     return root
@@ -181,7 +255,12 @@ def serve(directory):
 
 
 def capture(locale, name, route, out_dir):
-    """Shoot one route, then kill the browser.
+    out = os.path.join(out_dir, f"{name}-{OUT_W}x{OUT_H}.png")
+    return publish(lambda raw: chrome_shot(locale, name, route, raw), out)
+
+
+def chrome_shot(locale, name, route, out):
+    """Shoot one route into `out`, then kill the browser.
 
     Chrome writes the PNG when its virtual-time budget expires but does not
     reliably exit afterwards on a page that keeps animating -- Kayzen's ritual
@@ -189,10 +268,12 @@ def capture(locale, name, route, out_dir):
     on a capture that already succeeded, so the file itself is the completion
     signal: it is polled until its size stops growing, and the browser is then
     terminated.
-    """
-    from PIL import Image
 
-    out = os.path.join(out_dir, f"{name}-{OUT_W}x{OUT_H}.png")
+    The screen's entry fade (`kzUp`) does not advance under the virtual clock,
+    so without `--force-prefers-reduced-motion` the PNG catches a near-invisible
+    screen next to a crisp nav.
+    """
+    os.makedirs(WORK, exist_ok=True)
     if os.path.exists(out):
         os.remove(out)
 
@@ -206,7 +287,9 @@ def capture(locale, name, route, out_dir):
             f"--window-size={WINDOW_W},{WINDOW_H}",
             f"--force-device-scale-factor={CAPTURE_DPR}",
             "--hide-scrollbars",
+            "--force-prefers-reduced-motion",
             "--virtual-time-budget=6000",
+            "--run-all-compositor-stages-before-draw",
             f"--lang={locale}",
             f"--accept-lang={'fr-FR,fr' if locale == 'fr' else 'en-US,en'}",
             f"--user-data-dir={os.path.join(WORK, '.chrome-' + locale)}",
@@ -232,20 +315,17 @@ def capture(locale, name, route, out_dir):
         except subprocess.TimeoutExpired:
             proc.kill()
 
-    Image.open(out).convert("RGB").resize((OUT_W, OUT_H), Image.LANCZOS).save(out, optimize=True)
-    return out
-
 
 def main():
     if not os.path.isdir(PUBLIC):
-        sys.exit("no web build found -- run: dx build --platform web")
+        sys.exit("no web build found -- run: dx build --platform web --package kayzen-app")
     if not os.path.exists(CHROME):
         sys.exit(f"headless Chrome not found at {CHROME}")
 
     from PIL import Image
 
     for locale in ("fr", "en"):
-        root = stage(locale)
+        root = stage(locale, VIEWPORT_H)
         httpd = serve(root)
         out_dir = os.path.join(OUT, locale)
         os.makedirs(out_dir, exist_ok=True)

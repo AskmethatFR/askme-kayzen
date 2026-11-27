@@ -1,14 +1,17 @@
 use crate::composition::Services;
 use crate::i18n::tr;
 use crate::route::Route;
+use crate::views::back_link::BackLink;
 use dioxus::prelude::*;
 use kayzen_core::habit_management::queries::get_habit_detail::HabitDetail as HabitDetailData;
 use kayzen_core::habit_management::queries::get_habit_detail::HabitState;
 use kayzen_core::habit_management::queries::get_habit_detail::PracticeDay;
+use kayzen_core::shared::clock::weekday_in_window;
 
 #[component]
 pub fn HabitDetail(id: String) -> Element {
     let services = use_context::<Services>();
+    let today_weekday = services.today_calendar_parts().weekday;
     let mut detail = use_signal({
         let services = services.clone();
         let id = id.clone();
@@ -17,33 +20,28 @@ pub fn HabitDetail(id: String) -> Element {
 
     match detail() {
         Some(habit) => {
-            let back_link = rsx! {
-                Link {
-                    class: "detail-back",
-                    to: Route::Today {},
-                    aria_label: tr!("detail-back-to-today"),
-                    svg {
-                        class: "detail-back-icon",
-                        view_box: "0 0 24 24",
-                        "aria-hidden": "true",
-                        "focusable": "false",
-                        path { d: "M15 5l-7 7 7 7" }
-                    }
-                }
-            };
+            let back_link = rsx! { BackLink {} };
 
             let week = rsx! {
                 div {
                     class: "week-card",
+                    role: "img",
                     "aria-label": tr!("staircase-aria", goal: habit.current_goal as i64),
                     div { class: "pebble-track",
                         for (day_offset, (day, ratio)) in
                             habit.days.iter().zip(day_ratios(&habit.days)).enumerate()
                         {
-                            span {
-                                key: "{day_offset}",
-                                class: day_pebble_class(day.done, day_offset + 1 == habit.days.len()),
-                                style: "--day-ratio: {ratio}",
+                            span { key: "{day_offset}", class: "pebble-day",
+                                span {
+                                    class: day_pebble_class(day.done, day_offset + 1 == habit.days.len()),
+                                    style: "--day-ratio: {ratio}",
+                                }
+                                span { class: "pebble-day-name", "aria-hidden": "true",
+                                    {tr!(
+                                        "weekday-short",
+                                        weekday: weekday_in_window(today_weekday, habit.days.len(), day_offset) as i64
+                                    )}
+                                }
                             }
                         }
                     }
@@ -62,48 +60,52 @@ pub fn HabitDetail(id: String) -> Element {
                         {week}
 
                         div { class: "action-dock",
-                            Link {
-                                class: "btn btn-primary btn-block action-primary",
-                                to: Route::Ritual { id: habit.id.clone() },
-                                svg {
-                                    class: "action-glyph",
-                                    view_box: "0 0 24 24",
-                                    "aria-hidden": "true",
-                                    "focusable": "false",
-                                    path { d: "M7 5l12 7-12 7z" }
-                                }
-                                {tr!("start-ritual-label")}
-                            }
-                            button {
-                                class: if habit.done_today { "btn btn-secondary action-done is-done" } else { "btn btn-secondary action-done" },
-                                aria_label: if habit.done_today { tr!("habit-detail-done-aria", title: habit.title.clone()) } else { tr!("habit-detail-mark-done-aria", title: habit.title.clone()) },
-                                onclick: {
-                                    let services = services.clone();
-                                    let id = id.clone();
-                                    move |_| detail.set(mark_done_and_reload(&services, &id))
-                                },
-                                if habit.done_today {
+                            div { class: "dock-pills",
+                                Link {
+                                    class: "btn btn-primary btn-block action-primary",
+                                    to: Route::Ritual { id: habit.id.clone() },
                                     svg {
-                                        class: "action-done-check",
+                                        class: "action-glyph",
                                         view_box: "0 0 24 24",
                                         "aria-hidden": "true",
                                         "focusable": "false",
-                                        path { d: "M5 12l5 5L19 7" }
+                                        path { d: "M7 5l12 7-12 7z" }
                                     }
+                                    {tr!("start-ritual-label")}
                                 }
-                                {tr!("habit-detail-mark-done-label")}
-                            }
-                            if habit.attempts_today >= 1 {
-                                span { class: "quiet-note", {tr!("habit-detail-today-count", count: habit.attempts_today as i64)} }
                                 button {
-                                    class: "btn btn-secondary action-undo",
-                                    aria_label: tr!("habit-detail-undo-aria", title: habit.title.clone()),
+                                    class: if habit.done_today { "btn btn-secondary action-done is-done" } else { "btn btn-secondary action-done" },
+                                    aria_label: if habit.done_today { tr!("habit-detail-done-aria", title: habit.title.clone()) } else { tr!("habit-detail-mark-done-aria", title: habit.title.clone()) },
                                     onclick: {
                                         let services = services.clone();
                                         let id = id.clone();
-                                        move |_| detail.set(undo_attempt_and_reload(&services, &id))
+                                        move |_| detail.set(mark_done_and_reload(&services, &id))
                                     },
-                                    {tr!("habit-detail-undo-label")}
+                                    if habit.done_today {
+                                        svg {
+                                            class: "action-done-check",
+                                            view_box: "0 0 24 24",
+                                            "aria-hidden": "true",
+                                            "focusable": "false",
+                                            path { d: "M5 12l5 5L19 7" }
+                                        }
+                                    }
+                                    {tr!("habit-detail-mark-done-label")}
+                                }
+                            }
+                            if habit.attempts_today >= 1 {
+                                div { class: "dock-tally",
+                                    span { class: "quiet-note", {tr!("habit-detail-today-count", count: habit.attempts_today as i64)} }
+                                    button {
+                                        class: "resume-link action-undo",
+                                        aria_label: tr!("habit-detail-undo-aria", title: habit.title.clone()),
+                                        onclick: {
+                                            let services = services.clone();
+                                            let id = id.clone();
+                                            move |_| detail.set(undo_attempt_and_reload(&services, &id))
+                                        },
+                                        {tr!("habit-detail-undo-label")}
+                                    }
                                 }
                             }
                         }
@@ -208,13 +210,15 @@ pub fn HabitDetail(id: String) -> Element {
                         }
 
                         {week}
+
+                        p { class: "quiet-note", {tr!("habit-detail-anchored-return")} }
                     }
                 },
             }
         }
         None => rsx! {
             div { class: "screen",
-                p { class: "lede", {tr!("habit-not-found-message")} }
+                h1 { class: "greeting", {tr!("habit-not-found-message")} }
                 Link { class: "quiet-link", to: Route::Today {}, {tr!("habit-not-found-back-link")} }
             }
         },
@@ -798,7 +802,7 @@ mod tests {
         );
         assert!(
             html.contains(
-                r#"aria-label="Vos sept derniers jours, objectif actuel 5 fois par jour""#
+                r#"role="img" aria-label="Vos sept derniers jours, objectif actuel 5 fois par jour""#
             ),
             "expected the band to keep its own accessible name, got: {html}"
         );
@@ -851,6 +855,75 @@ mod tests {
         assert!(
             !html.contains("is-done"),
             "expected no practised day for a habit never marked done, got: {html}"
+        );
+    }
+
+    fn pebble_day_names(html: &str) -> Vec<&str> {
+        const NEEDLE: &str = r#"<span class="pebble-day-name" aria-hidden="true">"#;
+        html.split(NEEDLE)
+            .skip(1)
+            .map(|rest| rest.split('<').next().expect("a name ends at its tag"))
+            .collect()
+    }
+
+    fn services_with_one_habit_on_a_monday() -> Services {
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock(LocalDate::from_epoch_day(20_000)));
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit());
+        Services::with_repository_and_clock(repository, clock)
+    }
+
+    #[component]
+    fn RootAtHabitOnAMondayInEnglish() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_one_habit_on_a_monday);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootAtHabitOnAMonday() -> Element {
+        crate::i18n::use_locale_for_tests();
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_one_habit_on_a_monday);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: practice-staircase/S8
+    #[test]
+    fn each_pebble_names_its_weekday_in_french() {
+        let html = render(RootAtHabitOnAMonday);
+
+        assert_eq!(
+            pebble_day_names(&html),
+            ["ma", "me", "je", "ve", "sa", "di", "lu"],
+            "expected the window ending on a Monday to name its days under the pebbles, got: {html}"
+        );
+        assert!(
+            html.contains(
+                r#"role="img" aria-label="Vos sept derniers jours, objectif actuel 5 fois par jour""#
+            ),
+            "the week card's label stays the one that already describes the week, got: {html}"
+        );
+    }
+
+    // @scenario: practice-staircase/S8
+    #[test]
+    fn each_pebble_names_its_weekday_in_english() {
+        let html = render(RootAtHabitOnAMondayInEnglish);
+
+        assert_eq!(
+            pebble_day_names(&html),
+            ["Tu", "We", "Th", "Fr", "Sa", "Su", "Mo"],
+            "expected the same window in English, got: {html}"
         );
     }
 
@@ -942,8 +1015,10 @@ mod tests {
         let html = render(RootAtFloorHabitDoneToday);
 
         assert!(
-            html.contains("aria-label=\"Fait aujourd&#39;hui · Lire une page\""),
-            "expected the recorded fact to be announced, got: {html}"
+            html.contains(
+                "aria-label=\"C&#39;est fait · objectif du jour atteint · Lire une page\""
+            ),
+            "expected the spoken name to contain the visible label and the recorded fact, got: {html}"
         );
         assert!(
             html.contains(r#"class="btn btn-secondary action-done is-done""#)
@@ -1139,6 +1214,52 @@ mod tests {
         );
     }
 
+    #[component]
+    fn RootAtAnchoredHabitAndEnglishLocale() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_one_anchored_habit);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: anchor-habit/S6
+    #[test]
+    fn an_anchored_habits_detail_says_how_it_comes_back_in_french() {
+        let html = render(RootAtAnchoredHabit);
+
+        assert!(
+            html.contains(r#"<p class="quiet-note">Elle peut revenir dans votre quotidien depuis Ancrées.</p>"#),
+            "expected one quiet line saying how the habit comes back, got: {html}"
+        );
+        assert_eq!(
+            html.matches("<a ").count(),
+            1,
+            "expected only the back link, no new link, got: {html}"
+        );
+        assert_eq!(
+            html.matches("<button").count(),
+            0,
+            "expected no button on an anchored habit's detail, got: {html}"
+        );
+    }
+
+    // @scenario: anchor-habit/S6
+    #[test]
+    fn an_anchored_habits_detail_says_how_it_comes_back_in_english() {
+        let html = render(RootAtAnchoredHabitAndEnglishLocale);
+
+        assert!(
+            html.contains(
+                r#"<p class="quiet-note">It can come back to your daily life from Anchored.</p>"#
+            ),
+            "expected the same quiet line in English, naming the Anchored nav label, got: {html}"
+        );
+    }
+
     // @scenario: anchor-habit/S4
     #[test]
     fn anchoring_is_offered_but_never_suggested_whatever_the_habits_history() {
@@ -1172,7 +1293,7 @@ mod tests {
             "expected the quiet not-found copy, got: {html}"
         );
         assert!(
-            html.contains("Aujourd") && html.contains("quiet-link"),
+            html.contains("Retour à aujourd") && html.contains("quiet-link"),
             "expected a link back to Aujourd'hui, got: {html}"
         );
     }
@@ -1369,6 +1490,35 @@ mod tests {
         );
     }
 
+    // @scenario: practice-staircase/S4
+    #[test]
+    fn a_practised_pebble_is_drawn_at_its_ratio_and_an_undone_one_at_the_floor() {
+        const MAIN_CSS: &str = include_str!("../../assets/main.css");
+
+        assert!(
+            MAIN_CSS.contains(
+                ".day-pebble.is-done {\n    --pebble-scale: max(.25, var(--day-ratio, 1));"
+            ),
+            "a practised pebble must scale with its ratio (2 of 5 draws at two fifths), above a visible minimum"
+        );
+        assert!(
+            MAIN_CSS.contains(".day-pebble {\n    --pebble-scale: .6;"),
+            "an undone pebble keeps its hollow ring at the unchanged floor"
+        );
+    }
+
+    #[test]
+    fn every_day_pebble_is_a_circle_at_every_scale() {
+        const MAIN_CSS: &str = include_str!("../../assets/main.css");
+
+        assert!(
+            MAIN_CSS.contains(
+                ".day-pebble {\n    --pebble-scale: .6;\n    width: calc(20px * var(--pebble-scale));\n    height: calc(20px * var(--pebble-scale));"
+            ),
+            "a day pebble must be a circle: width and height both 20px times its scale, so they stay equal at every ratio"
+        );
+    }
+
     fn services_with_one_attempt_today() -> Services {
         let today = LocalDate::from_epoch_day(20_020);
         let clock: Rc<dyn Clock> = Rc::new(FixedClock(today));
@@ -1413,6 +1563,39 @@ mod tests {
         assert!(
             !one.contains("quiet-link"),
             "expected the undo control not to be a quiet-link, got: {one}"
+        );
+    }
+
+    #[test]
+    fn with_an_attempt_the_dock_keeps_its_two_pills_on_row_one_and_the_count_and_undo_on_a_quiet_row_two()
+     {
+        let none = render(RootAtKnownHabit);
+        let one = render(RootAtOneAttemptToday);
+
+        assert!(
+            !none.contains("dock-tally"),
+            "expected no second row at 0 attempts today, got: {none}"
+        );
+        let pills = one
+            .find(r#"class="dock-pills""#)
+            .expect("expected the two pills on their own row");
+        let tally = one
+            .find(r#"class="dock-tally""#)
+            .expect("expected the count and the undo on a second row");
+        let done = one
+            .find(">C&#39;est fait<")
+            .expect("expected the done pill");
+        let count = one
+            .find(">1 fois aujourd&#39;hui<")
+            .expect("expected the count");
+        assert!(
+            pills < done && done < tally && tally < count,
+            "expected the pills first, then the tally row holding the count, got: {one}"
+        );
+        assert!(
+            one.contains(r#"class="resume-link action-undo""#)
+                && !one.contains("btn btn-secondary action-undo"),
+            "expected the undo to be a quiet text gesture, not a pill, got: {one}"
         );
     }
 
