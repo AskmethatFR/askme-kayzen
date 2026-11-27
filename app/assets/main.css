@@ -127,7 +127,10 @@ body {
     margin: 0px auto;
     overflow: hidden;
     padding: calc(var(--screen-top-space) + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) calc(var(--space-5) + var(--safe-area-inset-right, env(safe-area-inset-right, 0px))) calc(var(--space-7) + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))) calc(var(--space-5) + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
-    animation: kzUp .3s ease both;
+    /* `backwards`, not `both`: the end state of kzUp is the natural state, and a
+       forwards-filled `transform` would keep the screen a containing block, so
+       its disc would be framed (cut flat) at the column edge, not the viewport's. */
+    animation: kzUp .3s ease backwards;
 }
 
 .screen:before {
@@ -164,6 +167,9 @@ body {
     background: var(--color-ink);
     border-radius: var(--radius-pill);
     box-shadow: var(--shadow-md);
+    /* above the z-index 1 controls (`.target`, `.resume-link`): with reduced motion
+       `.screen` is no stacking context and they would scroll over the fixed bar */
+    z-index: 2;
 }
 
 .bottom-nav a {
@@ -361,21 +367,19 @@ a.habit-name::after {
 
 /* ---- Ancrées screen (acquired habits) ----
    Its own pebble, ochre and anchored bottom-left, where the global disc is
-   cyan and top-right. `.screen` declares no `position`, and the global disc
-   gets away with it only because a top-corner offset lands it in the frame
-   either way; a bottom-left one has no such luck, so this screen — and only
-   this screen — scopes itself a positioning context, the `.screen.ritual`
-   idiom. The disc keeps `z-index: -1` and `pointer-events: none` from the
-   base rule, so the content paints above it without any stacking lift.
+   cyan and top-right. Like every screen it declares no `position`: the body is
+   the disc's frame, so in landscape the disc sits at the viewport's left edge
+   and is cut there, round, instead of being cut flat at the column's edge.
+   The disc keeps `z-index: -1` and `pointer-events: none` from the base rule,
+   so the content paints above it without any stacking lift.
 
-   `min-height` is what puts the pebble at the *frame's* bottom rather than at
+   `min-height` is what puts the pebble at the page's bottom rather than at
    the content's: `.screen` hugs its content, so on a board holding one or two
-   habits the box ends mid-page and `bottom` measures from there, leaving the
+   habits the body ends mid-page and `bottom` measures from there, leaving the
    galet floating in the middle instead of sitting level with the bottom bar.
    Filling the viewport restores the mockup's frame; the 100vh/100dvh pair
    mirrors `.screen.ritual`'s own idiom (dvh last, for the mobile URL bar). */
 .screen.anchored {
-    position: relative;
     min-height: 100vh;
     min-height: 100dvh;
 }
@@ -633,6 +637,7 @@ a.habit-name::after {
    apart); the names are aria-hidden, the row's own label already says the week. */
 .rhythm {
     display: flex;
+    justify-content: space-between;
     gap: var(--space-2);
     margin-top: var(--space-5);
 }

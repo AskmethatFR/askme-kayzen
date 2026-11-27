@@ -449,6 +449,35 @@ mod tests {
     }
 
     #[test]
+    fn the_anchored_screen_stays_unpositioned_so_its_disc_is_framed_by_the_page_not_the_column() {
+        assert!(
+            !css_rule_body(MAIN_CSS_SOURCE, ".screen.anchored").contains("position:"),
+            "a positioned Ancrées screen cuts its disc flat at the column edge in landscape"
+        );
+        assert!(
+            css_rule_body(MAIN_CSS_SOURCE, ".screen")
+                .contains("animation: kzUp .3s ease backwards;"),
+            "a forwards-filled entry animation keeps a transform on the screen, which frames every screen's disc at the column edge"
+        );
+    }
+
+    #[test]
+    fn the_bottom_nav_stacks_above_the_z_indexed_controls_so_none_paints_or_taps_over_it() {
+        assert!(
+            css_rule_body(MAIN_CSS_SOURCE, ".bottom-nav").contains("z-index: 2;"),
+            "with reduced motion the screen is no stacking context: a z-index 1 target scrolls over the fixed nav"
+        );
+    }
+
+    #[test]
+    fn the_week_rhythm_spreads_its_seven_days_across_the_card_width() {
+        assert!(
+            css_rule_body(MAIN_CSS_SOURCE, ".rhythm").contains("justify-content: space-between;"),
+            "the rhythm row hugs the left instead of spreading its days across the width"
+        );
+    }
+
+    #[test]
     fn the_lifecycle_block_stays_in_the_page_flow_so_it_scrolls_with_the_content() {
         assert!(
             !css_rule_body(MAIN_CSS_SOURCE, ".lifecycle").contains("position:"),
