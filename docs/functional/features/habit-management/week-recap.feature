@@ -103,3 +103,10 @@ Feature: Read the week's practice as times practised and rhythm
     Then under the seven dots, oldest first, the short weekday names read "ma me je ve sa di lu"
     And in English they read "Tu We Th Fr Sa Su Mo"
     And the rhythm row's accessible label is unchanged, the names staying out of the accessibility tree
+
+  @scenario:S14
+  Scenario: The large figure counts only the last seven days
+    Given a habit practised twice seven days ago, once six days ago, and twice today
+    When the user opens the week screen
+    Then the large figure reads "3 fois pratiquées", the days before the rolling window being left out
+    And the figure reads the same seven days the rhythm draws

@@ -81,10 +81,11 @@ impl GetWeekRecap {
         let today = self.clock.today();
         let habits = self.repository.all();
 
-        let mut times_practised = 0u32;
-        for habit in &habits {
-            times_practised = times_practised.saturating_add(habit.times_practised(today));
-        }
+        let times_practised = habits.iter().fold(0u32, |total, habit| {
+            total.saturating_add(attempts_in_window(habit, today))
+        });
+        // @algo: the figure reads this week only, but a practice before the window still tells "rest" from "fresh start".
+        let ever_practised = habits.iter().any(|habit| habit.times_practised(today) > 0);
 
         let rhythm = rhythm_for(&habits, today);
         let recently = rhythm.iter().any(|&practised| practised);
@@ -96,9 +97,16 @@ impl GetWeekRecap {
                 .map(|habit| HabitProgress::for_habit(habit, today))
                 .collect(),
             rhythm,
-            message: message_for(times_practised, recently),
+            message: message_for(ever_practised, recently),
         }
     }
+}
+
+// @algo: every attempt over the rolling window ending today, the same window and constant as `rhythm_for`.
+fn attempts_in_window(habit: &Habit, today: LocalDate) -> u32 {
+    (0..ROLLING_WINDOW_DAYS).fold(0u32, |total, days_back| {
+        total.saturating_add(habit.attempts_on(today.minus_days(days_back)))
+    })
 }
 
 /// One dot per day over the rolling window ending today, oldest first, lit
@@ -132,8 +140,8 @@ fn practised_day_goals_for(habit: &Habit, today: LocalDate) -> Vec<u32> {
         .collect()
 }
 
-fn message_for(times_practised: u32, practised_recently: bool) -> WeekMessage {
-    if times_practised == 0 {
+fn message_for(ever_practised: bool, practised_recently: bool) -> WeekMessage {
+    if !ever_practised {
         return WeekMessage::FreshStart;
     }
     if practised_recently {
@@ -332,10 +340,37 @@ mod tests {
         let recap = query.handle();
 
         assert_eq!(
-            recap.times_practised, 1,
-            "the lived times are never erased by rest"
+            recap.times_practised, 0,
+            "the figure reads this week only: nothing in the last seven days"
         );
-        assert_eq!(recap.message, WeekMessage::Resting);
+        assert_eq!(
+            recap.message,
+            WeekMessage::Resting,
+            "an earlier practice is never erased by rest: the word stays \
+             Resting, never a fresh start"
+        );
+    }
+
+    // @scenario: week-recap/S14
+    #[test]
+    fn the_figure_counts_only_the_attempts_of_the_rolling_window() {
+        let repository = Rc::new(InMemoryHabitRepository::new());
+        let mut habit = a_habit("h-1", 5, TODAY - 20);
+        for (days_back, attempts) in [(7, 2), (6, 1), (0, 2)] {
+            for _ in 0..attempts {
+                habit.record_attempt(LocalDate::from_epoch_day(TODAY - days_back));
+            }
+        }
+        repository.save(&habit);
+        let query = get_week_recap_over(repository);
+
+        let recap = query.handle();
+
+        assert_eq!(
+            recap.times_practised, 3,
+            "the 2 attempts seven days back are outside the window; the 1 \
+             on its first day (six days back) and the 2 today are inside"
+        );
     }
 
     #[test]
@@ -388,9 +423,10 @@ mod tests {
         let recap = query.handle();
 
         assert_eq!(
-            recap.times_practised, 1,
-            "the creation day's practice must be counted even when the \
-             clock's today lags behind created_on, never read as zero"
+            recap.message,
+            WeekMessage::Resting,
+            "the creation day's practice must still be known even when the \
+             clock's today lags behind created_on, never read as a fresh start"
         );
     }
 
