@@ -29,7 +29,10 @@ today-eyebrow-active = Vos petits pas
 today-habit-meta = { $goal } fois par jour
 today-done-aria = Fait aujourd'hui · { $title }
 today-mark-done-aria = Marquer comme fait · { $title }
-today-tally = { $done } sur { $total } · c'est déjà quelque chose.
+today-tally = { $done ->
+    [0] Rien d'obligatoire aujourd'hui.
+   *[other] { $done } sur { $total } · c'est déjà quelque chose.
+}
 today-paused-link = { $count } en pause · aucune pression
 paused-heading = En pause
 paused-empty-note = Rien ici. Tout est de retour dans votre quotidien.

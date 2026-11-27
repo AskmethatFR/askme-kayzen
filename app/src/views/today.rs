@@ -461,7 +461,7 @@ mod tests {
             "expected the mark-done aria-label in English, got: {html}"
         );
         assert!(
-            html.contains("0 of 1 ·") && html.contains("that&#39;s already something."),
+            html.contains("Nothing required today."),
             "expected the tally in English, got: {html}"
         );
         assert!(
@@ -704,8 +704,8 @@ mod tests {
             "expected no alarm style on a habit short of its goal, got: {html}"
         );
         assert!(
-            html.contains("0 sur 1 ·"),
-            "expected the tally to count habits that reached their goal only, got: {html}"
+            html.contains("Rien d&#39;obligatoire aujourd&#39;hui."),
+            "expected the zero-done tally to read nothing required, got: {html}"
         );
     }
 
@@ -814,6 +814,36 @@ mod tests {
         assert!(
             html.contains("2 sur 3 ·"),
             "expected the tally to count the active habits only, got: {html}"
+        );
+    }
+
+    // @scenario: today-habit-list/S12
+    #[test]
+    fn a_board_with_nothing_done_today_reads_nothing_required_in_french() {
+        let html = render(RootWithUndoneHabit);
+
+        assert!(
+            html.contains("Rien d&#39;obligatoire aujourd&#39;hui."),
+            "expected the zero-done tally in French, got: {html}"
+        );
+        assert!(
+            !html.contains("0 sur 1"),
+            "expected no count at zero done, got: {html}"
+        );
+    }
+
+    // @scenario: today-habit-list/S12
+    #[test]
+    fn a_board_with_nothing_done_today_reads_nothing_required_in_english() {
+        let html = render(RootWithUndoneHabitAndEnglishLocale);
+
+        assert!(
+            html.contains("Nothing required today."),
+            "expected the zero-done tally in English, got: {html}"
+        );
+        assert!(
+            !html.contains("0 of 1"),
+            "expected no count at zero done, got: {html}"
         );
     }
 

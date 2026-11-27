@@ -91,3 +91,9 @@ Feature: List the board habits for today
     When the Today screen renders
     Then the habit's title link covers the whole card with its invisible layer
     And the round target stays above that layer, so a tap on it marks the habit and does not open the detail
+
+  @scenario:S12
+  Scenario: With nothing done today the tally says nothing is required
+    Given one active habit not yet done today
+    When the Today screen renders
+    Then the tally reads « Rien d'obligatoire aujourd'hui. »

@@ -219,7 +219,6 @@ sur ces points ; ce sont des faits, pas des choix de design.
 | Notes vivantes | seules les notes de refus d'Ancrées et d'Ajouter portent `role="status"` ; le compte du Détail (`habit_detail.rs:89`, « n fois aujourd'hui ») change aussi après une action, sans `role="status"` |
 | Galet d'Aujourd'hui | l'état éteint de `.pebble` se dessine avec `--color-ink-soft`, pas avec le contour `--color-outline` que la règle des états éteints prescrit |
 | Annuler un pas | rien n'annule une validation faite sur la cible d'Aujourd'hui |
-| Texte à zéro | « 0 sur 3 · c'est déjà quelque chose » sonne ironique quand rien n'est fait |
 | Pied fixe | il est haut ; déplacer les lignes de fin de vie change la `safe-area-bleed` et S3 ; sous 380px la coche de « C'est fait » disparaît |
 | Barre système | sous le Rituel sombre, la barre de navigation Android reste claire |
 | Paysage | l'orientation paysage n'est pas traitée |
