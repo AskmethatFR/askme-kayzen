@@ -2,7 +2,7 @@
 
 Play rejects on format before a human ever looks at the listing, and the two
 that bite are silent: an icon without an alpha channel, and a feature graphic
-with one. This walks the whole set -- icons, feature graphic, screenshots,
+with one. This walks the whole set -- icons, feature graphic, phone tiles, alt text,
 fonts, and the legal pages' internal links -- and exits non-zero on the first
 thing that would come back rejected.
 
@@ -62,22 +62,98 @@ def check_store_icon():
     check(os.path.getsize(path) < 1024 * 1024, "512 icon stays under 1 MB")
 
 
+def tile_problems(path):
+    problems = []
+    with Image.open(path) as image:
+        width, height = image.size
+        if image.mode != "RGB":
+            problems.append(f"{image.mode}, Play needs RGB with no alpha")
+    if not all(320 <= side <= 3840 for side in (width, height)):
+        problems.append(f"{width}x{height}, each side must be 320-3840 px")
+    if 10 * max(width, height) > 23 * min(width, height):
+        problems.append(f"{width}x{height}, long side over 2.3 times the short side")
+    size = os.path.getsize(path)
+    if size > 8_000_000:
+        problems.append(f"{size / 1_000_000:.1f} MB, the limit is 8 MB")
+    return problems
+
+
+def tile_set_problems(paths):
+    problems = []
+    if not 4 <= len(paths) <= 8:
+        problems.append(f"{len(paths)} tiles, Play takes 4 to 8")
+    at_promotion = 0
+    for path in paths:
+        with Image.open(path) as image:
+            at_promotion += min(image.size) >= 1080
+    if at_promotion < 4:
+        problems.append(f"{at_promotion} tiles at 1080 px or more, promotion needs 4")
+    return problems
+
+
+def feature_graphic_problems(path):
+    problems = []
+    with Image.open(path) as image:
+        if image.size != (1024, 500):
+            problems.append(f"{image.size[0]}x{image.size[1]}, must be 1024x500")
+        if image.mode != "RGB":
+            problems.append(f"{image.mode}, no alpha allowed")
+    return problems
+
+
+def alt_texts(markdown):
+    texts = []
+    for line in markdown.splitlines():
+        if not line.startswith("|"):
+            continue
+        label, _, text = line.strip().strip("|").partition("|")
+        label = label.strip().lower()
+        if "alt text" in label or "texte alternatif" in label:
+            texts.append(text.strip())
+    return texts
+
+
+def alt_problems(text):
+    problems = []
+    if len(text) > 140:
+        problems.append(f"{len(text)} characters, the limit is 140")
+    if text.lower().startswith(("image of", "image de")):
+        problems.append("starts with 'image of' or 'image de'")
+    return problems
+
+
+def report(problems, label, ok_text):
+    check(not problems, f"{label}: " + ("; ".join(problems) if problems else ok_text))
+
+
 def check_feature_graphic():
     print("feature graphic")
     for locale in ("fr", "en"):
-        image = Image.open(rel("store", "listing", f"feature-graphic-{locale}-1024x500.png"))
-        check(image.size == (1024, 500), f"{locale}: feature graphic is 1024x500, got {image.size}")
-        check(image.mode == "RGB", f"{locale}: feature graphic carries no alpha, got {image.mode}")
+        path = rel("store", "listing", f"feature-graphic-{locale}-1024x500.png")
+        report(feature_graphic_problems(path), f"{locale} feature graphic", "1024x500 RGB")
 
 
-def check_screenshots():
-    print("screenshots")
+def check_tiles():
+    print("phone tiles")
     for locale in ("fr", "en"):
-        shots = sorted(glob.glob(rel("store", "listing", "screenshots", locale, "*.png")))
-        check(len(shots) >= 2, f"{locale}: {len(shots)} screenshots (Play needs at least 2)")
-        for path in shots:
-            check(Image.open(path).size == (1080, 1920),
-                  f"{locale}/{os.path.basename(path)} is 1080x1920")
+        paths = sorted(glob.glob(rel("store", "listing", "tiles", locale, "*.png")))
+        report(tile_set_problems(paths), f"{locale}: {len(paths)} tiles",
+               "4 to 8, at least 4 at 1080 px")
+        for path in paths:
+            report(tile_problems(path), f"{locale}/{os.path.basename(path)}",
+                   "RGB, sides, ratio and size within Play's limits")
+
+
+def check_alt_text():
+    print("feature graphic alt text")
+    for locale in ("fr", "en"):
+        with open(rel("store", "listing", f"copy.{locale}.md"), encoding="utf-8") as f:
+            texts = alt_texts(f.read())
+        if not texts:
+            check(False, f"{locale}: no alt text row in copy.{locale}.md")
+        for text in texts:
+            report(alt_problems(text), f"{locale} alt text ({len(text)} characters)",
+                   "140 or fewer, no 'image of' opener")
 
 
 def check_fonts():
@@ -109,7 +185,8 @@ def main():
     check_icons()
     check_store_icon()
     check_feature_graphic()
-    check_screenshots()
+    check_tiles()
+    check_alt_text()
     check_fonts()
     check_site()
     print()
