@@ -1,5 +1,6 @@
 import importlib.util
 import os
+import re
 import tempfile
 import unittest
 
@@ -143,6 +144,46 @@ class CalloutsHideTheirSource(unittest.TestCase):
         self.assertEqual(t.PHONE_TOP + t.FRAME + round(200 * t.SCALE), y0)
         self.assertEqual((round(200 * t.SCALE), round(200 * t.SCALE)), (x1 - x0, y1 - y0))
 
+    def test_the_source_of_a_bottom_tile_sits_at_the_top_edge_shifted_up_by_its_crop_top(self):
+        t = load()
+        tile = t.Tile("x", "c", 30, "H", "s", "bottom", (100, 200, 300, 400), 1.5)
+        x0, y0, x1, y1 = t.source_rect(tile)
+        self.assertEqual(t.PHONE_LEFT + t.FRAME + round(100 * t.SCALE), x0)
+        self.assertEqual(round((200 - 30) * t.SCALE), y0)
+        self.assertEqual((round(200 * t.SCALE), round(200 * t.SCALE)), (x1 - x0, y1 - y0))
+
+    def test_a_callout_near_the_tile_edge_stays_centred_on_its_source(self):
+        t = load()
+        tile = t.Tile("x", "c", 0, "H", "s", "top", (0, 0, 1080, 200), 1.4)
+        sx0, sy0, sx1, sy1 = t.source_rect(tile)
+        cx0, cy0, cx1, cy1 = t.callout_rect(tile)
+        self.assertAlmostEqual((sx0 + sx1) / 2, (cx0 + cx1) / 2, delta=1)
+        self.assertAlmostEqual((sy0 + sy1) / 2, (cy0 + cy1) / 2, delta=1)
+
+    def test_the_02_callout_top_edge_shows_the_card_background_not_the_divider(self):
+        t = load()
+        for locale in ("fr", "en"):
+            tile = next(x for x in t.TILES[locale] if x.name == "02-detail")
+            with self.subTest(locale=locale):
+                x0, y0, x1, _ = tile.crop
+                gray = Image.open(t.capture_path(locale, tile.capture)).convert("L")
+                for y in range(y0, y0 + 10):
+                    margin = gray.getpixel((50, y))
+                    worst = max(abs(gray.getpixel((x, y)) - margin) for x in range(x0, x1))
+                    self.assertLessEqual(worst, 4, (y, worst))
+
+
+class ChromeMeasuresLineCounts(unittest.TestCase):
+    def test_a_sixteen_word_string_runs_on_at_least_three_lines(self):
+        t = load()
+        [(lines, _)] = t.measure_headlines(t.store_module().CHROME, [" ".join(["mot"] * 16)])
+        self.assertGreaterEqual(lines, 3)
+
+    def test_a_two_line_headline_reports_two_lines_and_the_words_of_its_last_line(self):
+        t = load()
+        probe = "One small step is enough for you today."
+        self.assertEqual([(2, 4)], t.measure_headlines(t.store_module().CHROME, [probe]))
+
 
 class ScreenBox(unittest.TestCase):
     def test_top_layout_looks_below_the_status_bar_down_to_the_tile_edge(self):
@@ -215,6 +256,13 @@ class TextBandStaysWithinItsLimit(unittest.TestCase):
         t = load()
         with self.assertRaises(ValueError):
             t.check_text_band(sand_with_line(t.BAND_MAX - 84, t.BAND_MAX + 1))
+
+    def test_a_faint_grey_is_ink_in_a_capture_but_not_a_phone_shadow_in_the_text_band(self):
+        t = load()
+        shadow = Image.new("RGB", (1080, 1920), SAND)
+        shadow.paste((162, 160, 155), (100, 250, 500, t.BAND_MAX + 10))
+        self.assertTrue(t.ink_rows(shadow)[260])
+        t.check_text_band(shadow)
 
 
 class TheBleedNeverCutsALineOfText(unittest.TestCase):
@@ -295,6 +343,32 @@ class ComposeRefusesABlankCapture(unittest.TestCase):
             self.assertEqual([], os.listdir(os.path.join(tmp, "out", "fr")))
 
 
+def composed_page(t, locale, tile):
+    """The tile's HTML as compose() hands it to Chrome, with Chrome stubbed out."""
+    with tempfile.TemporaryDirectory() as tmp:
+        os.makedirs(os.path.join(tmp, "out", locale))
+        t.OUT = os.path.join(tmp, "out")
+        t.run_chrome = lambda chrome, args, raw, label: Image.new(
+            "RGB", (t.TILE_W, t.TILE_H), SAND
+        ).save(raw)
+        t.compose("chrome", locale, tile, tmp)
+        with open(os.path.join(tmp, f"{tile.name}-tile.html"), encoding="utf-8") as f:
+            return f.read()
+
+
+class ComposedPage(unittest.TestCase):
+    def test_the_shadow_reach_is_the_callout_css_shadow_offset_plus_blur(self):
+        t = load()
+        page = composed_page(t, "fr", t.TILES["fr"][0])
+        dy, blur = re.search(r"\.callout \{.*?box-shadow: 0 (\d+)px (\d+)px", page, re.S).groups()
+        self.assertEqual(int(dy) + int(blur), t.SHADOW_REACH)
+
+    def test_the_subline_gets_a_no_break_space_before_a_colon_like_the_headline(self):
+        t = load()
+        tile = next(x for x in t.TILES["fr"] if x.name == "03-semaine")
+        self.assertIn('<div class="subline">Plus ou moins : vous décidez.</div>', composed_page(t, "fr", tile))
+
+
 def copy_band(t, tile, image):
     upright = image.transpose(Image.FLIP_TOP_BOTTOM) if tile.layout == "bottom" else image
     return upright.crop((0, 0, t.TILE_W, t.PHONE_TOP))
@@ -308,7 +382,7 @@ def real_tiles(t):
 
 class TheRenderedTiles(unittest.TestCase):
     def ink_span(self, t, tile, image):
-        rows = [y for y, on in enumerate(t.ink_rows(copy_band(t, tile, image))) if on]
+        rows = [y for y, on in enumerate(t.ink_rows(copy_band(t, tile, image), t.BAND_INK_DEVIATION)) if on]
         return rows[0], rows[-1]
 
     def test_top_captions_start_110_to_150_rows_below_the_top_edge_and_end_at_one_height(self):

@@ -13,9 +13,10 @@ off the bottom edge and shows its status bar; "bottom" puts the caption, centred
 in its band, under the phone, which is cropped by the top edge. `crop` is the
 callout's rectangle in capture pixels and `zoom` its enlargement over the
 phone's own scale. The callout is a lens: it is centred on the source rectangle
-it was cropped from and so hides it (clamped to stay on the tile, clear of the
-caption band). Headlines are measured in Chrome: at most two lines and never a
-lone word on the last one.
+it was cropped from and so hides it. It is never moved: a crop whose callout
+would leave the tile or enter the caption band is refused by the tests.
+Headlines are measured in Chrome: at most two lines and never a lone word on
+the last one.
 
 This script never captures the app. The tiles are the listing's output, the raw
 captures are only their input; `build_screenshots.py` owns the captures.
@@ -55,12 +56,14 @@ SCREEN_RADIUS = 58
 SCREEN_W = PHONE_W - 2 * FRAME
 SCALE = SCREEN_W / CAPTURE_W
 CALLOUT_BORDER = 6
-SHADOW_REACH = 80
-CALLOUT_EDGE = 8
+CALLOUT_SHADOW_DY = 26
+CALLOUT_SHADOW_BLUR = 48
+SHADOW_REACH = CALLOUT_SHADOW_DY + CALLOUT_SHADOW_BLUR
 COPY_SIDE = 48
 VISIBLE_ROWS = (TILE_H - PHONE_TOP - FRAME) * CAPTURE_W // SCREEN_W
 CAPTURE_TIMEOUT = 90
-INK_DEVIATION = 100
+CAPTURE_INK_DEVIATION = 60
+BAND_INK_DEVIATION = 100
 INK_MIN_PIXELS = 3
 
 SAND = "#F4F1EA"
@@ -83,7 +86,7 @@ TILES = {
         Tile("01-aujourdhui", "01-aujourdhui", 0, "Un petit pas suffit.", "Pas de série, pas de pression.",
              "top", (125, 1075, 985, 1303), 1.4),
         Tile("02-detail", "02-detail", 30, "Un jour sans ? Rien ne casse.", "Aucune série à protéger.",
-             "bottom", (102, 1360, 972, 1512), 1.4),
+             "bottom", (102, 1372, 972, 1512), 1.4),
         Tile("03-semaine", "04-semaine", 0, "Votre rythme, pas le nôtre.", "Plus ou moins : vous décidez.",
              "top", (112, 1190, 968, 1392), 1.4),
         Tile("04-rituel", "03-rituel", 0, "Un moment pour vous.", "Arrêter n'est pas échouer.",
@@ -97,7 +100,7 @@ TILES = {
         Tile("01-aujourdhui", "01-aujourdhui", 0, "One small step is enough.", "No streaks, no pressure.",
              "top", (125, 1075, 985, 1303), 1.4),
         Tile("02-detail", "02-detail", 30, "Skip a day. Nothing breaks.", "No streak to protect.",
-             "bottom", (102, 1360, 972, 1512), 1.4),
+             "bottom", (102, 1372, 972, 1512), 1.4),
         Tile("03-semaine", "04-semaine", 0, "Your pace, not ours.", "More or less: you decide.",
              "top", (112, 1280, 968, 1480), 1.4),
         Tile("04-rituel", "03-rituel", 0, "A moment for yourself.", "Stopping isn't failing.",
@@ -138,7 +141,7 @@ MEASURE_HTML = """<!doctype html>
 <div class="copy">{headlines}</div>
 <pre id="out"></pre>
 <script>
-  document.fonts.load("620 96px Fraunces").then(() => {{
+  document.fonts.load("620 64px Fraunces").then(() => {{
     const result = [...document.querySelectorAll(".headline")].map(line => {{
       const tops = [...line.querySelectorAll("span")].map(s => Math.round(s.getBoundingClientRect().top));
       const last = Math.max(...tops);
@@ -226,7 +229,7 @@ TILE_HTML = """<!doctype html>
     border: {callout_border}px solid {card};
     border-radius: 30px;
     background: url('{shot}') no-repeat {callout_bg_x}px {callout_bg_y}px / {callout_bg_w}px auto;
-    box-shadow: 0 26px 48px rgba({shadow}, .24), 0 6px 14px rgba({shadow}, .14);
+    box-shadow: 0 {callout_shadow_dy}px {callout_shadow_blur}px rgba({shadow}, .24), 0 6px 14px rgba({shadow}, .14);
   }}
 </style>
 <div class="galet"></div>
@@ -316,7 +319,7 @@ def capture_path(locale, name):
     return os.path.join(ROOT, "store", "listing", "screenshots", locale, f"{name}-1080x1920.png")
 
 
-def ink_rows(img):
+def ink_rows(img, deviation=CAPTURE_INK_DEVIATION):
     """One bool per row: does a line of content cross it?
 
     A row is ink when at least a few pixels stand far from the row's median
@@ -330,12 +333,12 @@ def ink_rows(img):
     for y in range(h):
         row = px[y * w:(y + 1) * w]
         median = sorted(row)[w // 2]
-        rows.append(sum(abs(p - median) > INK_DEVIATION for p in row) >= INK_MIN_PIXELS)
+        rows.append(sum(abs(p - median) > deviation for p in row) >= INK_MIN_PIXELS)
     return rows
 
 
 def check_text_band(img):
-    ink = ink_rows(img.crop((0, 0, img.size[0], PHONE_TOP)))
+    ink = ink_rows(img.crop((0, 0, img.size[0], PHONE_TOP)), BAND_INK_DEVIATION)
     last = max((y for y, on in enumerate(ink) if on), default=-1)
     if last + 1 > BAND_MAX:
         raise ValueError(f"text band is {last + 1}px tall, the limit is {BAND_MAX}px")
@@ -359,9 +362,7 @@ def callout_rect(tile):
     w = round((x1 - x0) * SCALE * tile.zoom) + 2 * CALLOUT_BORDER
     h = round((y1 - y0) * SCALE * tile.zoom) + 2 * CALLOUT_BORDER
     sx0, sy0, sx1, sy1 = source_rect(tile)
-    low, high = (PHONE_TOP, TILE_H) if tile.layout == "top" else (0, TILE_H - PHONE_TOP)
-    x = min(max((sx0 + sx1 - w) // 2, CALLOUT_EDGE), TILE_W - CALLOUT_EDGE - w)
-    y = min(max((sy0 + sy1 - h) // 2, low + CALLOUT_EDGE), high - CALLOUT_EDGE - h)
+    x, y = (sx0 + sx1 - w) // 2, (sy0 + sy1 - h) // 2
     return (x, y, x + w, y + h)
 
 
@@ -447,9 +448,10 @@ def compose(chrome, locale, tile, work):
         phone_left=PHONE_LEFT, phone_w=PHONE_W, frame=FRAME, screen_w=SCREEN_W,
         crop=round(tile.crop_top * SCALE),
         callout_x=cx0, callout_y=cy0, callout_border=CALLOUT_BORDER,
+        callout_shadow_dy=CALLOUT_SHADOW_DY, callout_shadow_blur=CALLOUT_SHADOW_BLUR,
         callout_w=cx1 - cx0 - 2 * CALLOUT_BORDER, callout_h=cy1 - cy0 - 2 * CALLOUT_BORDER,
         callout_bg_w=round(CAPTURE_W * zoomed), callout_bg_x=-round(x0 * zoomed), callout_bg_y=-round(y0 * zoomed),
-        headline=html_escape.escape(typeset(headline)), subline=html_escape.escape(subline),
+        headline=html_escape.escape(typeset(headline)), subline=html_escape.escape(typeset(subline)),
         **LAYOUTS[tile.layout],
     )
 
@@ -489,7 +491,7 @@ def main():
         check_headline_lines(headline, lines, last_words)
 
     for locale, tiles in TILES.items():
-        work =os.path.join(WORK, locale)
+        work = os.path.join(WORK, locale)
         os.makedirs(work, exist_ok=True)
         os.makedirs(os.path.join(OUT, locale), exist_ok=True)
         for tile in tiles:
