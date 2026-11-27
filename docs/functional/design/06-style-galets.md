@@ -216,7 +216,6 @@ sur ces points ; ce sont des faits, pas des choix de design.
 
 | Sujet | Fait |
 | --- | --- |
-| Carte d'Aujourd'hui | seul le nom (`.habit-name`) ouvre le Détail, pas toute la carte, et il n'atteint pas 44dp de haut ; le nom d'une habitude en pause (lien `.habit-name` de l'écran « En pause ») n'en fait qu'environ 25px |
 | Écran Ajouter | un refus (plafond, champ vide, doublon) ne dit rien (`03-ecrans` l. 108) ; pas de formulaire, donc pas de validation par Entrée ; pas de `maxlength` ; le bouton paraît actif sur un champ vide |
 | Notes vivantes | seule la note de refus d'Ancrées porte `role="status"` ; le compte du Détail (`habit_detail.rs:89`, « n fois aujourd'hui ») change aussi après une action, sans `role="status"` |
 | Galet d'Aujourd'hui | l'état éteint de `.pebble` se dessine avec `--color-ink-soft`, pas avec le contour `--color-outline` que la règle des états éteints prescrit |

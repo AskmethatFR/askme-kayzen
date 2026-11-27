@@ -242,6 +242,7 @@ body {
 }
 
 .habit-row {
+    position: relative;
     display: flex;
     align-items: center;
     gap: var(--space-4);
@@ -265,6 +266,19 @@ body {
 
 .habit-name:hover {
     color: var(--color-accent-text);
+}
+
+/* Stretched link: the title's invisible layer covers the whole card, so a tap
+   anywhere on it opens the Detail; the card's own control sits above it.
+   Scoped to `a`: the Ancrées name is a span and its card opens nothing. */
+a.habit-name::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+}
+
+.resume-link {
+    z-index: 1;
 }
 
 .habit-meta,
@@ -422,6 +436,7 @@ body {
 /* ---- Round target (mark done) ---- */
 .target {
     position: relative;
+    z-index: 1;
     flex: none;
     width: 52px;
     height: 52px;

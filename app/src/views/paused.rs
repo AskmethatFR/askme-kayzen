@@ -189,6 +189,23 @@ mod tests {
         );
     }
 
+    // @scenario: paused-habits/S3
+    #[test]
+    fn a_tap_anywhere_on_a_paused_card_opens_its_detail_while_resume_keeps_its_own_tap() {
+        const MAIN_CSS: &str = include_str!("../../assets/main.css");
+
+        assert!(
+            MAIN_CSS.contains(
+                "a.habit-name::after {\n    content: \"\";\n    position: absolute;\n    inset: 0;"
+            ),
+            "expected the title link's layer stretched over the whole card"
+        );
+        assert!(
+            MAIN_CSS.contains(".resume-link {\n    z-index: 1;"),
+            "expected « La reprendre » above the stretched layer"
+        );
+    }
+
     #[test]
     fn the_paused_screen_opens_on_the_round_back_link_not_a_text_link() {
         let html = render(RootAtPausedScreen);

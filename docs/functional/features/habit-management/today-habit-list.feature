@@ -84,3 +84,10 @@ Feature: List the board habits for today
     Given one active habit that reached its goal today and one that did not
     When the Today screen renders
     Then the tally reads « 1 sur 2 »
+
+  @scenario:S11
+  Scenario: A tap anywhere on a habit's card opens its detail, the target keeping its own tap
+    Given a board holding one active habit
+    When the Today screen renders
+    Then the habit's title link covers the whole card with its invisible layer
+    And the round target stays above that layer, so a tap on it marks the habit and does not open the detail
