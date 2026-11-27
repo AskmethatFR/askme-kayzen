@@ -80,12 +80,16 @@ TITLES = {
 # step dated before a completion is what makes the staircase rise -- the demo
 # board grows "Lire une page" twice so the seven-day window shows two heights.
 BOARD = [
-    ("lire-une-page", "Active", [(-24, 5), (-9, 6), (-3, 7)], [-6, -5, -3, -1, 0]),
-    ("bouger-un-peu", "Active", [(-18, 5)], [-5, -4, -2]),
-    ("respirer-une-minute", "Active", [(-12, 3)], [-6, -4, -3, -1, 0]),
-    ("ecrire-trois-lignes", "Paused", [(-30, 5)], [-20, -18, -15]),
-    ("un-verre-d-eau", "Anchored", [(-70, 5)], [-9, -8, -7, -5, -4, -2, -1, 0]),
-    ("ranger-une-chose", "Anchored", [(-52, 5), (-30, 6)], [-11, -9, -8, -6, -4, -3, -1]),
+    ("lire-une-page", "Active", [(-24, 3), (-3, 4)],
+     [(-10, 3), (-6, 3), (-5, 2), (-3, 4), (-2, 3), (-1, 2), (0, 4)]),
+    ("bouger-un-peu", "Active", [(-18, 3)], [(-5, 3), (-4, 2), (-2, 3), (0, 1)]),
+    ("respirer-une-minute", "Active", [(-12, 2)],
+     [(-6, 2), (-4, 2), (-3, 1), (-1, 2), (0, 2)]),
+    ("ecrire-trois-lignes", "Paused", [(-30, 3)], [(-20, 3), (-18, 2), (-15, 3)]),
+    ("un-verre-d-eau", "Anchored", [(-70, 3)],
+     [(-9, 3), (-8, 3), (-7, 3), (-5, 3), (-4, 3), (-2, 3), (-1, 3), (0, 3)]),
+    ("ranger-une-chose", "Anchored", [(-52, 2), (-30, 3)],
+     [(-11, 3), (-9, 3), (-8, 3), (-6, 3), (-4, 3), (-3, 3), (-1, 3)]),
 ]
 
 SHOTS = [
@@ -140,14 +144,14 @@ def snapshot(locale):
     today = today_as_stored()
     titles = TITLES[locale]
     return {
-        "v": 1,
+        "v": 2,
         "habits": [
             {
                 "id": hid,
                 "title": titles[hid],
                 "state": state,
                 "steps": [{"on": today + d, "goal": g} for d, g in steps],
-                "completions": [today + d for d in done],
+                "completions": [today + d for d, n in done for _ in range(n)],
             }
             for hid, state, steps, done in BOARD
         ],
