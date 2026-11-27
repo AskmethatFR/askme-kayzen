@@ -1,32 +1,20 @@
-"""Render the six Play Store phone tiles: a framed app screen under a headline.
+"""Render the twelve Play Store phone tiles from the raw captures.
 
-The raw captures in `screenshots/` are the app and nothing else -- honest, but
-a bare 1080x1920 screen sells nothing at the size Play actually renders it. A
-store tile is a poster: a background, one line of copy, and the app held inside
-a device. The shape is borrowed from Goldie (github.com/kacperkapusciak/goldie)
--- its `classic` template: headline above, device whole below -- and dressed
-entirely in Galets, so the tile and the app it advertises share one palette and
-one pair of typefaces.
+`screenshots/` holds the app and nothing else -- 1080x1920, deterministic. A
+tile is a poster built from one of those captures: a sand ground, a Fraunces
+headline and a Figtree subline in the top 384px (20% of the height), and the
+phone held below it in a thin ink frame, ~880px wide, bleeding off the bottom
+edge. Headlines stay in ink: cyan means "practised" and nothing else
+(docs/functional/design/06-style-galets.md).
 
-Goldie itself drives a real emulator against a built APK and wants a Node
-toolchain; Kayzen already owns a headless-Chrome capture pipeline, so only the
-composition is rebuilt here. The demo board, the staging and the server come
-from `build_screenshots.py` -- imported, never copied, so the tiles can never
-disagree with the raw captures about what the board contains.
+This script never captures the app. The tiles are the listing's output, the raw
+captures are only their input; `build_screenshots.py` owns the captures.
 
-Each tile's kicker names the screen and its headline states the one promise
-that screen keeps. Both obey the listing's writing rules (see `copy.fr.md`):
-no superlative, no ranking, no promised outcome -- an app that refuses to
-measure progress cannot advertise it.
+Each tile has a `crop_top`: the capture row at which the phone's screen starts.
+The phone's bottom edge then cuts the capture at `crop_top + VISIBLE_ROWS`. Both
+cuts must fall in a gap between two lines of text, found by scanning the
+capture row by row, so no line is ever sliced by the bleed.
 
-The device holds a real 360dp phone layout, obtained the way
-`build_screenshots.py` documents: Chrome clamps its window to 500 CSS pixels,
-so the window sits at that floor and the staged page's `html { zoom }` shrinks
-the CSS pixel back to a phone's. The tile is composed at twice its final size
-and resampled down once, and the capture is always larger than the slot it
-fills, so no pixel is ever invented.
-
-Prerequisite: dx build --platform web
 Usage: python3 store/listing/build_store_tiles.py
 """
 
@@ -43,41 +31,37 @@ WORK = os.path.join(ROOT, "target", "store-tiles")
 FONTS = os.path.join(ROOT, "app", "assets", "fonts")
 
 TILE_W, TILE_H = 1080, 1920
-SCALE = 2
-VIEWPORT_W, VIEWPORT_H = 360, 840
-SCREEN_W = 660
-SCREEN_H = round(SCREEN_W * VIEWPORT_H / VIEWPORT_W)
-CAPTURE_DPR = 3
-BEZEL = 14
-DEVICE_TOP = 292
+CAPTURE_W = 1080
+BAND_MAX = 384
+PHONE_W = 880
+FRAME = 12
+PHONE_TOP = 400
+SCREEN_W = PHONE_W - 2 * FRAME
+VISIBLE_ROWS = (TILE_H - PHONE_TOP - FRAME) * CAPTURE_W // SCREEN_W
 CAPTURE_TIMEOUT = 90
+INK_DEVIATION = 60
+INK_MIN_PIXELS = 3
 
-PAPER = {
-    "bg": "#F4F1EA",
-    "blob": "#DDEEF3",
-    "kicker": "#00708F",
-    "ink": "#2A2622",
-    "bezel": "#2A2622",
-    "shadow": "rgba(42, 38, 34, 0.20)",
-}
-OCRE = {**PAPER, "blob": "#EFE3C8", "kicker": "#7A5E24"}
+SAND = "#F4F1EA"
+INK = "#2A2622"
+MUTED = "#5E574F"
 
 TILES = {
     "fr": [
-        ("01-aujourdhui", PAPER, "Aujourd'hui", "Cinq habitudes au plus.<br>Jamais six."),
-        ("02-detail", PAPER, "Le détail", "Sept jours, sans note<br>ni pourcentage."),
-        ("03-rituel", PAPER, "Le rituel", "Un cercle qui respire.<br>Rien d'autre à faire."),
-        ("04-semaine", PAPER, "La semaine", "Ce qui a eu lieu.<br>Rien de plus."),
-        ("05-ancrees", OCRE, "Ancrées", "Une habitude ancrée<br>libère une place."),
-        ("06-ajouter", PAPER, "Ajouter", "Cinq minutes par jour.<br>Un but souple."),
+        ("01-aujourdhui", 0, "Cinq habitudes au plus.<br>Jamais six.", "Aujourd'hui"),
+        ("02-detail", 0, "Sept jours, sans note<br>ni pourcentage.", "Le détail"),
+        ("03-rituel", 0, "Un cercle qui respire.<br>Rien d'autre à faire.", "Le rituel"),
+        ("04-semaine", 0, "Ce qui a eu lieu.<br>Rien de plus.", "La semaine"),
+        ("05-ancrees", 0, "Une habitude ancrée<br>libère une place.", "Ancrées"),
+        ("06-ajouter", 0, "Cinq minutes par jour.<br>Un but souple.", "Ajouter"),
     ],
     "en": [
-        ("01-aujourdhui", PAPER, "Today", "Five habits at most.<br>Never six."),
-        ("02-detail", PAPER, "The detail", "Seven days, no score<br>and no percentage."),
-        ("03-rituel", PAPER, "The ritual", "A circle that breathes.<br>Nothing else to do."),
-        ("04-semaine", PAPER, "This week", "What happened.<br>Nothing more."),
-        ("05-ancrees", OCRE, "Anchored", "An anchored habit<br>frees a seat."),
-        ("06-ajouter", PAPER, "Add", "Five minutes a day.<br>A soft goal."),
+        ("01-aujourdhui", 0, "Five habits at most.<br>Never six.", "Today"),
+        ("02-detail", 0, "Seven days, no score<br>and no percentage.", "The detail"),
+        ("03-rituel", 0, "A circle that breathes.<br>Nothing else to do.", "The ritual"),
+        ("04-semaine", 0, "What happened.<br>Nothing more.", "This week"),
+        ("05-ancrees", 0, "An anchored habit<br>frees a seat.", "Anchored"),
+        ("06-ajouter", 0, "Five minutes a day.<br>A soft goal.", "Add"),
     ],
 }
 
@@ -98,59 +82,46 @@ TILE_HTML = """<!doctype html>
   html, body {{ margin: 0; padding: 0; }}
   body {{
     width: {w}px; height: {h}px;
-    background: {bg};
+    background: {sand};
     overflow: hidden;
     position: relative;
+    text-align: center;
   }}
-  .blob {{
-    position: absolute;
-    top: {blob_top}px; right: {blob_right}px;
-    width: {blob}px; height: {blob}px;
-    border-radius: 48% 52% 46% 54% / 55% 47% 53% 45%;
-    background: {blob_color};
-  }}
-  .copy {{
-    position: absolute;
-    top: {pad}px; left: {pad}px; right: {pad}px;
-  }}
-  .kicker {{
-    font-family: 'Figtree', system-ui, sans-serif;
-    font-size: {kicker}px;
-    font-weight: 600;
-    letter-spacing: {track}px;
-    text-transform: uppercase;
-    color: {kicker_color};
-    margin-bottom: {gap}px;
-  }}
+  .copy {{ position: absolute; top: 76px; left: 48px; right: 48px; }}
   .headline {{
     font-family: 'Fraunces', Georgia, serif;
-    font-size: {headline}px;
-    line-height: 1.16;
+    font-size: 84px;
+    line-height: 1.08;
     color: {ink};
     font-variation-settings: 'wght' 620, 'opsz' 72, 'SOFT' 30;
   }}
-  .device {{
-    position: absolute;
-    top: {device_top}px; left: {device_left}px;
-    width: {device_w}px; height: {device_h}px;
-    box-sizing: border-box;
-    padding: {bezel}px;
-    border-radius: {device_radius}px;
-    background: {bezel_color};
-    box-shadow: 0 {shadow_y}px {shadow_blur}px {shadow_color};
+  .subline {{
+    font-family: 'Figtree', system-ui, sans-serif;
+    font-size: 40px;
+    font-weight: 500;
+    color: {muted};
+    margin-top: 20px;
   }}
-  .device img {{
+  .phone {{
+    position: absolute;
+    top: {phone_top}px; left: {phone_left}px;
+    width: {phone_w}px; height: {phone_h}px;
+    box-sizing: border-box;
+    border: {frame}px solid {ink};
+    border-radius: 76px;
+    overflow: hidden;
+  }}
+  .phone img {{
     display: block;
-    width: {screen_w}px; height: {screen_h}px;
-    border-radius: {screen_radius}px;
+    width: {screen_w}px;
+    margin-top: -{crop}px;
   }}
 </style>
-<div class="blob"></div>
 <div class="copy">
-  <div class="kicker">{kicker_text}</div>
-  <div class="headline">{headline_text}</div>
+  <div class="headline">{headline}</div>
+  <div class="subline">{subline}</div>
 </div>
-<div class="device"><img src="{shot}" alt=""></div>
+<div class="phone"><img src="{shot}" alt=""></div>
 """
 
 
@@ -199,50 +170,56 @@ def run_chrome(chrome, args, out, label):
             proc.kill()
 
 
-def capture_screen(bs, locale, name, route, work):
-    out = os.path.join(work, f"{name}-screen.png")
-    if os.path.exists(out):
-        os.remove(out)
-    run_chrome(
-        bs.CHROME,
-        [
-            f"--window-size={bs.CHROME_MIN_WINDOW_W},{round(VIEWPORT_H * bs.ZOOM)}",
-            f"--force-device-scale-factor={CAPTURE_DPR}",
-            f"--lang={locale}",
-            f"--accept-lang={'fr-FR,fr' if locale == 'fr' else 'en-US,en'}",
-            f"--user-data-dir={os.path.join(work, '.chrome')}",
-            f"http://127.0.0.1:{bs.PORT}{route}",
-        ],
-        out,
-        f"{locale}/{name} screen",
-    )
-    return out
+def capture_path(locale, name):
+    return os.path.join(ROOT, "store", "listing", "screenshots", locale, f"{name}-1080x1920.png")
 
 
-def compose(chrome, name, theme, kicker, headline, shot, work, out_dir):
+def ink_rows(img):
+    """One bool per row: does a line of content cross it?
+
+    A row is ink when at least a few pixels stand far from the row's median
+    luminance -- text on a light screen and on the dark Ritual alike. Card
+    edges are too faint to count.
+    """
+    gray = img.convert("L")
+    w, h = gray.size
+    px = list(gray.getdata())
+    rows = []
+    for y in range(h):
+        row = px[y * w:(y + 1) * w]
+        median = sorted(row)[w // 2]
+        rows.append(sum(abs(p - median) > INK_DEVIATION for p in row) >= INK_MIN_PIXELS)
+    return rows
+
+
+def check_text_band(img):
+    ink = ink_rows(img.crop((0, 0, img.size[0], PHONE_TOP)))
+    last = max((y for y, on in enumerate(ink) if on), default=-1)
+    if last + 1 > BAND_MAX:
+        raise ValueError(f"text band is {last + 1}px tall, the limit is {BAND_MAX}px")
+
+
+def check_clean_cuts(ink, crop_top):
+    for y in (crop_top, crop_top + VISIBLE_ROWS):
+        if 0 < y < len(ink) and (ink[y - 1] or ink[y]):
+            raise ValueError(f"the bleed cuts a line of text at capture row {y}")
+
+
+def compose(chrome, locale, name, crop_top, headline, subline, work):
     from PIL import Image
 
-    s = SCALE
-    device_w = SCREEN_W + 2 * BEZEL
-    device_h = SCREEN_H + 2 * BEZEL
+    shot = capture_path(locale, name)
+    check_clean_cuts(ink_rows(Image.open(shot)), crop_top)
+
     page = TILE_HTML.format(
-        title=html_escape.escape(f"{kicker} - {name}"),
+        title=html_escape.escape(f"{locale} {name}"),
         fonts=FONTS.replace(os.sep, "/"),
         shot=shot.replace(os.sep, "/"),
-        w=TILE_W * s, h=TILE_H * s,
-        bg=theme["bg"], ink=theme["ink"],
-        blob_color=theme["blob"], kicker_color=theme["kicker"],
-        bezel_color=theme["bezel"], shadow_color=theme["shadow"],
-        blob=420 * s, blob_top=-130 * s, blob_right=-110 * s,
-        pad=64 * s, kicker=24 * s, track=int(3 * s), gap=18 * s,
-        headline=52 * s,
-        device_top=DEVICE_TOP * s,
-        device_left=((TILE_W - device_w) // 2) * s,
-        device_w=device_w * s, device_h=device_h * s,
-        bezel=BEZEL * s, device_radius=58 * s, screen_radius=(58 - BEZEL) * s,
-        screen_w=SCREEN_W * s, screen_h=SCREEN_H * s,
-        shadow_y=28 * s, shadow_blur=70 * s,
-        kicker_text=html_escape.escape(kicker), headline_text=headline,
+        w=TILE_W, h=TILE_H, sand=SAND, ink=INK, muted=MUTED,
+        phone_top=PHONE_TOP, phone_left=(TILE_W - PHONE_W) // 2,
+        phone_w=PHONE_W, phone_h=TILE_H, frame=FRAME, screen_w=SCREEN_W,
+        crop=round(crop_top * SCREEN_W / CAPTURE_W),
+        headline=headline, subline=html_escape.escape(subline),
     )
 
     src = os.path.join(work, f"{name}-tile.html")
@@ -253,49 +230,36 @@ def compose(chrome, name, theme, kicker, headline, shot, work, out_dir):
     run_chrome(
         chrome,
         [
-            f"--window-size={TILE_W * s},{TILE_H * s}",
+            f"--window-size={TILE_W},{TILE_H}",
             "--force-device-scale-factor=1",
             "--allow-file-access-from-files",
             src,
         ],
         raw,
-        f"{name} tile",
+        f"{locale}/{name} tile",
     )
 
-    out = os.path.join(out_dir, f"{name}-{TILE_W}x{TILE_H}.png")
-    Image.open(raw).convert("RGB").resize((TILE_W, TILE_H), Image.LANCZOS).save(
-        out, optimize=True
-    )
+    tile = Image.open(raw).convert("RGB")
+    if tile.size != (TILE_W, TILE_H):
+        raise ValueError(f"{locale}/{name}: Chrome wrote {tile.size}, not {TILE_W}x{TILE_H}")
+    check_text_band(tile)
+    out = os.path.join(OUT, locale, f"{name}-{TILE_W}x{TILE_H}.png")
+    tile.save(out, optimize=True)
     return out
 
 
 def main():
-    bs = store_module()
-    if not os.path.isdir(bs.PUBLIC):
-        sys.exit("no web build found -- run: dx build --platform web")
-    if not os.path.exists(bs.CHROME):
-        sys.exit(f"headless Chrome not found at {bs.CHROME}")
+    chrome = store_module().CHROME
+    if not os.path.exists(chrome):
+        sys.exit(f"headless Chrome not found at {chrome}")
 
-    from PIL import Image
-
-    routes = dict(bs.SHOTS)
     for locale, tiles in TILES.items():
         work = os.path.join(WORK, locale)
         os.makedirs(work, exist_ok=True)
-        out_dir = os.path.join(OUT, locale)
-        os.makedirs(out_dir, exist_ok=True)
-
-        root = bs.stage(locale)
-        httpd = bs.serve(root)
-        try:
-            for name, theme, kicker, headline in tiles:
-                shot = capture_screen(bs, locale, name, routes[name], work)
-                path = compose(bs.CHROME, name, theme, kicker, headline, shot, work, out_dir)
-                size = Image.open(path).size
-                print(f"  {os.path.relpath(path, ROOT)}  {size[0]}x{size[1]}")
-        finally:
-            httpd.shutdown()
-            httpd.server_close()
+        os.makedirs(os.path.join(OUT, locale), exist_ok=True)
+        for name, crop_top, headline, subline in tiles:
+            path = compose(chrome, locale, name, crop_top, headline, subline, work)
+            print(f"  {os.path.relpath(path, ROOT)}")
 
 
 if __name__ == "__main__":
