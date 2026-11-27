@@ -113,13 +113,14 @@ la section, comme le ferait un `h2` : si elle titre du contenu, elle prend la m�
 | `--screen-max-width` | `620px` | largeur du contenu, centré au-delà |
 | `--bottom-nav-height` / `--bottom-nav-offset` | `64px` / `20px` | barre du bas et son décalage ; le contenu les dégage |
 | `--action-dock-height` | `60px` | hauteur du bouton d'action fixé en bas (Détail, Rituel) |
-| `--lifecycle-gesture-height` | `56px` | hauteur d'une ligne de geste de fin de vie (Détail) |
+| `--lifecycle-gesture-height` | `56px` | hauteur minimale d'une ligne de geste de fin de vie (Détail) ; ces lignes défilent avec la page, elles ne sont pas fixées |
 | `--dock-tally-height` | `44px` | hauteur de la seconde rangée du pied fixe (compte et annulation, Détail) |
 | `--dock-extra-height` | `0px`, puis `--dock-tally-height` + `--space-1` | ce que la seconde rangée ajoute au pied fixe ; posé par `.screen.detail:has(.dock-tally)` |
 
 Les hauteurs fixes (`--bottom-nav-height`, `--action-dock-height`,
-`--lifecycle-gesture-height`, `--dock-tally-height`) servent à réserver la place des éléments en `position: fixed` :
-un écran qui en porte réserve leur somme en bas. Les ombres restent douces (`--shadow-sm` /
+`--dock-tally-height`) servent à réserver la place des éléments en `position: fixed` :
+un écran qui en porte réserve leur somme en bas. Sur le Détail, seul le pied d'action est fixé ; les lignes de
+fin de vie (pause, ancrage) suivent le flux, sous les tuiles de rythme. Les ombres restent douces (`--shadow-sm` /
 `--shadow-md`), dérivées de l'encre. Les marges de sécurité (`--safe-area-inset-*`) s'ajoutent
 à tout élément collé à un bord.
 
@@ -219,7 +220,7 @@ sur ces points ; ce sont des faits, pas des choix de design.
 | Notes vivantes | seules les notes de refus d'Ancrées et d'Ajouter portent `role="status"` ; le compte du Détail (`habit_detail.rs:89`, « n fois aujourd'hui ») change aussi après une action, sans `role="status"` |
 | Galet d'Aujourd'hui | l'état éteint de `.pebble` se dessine avec `--color-ink-soft`, pas avec le contour `--color-outline` que la règle des états éteints prescrit |
 | Annuler un pas | rien n'annule une validation faite sur la cible d'Aujourd'hui |
-| Pied fixe | il est haut ; déplacer les lignes de fin de vie change la `safe-area-bleed` et S3 ; sous 380px la coche de « C'est fait » disparaît |
+| Pied fixe | il est haut ; les lignes de fin de vie ne sont plus fixées (elles défilent avec la page, 12 sites de marge de sécurité, `safe-area-bleed` S3) ; sous 380px la coche de « C'est fait » disparaît |
 | Barre système | sous le Rituel sombre, la barre de navigation Android reste claire |
 | Paysage | l'orientation paysage n'est pas traitée |
 | Escalier du Détail | pas de lettre de jour de la semaine ; un jour à moitié fait se lit comme un jour plein |

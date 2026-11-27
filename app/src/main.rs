@@ -444,14 +444,14 @@ mod tests {
             rest = &tail[end + 1..];
         }
         assert_eq!(
-            sites, 15,
-            "main.css must keep its 15 chain sites: var(--safe-area-inset-*, \
+            sites, 12,
+            "main.css must keep its 12 chain sites: var(--safe-area-inset-*, \
              env(safe-area-inset-*, 0px)) carries the Android arm (native bridge) \
              and the web/iOS arm (env(), which measures 0 on Android, adr-0021)"
         );
         assert_eq!(
             MAIN_CSS_SOURCE.matches(chain_opener).count(),
-            15,
+            12,
             "every var(--safe-area-inset-*) chain must carry its env() arm — \
              a chain without one would leave web/iOS on the Android value only"
         );
