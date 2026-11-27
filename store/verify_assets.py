@@ -156,17 +156,31 @@ def check_alt_text():
                    "140 or fewer, no 'image of' opener")
 
 
+REQUIRED_FONTS = {
+    os.path.join("app", "assets", "fonts"): ("Fraunces-Variable.woff2", "Figtree-Variable.woff2"),
+    os.path.join("site", "fonts"): ("SourceSerif4Variable-Roman.woff2", "SourceSerif4Variable-Italic.woff2"),
+}
+
+
+def font_problems(directory, names):
+    problems = []
+    for name in names:
+        path = os.path.join(directory, name)
+        if not os.path.exists(path):
+            problems.append(f"{name} is missing")
+        else:
+            with open(path, "rb") as f:
+                if f.read(4) != b"wOF2":
+                    problems.append(f"{name} is not a real woff2")
+    return problems
+
+
 def check_fonts():
     print("self-hosted fonts")
-    for directory in (rel("app", "assets", "fonts"), rel("site", "fonts")):
-        for name in ("SourceSerif4Variable-Roman.woff2", "SourceSerif4Variable-Italic.woff2"):
-            path = os.path.join(directory, name)
-            check(os.path.exists(path), os.path.relpath(path, ROOT))
-            if os.path.exists(path):
-                check(open(path, "rb").read(4) == b"wOF2",
-                      f"{os.path.relpath(path, ROOT)} is a real woff2")
-        check(os.path.exists(os.path.join(directory, "OFL.md")),
-              os.path.relpath(os.path.join(directory, "OFL.md"), ROOT) + " (redistribution is required)")
+    for directory, names in REQUIRED_FONTS.items():
+        report(font_problems(rel(directory), names), directory, "fonts present, real woff2")
+        check(os.path.exists(rel(directory, "OFL.md")),
+              f"{directory}/OFL.md (redistribution is required)")
 
 
 def check_site():

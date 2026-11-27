@@ -1,9 +1,8 @@
 """Render the Kayzen launcher and store icons from icon.html.
 
-The artwork is typeset, not drawn: the mark is the letter K of Source Serif 4
-followed by the cyan stamp that means "practised" in the Broadsheet system
-(docs/functional/design/05-style-graphique.md). Keeping it as live text is what
-lets the real typeface stay the source of truth -- an SVG would either need the
+The artwork is typeset, not drawn: the mark is the letter K of Fraunces (the
+Galets wordmark face) followed by the cyan stamp that means "practised". Keeping
+it as live text is what lets the real typeface stay the source of truth -- an SVG would either need the
 outlines extracted or a hand-drawn approximation of a licensed design.
 
 Rendering goes through headless Chrome, then Pillow scales every target size
@@ -24,7 +23,7 @@ RES = os.path.join(ROOT, "app", "android", "res")
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 MASTER = 1600
 
-PAPER = (0xF3, 0xF2, 0xF2, 255)
+PAPER = (0xF4, 0xF1, 0xEA, 255)
 
 DENSITIES = {"mdpi": 1, "hdpi": 1.5, "xhdpi": 2, "xxhdpi": 3, "xxxhdpi": 4}
 

@@ -10,7 +10,7 @@ main dans le dépôt.
 | Chemin | Rôle |
 | --- | --- |
 | `play-console-answers.md` | Chaque déclaration de la console, pré-remplie, avec la liste des bloquants |
-| `icon/icon.html` | Source de l'icône — le K de Source Serif 4 suivi du tampon cyan |
+| `icon/icon.html` | Source de l'icône — le K de Fraunces (comme le logotype Galets) suivi du tampon cyan, sur fond sable |
 | `icon/build_icons.py` | Génère toutes les densités du lanceur + l'icône 512×512 |
 | `icon/ic_launcher-512.png` | Icône de la fiche store |
 | `listing/build_feature_graphic.py` | Génère les deux graphiques 1024×500 (fr, en) |

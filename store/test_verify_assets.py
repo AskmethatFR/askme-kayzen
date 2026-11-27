@@ -133,7 +133,35 @@ class AltTextParsing(unittest.TestCase):
         self.assertEqual(va.alt_texts("| App category | Productivity |\n"), [])
 
 
+class FontRules(Scratch):
+    def font(self, name, magic=b"wOF2"):
+        with open(os.path.join(self.dir, name), "wb") as f:
+            f.write(magic + b"\0" * 8)
+
+    def test_present_woff2_passes(self):
+        self.font("A.woff2")
+        self.assertEqual(va.font_problems(self.dir, ("A.woff2",)), [])
+
+    def test_missing_font_is_refused(self):
+        self.assertTrue(va.font_problems(self.dir, ("A.woff2",)))
+
+    def test_file_that_is_not_woff2_is_refused(self):
+        self.font("A.woff2", magic=b"nope")
+        self.assertTrue(va.font_problems(self.dir, ("A.woff2",)))
+
+    def test_app_fonts_are_the_ones_the_graphics_use(self):
+        self.assertEqual(
+            sorted(va.REQUIRED_FONTS[os.path.join("app", "assets", "fonts")]),
+            ["Figtree-Variable.woff2", "Fraunces-Variable.woff2"],
+        )
+
+
 class RealAssets(unittest.TestCase):
+    def test_real_fonts_pass(self):
+        for directory, names in va.REQUIRED_FONTS.items():
+            with self.subTest(directory=directory):
+                self.assertEqual(va.font_problems(os.path.join(va.ROOT, directory), names), [])
+
     def test_real_tiles_pass(self):
         for locale in ("fr", "en"):
             with self.subTest(locale=locale):
