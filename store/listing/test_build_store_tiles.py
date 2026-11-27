@@ -24,14 +24,60 @@ def sand_with_line(y0, y1):
     return img
 
 
+APPROVED = {
+    "fr": [
+        ("01-aujourdhui", "01-aujourdhui", 0, "Un petit pas suffit.", "Pas de série, pas de pression."),
+        ("02-detail", "02-detail", 0, "Un jour sans ? Rien ne casse.", "Aucune série à protéger."),
+        ("03-semaine", "04-semaine", 0, "Votre rythme, pas le nôtre.", "Plus ou moins : vous décidez."),
+        ("04-rituel", "03-rituel", 0, "Un moment pour vous.", "Arrêter n'est pas échouer."),
+        ("05-ancrees", "05-ancrees", 0, "Devenue naturelle ? Ancrez-la.", "Elle libère une place."),
+        ("06-ajouter", "06-ajouter", 0, "Commencez tout petit.", "Cinq habitudes au plus."),
+    ],
+    "en": [
+        ("01-aujourdhui", "01-aujourdhui", 0, "One small step is enough.", "No streaks, no pressure."),
+        ("02-detail", "02-detail", 0, "Skip a day. Nothing breaks.", "No streak to protect."),
+        ("03-semaine", "04-semaine", 0, "Your pace, not ours.", "More or less: you decide."),
+        ("04-rituel", "03-rituel", 0, "A moment for yourself.", "Stopping isn't failing."),
+        ("05-ancrees", "05-ancrees", 0, "Became natural? Anchor it.", "It frees up a seat."),
+        ("06-ajouter", "06-ajouter", 0, "Start tiny.", "Five habits at most."),
+    ],
+}
+
+
 class TilesTable(unittest.TestCase):
     def test_six_tiles_per_locale_each_with_a_capture_and_an_int_crop_top(self):
         t = load()
         for locale in ("fr", "en"):
             self.assertEqual(6, len(t.TILES[locale]))
-            for name, crop_top, headline, subline in t.TILES[locale]:
+            for name, capture, crop_top, headline, subline in t.TILES[locale]:
                 self.assertIsInstance(crop_top, int, name)
-                self.assertTrue(os.path.exists(t.capture_path(locale, name)), name)
+                self.assertTrue(os.path.exists(t.capture_path(locale, capture)), name)
+
+    def test_the_table_is_the_approved_copy_in_the_approved_order(self):
+        t = load()
+        for locale in ("fr", "en"):
+            with self.subTest(locale=locale):
+                self.assertEqual(APPROVED[locale], t.TILES[locale])
+
+
+class CopyStaysShort(unittest.TestCase):
+    def test_a_headline_of_five_words_passes(self):
+        t = load()
+        t.check_copy("Un petit pas suffit ici.", "Pas de série.")
+
+    def test_a_headline_of_eight_words_raises(self):
+        t = load()
+        with self.assertRaises(ValueError):
+            t.check_copy("Un petit pas suffit ici pour vous aujourd'hui.", "Pas de série.")
+
+    def test_a_subline_of_six_words_passes(self):
+        t = load()
+        t.check_copy("Un petit pas.", "Pas de série, pas de pression.")
+
+    def test_a_subline_of_seven_words_raises(self):
+        t = load()
+        with self.assertRaises(ValueError):
+            t.check_copy("Un petit pas.", "Pas de série, pas de pression, jamais.")
 
 
 class TextBandStaysWithin384(unittest.TestCase):
@@ -67,12 +113,19 @@ class TheBleedNeverCutsALineOfText(unittest.TestCase):
         ink = t.ink_rows(sand_with_line(300, 340))
         t.check_clean_cuts(ink, 0)
 
+    def test_a_crop_whose_bleed_runs_past_the_capture_raises(self):
+        t = load()
+        ink = [False] * 1920
+        t.check_clean_cuts(ink, 18)
+        with self.assertRaises(ValueError):
+            t.check_clean_cuts(ink, 19)
+
     def test_every_real_capture_is_cut_cleanly_at_its_crop_top(self):
         t = load()
         for locale in ("fr", "en"):
-            for name, crop_top, headline, subline in t.TILES[locale]:
+            for name, capture, crop_top, headline, subline in t.TILES[locale]:
                 with self.subTest(locale=locale, tile=name):
-                    ink = t.ink_rows(Image.open(t.capture_path(locale, name)))
+                    ink = t.ink_rows(Image.open(t.capture_path(locale, capture)))
                     t.check_clean_cuts(ink, crop_top)
 
 

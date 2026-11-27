@@ -48,22 +48,25 @@ MUTED = "#5E574F"
 
 TILES = {
     "fr": [
-        ("01-aujourdhui", 0, "Cinq habitudes au plus.<br>Jamais six.", "Aujourd'hui"),
-        ("02-detail", 0, "Sept jours, sans note<br>ni pourcentage.", "Le détail"),
-        ("03-rituel", 0, "Un cercle qui respire.<br>Rien d'autre à faire.", "Le rituel"),
-        ("04-semaine", 0, "Ce qui a eu lieu.<br>Rien de plus.", "La semaine"),
-        ("05-ancrees", 0, "Une habitude ancrée<br>libère une place.", "Ancrées"),
-        ("06-ajouter", 0, "Cinq minutes par jour.<br>Un but souple.", "Ajouter"),
+        ("01-aujourdhui", "01-aujourdhui", 0, "Un petit pas suffit.", "Pas de série, pas de pression."),
+        ("02-detail", "02-detail", 0, "Un jour sans ? Rien ne casse.", "Aucune série à protéger."),
+        ("03-semaine", "04-semaine", 0, "Votre rythme, pas le nôtre.", "Plus ou moins : vous décidez."),
+        ("04-rituel", "03-rituel", 0, "Un moment pour vous.", "Arrêter n'est pas échouer."),
+        ("05-ancrees", "05-ancrees", 0, "Devenue naturelle ? Ancrez-la.", "Elle libère une place."),
+        ("06-ajouter", "06-ajouter", 0, "Commencez tout petit.", "Cinq habitudes au plus."),
     ],
     "en": [
-        ("01-aujourdhui", 0, "Five habits at most.<br>Never six.", "Today"),
-        ("02-detail", 0, "Seven days, no score<br>and no percentage.", "The detail"),
-        ("03-rituel", 0, "A circle that breathes.<br>Nothing else to do.", "The ritual"),
-        ("04-semaine", 0, "What happened.<br>Nothing more.", "This week"),
-        ("05-ancrees", 0, "An anchored habit<br>frees a seat.", "Anchored"),
-        ("06-ajouter", 0, "Five minutes a day.<br>A soft goal.", "Add"),
+        ("01-aujourdhui", "01-aujourdhui", 0, "One small step is enough.", "No streaks, no pressure."),
+        ("02-detail", "02-detail", 0, "Skip a day. Nothing breaks.", "No streak to protect."),
+        ("03-semaine", "04-semaine", 0, "Your pace, not ours.", "More or less: you decide."),
+        ("04-rituel", "03-rituel", 0, "A moment for yourself.", "Stopping isn't failing."),
+        ("05-ancrees", "05-ancrees", 0, "Became natural? Anchor it.", "It frees up a seat."),
+        ("06-ajouter", "06-ajouter", 0, "Start tiny.", "Five habits at most."),
     ],
 }
+
+HEADLINE_MAX_WORDS = 7
+SUBLINE_MAX_WORDS = 6
 
 TILE_HTML = """<!doctype html>
 <meta charset="utf-8">
@@ -90,7 +93,7 @@ TILE_HTML = """<!doctype html>
   .copy {{ position: absolute; top: 76px; left: 48px; right: 48px; }}
   .headline {{
     font-family: 'Fraunces', Georgia, serif;
-    font-size: 84px;
+    font-size: 96px;
     line-height: 1.08;
     color: {ink};
     font-variation-settings: 'wght' 620, 'opsz' 72, 'SOFT' 30;
@@ -199,16 +202,26 @@ def check_text_band(img):
         raise ValueError(f"text band is {last + 1}px tall, the limit is {BAND_MAX}px")
 
 
+def check_copy(headline, subline):
+    if len(headline.split()) > HEADLINE_MAX_WORDS:
+        raise ValueError(f"headline has more than {HEADLINE_MAX_WORDS} words: {headline!r}")
+    if len(subline.split()) > SUBLINE_MAX_WORDS:
+        raise ValueError(f"subline has more than {SUBLINE_MAX_WORDS} words: {subline!r}")
+
+
 def check_clean_cuts(ink, crop_top):
+    if crop_top + VISIBLE_ROWS > len(ink):
+        raise ValueError(f"the bleed ends at capture row {crop_top + VISIBLE_ROWS}, past the {len(ink)} rows")
     for y in (crop_top, crop_top + VISIBLE_ROWS):
         if 0 < y < len(ink) and (ink[y - 1] or ink[y]):
             raise ValueError(f"the bleed cuts a line of text at capture row {y}")
 
 
-def compose(chrome, locale, name, crop_top, headline, subline, work):
+def compose(chrome, locale, name, capture, crop_top, headline, subline, work):
     from PIL import Image
 
-    shot = capture_path(locale, name)
+    check_copy(headline, subline)
+    shot = capture_path(locale, capture)
     check_clean_cuts(ink_rows(Image.open(shot)), crop_top)
 
     page = TILE_HTML.format(
@@ -219,7 +232,7 @@ def compose(chrome, locale, name, crop_top, headline, subline, work):
         phone_top=PHONE_TOP, phone_left=(TILE_W - PHONE_W) // 2,
         phone_w=PHONE_W, phone_h=TILE_H, frame=FRAME, screen_w=SCREEN_W,
         crop=round(crop_top * SCREEN_W / CAPTURE_W),
-        headline=headline, subline=html_escape.escape(subline),
+        headline=html_escape.escape(headline), subline=html_escape.escape(subline),
     )
 
     src = os.path.join(work, f"{name}-tile.html")
@@ -257,8 +270,8 @@ def main():
         work = os.path.join(WORK, locale)
         os.makedirs(work, exist_ok=True)
         os.makedirs(os.path.join(OUT, locale), exist_ok=True)
-        for name, crop_top, headline, subline in tiles:
-            path = compose(chrome, locale, name, crop_top, headline, subline, work)
+        for name, capture, crop_top, headline, subline in tiles:
+            path = compose(chrome, locale, name, capture, crop_top, headline, subline, work)
             print(f"  {os.path.relpath(path, ROOT)}")
 
 
