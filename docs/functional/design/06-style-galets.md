@@ -230,7 +230,7 @@ sur ces points ; ce sont des faits, pas des choix de design.
 | Annuler un pas | rien n'annule une validation faite sur la cible d'Aujourd'hui |
 | Pied fixe | il est haut ; les lignes de fin de vie ne sont plus fixées (elles défilent avec la page, 12 sites de marge de sécurité, `safe-area-bleed` S3) ; sous 380px la coche de « C'est fait » disparaît |
 | Paysage court | à 360-412px de haut, le défilement est inévitable : au repos, la ligne qui chevauche le bord de la barre ou du pied (la deuxième carte d'Aujourd'hui, la seconde ancrée) passe dessous, et sur le Détail à 360px avec le compte du jour, les tuiles de rythme dépassent sous le pied ; tout reste atteignable en défilant, rien n'est couvert en bas de page |
-| Escalier du Détail | pas de lettre de jour de la semaine ; un jour à moitié fait se lit comme un jour plein |
+| Escalier du Détail | pas de nom de jour de la semaine (le rythme de la Semaine nomme les siens, `week-recap` S13) ; un jour à moitié fait se lit comme un jour plein |
 | Ancrée | le Détail d'une habitude ancrée est une impasse et le nom, dans Ancrées, n'est pas un lien : le propriétaire a tranché « aucun geste » (`03-ecrans` l. 196-200) |
 
 ## Aperçu des écrans

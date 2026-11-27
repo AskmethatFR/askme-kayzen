@@ -637,11 +637,28 @@ a.habit-name {
    never density: a day without practice keeps its dot as a hollow ring — present,
    never a gap, never a warning. Lit is a filled accent dot, unlit a hollow
    ring in --color-outline at full opacity (3.39:1 on paper, SC 1.4.11): the
-   difference is the fill, not a shade (#32). */
+   difference is the fill, not a shade (#32). Each dot stands over its weekday's
+   short name (the window slides daily, so position alone cannot tell the days
+   apart); the names are aria-hidden, the row's own label already says the week. */
 .rhythm {
     display: flex;
     gap: var(--space-2);
     margin-top: var(--space-5);
+}
+
+.rhythm-day {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    min-width: var(--space-5);
+}
+
+.rhythm-day-name {
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--color-ink-soft);
 }
 
 .rhythm-dot {

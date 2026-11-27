@@ -71,6 +71,15 @@ week-message-fresh-start = Un début parfait. Tout est encore devant.
 week-message-resting = Cette semaine se repose. Elle vous attend, sans presser.
 week-message-growing = Vous avancez, à votre rythme.
 week-rhythm-aria = Votre rythme sur les sept derniers jours
+weekday-short = { $weekday ->
+    [0] lu
+    [1] ma
+    [2] me
+    [3] je
+    [4] ve
+    [5] sa
+   *[6] di
+}
 week-curve-aria = Trajectoire de { $title }, de { $starting_goal } à { $current_goal } fois par jour, { $practised_days ->
     [one] { $practised_days } jour pratiqué
    *[other] { $practised_days } jours pratiqués

@@ -2,6 +2,7 @@ use crate::composition::Services;
 use crate::i18n::{tr, tr_key};
 use dioxus::prelude::*;
 use kayzen_core::habit_management::queries::get_week_recap::WeekMessage;
+use kayzen_core::shared::clock::weekday_in_window;
 
 /// The tinted card's staircase box, in the SVG's own user units, and the
 /// radius of the pebble standing on the trace's last point.
@@ -12,6 +13,7 @@ const STAIRCASE_DOT_RADIUS: f64 = 5.0;
 #[component]
 pub fn Week() -> Element {
     let services = use_context::<Services>();
+    let today_weekday = services.today_calendar_parts().weekday;
     let recap = use_signal(move || services.get_week_recap.handle());
     let recap = recap();
     let legend = tr!(
@@ -57,9 +59,14 @@ pub fn Week() -> Element {
 
             div { class: "rhythm", role: "img", "aria-label": tr!("week-rhythm-aria"),
                 for (day_offset, practised) in recap.rhythm.iter().enumerate() {
-                    span {
-                        key: "{day_offset}",
-                        class: if *practised { "rhythm-dot is-practised" } else { "rhythm-dot" },
+                    span { key: "{day_offset}", class: "rhythm-day",
+                        span { class: if *practised { "rhythm-dot is-practised" } else { "rhythm-dot" } }
+                        span { class: "rhythm-day-name", "aria-hidden": "true",
+                            {tr!(
+                                "weekday-short",
+                                weekday: weekday_in_window(today_weekday, recap.rhythm.len(), day_offset) as i64
+                            )}
+                        }
                     }
                 }
             }
@@ -855,6 +862,54 @@ mod tests {
             vec![true, false, true, false, true, false, false],
             "expected seven dots, oldest first, lit only on days at least \
              one habit was practised, faint on the rest — never a gap, got: {html}"
+        );
+    }
+
+    fn rhythm_day_names(html: &str) -> Vec<&str> {
+        const NEEDLE: &str = r#"<span class="rhythm-day-name" aria-hidden="true">"#;
+        html.split(NEEDLE)
+            .skip(1)
+            .map(|rest| rest.split('<').next().expect("a name ends at its tag"))
+            .collect()
+    }
+
+    #[component]
+    fn RootAtFreshWeekScreenInEnglish() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/week")));
+        });
+        use_context_provider(|| services_with(Rc::new(InMemoryHabitRepository::new())));
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: week-recap/S13
+    #[test]
+    fn each_rhythm_dot_names_its_weekday_in_french() {
+        let html = render(RootAtWeekScreenWithARhythm);
+
+        assert_eq!(
+            rhythm_day_names(&html),
+            ["ma", "me", "je", "ve", "sa", "di", "lu"],
+            "expected the window ending on a Monday to name its days under the dots, got: {html}"
+        );
+        assert!(
+            html.contains(r#"role="img" aria-label="Votre rythme sur les sept derniers jours""#),
+            "the rhythm row's label stays the one that already describes the week, got: {html}"
+        );
+    }
+
+    // @scenario: week-recap/S13
+    #[test]
+    fn each_rhythm_dot_names_its_weekday_in_english() {
+        let html = render(RootAtFreshWeekScreenInEnglish);
+
+        assert_eq!(
+            rhythm_day_names(&html),
+            ["Tu", "We", "Th", "Fr", "Sa", "Su", "Mo"],
+            "expected the same window in English, got: {html}"
         );
     }
 

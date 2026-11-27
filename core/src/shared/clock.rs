@@ -34,6 +34,11 @@ pub fn calendar_parts(date: LocalDate) -> CalendarParts {
     }
 }
 
+pub fn weekday_in_window(today_weekday: u32, window_days: usize, offset: usize) -> u32 {
+    let days_back = u32::try_from((window_days - 1 - offset) % 7).expect("a remainder of 7 fits");
+    (today_weekday + 7 - days_back) % 7
+}
+
 /// Real adapter: the only place `chrono` touches the crate. Converts the local
 /// calendar date to the domain's epoch-day `LocalDate` at the boundary.
 pub struct SystemClock;
@@ -80,6 +85,23 @@ mod tests {
             },
             "expected epoch day 739_878 to be Saturday 19 September 2026"
         );
+    }
+
+    #[test]
+    fn weekday_in_window_names_every_offset_of_a_window_ending_today() {
+        for (today_weekday, expected) in [
+            (5, [6, 0, 1, 2, 3, 4, 5]),
+            (0, [1, 2, 3, 4, 5, 6, 0]),
+            (6, [0, 1, 2, 3, 4, 5, 6]),
+        ] {
+            let named: Vec<u32> = (0..7)
+                .map(|offset| weekday_in_window(today_weekday, 7, offset))
+                .collect();
+            assert_eq!(
+                named, expected,
+                "expected a window ending on weekday {today_weekday} to read {expected:?}"
+            );
+        }
     }
 
     #[test]

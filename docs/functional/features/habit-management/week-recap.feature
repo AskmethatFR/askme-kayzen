@@ -95,3 +95,11 @@ Feature: Read the week's practice as times practised and rhythm
     When the user opens the week screen
     Then that habit's row reads "5 fois par jour", because its goal did not change during this week
     And the row shows no arrow
+
+  @scenario:S13
+  Scenario: Each dot of the rhythm names its weekday
+    Given today is a Monday
+    When the user opens the week screen
+    Then under the seven dots, oldest first, the short weekday names read "ma me je ve sa di lu"
+    And in English they read "Tu We Th Fr Sa Su Mo"
+    And the rhythm row's accessible label is unchanged, the names staying out of the accessibility tree
