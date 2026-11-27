@@ -10,6 +10,7 @@ Usage: python3 store/verify_assets.py
 """
 
 import glob
+import importlib.util
 import os
 import re
 import sys
@@ -78,6 +79,39 @@ def tile_problems(path):
     return problems
 
 
+def listing_module(name):
+    """Load a store/listing script, so the layout and the tile table have one owner."""
+    spec = importlib.util.spec_from_file_location(
+        name, os.path.join(ROOT, "store", "listing", f"{name}.py")
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+tiles = listing_module("build_store_tiles")
+TILES = tiles.TILES
+BLANK_MAX_COLOURS = listing_module("build_screenshots").BLANK_MAX_COLOURS
+
+
+def blank_phone_problems(path):
+    """An empty phone under a headline passes every format check, so look inside the frame."""
+    left = (tiles.TILE_W - tiles.PHONE_W) // 2 + tiles.FRAME
+    box = (left, tiles.PHONE_TOP + tiles.FRAME, left + tiles.SCREEN_W, tiles.TILE_H)
+    with Image.open(path) as image:
+        screen = image.convert("RGB").crop(box)
+    if screen.getcolors(maxcolors=BLANK_MAX_COLOURS) is not None:
+        return [f"the phone shows a blank screen (<= {BLANK_MAX_COLOURS} colours)"]
+    return []
+
+
+def tile_name_problems(locale, names):
+    expected = {f"{name}-{tiles.TILE_W}x{tiles.TILE_H}.png" for name, *_ in TILES[locale]}
+    return [f"{name} is not in the tile table" for name in sorted(set(names) - expected)] + [
+        f"{name} is missing" for name in sorted(expected - set(names))
+    ]
+
+
 def tile_set_problems(paths):
     problems = []
     if not 4 <= len(paths) <= 8:
@@ -139,9 +173,12 @@ def check_tiles():
         paths = sorted(glob.glob(rel("store", "listing", "tiles", locale, "*.png")))
         report(tile_set_problems(paths), f"{locale}: {len(paths)} tiles",
                "4 to 8, at least 4 at 1080 px")
+        report(tile_name_problems(locale, [os.path.basename(p) for p in paths]),
+               f"{locale} tile files", "exactly the tiles in the table")
         for path in paths:
-            report(tile_problems(path), f"{locale}/{os.path.basename(path)}",
-                   "RGB, sides, ratio and size within Play's limits")
+            report(tile_problems(path) + blank_phone_problems(path),
+                   f"{locale}/{os.path.basename(path)}",
+                   "RGB, sides, ratio and size within Play's limits, phone shows a screen")
 
 
 def check_alt_text():

@@ -124,11 +124,82 @@ class BlankDetect(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 bs.assert_not_blank(path)
 
+    def test_a_near_white_image_with_a_few_colours_still_raises(self):
+        from PIL import Image
+
+        bs = load()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "speckled.png")
+            img = Image.new("RGB", (100, 100), "white")
+            for i in range(5):
+                img.putpixel((i, 0), (250 - i, 250, 250))
+            img.save(path)
+            with self.assertRaises(RuntimeError):
+                bs.assert_not_blank(path)
+
     def test_a_real_capture_passes(self):
         bs = load()
         bs.assert_not_blank(
             os.path.join(HERE, "screenshots", "fr", "01-aujourdhui-1080x1920.png")
         )
+
+
+class PublishKeepsBlankCapturesOutOfTheTrackedFiles(unittest.TestCase):
+    def setUp(self):
+        self.bs = load()
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.bs.WORK = os.path.join(tmp.name, "work")
+        os.makedirs(self.bs.WORK)
+        self.out = os.path.join(tmp.name, "01-x-1080x1920.png")
+        self.calls = 0
+
+    def blank(self, path):
+        from PIL import Image
+
+        Image.new("RGB", (100, 100), "white").save(path)
+
+    def real(self, path):
+        from PIL import Image
+
+        img = Image.new("RGB", (100, 100), "white")
+        for x in range(100):
+            for y in range(100):
+                img.putpixel((x, y), (x * 2, y * 2, (x + y) % 256))
+        img.save(path)
+
+    def test_a_blank_capture_never_replaces_the_tracked_file(self):
+        self.real(self.out)
+        before = open(self.out, "rb").read()
+
+        def shoot(path):
+            self.calls += 1
+            self.blank(path)
+
+        with self.assertRaises(RuntimeError):
+            self.bs.publish(shoot, self.out)
+        self.assertEqual(before, open(self.out, "rb").read())
+        self.assertEqual(self.calls, self.bs.CAPTURE_ATTEMPTS)
+
+    def test_a_blank_first_attempt_is_retried_and_the_recovery_is_published(self):
+        def shoot(path):
+            self.calls += 1
+            (self.blank if self.calls == 1 else self.real)(path)
+
+        self.bs.publish(shoot, self.out)
+        self.assertEqual(self.calls, 2)
+        self.bs.assert_not_blank(self.out)
+
+    def test_a_good_capture_is_published_at_the_play_size_after_one_attempt(self):
+        from PIL import Image
+
+        def shoot(path):
+            self.calls += 1
+            self.real(path)
+
+        self.bs.publish(shoot, self.out)
+        self.assertEqual(self.calls, 1)
+        self.assertEqual(Image.open(self.out).size, (self.bs.OUT_W, self.bs.OUT_H))
 
 
 if __name__ == "__main__":

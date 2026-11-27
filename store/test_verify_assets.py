@@ -71,6 +71,43 @@ class TileRules(Scratch):
                 self.assertEqual(not va.tile_problems(path), ok)
 
 
+class BlankPhoneRules(Scratch):
+    def tile(self, content):
+        """A tile: sand ground, an ink headline bar, and a phone whose screen is `content`."""
+        path = os.path.join(self.dir, "t.png")
+        img = Image.new("RGB", (1080, 1920), SAND)
+        img.paste((42, 38, 34), (100, 100, 900, 200))
+        if content:
+            for x in range(200, 900, 7):
+                for y in range(500, 1800, 11):
+                    img.putpixel((x, y), (x % 256, y % 256, (x + y) % 256))
+        img.save(path)
+        return path
+
+    def test_an_empty_phone_under_a_headline_is_refused(self):
+        problems = va.blank_phone_problems(self.tile(content=False))
+        self.assertTrue(any("blank" in p for p in problems), problems)
+
+    def test_a_phone_showing_a_screen_passes(self):
+        self.assertEqual(va.blank_phone_problems(self.tile(content=True)), [])
+
+
+class TileFileSetRules(unittest.TestCase):
+    def names(self, locale):
+        return [f"{n}-1080x1920.png" for n, *_ in va.TILES[locale]]
+
+    def test_exactly_the_tiles_in_the_table_pass(self):
+        self.assertEqual(va.tile_name_problems("fr", self.names("fr")), [])
+
+    def test_a_stale_tile_left_by_a_rename_is_refused(self):
+        problems = va.tile_name_problems("fr", self.names("fr") + ["03-old-1080x1920.png"])
+        self.assertTrue(any("03-old-1080x1920.png" in p for p in problems), problems)
+
+    def test_a_missing_tile_is_refused(self):
+        problems = va.tile_name_problems("fr", self.names("fr")[1:])
+        self.assertTrue(any("01-aujourdhui-1080x1920.png" in p for p in problems), problems)
+
+
 class TileSetRules(Scratch):
     def tiles(self, count, size=(1080, 1920)):
         return [self.image(f"t{i}.png", size=size) for i in range(count)]
@@ -167,8 +204,10 @@ class RealAssets(unittest.TestCase):
             with self.subTest(locale=locale):
                 paths = sorted(glob.glob(os.path.join(va.ROOT, "store", "listing", "tiles", locale, "*.png")))
                 self.assertEqual(va.tile_set_problems(paths), [])
+                self.assertEqual(va.tile_name_problems(locale, [os.path.basename(p) for p in paths]), [])
                 for path in paths:
                     self.assertEqual(va.tile_problems(path), [], path)
+                    self.assertEqual(va.blank_phone_problems(path), [], path)
 
     def test_real_feature_graphics_pass(self):
         for locale in ("fr", "en"):

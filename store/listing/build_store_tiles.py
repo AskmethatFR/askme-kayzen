@@ -90,7 +90,12 @@ TILE_HTML = """<!doctype html>
     position: relative;
     text-align: center;
   }}
-  .copy {{ position: absolute; top: 76px; left: 48px; right: 48px; }}
+  /* bottom-aligned in the band: the subline sits at one height, a second headline line grows upward */
+  .copy {{
+    position: absolute; top: 0; left: 48px; right: 48px; height: {band}px;
+    box-sizing: border-box; padding-bottom: 20px;
+    display: flex; flex-direction: column; justify-content: flex-end;
+  }}
   .headline {{
     font-family: 'Fraunces', Georgia, serif;
     font-size: 96px;
@@ -222,13 +227,14 @@ def compose(chrome, locale, name, capture, crop_top, headline, subline, work):
 
     check_copy(headline, subline)
     shot = capture_path(locale, capture)
+    store_module().assert_not_blank(shot)
     check_clean_cuts(ink_rows(Image.open(shot)), crop_top)
 
     page = TILE_HTML.format(
         title=html_escape.escape(f"{locale} {name}"),
         fonts=FONTS.replace(os.sep, "/"),
         shot=shot.replace(os.sep, "/"),
-        w=TILE_W, h=TILE_H, sand=SAND, ink=INK, muted=MUTED,
+        w=TILE_W, h=TILE_H, band=BAND_MAX, sand=SAND, ink=INK, muted=MUTED,
         phone_top=PHONE_TOP, phone_left=(TILE_W - PHONE_W) // 2,
         phone_w=PHONE_W, phone_h=TILE_H, frame=FRAME, screen_w=SCREEN_W,
         crop=round(crop_top * SCREEN_W / CAPTURE_W),

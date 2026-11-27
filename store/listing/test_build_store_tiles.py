@@ -1,5 +1,6 @@
 import importlib.util
 import os
+import tempfile
 import unittest
 
 from PIL import Image
@@ -120,6 +121,27 @@ class TheBleedNeverCutsALineOfText(unittest.TestCase):
         with self.assertRaises(ValueError):
             t.check_clean_cuts(ink, 19)
 
+    def test_a_line_ending_on_the_row_just_above_the_bottom_cut_raises(self):
+        t = load()
+        cut = self.bottom_cut(t, 0)
+        ink = t.ink_rows(sand_with_line(cut - 5, cut))
+        with self.assertRaises(ValueError):
+            t.check_clean_cuts(ink, 0)
+
+    def test_a_line_ending_on_the_row_just_above_the_top_cut_raises(self):
+        t = load()
+        ink = t.ink_rows(sand_with_line(10, 18))
+        with self.assertRaises(ValueError):
+            t.check_clean_cuts(ink, 18)
+
+    def test_a_two_pixel_speck_is_not_a_line_of_text_but_three_pixels_are(self):
+        t = load()
+        for width, is_ink in ((2, False), (3, True)):
+            with self.subTest(width=width):
+                img = Image.new("RGB", (1080, 1920), SAND)
+                img.paste(INK, (100, 500, 100 + width, 501))
+                self.assertEqual(t.ink_rows(img)[500], is_ink)
+
     def test_every_real_capture_is_cut_cleanly_at_its_crop_top(self):
         t = load()
         for locale in ("fr", "en"):
@@ -127,6 +149,36 @@ class TheBleedNeverCutsALineOfText(unittest.TestCase):
                 with self.subTest(locale=locale, tile=name):
                     ink = t.ink_rows(Image.open(t.capture_path(locale, capture)))
                     t.check_clean_cuts(ink, crop_top)
+
+
+class ComposeRefusesABlankCapture(unittest.TestCase):
+    def test_a_blank_capture_never_becomes_a_tile(self):
+        t = load()
+        with tempfile.TemporaryDirectory() as tmp:
+            blank = os.path.join(tmp, "blank.png")
+            Image.new("RGB", (1080, 1920), "white").save(blank)
+            os.makedirs(os.path.join(tmp, "out", "fr"))
+            t.OUT = os.path.join(tmp, "out")
+            t.capture_path = lambda locale, name: blank
+            t.run_chrome = lambda chrome, args, raw, label: Image.new(
+                "RGB", (t.TILE_W, t.TILE_H), SAND
+            ).save(raw)
+            with self.assertRaises(RuntimeError):
+                t.compose("chrome", "fr", "01-x", "c", 0, "Hi", "there", tmp)
+            self.assertEqual([], os.listdir(os.path.join(tmp, "out", "fr")))
+
+
+class TheCopyBlockSitsAtTheSameHeightWhateverTheHeadlineLength(unittest.TestCase):
+    def test_every_real_tile_ends_its_copy_within_a_few_rows_of_the_others(self):
+        t = load()
+        ends = {}
+        for locale in ("fr", "en"):
+            for name, *_ in t.TILES[locale]:
+                tile = Image.open(os.path.join(t.OUT, locale, f"{name}-1080x1920.png"))
+                ink = t.ink_rows(tile.crop((0, 0, t.TILE_W, t.PHONE_TOP)))
+                ends[f"{locale}/{name}"] = max(y for y, on in enumerate(ink) if on)
+        spread = max(ends.values()) - min(ends.values())
+        self.assertLessEqual(spread, 16, ends)
 
 
 if __name__ == "__main__":

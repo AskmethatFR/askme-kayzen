@@ -128,6 +128,36 @@ def assert_not_blank(path):
         raise RuntimeError(f"{path}: blank capture (<= {BLANK_MAX_COLOURS} colours)")
 
 
+CAPTURE_ATTEMPTS = 3
+
+
+def publish(shoot, out, attempts=CAPTURE_ATTEMPTS):
+    """Shoot into WORK and move into `out` only a capture that has content.
+
+    Chrome sometimes writes a blank PNG when the virtual-time budget runs out
+    before the wasm app has rendered (about one run in two on a busy machine).
+    A blank shot is retried; the tracked file is never touched until a good
+    one exists, so a failed run leaves the previous captures in place.
+    """
+    from PIL import Image
+
+    raw = os.path.join(WORK, os.path.basename(out))
+    for attempt in range(1, attempts + 1):
+        shoot(raw)
+        Image.open(raw).convert("RGB").resize((OUT_W, OUT_H), Image.LANCZOS).save(raw, optimize=True)
+        try:
+            assert_not_blank(raw)
+        except RuntimeError:
+            if attempt == attempts:
+                raise
+            print(f"  blank capture of {os.path.basename(out)}, retry {attempt}/{attempts - 1}")
+            continue
+        if attempt > 1:
+            print(f"  recovered {os.path.basename(out)} on attempt {attempt}")
+        os.replace(raw, out)
+        return out
+
+
 def today_as_stored():
     """The integer a stored date carries.
 
@@ -225,7 +255,12 @@ def serve(directory):
 
 
 def capture(locale, name, route, out_dir):
-    """Shoot one route, then kill the browser.
+    out = os.path.join(out_dir, f"{name}-{OUT_W}x{OUT_H}.png")
+    return publish(lambda raw: chrome_shot(locale, name, route, raw), out)
+
+
+def chrome_shot(locale, name, route, out):
+    """Shoot one route into `out`, then kill the browser.
 
     Chrome writes the PNG when its virtual-time budget expires but does not
     reliably exit afterwards on a page that keeps animating -- Kayzen's ritual
@@ -238,9 +273,7 @@ def capture(locale, name, route, out_dir):
     so without `--force-prefers-reduced-motion` the PNG catches a near-invisible
     screen next to a crisp nav.
     """
-    from PIL import Image
-
-    out = os.path.join(out_dir, f"{name}-{OUT_W}x{OUT_H}.png")
+    os.makedirs(WORK, exist_ok=True)
     if os.path.exists(out):
         os.remove(out)
 
@@ -281,10 +314,6 @@ def capture(locale, name, route, out_dir):
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
             proc.kill()
-
-    Image.open(out).convert("RGB").resize((OUT_W, OUT_H), Image.LANCZOS).save(out, optimize=True)
-    assert_not_blank(out)
-    return out
 
 
 def main():
