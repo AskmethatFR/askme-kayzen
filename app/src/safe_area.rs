@@ -41,6 +41,8 @@ mod tests {
     fn safe_area_bleed_s2_given_the_release_seam_then_it_registers_one_read_only_bridge_under_on_web_view_create()
      {
         let block = seam_block();
+        // @law: Kotlin ignores whitespace before a `(`, so the surface counts run on the block with every space removed.
+        let squeezed: String = block.split_whitespace().collect();
 
         assert_eq!(
             block.matches("\"AskmeSafeArea\"").count(),
@@ -48,11 +50,24 @@ mod tests {
             "the bridge must be registered under the AskmeSafeArea name exactly once"
         );
         assert_eq!(
-            block.matches("addJavascriptInterface(").count(),
+            squeezed.matches("addJavascriptInterface(").count(),
             2,
             "exactly two addJavascriptInterface calls in the seam block: AskmeSafeArea and \
              AskmeSystemBars (adr-0028)"
         );
+        assert_eq!(
+            squeezed.matches("JavascriptInterface").count(),
+            4,
+            "JavascriptInterface appears only as the two registrations and the two annotations: \
+             no import alias, no second spelling of the annotation"
+        );
+        for widening in ["typealias", "addWebMessageListener", "loadUrl"] {
+            assert!(
+                !squeezed.contains(widening),
+                "the seam block never uses {widening}: an alias hides an annotation, the others \
+                 open another page-to-native channel (adr-0024 reopening trigger)"
+            );
+        }
         let hook = block
             .find("override fun onWebViewCreate(")
             .expect("the seam overrides WryActivity.onWebViewCreate");
@@ -104,7 +119,7 @@ mod tests {
             "the seam pushes through the single writer entry point"
         );
         assert_eq!(
-            block.matches("evaluateJavascript(").count(),
+            squeezed.matches("evaluateJavascript(").count(),
             2,
             "the seam evaluates exactly two scripts: the insets push and the fixed Back question \
              (adr-0027)"

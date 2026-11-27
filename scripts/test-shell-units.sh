@@ -4136,6 +4136,51 @@ ma_eval_hits="$(grep -oF 'evaluateJavascript(' "$MA_FIXTURE" | wc -l | tr -d ' '
 assert_eq "2" "$ma_eval_hits" \
     "patch_main_activity_edge_to_edge: the seam evaluates the insets push and the fixed Back question, nothing else (adr-0027)"
 
+# Whitespace-tolerant twins of the exact-string counts above: Kotlin ignores
+# blanks before a `(`, so `evaluateJavascript (` must not slip past the pin.
+ma_eval_spaced="$(grep -oE 'evaluateJavascript[[:space:]]*\(' "$MA_FIXTURE" | wc -l | tr -d ' ')"
+assert_eq "2" "$ma_eval_spaced" \
+    "patch_main_activity_edge_to_edge: two evaluateJavascript calls however the paren is spaced (adr-0027)"
+
+ma_add_spaced="$(grep -oE 'addJavascriptInterface[[:space:]]*\(' "$MA_FIXTURE" | wc -l | tr -d ' ')"
+assert_eq "2" "$ma_add_spaced" \
+    "patch_main_activity_edge_to_edge: two addJavascriptInterface calls however the paren is spaced (adr-0028)"
+
+ma_interface_any="$(grep -oE 'JavascriptInterface' "$MA_FIXTURE" | wc -l | tr -d ' ')"
+assert_eq "4" "$ma_interface_any" \
+    "patch_main_activity_edge_to_edge: JavascriptInterface is only the two registrations and the two annotations, no alias or import"
+
+for ma_widening in 'typealias' 'addWebMessageListener' 'loadUrl'; do
+    ma_widening_hits="$(grep -cE "$ma_widening" "$MA_FIXTURE" | tr -d ' ')"
+    ma_typealias_allowed="0"
+    # The fixture keeps dx's own BuildConfig typealias above the anchor.
+    [ "$ma_widening" = "typealias" ] && ma_typealias_allowed="1"
+    assert_eq "$ma_typealias_allowed" "$ma_widening_hits" \
+        "patch_main_activity_edge_to_edge: the seam adds no $ma_widening (adr-0024 reopening trigger)"
+done
+
+# --- AndroidManifest.xml: permissions and exported components ---------------
+# The bridge's blast radius also depends on what the app may do and what other
+# apps may start. Widening either needs an ADR and a security review.
+MANIFEST="$ROOT/app/android/AndroidManifest.xml"
+manifest_xml="$(perl -0pe 's/<!--.*?-->//gs' "$MANIFEST" | tr -s '[:space:]' ' ')"
+
+manifest_permissions="$(printf '%s' "$manifest_xml" | grep -oE '<uses-permission[^>]*>')"
+assert_eq '<uses-permission android:name="android.permission.INTERNET" />' "$manifest_permissions" \
+    "AndroidManifest.xml: INTERNET is the only permission"
+
+manifest_components="$(printf '%s' "$manifest_xml" | grep -oE '<(activity-alias|activity|service|receiver|provider)' | tr '\n' ' ')"
+assert_eq '<activity ' "$manifest_components" \
+    "AndroidManifest.xml: the launcher activity is the only component, no service, receiver, provider or alias"
+
+manifest_exported="$(printf '%s' "$manifest_xml" | grep -oE 'android:exported="[^"]*"')"
+assert_eq 'android:exported="true"' "$manifest_exported" \
+    "AndroidManifest.xml: exactly one exported component, the activity carrying the launcher intent filter"
+
+manifest_launcher_exported="$(printf '%s' "$manifest_xml" | grep -cE '<activity [^>]*android:exported="true"[^>]*dev\.dioxus\.main\.MainActivity|<activity [^>]*dev\.dioxus\.main\.MainActivity[^>]*android:exported="true"' || true)"
+assert_eq "1" "$manifest_launcher_exported" \
+    "AndroidManifest.xml: the exported component is dev.dioxus.main.MainActivity"
+
 ma_padding_hits="$(grep -cF 'view.setPadding(' "$MA_FIXTURE" || true)"
 assert_eq "0" "$ma_padding_hits" \
     "patch_main_activity_edge_to_edge: decor-view inset padding is absent, the page paints into the bands"
