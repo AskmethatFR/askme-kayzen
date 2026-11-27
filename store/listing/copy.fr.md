@@ -19,27 +19,27 @@ Cinq habitudes au plus, un objectif doux. Pas de série, pas de pression.
 ## Description complète (4000 caractères max)
 
 ```
-Kayzen tient au plus cinq habitudes en parallèle. Pas six. Le cerveau n'en demande pas plus, et une liste courte est une liste qu'on ouvre encore dans un mois.
+Kayzen tient au plus cinq habitudes en parallèle. Pas six. Une liste courte est une liste qu'on ouvre encore dans un mois.
 
-Chaque habitude démarre sur un objectif doux : cinq minutes par jour. C'est un but souple, pas un contrat. Faire moins, c'est déjà quelque chose. Faire plus, tant mieux.
+Chaque habitude démarre sur un objectif doux : 3 fois par jour. C'est un but souple, pas un contrat. Faire moins, c'est déjà quelque chose. Faire plus, tant mieux.
 
 VOUS DÉCIDEZ DU RYTHME
-Grandir d'une minute, alléger d'une minute — quand vous le voulez, dans les deux sens, toujours disponible. Kayzen ne suggère rien et ne détecte rien : aucun algorithme ne décide à votre place que vous seriez « prêt ».
+Une fois de plus, une fois de moins — quand vous le voulez, dans les deux sens, toujours disponible (jamais moins d'une fois par jour). Kayzen ne suggère rien et ne détecte rien : aucun algorithme ne décide à votre place que vous seriez « prêt ».
 
 AUCUNE PRESSION, NULLE PART
-Pas de série à préserver. Pas de rouge. Pas de notification culpabilisante. Un jour sans pratique reste un point neutre dans votre historique — jamais un trou, jamais une alerte. Les jours vides ne comptent pas contre vous.
+Pas de série à préserver. Pas de rouge. Aucune notification. Un jour sans pratique reste un jour neutre dans votre historique — jamais un trou, jamais une alerte. Quand rien n'a été fait, l'écran du jour dit simplement : « Rien d'obligatoire aujourd'hui. »
 
 LA PAUSE EST UN DROIT
 Mettez une habitude en pause d'un geste, reprenez-la d'un autre. Elle garde sa place et tout ce qu'elle a déjà vécu. Son écran devient un écran de repos : rien à pratiquer, rien à ajuster, juste le chemin déjà parcouru et une façon de revenir. Une habitude au repos n'est pas une habitude manquée.
 
-LE RITUEL D'UNE MINUTE
-Un écran, un cercle qui respire lentement, le temps qui descend. Rien d'autre à regarder, rien d'autre à décider.
+LE RITUEL
+Un écran sombre, le nom de l'habitude, un seul geste : « J'ai terminé » enregistre une fois. « Arrêter, ce n'est pas grave » vous ramène au détail sans rien enregistrer. Rien d'autre à regarder, rien d'autre à décider.
 
 ANCRER, ET LIBÉRER LA PLACE
 Quand une habitude est devenue naturelle, vous l'ancrez vous-même — c'est un geste, jamais une suggestion de l'application. Elle quitte la liste du jour, libère une des cinq places, et garde tout son historique.
 
 VOIR SANS ÊTRE JUGÉ
-Le détail d'une habitude dessine ses sept derniers jours : une barre pleine les jours pratiqués, la même barre en clair les autres. Le récap de la semaine dit ce qui a eu lieu, sans pourcentage et sans classement.
+Le détail d'une habitude dessine ses sept derniers jours : un galet par jour, avec le nom du jour, plus ou moins grand selon le nombre de fois pratiquées ce jour-là. Le récap de la semaine dit ce qui a eu lieu, sans pourcentage et sans classement.
 
 TOUT RESTE SUR VOTRE TÉLÉPHONE
 Aucun compte. Aucune inscription. Aucune publicité. Aucune statistique d'usage. Aucun rapport de plantage. Aucune connexion réseau : Kayzen fonctionne entièrement hors ligne. Vos habitudes sont écrites dans le stockage privé de l'application et n'en sortent jamais — nous n'y avons nous-mêmes aucun accès.
@@ -59,7 +59,7 @@ Kayzen est gratuite, sans achat intégré et sans abonnement.
 | E-mail de contact | ateixeira@askmethat.fr |
 | Site web | https://askmethatfr.github.io/askme-kayzen/ |
 | Politique de confidentialité | https://askmethatfr.github.io/askme-kayzen/privacy.fr.html |
-| Captures téléphone | `store/listing/screenshots/fr/` (6 fichiers 1080×1920) |
+| Captures téléphone | `store/listing/tiles/fr/` (6 visuels 1080×1920) |
 | Feature graphic | `store/listing/feature-graphic-fr-1024x500.png` |
 | Texte alternatif du feature graphic (140 caractères max) | Le nom Kayzen et la phrase « Petits pas, sans série. » sur un papier sable, entre des galets cyan pleins et des galets en contour. |
 | Icône | `store/icon/ic_launcher-512.png` |

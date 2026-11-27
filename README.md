@@ -2,7 +2,7 @@
 
 A habit app built on one rule: the gentlest option always wins.
 
-A habit starts at a soft daily goal of 5 minutes. It grows only when *you* decide to
+A habit starts at a soft daily goal of 3 times a day. It grows (one time more) only when *you* decide to
 grow it — the system never detects "stability", never suggests a step up, and never
 tells you that you failed. A day without a completion is an empty day, not a broken
 streak. The board holds at most five habits in parallel, on purpose.
