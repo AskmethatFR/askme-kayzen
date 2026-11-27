@@ -1442,6 +1442,23 @@ mod tests {
         );
     }
 
+    // @scenario: practice-staircase/S4
+    #[test]
+    fn a_practised_pebble_is_drawn_at_its_ratio_and_an_undone_one_at_the_floor() {
+        const MAIN_CSS: &str = include_str!("../../assets/main.css");
+
+        assert!(
+            MAIN_CSS.contains(
+                ".day-pebble.is-done {\n    --pebble-scale: max(.25, var(--day-ratio, 1));"
+            ),
+            "a practised pebble must scale with its ratio (2 of 5 draws at two fifths), above a visible minimum"
+        );
+        assert!(
+            MAIN_CSS.contains(".day-pebble {\n    --pebble-scale: .6;"),
+            "an undone pebble keeps its hollow ring at the unchanged floor"
+        );
+    }
+
     fn services_with_one_attempt_today() -> Services {
         let today = LocalDate::from_epoch_day(20_020);
         let clock: Rc<dyn Clock> = Rc::new(FixedClock(today));

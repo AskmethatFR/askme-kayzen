@@ -1003,8 +1003,10 @@ a.habit-name {
    never two nuances of one shape (06-style-galets rule #32). Today — the last
    of the seven — is told apart by its dashed outline until it is practised.
    Size follows the day's attempts against that day's own goal (--day-ratio,
-   0..1, capped in the view): a day without practice has ratio 0 and stands at
-   the floor. The size scale (.6 + .4 x ratio) keeps even that floor visible.
+   0..1, capped in the view): a practised pebble is drawn at its ratio, so one
+   attempt of five stands at two fifths of full height. Below a quarter the
+   pebble would vanish, so .25 is the visible minimum (a 6x5px filled dot). A
+   day without practice keeps the hollow ring at the .6 floor.
    Each pebble stands over its weekday's short name (aria-hidden, the card's own
    label already says the week); the block margin centres the pebble in a fixed
    20px slot so the names align whatever the pebbles' sizes. */
@@ -1021,7 +1023,7 @@ a.habit-name {
 }
 
 .day-pebble {
-    --pebble-scale: calc(.6 + .4 * var(--day-ratio, 1));
+    --pebble-scale: .6;
     width: calc(24px * var(--pebble-scale));
     height: calc(20px * var(--pebble-scale));
     margin-block: calc(10px * (1 - var(--pebble-scale)));
@@ -1031,6 +1033,7 @@ a.habit-name {
 }
 
 .day-pebble.is-done {
+    --pebble-scale: max(.25, var(--day-ratio, 1));
     background: var(--color-accent);
     border-color: var(--color-accent);
 }
