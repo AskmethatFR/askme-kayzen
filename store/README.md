@@ -13,7 +13,7 @@ main dans le dépôt.
 | `icon/icon.html` | Source de l'icône — le K de Source Serif 4 suivi du tampon cyan |
 | `icon/build_icons.py` | Génère toutes les densités du lanceur + l'icône 512×512 |
 | `icon/ic_launcher-512.png` | Icône de la fiche store |
-| `listing/build_feature_graphic.py` | Génère le graphique 1024×500 |
+| `listing/build_feature_graphic.py` | Génère les deux graphiques 1024×500 (fr, en) |
 | `listing/build_screenshots.py` | Capture les 6 écrans, en français et en anglais, depuis la vraie application |
 | `listing/copy.fr.md`, `listing/copy.en.md` | Titre, descriptions, et les autres champs de la fiche |
 | `verify_assets.py` | Vérifie chaque fichier contre ce que Play refuse |

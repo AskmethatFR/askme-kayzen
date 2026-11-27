@@ -64,10 +64,10 @@ def check_store_icon():
 
 def check_feature_graphic():
     print("feature graphic")
-    path = rel("store", "listing", "feature-graphic-1024x500.png")
-    image = Image.open(path)
-    check(image.size == (1024, 500), f"feature graphic is 1024x500, got {image.size}")
-    check(image.mode == "RGB", f"feature graphic carries no alpha, got {image.mode}")
+    for locale in ("fr", "en"):
+        image = Image.open(rel("store", "listing", f"feature-graphic-{locale}-1024x500.png"))
+        check(image.size == (1024, 500), f"{locale}: feature graphic is 1024x500, got {image.size}")
+        check(image.mode == "RGB", f"{locale}: feature graphic carries no alpha, got {image.mode}")
 
 
 def check_screenshots():

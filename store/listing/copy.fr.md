@@ -60,7 +60,8 @@ Kayzen est gratuite, sans achat intégré et sans abonnement.
 | Site web | https://askmethatfr.github.io/askme-kayzen/ |
 | Politique de confidentialité | https://askmethatfr.github.io/askme-kayzen/privacy.fr.html |
 | Captures téléphone | `store/listing/screenshots/fr/` (6 fichiers 1080×1920) |
-| Feature graphic | `store/listing/feature-graphic-1024x500.png` |
+| Feature graphic | `store/listing/feature-graphic-fr-1024x500.png` |
+| Texte alternatif du feature graphic (140 caractères max) | Le nom Kayzen et la phrase « Petits pas, sans série. » sur un papier sable, entre des galets cyan pleins et des galets en contour. |
 | Icône | `store/icon/ic_launcher-512.png` |
 
 ## Règles de rédaction respectées

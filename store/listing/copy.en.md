@@ -60,7 +60,8 @@ Kayzen is free, with no in-app purchases and no subscription.
 | Website | https://askmethatfr.github.io/askme-kayzen/ |
 | Privacy policy | https://askmethatfr.github.io/askme-kayzen/privacy.en.html |
 | Phone screenshots | `store/listing/screenshots/en/` (6 files, 1080×1920) |
-| Feature graphic | `store/listing/feature-graphic-1024x500.png` |
+| Feature graphic | `store/listing/feature-graphic-en-1024x500.png` |
+| Feature graphic alt text (140 characters max) | The Kayzen name and the line "Small steps, no streaks." on sand-coloured paper, between filled cyan pebbles and outlined pebbles. |
 | Icon | `store/icon/ic_launcher-512.png` |
 
 ## Writing rules honoured

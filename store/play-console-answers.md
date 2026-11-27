@@ -128,7 +128,8 @@ enfants et ne collecte rien.
 | Élément | Fichier |
 | --- | --- |
 | Icône 512×512 (PNG 32 bits avec alpha, < 1 Mo) | `store/icon/ic_launcher-512.png` |
-| Feature graphic 1024×500 (sans canal alpha) | `store/listing/feature-graphic-1024x500.png` |
+| Feature graphic 1024×500 fr-FR (sans canal alpha) | `store/listing/feature-graphic-fr-1024x500.png` |
+| Feature graphic 1024×500 en-US (sans canal alpha) | `store/listing/feature-graphic-en-1024x500.png` |
 | Captures téléphone fr-FR (6 × 1080×1920) | `store/listing/screenshots/fr/` |
 | Captures téléphone en-US (6 × 1080×1920) | `store/listing/screenshots/en/` |
 | Titre, descriptions courte et complète | `store/listing/copy.fr.md`, `store/listing/copy.en.md` |
