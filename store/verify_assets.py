@@ -94,12 +94,18 @@ TILES = tiles.TILES
 BLANK_MAX_COLOURS = listing_module("build_screenshots").BLANK_MAX_COLOURS
 
 
-def blank_phone_problems(path):
-    """An empty phone under a headline passes every format check, so look inside the frame."""
-    left = (tiles.TILE_W - tiles.PHONE_W) // 2 + tiles.FRAME
-    box = (left, tiles.PHONE_TOP + tiles.FRAME, left + tiles.SCREEN_W, tiles.TILE_H)
+def blank_phone_problems(path, tile):
+    """An empty phone under a headline passes every format check, so look inside the frame.
+
+    The status bar is outside the box, and the callout with its shadow is painted over: a
+    callout cropped from the same capture must not make a blank screen look busy.
+    """
+    cx0, cy0, cx1, cy1 = tiles.callout_rect(tile)
+    reach = tiles.SHADOW_REACH
     with Image.open(path) as image:
-        screen = image.convert("RGB").crop(box)
+        tile_image = image.convert("RGB")
+    tile_image.paste((0, 0, 0), (cx0 - reach, cy0 - reach, cx1 + reach, cy1 + reach))
+    screen = tile_image.crop(tiles.screen_box(tile.layout))
     if screen.getcolors(maxcolors=BLANK_MAX_COLOURS) is not None:
         return [f"the phone shows a blank screen (<= {BLANK_MAX_COLOURS} colours)"]
     return []
@@ -175,8 +181,11 @@ def check_tiles():
                "4 to 8, at least 4 at 1080 px")
         report(tile_name_problems(locale, [os.path.basename(p) for p in paths]),
                f"{locale} tile files", "exactly the tiles in the table")
+        by_file = {f"{t.name}-{tiles.TILE_W}x{tiles.TILE_H}.png": t for t in TILES[locale]}
         for path in paths:
-            report(tile_problems(path) + blank_phone_problems(path),
+            if os.path.basename(path) not in by_file:
+                continue
+            report(tile_problems(path) + blank_phone_problems(path, by_file[os.path.basename(path)]),
                    f"{locale}/{os.path.basename(path)}",
                    "RGB, sides, ratio and size within Play's limits, phone shows a screen")
 

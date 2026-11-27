@@ -10,7 +10,7 @@ import shutil
 import tempfile
 import unittest
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SAND = (244, 241, 234)
@@ -72,24 +72,58 @@ class TileRules(Scratch):
 
 
 class BlankPhoneRules(Scratch):
-    def tile(self, content):
-        """A tile: sand ground, an ink headline bar, and a phone whose screen is `content`."""
+    def tile(self, tile, content, callout_only=False):
         path = os.path.join(self.dir, "t.png")
         img = Image.new("RGB", (1080, 1920), SAND)
         img.paste((42, 38, 34), (100, 100, 900, 200))
-        if content:
-            for x in range(200, 900, 7):
-                for y in range(500, 1800, 11):
+        img.paste((42, 38, 34), (100, 1600, 900, 1700))
+        left, top, right, bottom = va.tiles.screen_box(tile.layout)
+        box = va.tiles.callout_rect(tile) if callout_only else (left + 40, top + 40, right - 40, bottom - 40)
+        if content or callout_only:
+            for x in range(box[0], box[2], 7):
+                for y in range(box[1], box[3], 11):
                     img.putpixel((x, y), (x % 256, y % 256, (x + y) % 256))
         img.save(path)
         return path
 
     def test_an_empty_phone_under_a_headline_is_refused(self):
-        problems = va.blank_phone_problems(self.tile(content=False))
-        self.assertTrue(any("blank" in p for p in problems), problems)
+        for tile in (va.TILES["fr"][0], va.TILES["fr"][1]):
+            with self.subTest(layout=tile.layout):
+                problems = va.blank_phone_problems(self.tile(tile, content=False), tile)
+                self.assertTrue(any("blank" in p for p in problems), problems)
 
     def test_a_phone_showing_a_screen_passes(self):
-        self.assertEqual(va.blank_phone_problems(self.tile(content=True)), [])
+        for tile in (va.TILES["fr"][0], va.TILES["fr"][1]):
+            with self.subTest(layout=tile.layout):
+                self.assertEqual(va.blank_phone_problems(self.tile(tile, content=True), tile), [])
+
+    def test_a_busy_callout_on_an_empty_phone_does_not_hide_the_blank_screen(self):
+        for tile in (va.TILES["fr"][0], va.TILES["fr"][1]):
+            with self.subTest(layout=tile.layout):
+                problems = va.blank_phone_problems(self.tile(tile, content=False, callout_only=True), tile)
+                self.assertTrue(any("blank" in p for p in problems), problems)
+
+
+class BlankScreenInsideTheRealBezel(Scratch):
+    def blanked(self, locale, tile):
+        real = os.path.join(va.ROOT, "store", "listing", "tiles", locale, f"{tile.name}-1080x1920.png")
+        image = Image.open(real).convert("RGB")
+        left = va.tiles.PHONE_LEFT + va.tiles.FRAME
+        top = va.tiles.PHONE_TOP + va.tiles.FRAME if tile.layout == "top" else -100
+        bottom = va.tiles.TILE_H + 100 if tile.layout == "top" else va.tiles.TILE_H - va.tiles.PHONE_TOP - va.tiles.FRAME
+        ImageDraw.Draw(image).rounded_rectangle(
+            (left, top, left + va.tiles.SCREEN_W - 1, bottom - 1), radius=va.tiles.SCREEN_RADIUS, fill=SAND
+        )
+        path = os.path.join(self.dir, "blank.png")
+        image.save(path)
+        return path
+
+    def test_a_blank_screen_is_refused_on_every_real_tile_layout_even_with_the_real_bezel_corners(self):
+        for locale in ("fr", "en"):
+            for tile in va.TILES[locale]:
+                with self.subTest(locale=locale, tile=tile.name, layout=tile.layout):
+                    problems = va.blank_phone_problems(self.blanked(locale, tile), tile)
+                    self.assertTrue(any("blank" in p for p in problems), problems)
 
 
 class TileFileSetRules(unittest.TestCase):
@@ -205,9 +239,10 @@ class RealAssets(unittest.TestCase):
                 paths = sorted(glob.glob(os.path.join(va.ROOT, "store", "listing", "tiles", locale, "*.png")))
                 self.assertEqual(va.tile_set_problems(paths), [])
                 self.assertEqual(va.tile_name_problems(locale, [os.path.basename(p) for p in paths]), [])
+                by_file = {f"{t.name}-1080x1920.png": t for t in va.TILES[locale]}
                 for path in paths:
                     self.assertEqual(va.tile_problems(path), [], path)
-                    self.assertEqual(va.blank_phone_problems(path), [], path)
+                    self.assertEqual(va.blank_phone_problems(path, by_file[os.path.basename(path)]), [], path)
 
     def test_real_feature_graphics_pass(self):
         for locale in ("fr", "en"):
