@@ -35,7 +35,7 @@ pub fn calendar_parts(date: LocalDate) -> CalendarParts {
 }
 
 pub fn weekday_in_window(today_weekday: u32, window_days: usize, offset: usize) -> u32 {
-    let days_back = u32::try_from((window_days - 1 - offset) % 7).expect("a remainder of 7 fits");
+    let days_back = u32::try_from(window_days - 1 - offset).expect("offset lies inside the window");
     (today_weekday + 7 - days_back) % 7
 }
 

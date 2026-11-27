@@ -646,7 +646,8 @@ a.habit-name {
     margin-top: var(--space-5);
 }
 
-.rhythm-day {
+.rhythm-day,
+.pebble-day {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -654,7 +655,8 @@ a.habit-name {
     min-width: var(--space-5);
 }
 
-.rhythm-day-name {
+.rhythm-day-name,
+.pebble-day-name {
     font-size: 12px;
     font-weight: 600;
     line-height: 1;
@@ -1002,7 +1004,10 @@ a.habit-name {
    of the seven — is told apart by its dashed outline until it is practised.
    Size follows the day's attempts against that day's own goal (--day-ratio,
    0..1, capped in the view): a day without practice has ratio 0 and stands at
-   the floor. The size scale (.6 + .4 x ratio) keeps even that floor visible. */
+   the floor. The size scale (.6 + .4 x ratio) keeps even that floor visible.
+   Each pebble stands over its weekday's short name (aria-hidden, the card's own
+   label already says the week); the block margin centres the pebble in a fixed
+   20px slot so the names align whatever the pebbles' sizes. */
 .week-card {
     background: var(--color-card);
     border-radius: var(--radius-habit);
@@ -1011,7 +1016,7 @@ a.habit-name {
 
 .pebble-track {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
 }
 
@@ -1019,6 +1024,7 @@ a.habit-name {
     --pebble-scale: calc(.6 + .4 * var(--day-ratio, 1));
     width: calc(24px * var(--pebble-scale));
     height: calc(20px * var(--pebble-scale));
+    margin-block: calc(10px * (1 - var(--pebble-scale)));
     border-radius: 50%;
     background: transparent;
     border: 2px solid var(--color-outline);

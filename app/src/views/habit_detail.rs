@@ -6,10 +6,12 @@ use dioxus::prelude::*;
 use kayzen_core::habit_management::queries::get_habit_detail::HabitDetail as HabitDetailData;
 use kayzen_core::habit_management::queries::get_habit_detail::HabitState;
 use kayzen_core::habit_management::queries::get_habit_detail::PracticeDay;
+use kayzen_core::shared::clock::weekday_in_window;
 
 #[component]
 pub fn HabitDetail(id: String) -> Element {
     let services = use_context::<Services>();
+    let today_weekday = services.today_calendar_parts().weekday;
     let mut detail = use_signal({
         let services = services.clone();
         let id = id.clone();
@@ -29,10 +31,17 @@ pub fn HabitDetail(id: String) -> Element {
                         for (day_offset, (day, ratio)) in
                             habit.days.iter().zip(day_ratios(&habit.days)).enumerate()
                         {
-                            span {
-                                key: "{day_offset}",
-                                class: day_pebble_class(day.done, day_offset + 1 == habit.days.len()),
-                                style: "--day-ratio: {ratio}",
+                            span { key: "{day_offset}", class: "pebble-day",
+                                span {
+                                    class: day_pebble_class(day.done, day_offset + 1 == habit.days.len()),
+                                    style: "--day-ratio: {ratio}",
+                                }
+                                span { class: "pebble-day-name", "aria-hidden": "true",
+                                    {tr!(
+                                        "weekday-short",
+                                        weekday: weekday_in_window(today_weekday, habit.days.len(), day_offset) as i64
+                                    )}
+                                }
                             }
                         }
                     }
@@ -844,6 +853,75 @@ mod tests {
         assert!(
             !html.contains("is-done"),
             "expected no practised day for a habit never marked done, got: {html}"
+        );
+    }
+
+    fn pebble_day_names(html: &str) -> Vec<&str> {
+        const NEEDLE: &str = r#"<span class="pebble-day-name" aria-hidden="true">"#;
+        html.split(NEEDLE)
+            .skip(1)
+            .map(|rest| rest.split('<').next().expect("a name ends at its tag"))
+            .collect()
+    }
+
+    fn services_with_one_habit_on_a_monday() -> Services {
+        let clock: Rc<dyn Clock> = Rc::new(FixedClock(LocalDate::from_epoch_day(20_000)));
+        let repository: Rc<dyn HabitRepository> = Rc::new(InMemoryHabitRepository::new());
+        repository.save(&a_habit());
+        Services::with_repository_and_clock(repository, clock)
+    }
+
+    #[component]
+    fn RootAtHabitOnAMondayInEnglish() -> Element {
+        use_locale_for_tests_as(langid!("en"));
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_one_habit_on_a_monday);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    #[component]
+    fn RootAtHabitOnAMonday() -> Element {
+        crate::i18n::use_locale_for_tests();
+        use_hook(|| {
+            provide_history_context(Rc::new(MemoryHistory::with_initial_path("/habit/h-1")));
+        });
+        use_context_provider(services_with_one_habit_on_a_monday);
+        rsx! {
+            Router::<Route> {}
+        }
+    }
+
+    // @scenario: practice-staircase/S8
+    #[test]
+    fn each_pebble_names_its_weekday_in_french() {
+        let html = render(RootAtHabitOnAMonday);
+
+        assert_eq!(
+            pebble_day_names(&html),
+            ["ma", "me", "je", "ve", "sa", "di", "lu"],
+            "expected the window ending on a Monday to name its days under the pebbles, got: {html}"
+        );
+        assert!(
+            html.contains(
+                r#"role="img" aria-label="Vos sept derniers jours, objectif actuel 5 fois par jour""#
+            ),
+            "the week card's label stays the one that already describes the week, got: {html}"
+        );
+    }
+
+    // @scenario: practice-staircase/S8
+    #[test]
+    fn each_pebble_names_its_weekday_in_english() {
+        let html = render(RootAtHabitOnAMondayInEnglish);
+
+        assert_eq!(
+            pebble_day_names(&html),
+            ["Tu", "We", "Th", "Fr", "Sa", "Su", "Mo"],
+            "expected the same window in English, got: {html}"
         );
     }
 

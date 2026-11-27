@@ -54,3 +54,11 @@ Feature: Read a habit's recent practice as a staircase
     Given a habit the user has not marked done today
     When the user opens its detail
     Then today's pebble is drawn as a dashed outline, and the other days as plain outlines
+
+  @scenario:S8
+  Scenario: Each pebble names its weekday
+    Given today is a Monday
+    When the user opens a habit's detail
+    Then under the seven pebbles, oldest first, the short weekday names read "ma me je ve sa di lu"
+    And in English they read "Tu We Th Fr Sa Su Mo"
+    And the week card's accessible label is unchanged, the names staying out of the accessibility tree
