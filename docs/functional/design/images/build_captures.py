@@ -108,21 +108,6 @@ def capture(bs, name, route):
     return out
 
 
-def pin_full_height_screens(root):
-    """Give the screens that fill the viewport the phone's height, not the window's.
-
-    `.screen.ritual` and `.screen.anchored` are `min-height: 100dvh`, and under
-    the staged `html { zoom }` that unit is the 1111px window scaled up again:
-    the ritual screen came out 1.39x taller than the frame, which pushed its
-    completion button and stop link below the fold. The `html` prefix outranks
-    main.css, which dx links after this style.
-    """
-    index = os.path.join(root, "index.html")
-    html = open(index, encoding="utf-8").read()
-    pin = f"<style>html .screen.ritual,html .screen.anchored{{min-height:{VIEWPORT_H}px}}</style>"
-    open(index, "w", encoding="utf-8").write(html.replace("</head>", pin + "\n</head>", 1))
-
-
 def main():
     bs = store_module()
     if not os.path.isdir(bs.PUBLIC):
@@ -132,8 +117,7 @@ def main():
 
     from PIL import Image
 
-    root = bs.stage("fr")
-    pin_full_height_screens(root)
+    root = bs.stage("fr", VIEWPORT_H)
     httpd = bs.serve(root)
     try:
         for name, route in bs.SHOTS:

@@ -25,7 +25,7 @@ window.
 The copy also drops the Inter @import that the dx template puts in index.html,
 so a capture never depends on reaching fonts.googleapis.com.
 
-Prerequisite: dx build --platform web
+Prerequisite: dx build --platform web --package kayzen-app
 Usage: python3 store/listing/build_screenshots.py
 """
 
@@ -128,12 +128,18 @@ def snapshot(locale):
     }
 
 
-def stage(locale):
+def stage(locale, viewport_h):
     """Copy the build, seed the board, drop the remote fonts, pin the viewport.
 
     The zoom is what buys a phone layout: Chrome refuses a window narrower
     than 500 CSS pixels, so shrinking the CSS pixel by 500/360 is the only way
     left to hand the page the 360dp viewport the Android app actually runs in.
+
+    `.screen.ritual` and `.screen.anchored` are `min-height: 100dvh`, and under
+    that zoom the unit is the window scaled up again: the screen came out
+    taller than the frame, which pushed the ritual's completion button and stop
+    link below the fold. They are pinned to the phone's `viewport_h` instead.
+    The `html` prefix outranks main.css, which dx links after this style.
     """
     root = os.path.join(WORK, locale)
     if os.path.exists(root):
@@ -149,7 +155,10 @@ def stage(locale):
     payload = json.dumps(json.dumps(snapshot(locale), ensure_ascii=False))
     seed = f"<script>localStorage.setItem({json.dumps(STORAGE_KEY)}, {payload});</script>"
     html = html.replace("<head>", "<head>\n" + seed, 1)
-    html = html.replace("</head>", f"<style>html{{zoom:{ZOOM:.6f}}}</style>\n</head>", 1)
+    pin = f"html .screen.ritual,html .screen.anchored{{min-height:{viewport_h}px}}"
+    html = html.replace(
+        "</head>", f"<style>html{{zoom:{ZOOM:.6f}}}{pin}</style>\n</head>", 1
+    )
     open(index, "w", encoding="utf-8").write(html)
     print(f"  staged {locale}: seeded board, dropped {before} remote font import(s)")
     return root
@@ -189,6 +198,10 @@ def capture(locale, name, route, out_dir):
     on a capture that already succeeded, so the file itself is the completion
     signal: it is polled until its size stops growing, and the browser is then
     terminated.
+
+    The screen's entry fade (`kzUp`) does not advance under the virtual clock,
+    so without `--force-prefers-reduced-motion` the PNG catches a near-invisible
+    screen next to a crisp nav.
     """
     from PIL import Image
 
@@ -206,6 +219,7 @@ def capture(locale, name, route, out_dir):
             f"--window-size={WINDOW_W},{WINDOW_H}",
             f"--force-device-scale-factor={CAPTURE_DPR}",
             "--hide-scrollbars",
+            "--force-prefers-reduced-motion",
             "--virtual-time-budget=6000",
             f"--lang={locale}",
             f"--accept-lang={'fr-FR,fr' if locale == 'fr' else 'en-US,en'}",
@@ -238,14 +252,14 @@ def capture(locale, name, route, out_dir):
 
 def main():
     if not os.path.isdir(PUBLIC):
-        sys.exit("no web build found -- run: dx build --platform web")
+        sys.exit("no web build found -- run: dx build --platform web --package kayzen-app")
     if not os.path.exists(CHROME):
         sys.exit(f"headless Chrome not found at {CHROME}")
 
     from PIL import Image
 
     for locale in ("fr", "en"):
-        root = stage(locale)
+        root = stage(locale, VIEWPORT_H)
         httpd = serve(root)
         out_dir = os.path.join(OUT, locale)
         os.makedirs(out_dir, exist_ok=True)
