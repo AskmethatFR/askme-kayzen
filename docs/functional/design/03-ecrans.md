@@ -105,7 +105,7 @@ aucun cadran, aucun minuteur : l'écran compte l'objectif de l'habitude en fois 
 - Quelques idées prêtes (boire un verre d'eau, ranger un objet, écrire une ligne, s'étirer),
   toutes à 3 fois par jour. Taper une idée → ajoutée.
 - Sinon un champ libre + « Ajouter, à 3 fois par jour ».
-- **Si 5 habitudes actives** : l'écran se bloque en douceur et invite à en ancrer une pour
+- **Si le quotidien compte 5 habitudes (en pause comprises)** : l'écran se bloque en douceur et invite à en ancrer une pour
   libérer une place.
 - *Règle :* aucune configuration d'objectif. On commence toujours tout petit.
 

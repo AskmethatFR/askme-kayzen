@@ -54,3 +54,23 @@ Feature: Add a habit to my daily life
     Given a daily life holding 5 habits, paused ones included, none anchored
     When the add screen is opened
     Then no idea and no field are offered, only the invitation to anchor one first
+
+  @scenario:S9
+  Scenario: Submitting with no name says why and stores nothing
+    Given a daily life holding fewer than 5 habits
+    When the add form is submitted, by Enter or by the button, with no name
+    Then the note "Donnez-lui un nom pour commencer" appears
+    And no habit is stored
+
+  @scenario:S10
+  Scenario: Tapping an idea already in the daily life says so and adds nothing more
+    Given a daily life holding fewer than 5 habits, one of them titled like an offered idea
+    When that idea is tapped
+    Then the note "Elle est déjà dans votre quotidien" appears
+    And no habit is stored beyond the one already there
+
+  @scenario:S11
+  Scenario: The refusal note is a live region, present and empty before any refusal
+    Given a daily life holding fewer than 5 habits
+    When the add screen is opened
+    Then exactly one status note is present and it is empty

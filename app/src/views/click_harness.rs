@@ -1,7 +1,8 @@
 use dioxus::prelude::*;
 use dioxus_core::{AttributeValue, ElementId, Mutation, Mutations, NoOpMutations};
 use dioxus_html::{
-    PlatformEventData, SerializedAnimationData, SerializedHtmlEventConverter, SerializedMouseData,
+    PlatformEventData, SerializedAnimationData, SerializedFormData, SerializedHtmlEventConverter,
+    SerializedMouseData,
 };
 use std::any::Any;
 use std::rc::Rc;
@@ -45,6 +46,15 @@ impl Screen {
             SerializedMouseData::default(),
         )));
         self.dispatch("click", id, data, true);
+    }
+
+    pub(crate) fn submit(&mut self) {
+        let id = self.locate_by_listener("submit");
+        let data: Rc<dyn Any> = Rc::new(PlatformEventData::new(Box::new(SerializedFormData::new(
+            String::new(),
+            Vec::new(),
+        ))));
+        self.dispatch("submit", id, data, true);
     }
 
     pub(crate) fn fire_animation_iteration(&mut self, listener_name: &str) {
@@ -229,6 +239,30 @@ mod tests {
     fn firing_an_event_two_elements_listen_for_panics_instead_of_silently_picking_the_first() {
         let mut screen = Screen::open(RootWithTwoAnimationListeners);
         screen.fire_animation_iteration("animationiteration");
+    }
+
+    #[component]
+    fn RootWithForm() -> Element {
+        let mut submitted = use_signal(|| 0);
+        rsx! {
+            form { onsubmit: move |_| submitted += 1,
+                button { "go" }
+            }
+            p { "submitted: {submitted}" }
+        }
+    }
+
+    #[test]
+    fn submitting_dispatches_to_the_form_registered_for_it() {
+        let mut screen = Screen::open(RootWithForm);
+
+        screen.submit();
+
+        assert!(
+            screen.html().contains("submitted: 1"),
+            "expected the form's handler to have run, got: {}",
+            screen.html()
+        );
     }
 
     #[test]
