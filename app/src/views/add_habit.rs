@@ -494,6 +494,23 @@ mod tests {
         );
     }
 
+    #[test]
+    fn the_form_submit_handler_prevents_the_native_submit_so_the_app_never_reloads() {
+        const SOURCE: &str = include_str!("add_habit.rs");
+        let from_handler = &SOURCE[SOURCE
+            .find("onsubmit: move |event| {")
+            .expect("the form has an onsubmit handler")..];
+        let handler = &from_handler[..from_handler
+            .find("add(name());")
+            .expect("the handler adds the typed name")];
+        assert!(
+            handler
+                .lines()
+                .any(|line| line.trim() == "event.prevent_default();"),
+            "a native form submit would reload the WebView, the handler must prevent it"
+        );
+    }
+
     // @scenario: add-habit/S10
     #[test]
     fn tapping_an_idea_already_in_the_daily_life_says_so_and_adds_nothing_more() {

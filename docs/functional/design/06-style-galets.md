@@ -129,8 +129,8 @@ papier : la page défile dessous sans transparaître. Les ombres restent douces 
 En **paysage court** (`orientation: landscape` et hauteur ≤ 480px) la barre et le pied rétrécissent,
 l'en-tête reprend un `--screen-top-space` réduit et un titre plus petit, et sur le Détail le retour
 tient sur la ligne du titre ; la rangée du compte garde 44px (le lien d'annulation est une cible).
-Le lien `.habit-name` d'Aujourd'hui et de En pause mesure 44px de haut (marge négative : la carte
-garde sa hauteur ; la carte entière est déjà cliquable par le lien étiré).
+Le lien `.habit-name` d'Aujourd'hui et de En pause n'a pas de boîte propre : son calque étiré couvre
+toute la carte, qui est la cible tactile (la carte entière ouvre le Détail).
 
 ## Composants
 
@@ -158,6 +158,11 @@ Règles de composition :
   ≥ 3:1 sur papier, carte et teinte), jamais par `--color-rule`.
 - Un état éteint (point de rythme, jour sans pratique) se dessine avec le même contour, vide ;
   l'état allumé est plein. La différence est la présence du remplissage.
+- Chaque galet de l'escalier du Détail porte le nom court de son jour (`practice-staircase` S8,
+  comme le rythme de la Semaine, `week-recap` S13).
+- Le Détail d'une habitude ancrée ne propose aucun geste et dit seulement comment elle revient,
+  en une ligne de texte (`anchor-habit` S6). Le nom, dans Ancrées, n'est pas un lien : le
+  propriétaire a tranché « aucun geste » (`03-ecrans` l. 196-200).
 
 ### Composants Dioxus
 
@@ -225,13 +230,11 @@ sur ces points ; ce sont des faits, pas des choix de design.
 
 | Sujet | Fait |
 | --- | --- |
-| Notes vivantes | seules les notes de refus d'Ancrées et d'Ajouter portent `role="status"` ; le compte du Détail (`habit_detail.rs:89`, « n fois aujourd'hui ») change aussi après une action, sans `role="status"` |
+| Notes vivantes | seules les notes de refus d'Ancrées et d'Ajouter portent `role="status"` ; le compte du Détail (`habit_detail.rs:98`, « n fois aujourd'hui ») change aussi après une action, sans `role="status"` |
 | Galet d'Aujourd'hui | l'état éteint de `.pebble` se dessine avec `--color-ink-soft`, pas avec le contour `--color-outline` que la règle des états éteints prescrit |
 | Annuler un pas | rien n'annule une validation faite sur la cible d'Aujourd'hui |
 | Pied fixe | il est haut ; les lignes de fin de vie ne sont plus fixées (elles défilent avec la page, 12 sites de marge de sécurité, `safe-area-bleed` S3) ; sous 380px la coche de « C'est fait » disparaît |
 | Paysage court | à 360-412px de haut, le défilement est inévitable : au repos, la ligne qui chevauche le bord de la barre ou du pied (la deuxième carte d'Aujourd'hui, la seconde ancrée) passe dessous, et sur le Détail à 360px avec le compte du jour, les tuiles de rythme dépassent sous le pied ; tout reste atteignable en défilant, rien n'est couvert en bas de page |
-| Escalier du Détail | chaque galet porte le nom court de son jour (`practice-staircase` S8, comme le rythme de la Semaine, `week-recap` S13) |
-| Ancrée | le Détail d'une habitude ancrée ne propose aucun geste et dit seulement comment elle revient, en une ligne de texte (`anchor-habit` S6) ; le nom, dans Ancrées, n'est pas un lien : le propriétaire a tranché « aucun geste » (`03-ecrans` l. 196-200) |
 
 ## Aperçu des écrans
 

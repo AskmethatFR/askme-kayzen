@@ -6,7 +6,7 @@ L'app tient en **six écrans**, un seul visible à la fois (`App.screen`).
 
 Masthead (date + « Kaizen »), une phrase d'encouragement en italique, puis la liste des
 habitudes actives (**3 max visibles, 5 max au total**). Chaque ligne : icône, nom,
-« [déclencheur] · N fois par jour », et une grosse cible ronde.
+« N fois par jour », et une grosse cible ronde.
 
 La liste est **triée par déclencheur** pour épouser le fil de la journée.
 
@@ -16,7 +16,7 @@ La liste est **triée par déclencheur** pour épouser le fil de la journée.
 - « + Ajouter une toute petite habitude » en bas.
 - Liens : « Voir comment je grandis · cette semaine » ; « Mes habitudes ancrées · N »
   (si au moins une ancrée).
-- Pied de page : « X sur Y · c'est déjà quelque chose ».
+- Pied de page : « X sur Y · c'est déjà quelque chose » (à zéro : « Rien d'obligatoire aujourd'hui. »).
 - Zone « En pause · aucune pression » sous la liste (habitudes en pause, reprenables d'un tap).
 
 ## Cette semaine — l'amélioration continue
@@ -63,7 +63,7 @@ déplacée ailleurs. Le récap informe, il ne recueille rien.
 
 ## Détail — une habitude
 
-- Titre + résumé (« passée de 2 à 4 fois par jour, tout doucement »).
+- Titre + dose (« N fois par jour » ; « en pause · N fois par jour » ; « ancrée · N fois par jour »).
 - **Déclencheur** : champ texte libre + chips « après une habitude ancrée » (habit stacking).
 - **Escalier de pratique** — une barre par jour sur les **7 derniers jours**. Le jour fait
   est plein, le jour non fait est **la même barre en opacité faible** — jamais un trou,

@@ -105,6 +105,17 @@ mod tests {
     }
 
     #[test]
+    fn weekday_in_window_wraps_a_fortnight_back_onto_the_same_weekday_as_a_week_back() {
+        for today_weekday in 0..7 {
+            assert_eq!(
+                weekday_in_window(today_weekday, 14, 0),
+                weekday_in_window(today_weekday, 7, 0),
+                "expected a window of 14 days to open on the weekday a window of 7 opens on, today {today_weekday}"
+            );
+        }
+    }
+
+    #[test]
     fn calendar_parts_reads_the_epoch_day_convention_at_its_origin() {
         assert_eq!(
             calendar_parts(LocalDate::from_epoch_day(719_163)),

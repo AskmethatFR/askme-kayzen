@@ -7,10 +7,10 @@ l'option la plus douce.
   par jour**. C'est un *but souple* : faire moins, c'est déjà quelque chose ; faire plus, tant
   mieux. *(Amende « on démarre à 1-2 min, jamais plus » — décision owner, voir
   `[[adr-0008-goal-based-dose-user-paced-progression]]`.)*
-- **On grandit à son rythme** — l'utilisateur ajuste son objectif de **±1 fois par jour quand lui le
-  décide** (grandir / alléger), toujours disponible. **Aucune suggestion du système, aucune
-  détection de stabilité.** *(Amende « proposé jamais imposé » : c'est désormais 100 % piloté
-  par l'utilisateur.)*
+- **On grandit à son rythme** — l'utilisateur ajuste son objectif de **±1 fois par jour quand
+  lui le décide** (grandir / alléger), toujours disponible. **Aucune suggestion du système,
+  aucune détection de stabilité.** *(Amende « proposé jamais imposé » : c'est désormais 100 %
+  piloté par l'utilisateur.)*
 - **Aucune pression** — pas de streak, pas de rouge d'alerte, pas de notification
   culpabilisante. Les notifications éventuelles sont locales et douces.
 - **Pause sans culpabilité** — mettre en pause à tout moment, reprendre d'un geste.

@@ -289,15 +289,6 @@ a.habit-name::after {
     inset: 0;
 }
 
-/* The link's own box is a 44px target; the negative margin hands the 18px back
-   so the card keeps its height. */
-a.habit-name {
-    display: inline-flex;
-    align-items: center;
-    min-height: 44px;
-    margin-block: -9px;
-}
-
 .resume-link {
     z-index: 1;
 }

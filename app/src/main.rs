@@ -449,6 +449,23 @@ mod tests {
     }
 
     #[test]
+    fn the_lifecycle_block_stays_in_the_page_flow_so_it_scrolls_with_the_content() {
+        assert!(
+            !css_rule_body(MAIN_CSS_SOURCE, ".lifecycle").contains("position:"),
+            "a positioned lifecycle block leaves the page flow and stops scrolling with its content"
+        );
+    }
+
+    #[test]
+    fn the_ritual_ground_focus_ring_takes_the_9_to_1_ink_not_the_accent() {
+        assert!(
+            css_rule_body(MAIN_CSS_SOURCE, ".screen.ritual :focus-visible")
+                .contains("outline-color: var(--color-ritual-ink-soft);"),
+            "on the ritual ground the accent ring reads 3.41:1, the focus ring must take the ink"
+        );
+    }
+
+    #[test]
     fn a_short_landscape_viewport_shrinks_the_fixed_bars_so_they_clear_the_content() {
         let block = MAIN_CSS_SOURCE
             .split("@media (orientation: landscape) and (max-height: 480px) {")
@@ -468,14 +485,19 @@ mod tests {
     }
 
     #[test]
-    fn a_habit_name_link_is_a_44px_target_that_leaves_the_card_its_height() {
-        let rule = css_rule_body(MAIN_CSS_SOURCE, "a.habit-name");
-        for declaration in ["min-height: 44px;", "margin-block: -9px;"] {
-            assert!(
-                rule.contains(declaration),
-                "a.habit-name lacks {declaration}"
-            );
-        }
+    fn a_habit_name_link_adds_no_box_because_its_stretched_layer_makes_the_whole_card_the_target() {
+        assert!(
+            !MAIN_CSS_SOURCE.contains("\na.habit-name {"),
+            "the title link needs no box of its own: its stretched layer covers the card"
+        );
+        assert!(
+            css_rule_body(MAIN_CSS_SOURCE, ".habit-row").contains("position: relative;"),
+            "the stretched layer covers the card only if the card is its containing block"
+        );
+        assert!(
+            css_rule_body(MAIN_CSS_SOURCE, "a.habit-name::after").contains("inset: 0;"),
+            "the stretched layer must cover the whole card"
+        );
     }
 
     // @scenario: safe-area-bleed/S3
