@@ -432,17 +432,79 @@ mod tests {
         assert!(repository.all().is_empty());
     }
 
+    const INVISIBLES: [char; 17] = [
+        '\u{200B}', '\u{200E}', '\u{200F}', '\u{2060}', '\u{2061}', '\u{2062}', '\u{2063}',
+        '\u{2064}', '\u{FEFF}', '\u{00AD}', '\u{3164}', '\u{115F}', '\u{1160}', '\u{2066}',
+        '\u{2069}', '\u{202A}', '\u{202E}',
+    ];
+
+    // @scenario: add-habit/S16
+    #[test]
+    fn a_title_made_only_of_invisible_characters_is_refused_and_stores_nothing() {
+        let joiners = [
+            String::from("\u{200D}"),
+            String::from("\u{200C}"),
+            String::from("\u{200D} \u{200C}"),
+        ];
+        let invisibles = INVISIBLES.iter().map(|c| format!("{c}{c} "));
+        for title in invisibles.chain(joiners) {
+            let (add_habit, repository) = a_fresh_add_habit();
+
+            let result = add_habit.execute(title.clone(), 3);
+
+            assert_eq!(
+                result,
+                Err(AddHabitError::InvalidHabit(HabitError::TitleLength {
+                    min: HabitTitle::MIN_LEN,
+                    max: HabitTitle::MAX_LEN,
+                })),
+                "{title:?}"
+            );
+            assert!(repository.all().is_empty(), "{title:?}");
+        }
+    }
+
+    // @scenario: add-habit/S13
+    #[test]
+    fn an_invisible_character_between_words_is_stripped_from_the_stored_title() {
+        for invisible in INVISIBLES {
+            let (add_habit, repository) = a_fresh_add_habit();
+
+            let result = add_habit.execute(format!("Lire{invisible} une page"), 3);
+
+            assert_eq!(result, Ok(()), "U+{:04X}", invisible as u32);
+            assert_eq!(
+                repository.all(),
+                vec![a_habit("fixed-guid", "Lire une page", 3)],
+                "U+{:04X}",
+                invisible as u32
+            );
+        }
+    }
+
+    // @scenario: add-habit/S13
+    #[test]
+    fn a_zero_width_joiner_inside_an_emoji_sequence_is_kept() {
+        let (add_habit, repository) = a_fresh_add_habit();
+        let family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467} sport";
+
+        let result = add_habit.execute(String::from(family), 3);
+
+        assert_eq!(result, Ok(()));
+        assert_eq!(repository.all(), vec![a_habit("fixed-guid", family, 3)]);
+    }
+
     // @scenario: add-habit/S13
     #[test]
     fn an_interior_newline_or_tab_becomes_a_space_instead_of_gluing_the_words() {
         let (add_habit, repository) = a_fresh_add_habit();
 
-        let result = add_habit.execute(String::from("Lire\nune\tpage"), 3);
+        let result = add_habit.execute(String::from("Lire\nune\tpage\rici"), 3);
 
         assert_eq!(result, Ok(()));
         assert_eq!(
             repository.all(),
-            vec![a_habit("fixed-guid", "Lire une page", 3)]
+            vec![a_habit("fixed-guid", "Lire une page ici", 3)]
         );
     }
 

@@ -100,7 +100,7 @@ Feature: Add a habit to my daily life
     Then the name field carries a maximum length of 50 characters
 
   @scenario:S16
-  Scenario: A title made only of control or bidi-override characters is refused
+  Scenario: A title made only of control, bidi-override or invisible characters is refused
     Given a daily life holding fewer than 5 habits
-    When a habit is added with a title made only of control and bidi-override characters
+    When a habit is added with a title made only of control, bidi-override or invisible characters, such as a zero-width space or a lone zero-width joiner
     Then it is rejected with the title-length rule

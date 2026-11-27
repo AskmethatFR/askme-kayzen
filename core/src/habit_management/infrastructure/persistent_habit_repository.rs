@@ -401,6 +401,20 @@ mod tests {
         assert_eq!(quarantine.load(), None);
     }
 
+    #[test]
+    fn a_stored_title_with_a_bidi_override_loads_cleaned_not_as_stored() {
+        let bidi_override = '\u{202e}';
+        let payload = format!(
+            r#"{{"v":1,"habits":[{{"id":"h-1","title":"Lire{bidi_override} une page","state":"Active","steps":[{{"on":20000,"goal":3}}],"completions":[]}}]}}"#
+        );
+        let store: Rc<dyn SnapshotStore> = Rc::new(InMemorySnapshotStore::seeded(payload));
+
+        let repository = repository_over(Rc::clone(&store));
+
+        let habit = repository.get(&HabitId::new("h-1").unwrap()).unwrap();
+        assert_eq!(habit.title().value(), "Lire une page");
+    }
+
     const A_MINUTES_SNAPSHOT: &str = r#"{"v":1,"habits":[{"id":"h-1","title":"Read one page","state":"Paused","steps":[{"on":20003,"goal":5},{"on":20010,"goal":6}],"completions":[20003,20003,20005]}]}"#;
 
     #[test]
