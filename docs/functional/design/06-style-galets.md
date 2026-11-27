@@ -234,6 +234,7 @@ sur ces points ; ce sont des faits, pas des choix de design.
 | Galet d'Aujourd'hui | l'état éteint de `.pebble` se dessine avec `--color-ink-soft`, pas avec le contour `--color-outline` que la règle des états éteints prescrit |
 | Annuler un pas | rien n'annule une validation faite sur la cible d'Aujourd'hui |
 | Pied fixe | il est haut ; les lignes de fin de vie ne sont plus fixées (elles défilent avec la page, 12 sites de marge de sécurité, `safe-area-bleed` S3) ; sous 380px la coche de « C'est fait » disparaît |
+| Taille de texte système | changer la taille de texte du système (ou le mode sombre) pendant que l'app est ouverte ne relance plus l'Activity (relancer faisait avorter le runtime Rust) ; la nouvelle taille n'est pas relayée à la page, elle s'applique au prochain démarrage à froid (à confirmer sur téléphone). Le mode sombre ne change rien : l'app n'a pas de thème sombre (adr-0028, « Configuration changes ») |
 | Paysage court | à 360-412px de haut, le défilement est inévitable : au repos, la ligne qui chevauche le bord de la barre ou du pied (la deuxième carte d'Aujourd'hui, la seconde ancrée) passe dessous, et sur le Détail à 360px avec le compte du jour, les tuiles de rythme dépassent sous le pied ; tout reste atteignable en défilant, rien n'est couvert en bas de page |
 
 ## Aperçu des écrans

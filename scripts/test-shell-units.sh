@@ -4181,6 +4181,17 @@ manifest_launcher_exported="$(printf '%s' "$manifest_xml" | grep -cE '<activity 
 assert_eq "1" "$manifest_launcher_exported" \
     "AndroidManifest.xml: the exported component is dev.dioxus.main.MainActivity"
 
+# A relaunch of the Activity aborts the native Rust runtime (FORTIFY: destroyed
+# mutex), so every configuration change the user can trigger while the app is
+# open must be handled in place, never answered by a recreate.
+manifest_config_changes="$(printf '%s' "$manifest_xml" | grep -oE 'android:configChanges="[^"]*"' | sed -E 's/.*="([^"]*)"/\1/')"
+for cfg in uiMode fontScale smallestScreenSize density locale layoutDirection; do
+    cfg_present="no"
+    case "|$manifest_config_changes|" in *"|$cfg|"*) cfg_present="yes" ;; esac
+    assert_eq "yes" "$cfg_present" \
+        "AndroidManifest.xml: configChanges handles $cfg, so the Activity is not relaunched into the native runtime abort"
+done
+
 ma_padding_hits="$(grep -cF 'view.setPadding(' "$MA_FIXTURE" || true)"
 assert_eq "0" "$ma_padding_hits" \
     "patch_main_activity_edge_to_edge: decor-view inset padding is absent, the page paints into the bands"
